@@ -13,7 +13,7 @@ I highly recommend checking out the [F# directory](https://github.com/danne931/f
 where you'll find a rewrite of all use cases in F#.  [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference)
 makes writing programs with functional programming quite a bit more comfortable than with C#.
 If you've found your way around the C# directory then the F# directory structure should feel quite
-similar.  Once there you will see we longer need **Paul Louth**'s language-ext and his echo-process actor library has been replaced
+similar.  Once there you will see we no longer need **Paul Louth**'s language-ext and his echo-process actor library has been replaced
 with [Akka](https://github.com/akkadotnet/akka.net).
 
 ## Use Cases
