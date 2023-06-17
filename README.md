@@ -34,6 +34,9 @@ web page to test the use cases against an account.
 - History of transactions on the account
 - Toggling between a transfer sender & receiver account demonstrates debits in one account and credits in the other
 
+## Demonstration
+![fp-dotnet-demonstration](https://github.com/danne931/functional-programming-in-csharp-banking-sample/assets/4181901/5a5fc264-e93b-4e42-9c13-dcfd3e19b059)
+
 ## Running the app
 1. docker pull eventstore/eventstore
 2. docker run --name esdb-node -it -p 2113:2113 -p 1113:1113 eventstore/eventstore:latest --insecure --run-projections=All --mem-db
