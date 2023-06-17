@@ -1,4 +1,4 @@
-# functional-programming-in-dotnet-banking-sample
+# Banking on dotnet functional programming
 
 ## Intent
 I hope this repo can serve as a practical learning resource for incorporating functional programming concepts into your dotnet
