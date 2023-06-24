@@ -139,6 +139,7 @@ module private StateTransition =
 
    let limitDailyDebits state (cmd: LimitDailyDebitsCommand) =
       let evt = DailyDebitLimitUpdatedEvent.create cmd |> DailyDebitLimitUpdated
+
       Ok(evt, applyEvent state evt)
 
    let lockCard state (cmd: LockCardCommand) =

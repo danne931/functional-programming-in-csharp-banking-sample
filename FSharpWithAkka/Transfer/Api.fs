@@ -10,10 +10,9 @@ open Lib.Types
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-let domesticTransfer (evt: BankEvent<DebitedTransfer>) =
-   task {
-      // Simulate network request to send money to domestic bank
-      (*
+let domesticTransfer (evt: BankEvent<DebitedTransfer>) = task {
+   // Simulate network request to send money to domestic bank
+   (*
       do! DomesticTransferService.Handle {
          AccountNumber = cmd.Recipient.Identification
          RoutingNumber = cmd.Recipient.RoutingNumber
@@ -21,8 +20,8 @@ let domesticTransfer (evt: BankEvent<DebitedTransfer>) =
          Timestamp = cmd.Timestamp
       }
       *)
-      do! Task.Delay 1000
-   }
+   do! Task.Delay 1000
+}
 
 // Simulate network request to send money to international bank
 let internationalTransfer (evt: BankEvent<DebitedTransfer>) =

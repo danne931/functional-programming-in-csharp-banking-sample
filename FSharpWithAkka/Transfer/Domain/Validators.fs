@@ -22,29 +22,28 @@ module Validators =
          recipientExists: EventStoreClient -> TransferRecipient -> bool Task
       )
       =
-      (fun (cmd: RegisterTransferRecipientCommand) ->
-         task {
-            let recipient = cmd.Recipient
+      (fun (cmd: RegisterTransferRecipientCommand) -> task {
+         let recipient = cmd.Recipient
 
-            if
-               recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
-               && isNone recipient.RoutingNumber
-            then
-               return Error "TransferErr.InvalidDomesticRecipient"
-            elif
-               recipient.AccountEnvironment = RecipientAccountEnvironment.International
-               && isNull recipient.Currency
-            then
-               return Error "TransferErr.InvalidInternationalRecipient"
+         if
+            recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
+            && isNone recipient.RoutingNumber
+         then
+            return Error "TransferErr.InvalidDomesticRecipient"
+         elif
+            recipient.AccountEnvironment = RecipientAccountEnvironment.International
+            && isNull recipient.Currency
+         then
+            return Error "TransferErr.InvalidInternationalRecipient"
+         else
+            let! exists = recipientExists es recipient
+
+            // TODO: Remove Guid play
+            if not exists then
+               return
+                  Error
+                     $"TransferErr.RecipientNotFound(Guid(recipient.Identification))"
             else
-               let! exists = recipientExists es recipient
-
-               // TODO: Remove Guid play
-               if not exists then
-                  return
-                     Error
-                        $"TransferErr.RecipientNotFound(Guid(recipient.Identification))"
-               else
-                  return Ok()
-         })
+               return Ok()
+      })
       |> AsyncValidator

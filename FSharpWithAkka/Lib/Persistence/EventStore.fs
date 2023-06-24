@@ -16,24 +16,23 @@ let tryDeserialize (e: ResolvedEvent) =
       printfn "tryDeserialize fail: %A" ex.Message
       reraise ()
 
-let readStream (es: EventStoreClient) streamName (resolveLinkTos: bool) =
-   task {
-      let stream =
-         es.ReadStreamAsync(
-            Direction.Forwards,
-            streamName,
-            StreamPosition.Start,
-            resolveLinkTos = resolveLinkTos
-         )
+let readStream (es: EventStoreClient) streamName (resolveLinkTos: bool) = task {
+   let stream =
+      es.ReadStreamAsync(
+         Direction.Forwards,
+         streamName,
+         StreamPosition.Start,
+         resolveLinkTos = resolveLinkTos
+      )
 
-      let! readState = stream.ReadState
+   let! readState = stream.ReadState
 
-      if (readState = ReadState.StreamNotFound) then
-         return None
-      else
-         let! events = stream |> map tryDeserialize |> toListAsync
-         return Some events
-   }
+   if (readState = ReadState.StreamNotFound) then
+      return None
+   else
+      let! events = stream |> map tryDeserialize |> toListAsync
+      return Some events
+}
 
 let saveAndPublish
    (es: EventStoreClient)
@@ -56,18 +55,13 @@ let saveAndPublish
 let softDelete (es: EventStoreClient) streamName =
    es.DeleteAsync(streamName, StreamState.Any)
 
-let exists (es: EventStoreClient) streamName =
-   task {
-      let stream =
-         es.ReadStreamAsync(
-            Direction.Forwards,
-            streamName,
-            StreamPosition.Start
-         )
+let exists (es: EventStoreClient) streamName = task {
+   let stream =
+      es.ReadStreamAsync(Direction.Forwards, streamName, StreamPosition.Start)
 
-      let! readState = stream.ReadState
-      return readState <> ReadState.StreamNotFound
-   }
+   let! readState = stream.ReadState
+   return readState <> ReadState.StreamNotFound
+}
 
 let connect connString =
    EventStoreClientSettings.Create connString |> EventStoreClient

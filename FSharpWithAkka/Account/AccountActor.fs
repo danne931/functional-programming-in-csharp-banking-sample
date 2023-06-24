@@ -49,6 +49,7 @@ let start (initialState: Account.AccountState) (registry: AccountRegistry) =
             mailbox
             id
          |> ignore
+
          ignored ()
       | LookupCommand _ ->
          mailbox.Sender() <! account
@@ -64,6 +65,7 @@ let start (initialState: Account.AccountState) (registry: AccountRegistry) =
          | Ok((event, newState) as validationResult) ->
             try
                (registry.saveAndPublish mailbox (Envelope.unwrap event)).Wait()
+
                registry.broadcast validationResult |> ignore
             with err when true ->
                registry.broadcastError err.Message |> ignore
