@@ -21,7 +21,7 @@ with [Akka](https://github.com/akkadotnet/akka.net).
 2. Debit
 3. Registering a transfer recipient internal to the bank
 4. Transferring money to a registered recipient debits the sender and credits the receiver
-5. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/main/CSharpWithLanguageExt/Config.cs) to 40 seconds or so*
+5. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/488cb3498b9255ef31145e94060049dac9eac3b1/CSharpWithLanguageExt/Account/AccountActor.cs#L45) to 40 seconds or so*
 6. Daily debit limit set by the customer
 7. Lock/unlock debit card
 
