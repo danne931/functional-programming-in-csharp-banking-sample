@@ -32,7 +32,6 @@ let private canIssueMaintenanceFee
       else
          Some res)
 
-
 let start
    (getAccountEvents: Guid -> AccountEvent List Option Task)
    (lookBackDate: _ -> DateTime)
@@ -40,30 +39,42 @@ let start
    (mailbox: Actor<_>)
    (accountId: Guid)
    =
-   let handler (ctx: Actor<Guid>) id =
-      let criteriaMet =
-         canIssueMaintenanceFee getAccountEvents (lookBackDate ()) id
+   let handler (ctx: Actor<obj>) =
+      let schedule =
+         ctx.ScheduleRepeatedly
+            (scheduledAt ())
+            (scheduledAt ())
+            ctx.Self
+            accountId
 
-      if isSome criteriaMet then
-         ctx.Parent()
-         <! (DebitCommand(
-                accountId,
-                DateTime.UtcNow,
-                Constants.Fee,
-                Account.Constants.DebitOriginMaintenanceFee,
-                "Monthly Maintenance Fee"
-             )
-             |> ActorStateChangeCommand.init)
+      let rec loop () = actor {
+         let! msg = ctx.Receive()
 
-      ignored ()
+         match msg with
+         | LifecycleEvent e ->
+            match e with
+            | PostStop -> schedule.Cancel()
+            | _ -> Ignore
+         | :? Guid ->
+            let criteriaMet =
+               canIssueMaintenanceFee
+                  getAccountEvents
+                  (lookBackDate ())
+                  accountId
 
-   let aref = spawn mailbox "monthly_maintenance_fee" (props (actorOf2 handler))
+            if isSome criteriaMet then
+               ctx.Parent()
+               <! (DebitCommand(
+                      accountId,
+                      DateTime.UtcNow,
+                      Constants.Fee,
+                      Account.Constants.DebitOriginMaintenanceFee,
+                      "Monthly Maintenance Fee"
+                   )
+                   |> ActorStateChangeCommand.init)
+         | _ -> Unhandled
+      }
 
-   mailbox.System.Scheduler.ScheduleTellRepeatedly(
-      TimeSpan.FromMilliseconds 0,
-      scheduledAt (),
-      aref,
-      accountId
-   )
+      loop ()
 
-   aref
+   spawn mailbox "monthly_maintenance_fee" (props handler)
