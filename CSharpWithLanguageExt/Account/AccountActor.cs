@@ -11,9 +11,9 @@ using Bank.Account.Domain;
 namespace Bank.Account.Actors;
 
 public record AccountRegistry(
+   Func<Guid, Task<Option<Lst<object>>>> loadAccountEvents,
    Func<Guid, Task<Option<AccountState>>> loadAccount,
    Func<Event, Task<Unit>> saveAndPublish,
-   Func<Guid, Lst<ProcessId>> startChildActors,
    Func<(Event, AccountState), Task> broadcast,
    Func<string, Task> broadcastError
 ) {
@@ -42,8 +42,14 @@ public static class AccountActor {
          () => initialState,
          (AccountState account, Command cmd) => {
             if (cmd is StartChildrenCmd) {
-               var pids = registry.startChildActors(account.EntityId);
-               WriteLine($"AccountActor: Started child actors {pids}");
+               MaintenanceFeeActor.Start(
+                  registry.loadAccountEvents,
+                  //lookBackDate: () => DateTime.UtcNow.AddDays(-30),
+                  //scheduledAt: () => TimeSpan.FromDays(30),
+                  lookBackDate: () => DateTime.UtcNow.AddMinutes(-2),
+                  scheduledAt: () => TimeSpan.FromMinutes(2),
+                  cmd.EntityId
+               );
                return account;
             }
             if (cmd is LookupCmd) {

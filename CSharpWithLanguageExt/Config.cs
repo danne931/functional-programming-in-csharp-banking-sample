@@ -1,6 +1,5 @@
 using Echo;
 using EventStore.Client;
-using static LanguageExt.Prelude;
 using Microsoft.AspNetCore.SignalR;
 
 using ES = Lib.Persistence.EventStoreManager;
@@ -33,6 +32,7 @@ public static class Config {
 
       builder.Services.AddSingleton<AccountRegistry>(provider =>
          new AccountRegistry(
+            loadAccountEvents: id => AccountAPI.GetAccountEvents(esClient, id),
             loadAccount: id => AccountAPI.GetAccount(
                id => AccountAPI.GetAccountEvents(esClient, id),
                id
@@ -40,16 +40,6 @@ public static class Config {
             saveAndPublish: evt => AccountAPI.SaveAndPublish(
                esClient,
                evt
-            ),
-            startChildActors: id => List(
-               MaintenanceFeeActor.Start(
-                  id => AccountAPI.GetAccountEvents(esClient, id),
-                  //lookBackDate: () => DateTime.UtcNow.AddDays(-30),
-                  //scheduledAt: () => TimeSpan.FromDays(30),
-                  lookBackDate: () => DateTime.UtcNow.AddMinutes(-2),
-                  scheduledAt: () => TimeSpan.FromMinutes(2),
-                  id
-               )
             ),
             broadcast: ((Event evt, AccountState state) stateTransition) =>
                provider

@@ -17,9 +17,9 @@ let PID (id: Guid) = $"akka://bank/user/{actorName id}"
 
 type AccountRegistry =
    {
+      loadAccountEvents: Guid -> AccountEvent list option Task
       loadAccount: Guid -> Account.AccountState option Task
       saveAndPublish: Actor<ActorCommand> -> OpenEventEnvelope -> unit Task
-      startChildActors: Actor<ActorCommand> -> Guid -> IActorRef<Guid> list
       broadcast: AccountEvent * Account.AccountState -> Task
       broadcastError: string -> Task
       system: ActorSystem
@@ -40,8 +40,15 @@ let start (initialState: Account.AccountState) (registry: AccountRegistry) =
       =
       function
       | StartChildrenCommand(id: Guid) ->
-         let refs = registry.startChildActors mailbox id
-         printfn "AccountActor: Started child actors %A" refs
+         MaintenanceFeeActor.start
+            registry.loadAccountEvents
+            //(fun _ -> DateTime.UtcNow.AddDays -30)
+            //(fun _ -> TimeSpan.FromDays 30)
+            (fun _ -> DateTime.UtcNow.AddMinutes -2)
+            (fun _ -> TimeSpan.FromMinutes 2)
+            mailbox
+            id
+         |> ignore
          ignored ()
       | LookupCommand _ ->
          mailbox.Sender() <! account

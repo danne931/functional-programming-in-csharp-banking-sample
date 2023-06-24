@@ -55,19 +55,9 @@ let injectDependencies
    =
    builder.Services.AddSingleton<AccountActor.AccountRegistry>(fun provider -> {
       system = actorSystem
+      loadAccountEvents = (getAccountEvents esClient)
       loadAccount = getAccount (getAccountEvents esClient)
       saveAndPublish = saveAndPublish esClient
-      startChildActors =
-         (fun mailbox id -> [
-            MaintenanceFeeActor.start
-               (getAccountEvents esClient)
-               //(fun _ -> DateTime.UtcNow.AddDays -30)
-               //(fun _ -> TimeSpan.FromDays 30)
-               (fun _ -> DateTime.UtcNow.AddMinutes -2)
-               (fun _ -> TimeSpan.FromMinutes 2)
-               mailbox
-               id
-         ])
       broadcast =
          (fun (event, accountState) ->
             provider
