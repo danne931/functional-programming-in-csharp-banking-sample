@@ -3,7 +3,7 @@ module Config
 
 open System
 open Akka.Event
-open Akka.FSharp
+open Akkling
 open EventStore.Client
 open Microsoft.AspNetCore.SignalR
 open Microsoft.AspNetCore.Builder
@@ -20,15 +20,22 @@ let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    |> ignore
 
 let startActorModel () =
-   let system = System.create "bank" (Configuration.load ())
+   let system = System.create "bank" (Configuration.defaultConfig ())
 
-   let monitorActor =
-      spawn
-         system
-         "deadletters"
-         (actorOf (fun i -> printfn "Dead Process: %A" i))
+   let deadLetterHandler (msg: AllDeadLetters) =
+      printfn
+         "Dead Letters:\nFrom: %A\nTo: %A\nMessage: %A"
+         msg.Sender.Path
+         msg.Recipient.Path
+         msg.Message
 
-   system.EventStream.Subscribe(monitorActor, typeof<AllDeadLetters>) |> ignore
+      Ignore
+
+   let deadLetterRef =
+      spawn system "deadletters" (props (actorOf deadLetterHandler))
+
+   EventStreaming.subscribe deadLetterRef system.EventStream |> ignore
+
    system
 
 

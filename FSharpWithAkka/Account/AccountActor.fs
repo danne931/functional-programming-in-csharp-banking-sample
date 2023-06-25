@@ -26,8 +26,7 @@ type AccountRegistry =
    }
 
    member x.delete(id: Guid) =
-      let aref = select x.system (PID id)
-      stop aref |> ignore
+      select x.system (PID id) <! PoisonPill.Instance
 
    member x.syncStateChange(cmd: Command) =
       let ref = select x.system (PID cmd.EntityId)
@@ -48,7 +47,6 @@ let start (initialState: Account.AccountState) (registry: AccountRegistry) =
             (fun _ -> TimeSpan.FromMinutes 2)
             mailbox
             id
-         |> ignore
 
          ignored ()
       | LookupCommand _ ->

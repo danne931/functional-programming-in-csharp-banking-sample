@@ -47,7 +47,7 @@ let start
             ctx.Self
             accountId
 
-      let rec loop () = actor {
+      actor {
          let! msg = ctx.Receive()
 
          match msg with
@@ -75,6 +75,4 @@ let start
          | _ -> Unhandled
       }
 
-      loop ()
-
-   spawn mailbox "monthly_maintenance_fee" (props handler)
+   spawn mailbox "monthly_maintenance_fee" (props handler) |> ignore
