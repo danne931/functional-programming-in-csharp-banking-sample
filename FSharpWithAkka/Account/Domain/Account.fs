@@ -137,7 +137,10 @@ module private StateTransition =
    let debit state (cmd: DebitCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
-      elif state.Status = AccountStatus.ActiveWithLockedCard then
+      elif
+         state.Status = AccountStatus.ActiveWithLockedCard
+         && cmd.Origin <> Constants.DebitOriginMaintenanceFee
+      then
          Error "AccountCardLocked"
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
          Error "InsufficientBalance"

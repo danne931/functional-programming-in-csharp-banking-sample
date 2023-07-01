@@ -126,7 +126,8 @@ public static class Account {
       if (state.Status == AccountStatus.Closed)
          return Errors.AccountNotActive;
 
-      if (state.Status == AccountStatus.ActiveWithLockedCard)
+      if (state.Status == AccountStatus.ActiveWithLockedCard &&
+          cmd.Origin != Constants.DebitOriginMaintenanceFee)
          return Errors.AccountCardLocked;
 
       if (state.Balance - cmd.Amount < state.AllowedOverdraft)
