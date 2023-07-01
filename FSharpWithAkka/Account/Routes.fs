@@ -5,8 +5,10 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open EventStore.Client
+open Akkling
 
 open Lib.Types
+open BankTypes
 open Bank.Account.Domain
 open Bank.Account.Api
 
@@ -21,89 +23,86 @@ module private Path =
    let LockCard = Base + "/lock"
    let UnlockCard = Base + "/unlock"
 
-let startAccountRoutes (app: WebApplication) (esClient: EventStoreClient) =
+let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
-      Func<Task<IResult>>(fun _ ->
-         getAccountCreationEvents esClient |> RouteUtil.UnwrapOption)
+      Func<EventStoreClient, Task<IResult>>(fun es ->
+         getAccountCreationEvents es |> RouteUtil.UnwrapOption)
    )
    |> ignore
 
    app.MapGet(
       Path.Account,
-      Func<Guid, Task<IResult>>(fun id ->
-         getAccount (getAccountEvents esClient) id |> RouteUtil.UnwrapOption)
+      Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
+         getAccount (getAccountEvents es) id |> RouteUtil.UnwrapOption)
    )
    |> ignore
 
    app.MapGet(
       Path.AccountEvents,
-      Func<Guid, Task<IResult>>(fun id ->
-         getAccountEvents esClient id |> RouteUtil.UnwrapOption)
+      Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
+         getAccountEvents es id |> RouteUtil.UnwrapOption)
    )
    |> ignore
 
    app.MapPost(
       Path.Base,
-      Func<AccountActor.AccountRegistry, CreateAccountCommand, Task<IResult>>
-         (fun registry command ->
-            createAccount
-               esClient
-               registry
-               (Validators.accountCreate ())
-               command
+      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, CreateAccountCommand, Task<IResult>>
+         (fun es coordinator command ->
+            createAccount es coordinator (Validators.accountCreate ()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore
 
    app.MapDelete(
       Path.AccountEvents,
-      Func<AccountActor.AccountRegistry, Guid, Task<IResult>>(fun registry id ->
-         softDeleteEvents esClient registry id |> RouteUtil.Unwrap)
+      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, Guid, Task<IResult>>
+         (fun es coordinator id ->
+            softDeleteEvents es coordinator id |> RouteUtil.Unwrap)
    )
    |> ignore
 
    app.MapPost(
       Path.Deposit,
-      Func<AccountActor.AccountRegistry, DepositCashCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (Validators.deposit ())
+      Func<IActorRef<AccountCoordinatorMessage>, DepositCashCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (Validators.deposit ()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<AccountActor.AccountRegistry, DebitCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (Validators.debit ())
+      Func<IActorRef<AccountCoordinatorMessage>, DebitCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (Validators.debit ()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<AccountActor.AccountRegistry, LimitDailyDebitsCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (Validators.dailyDebitLimit ())
+      Func<IActorRef<AccountCoordinatorMessage>, LimitDailyDebitsCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (Validators.dailyDebitLimit ()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<AccountActor.AccountRegistry, LockCardCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (PassValidation())
+      Func<IActorRef<AccountCoordinatorMessage>, LockCardCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (PassValidation()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<AccountActor.AccountRegistry, UnlockCardCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (PassValidation())
+      Func<IActorRef<AccountCoordinatorMessage>, UnlockCardCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (PassValidation()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore

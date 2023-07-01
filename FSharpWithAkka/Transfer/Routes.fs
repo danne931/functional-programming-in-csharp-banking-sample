@@ -4,9 +4,9 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Microsoft.FSharp.Core
 open EventStore.Client
-
 open System
 open System.Threading.Tasks
+open Akkling
 
 open BankTypes
 open Bank.Transfer.Domain
@@ -17,15 +17,15 @@ module private Path =
    let Base = "/transfers"
    let TransferRecipient = Base + "/register-recipient"
 
-let startTransferRoutes (app: WebApplication) (es: EventStoreClient) =
+let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       Path.TransferRecipient,
-      Func<AccountActor.AccountRegistry, RegisterTransferRecipientCommand, Task<IResult>>(
-         (fun registry command ->
+      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, RegisterTransferRecipientCommand, Task<IResult>>(
+         (fun es coordinator command ->
             processCommand
-               command
-               registry
+               coordinator
                (Validators.registerTransferRecipient (es, recipientExists))
+               command
             |> RouteUtil.UnwrapValidation)
       )
    )
@@ -33,9 +33,9 @@ let startTransferRoutes (app: WebApplication) (es: EventStoreClient) =
 
    app.MapPost(
       Path.Base,
-      Func<AccountActor.AccountRegistry, TransferCommand, Task<IResult>>
-         (fun registry command ->
-            processCommand command registry (Validators.transfer ())
+      Func<IActorRef<AccountCoordinatorMessage>, TransferCommand, Task<IResult>>
+         (fun coordinator command ->
+            processCommand coordinator (Validators.transfer ()) command
             |> RouteUtil.UnwrapValidation)
    )
    |> ignore

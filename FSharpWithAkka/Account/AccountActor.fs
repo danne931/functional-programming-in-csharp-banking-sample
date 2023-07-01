@@ -2,45 +2,27 @@
 module AccountActor
 
 open System
-open System.Threading.Tasks
-open Microsoft.FSharp.Core.Option
-open FSharp.Control
-open Akka.Actor
 open Akkling
 
-open BankTypes
 open Lib.Types
+open BankTypes
 open ActorUtil
+open Bank.Transfer.Domain
 
-let actorName (id: Guid) = $"accounts_{id}"
-let PID (id: Guid) = $"akka://bank/user/{actorName id}"
+let getTransferActor =
+   getChildActorRef<AccountMessage, BankEvent<DebitedTransfer>>
 
-type AccountRegistry =
-   {
-      loadAccountEvents: Guid -> AccountEvent list option Task
-      loadAccount: Guid -> Account.AccountState option Task
-      saveAndPublish: Actor<ActorCommand> -> OpenEventEnvelope -> unit Task
-      broadcast: AccountEvent * Account.AccountState -> Task
-      broadcastError: string -> Task
-      system: ActorSystem
-   }
-
-   member x.delete(id: Guid) =
-      select x.system (PID id) <! PoisonPill.Instance
-
-   member x.syncStateChange(cmd: Command) =
-      let ref = select x.system (PID cmd.EntityId)
-      ref <! ActorStateChangeCommand.init cmd
-
-let start (initialState: Account.AccountState) (registry: AccountRegistry) =
-   let rec handler
-      (account: Account.AccountState)
-      (mailbox: Actor<ActorCommand>)
-      =
+let start
+   (persistence: AccountPersistence)
+   (broadcaster: AccountBroadcast)
+   (mailbox: Actor<_>)
+   (initialState: AccountState)
+   =
+   let rec handler (account: AccountState) (mailbox: Actor<AccountMessage>) =
       function
-      | StartChildrenCommand(id: Guid) ->
+      | StartChildren id ->
          MaintenanceFeeActor.start
-            registry.loadAccountEvents
+            persistence.loadAccountEvents
             //(fun _ -> DateTime.UtcNow.AddDays -30)
             //(fun _ -> TimeSpan.FromDays 30)
             (fun _ -> DateTime.UtcNow.AddMinutes -2)
@@ -49,55 +31,46 @@ let start (initialState: Account.AccountState) (registry: AccountRegistry) =
             id
 
          ignored ()
-      | LookupCommand _ ->
+      | Lookup _ ->
          mailbox.Sender() <! account
          ignored ()
-      | StateChangeCommand cmd ->
+      | StateChange cmd ->
          let validation = Account.stateTransition account cmd
 
          match validation with
          | Error(err) ->
-            registry.broadcastError err |> ignore
+            broadcaster.broadcastError err |> ignore
             printfn "AccountActor: validation fail %A" err
             become (handler account mailbox)
          | Ok((event, newState) as validationResult) ->
             try
-               (registry.saveAndPublish mailbox (Envelope.unwrap event)).Wait()
-
-               registry.broadcast validationResult |> ignore
+               (event |> Envelope.unwrap |> persistence.save).Wait()
+               broadcaster.broadcast validationResult |> ignore
             with err when true ->
-               registry.broadcastError err.Message |> ignore
+               broadcaster.broadcastError err.Message |> ignore
                printfn "%A" err
                reraise ()
+
+            match event with
+            | DebitedTransfer e ->
+               let opt =
+                  getTransferActor mailbox TransferRecipientActor.ActorName
+
+               let aref =
+                  match opt with
+                  | None _ -> TransferRecipientActor.start mailbox
+                  | Some aref -> aref
+
+               aref <! e
+            | _ -> ()
 
             become (handler newState mailbox)
 
    let aref =
       spawn
-         registry.system
-         (actorName initialState.EntityId)
+         mailbox
+         (string initialState.EntityId)
          (initialState |> handler |> actorOf2 |> props)
 
-   aref <! StartChildrenCommand initialState.EntityId
+   aref <! StartChildren initialState.EntityId
    aref
-
-let lookup
-   (registry: AccountRegistry)
-   (id: Guid)
-   : Account.AccountState option Task
-   =
-   task {
-      let! aref = getActorRef registry.system (PID id)
-
-      if isSome aref then
-         let! account = aref.Value <? (LookupCommand id)
-         return Some account
-      else
-         let! accountOpt = registry.loadAccount id
-
-         return
-            accountOpt
-            |> Option.map (fun acct ->
-               start acct registry |> ignore
-               acct)
-   }

@@ -34,7 +34,7 @@ let readStream (es: EventStoreClient) streamName (resolveLinkTos: bool) = task {
       return Some events
 }
 
-let saveAndPublish
+let save
    (es: EventStoreClient)
    streamName
    ((event, envelope): OpenEventEnvelope)

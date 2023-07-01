@@ -11,10 +11,11 @@ open BankTypes
 open Bank.Account.Domain
 open Lib.Types
 
+
 let processCommand
-   (command: 't :> Command)
-   (registry: AccountActor.AccountRegistry)
+   (accounts: IActorRef<AccountCoordinatorMessage>)
    (validate: Validators<'t>)
+   (command: 't :> Command)
    =
    task {
       let! validation =
@@ -22,19 +23,11 @@ let processCommand
          | Validator v -> v command |> Task.FromResult
          | AsyncValidator v -> v command
 
-      let getAccountVal (cmd: Command) =
-         AccountActor.lookup registry cmd.EntityId
-
       if Result.isError validation then
          return validation
       else
-         let! accountOpt = getAccountVal command
-
-         if isSome accountOpt then
-            registry.syncStateChange command
-            return Ok()
-         else
-            return Error "UnknownAccountId(cmd.entityid)"
+         accounts <! AccountCoordinatorMessage.StateChange command
+         return Ok()
    }
 
 let getAccountEvents esClient id =
@@ -51,10 +44,10 @@ let getAccount
 
 let softDeleteEvents
    esClient
-   (registry: AccountActor.AccountRegistry)
+   (accounts: IActorRef<AccountCoordinatorMessage>)
    accountId
    =
-   registry.delete accountId
+   accounts <! AccountCoordinatorMessage.Delete accountId
    EventStoreManager.softDelete esClient (Account.streamName accountId)
 
 /// <summary>
@@ -65,33 +58,18 @@ let softDeleteEvents
 let getAccountCreationEvents esClient =
    EventStoreManager.readStream esClient "$et-CreatedAccount" true
 
-let saveAndPublish
-   esClient
-   (mailbox: Actor<_>)
-   ((event, envelope) as props: OpenEventEnvelope)
-   =
-   task {
-      do!
-         EventStoreManager.saveAndPublish
-            esClient
-            (Account.streamName envelope.EntityId)
-            props
-            None
-
-      match event with
-      | InternalTransferRecipient _
-      | DomesticTransferRecipient _
-      | InternationalTransferRecipient _ -> TransferRecipientActor.start mailbox
-      | DebitedTransfer e ->
-         printfn "tell child (Transfer recipient actor) (DebitedTransfer)"
-         let selection = select mailbox TransferRecipientActor.ActorName
-         selection <! e
-      | _ -> ()
-   }
+let save esClient ((_, envelope) as props: OpenEventEnvelope) = task {
+   do!
+      EventStoreManager.save
+         esClient
+         (Account.streamName envelope.EntityId)
+         props
+         None
+}
 
 let createAccount
    esClient
-   (registry: AccountActor.AccountRegistry)
+   (accounts: IActorRef<AccountCoordinatorMessage>)
    (validate: CreateAccountCommand -> Result<CreateAccountCommand, string>)
    (command: CreateAccountCommand)
    =
@@ -104,7 +82,7 @@ let createAccount
          let evt = CreatedAccountEvent.create command
 
          do!
-            EventStoreManager.saveAndPublish
+            EventStoreManager.save
                esClient
                (Account.streamName evt.EntityId)
                (evt |> Envelope.wrap |> Envelope.unwrap)
@@ -112,6 +90,7 @@ let createAccount
                (Some StreamState.NoStream)
 
          let acct = Account.create evt
-         AccountActor.start acct registry |> ignore
+         accounts <! AccountCoordinatorMessage.InitAccount acct
+
          return Ok evt.EntityId
    }

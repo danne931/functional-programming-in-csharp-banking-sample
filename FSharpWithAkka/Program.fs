@@ -10,8 +10,9 @@ Config.enableDefaultHttpJsonSerialization builder
 
 Config.startSignalR builder
 
-let actorSystem = Config.startActorModel ()
 let es = Config.startEventStore builder
+
+let actorSystem = Config.startActorModel ()
 
 Config.injectDependencies builder es actorSystem
 
@@ -22,8 +23,8 @@ app.UseStaticFiles() |> ignore
 
 app.MapHub<AccountHub>("/accountHub") |> ignore
 
-startTransferRoutes app es
-startAccountRoutes app es
+startTransferRoutes app
+startAccountRoutes app
 
 app.Run()
 

@@ -18,10 +18,11 @@
     <Compile Include="Lib/Serialization.fs" />
     <Compile Include="Lib/Persistence/EventStore.fs" />
     <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
-    <Compile Include="Account/AccountActor.fs" />
-    <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Transfer/Api.fs" />
     <Compile Include="Transfer/TransferRecipientActor.fs" />
+    <Compile Include="Account/AccountActor.fs" />
+    <Compile Include="Account/AccountCoordinatorActor.fs" />
+    <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Account/Api.fs" />
     <Compile Include="Lib/Routes.fs" />
     <Compile Include="Account/Routes.fs" />

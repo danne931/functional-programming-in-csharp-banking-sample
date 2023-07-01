@@ -11,28 +11,6 @@ open Lib.Time
 
 let streamName (id: Guid) = "accounts_" + id.ToString()
 
-type AccountStatus =
-   | Active = 0
-   | ActiveWithLockedCard = 1
-   | Closed = 2
-
-type AccountState =
-   {
-      EntityId: Guid
-      FirstName: string
-      LastName: string
-      Currency: string
-      Status: AccountStatus
-      Balance: decimal
-      AllowedOverdraft: decimal
-      DailyDebitLimit: decimal
-      DailyDebitAccrued: decimal
-      LastDebitDate: DateTime option
-      TransferRecipients: Map<string, TransferRecipient>
-   }
-
-   member x.FullName = $"{x.FirstName} {x.LastName}"
-
 module Constants =
    let DebitOriginMaintenanceFee = "actor:maintenance_fee"
 

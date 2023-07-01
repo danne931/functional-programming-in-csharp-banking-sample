@@ -9,9 +9,9 @@ open Microsoft.AspNetCore.SignalR
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
 
+open BankTypes
 open Bank.Account.Api
 open Bank.Hubs
-open type AccountActor.AccountRegistry
 
 let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    builder.Services.ConfigureHttpJsonOptions(fun opts ->
@@ -38,7 +38,6 @@ let startActorModel () =
 
    system
 
-
 let startSignalR (builder: WebApplicationBuilder) =
    builder.Services
       .AddSignalR()
@@ -60,11 +59,13 @@ let injectDependencies
    (esClient: EventStoreClient)
    (actorSystem: Akka.Actor.ActorSystem)
    =
-   builder.Services.AddSingleton<AccountActor.AccountRegistry>(fun provider -> {
-      system = actorSystem
+   let persistence: AccountPersistence = {
       loadAccountEvents = (getAccountEvents esClient)
       loadAccount = getAccount (getAccountEvents esClient)
-      saveAndPublish = saveAndPublish esClient
+      save = save esClient
+   }
+
+   let initBroadcast (provider: IServiceProvider) : AccountBroadcast = {
       broadcast =
          (fun (event, accountState) ->
             provider
@@ -81,8 +82,17 @@ let injectDependencies
             provider
                .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
                .Clients.All.ReceiveError(errMsg))
-   })
+   }
+
+   builder.Services.AddSingleton<AccountBroadcast>(initBroadcast) |> ignore
+
+   builder.Services.AddSingleton<IActorRef<AccountCoordinatorMessage>>
+      (fun provider ->
+         let broadcast = provider.GetRequiredService<AccountBroadcast>()
+         AccountCoordinatorActor.start actorSystem persistence broadcast)
    |> ignore
+
+   builder.Services.AddSingleton<AccountPersistence>(persistence) |> ignore
 
    builder.Services.AddSingleton<EventStoreClient>(esClient) |> ignore
    ()

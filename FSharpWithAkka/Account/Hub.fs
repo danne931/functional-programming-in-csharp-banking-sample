@@ -9,7 +9,7 @@ type IAccountClient =
    abstract member ReceiveMessage:
       {|
          event: AccountEvent
-         newState: Account.AccountState
+         newState: AccountState
       |} ->
          Task
 

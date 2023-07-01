@@ -6,7 +6,6 @@ open System.Threading.Tasks
 open Microsoft.FSharp.Core.Option
 open Akkling
 
-open Lib.Types
 open BankTypes
 open Bank.Account.Domain
 open MaintenanceFee
@@ -63,15 +62,16 @@ let start
                   accountId
 
             if isSome criteriaMet then
-               ctx.Parent()
-               <! (DebitCommand(
-                      accountId,
-                      DateTime.UtcNow,
-                      Constants.Fee,
-                      Account.Constants.DebitOriginMaintenanceFee,
-                      "Monthly Maintenance Fee"
-                   )
-                   |> ActorStateChangeCommand.init)
+               let cmd =
+                  DebitCommand(
+                     accountId,
+                     DateTime.UtcNow,
+                     Constants.Fee,
+                     Account.Constants.DebitOriginMaintenanceFee,
+                     "Monthly Maintenance Fee"
+                  )
+
+               ctx.Parent() <! AccountMessage.StateChange cmd
          | _ -> Unhandled
       }
 

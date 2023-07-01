@@ -1,5 +1,8 @@
 module BankTypes
 
+open System
+open System.Threading.Tasks
+
 open Lib.Types
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -69,3 +72,46 @@ module Envelope =
       | DomesticTransferRecipient evt -> (wrap evt, get evt)
       | InternationalTransferRecipient evt -> (wrap evt, get evt)
       | DebitedTransfer evt -> (wrap evt, get evt)
+
+type AccountStatus =
+   | Active = 0
+   | ActiveWithLockedCard = 1
+   | Closed = 2
+
+type AccountState =
+   {
+      EntityId: Guid
+      FirstName: string
+      LastName: string
+      Currency: string
+      Status: AccountStatus
+      Balance: decimal
+      AllowedOverdraft: decimal
+      DailyDebitLimit: decimal
+      DailyDebitAccrued: decimal
+      LastDebitDate: DateTime option
+      TransferRecipients: Map<string, TransferRecipient>
+   }
+
+   member x.FullName = $"{x.FirstName} {x.LastName}"
+
+type AccountCoordinatorMessage =
+   | InitAccount of AccountState
+   | StateChange of Command
+   | Delete of Guid
+
+type AccountMessage =
+   | StartChildren of Guid
+   | Lookup of Guid
+   | StateChange of Command
+
+type AccountPersistence = {
+   loadAccountEvents: Guid -> AccountEvent list option Task
+   loadAccount: Guid -> AccountState option Task
+   save: OpenEventEnvelope -> unit Task
+}
+
+type AccountBroadcast = {
+   broadcast: AccountEvent * AccountState -> Task
+   broadcastError: string -> Task
+}

@@ -12,7 +12,7 @@ module Constants =
 type FeeCriteria = {
    mutable depositCriteria: bool
    mutable balanceCriteria: bool
-   mutable account: Account.AccountState
+   mutable account: AccountState
 }
 
 let initFeeCriteria events = {

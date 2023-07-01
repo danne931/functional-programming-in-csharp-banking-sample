@@ -4,10 +4,8 @@ open System
 open EventStore.Client
 open FSharp.Control
 open System.Threading.Tasks
-open Akkling
 
 open Lib.Types
-open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 let domesticTransfer (evt: BankEvent<DebitedTransfer>) = task {
@@ -62,31 +60,3 @@ let thirdPartyBankTransfer (evt: BankEvent<DebitedTransfer>) =
          Exception
             "Third party transfer requires a domestic or international account."
       )
-
-let issueTransferToRecipient
-   (evt: BankEvent<DebitedTransfer>)
-   (mailbox: Actor<_>)
-   =
-   task {
-      let recipient = evt.Data.Recipient
-
-      if
-         recipient.AccountEnvironment = RecipientAccountEnvironment.Internal
-      then
-         let origin = evt.EntityId.ToString()
-
-         let aref =
-            select
-               mailbox
-               (recipient.Identification |> Guid |> AccountActor.PID)
-
-         aref
-         <! (DepositCashCommand(
-                Guid recipient.Identification,
-                evt.Data.DebitedAmount,
-                $"Account ({origin.Substring(origin.Length - 4)})"
-             )
-             |> ActorStateChangeCommand.init)
-      else
-         do! thirdPartyBankTransfer (evt)
-   }
