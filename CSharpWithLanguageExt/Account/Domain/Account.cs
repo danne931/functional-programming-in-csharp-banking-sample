@@ -2,6 +2,7 @@ using LanguageExt;
 
 using Time = Lib.Time;
 using Lib.Types;
+using Lib.BankTypes;
 using Bank.Transfer.Domain;
 
 namespace Bank.Account.Domain;
@@ -213,24 +214,4 @@ public static class Account {
    public static class Constants {
       public const string DebitOriginMaintenanceFee = "actor:maintenance_fee";
    }
-}
-
-public sealed record AccountState(
-   Guid EntityId,
-   string FirstName,
-   string LastName,
-   string Currency,
-   AccountStatus Status = AccountStatus.Active,
-   decimal Balance = 0,
-   decimal AllowedOverdraft = 0,
-   decimal DailyDebitLimit = -1,
-   decimal DailyDebitAccrued = 0,
-   DateTime LastDebitDate = default,
-   Map<string, TransferRecipient> TransferRecipients = default
-);
-
-public enum AccountStatus {
-   Active,
-   ActiveWithLockedCard,
-   Closed
 }

@@ -1,6 +1,7 @@
 using EventStore.Client;
 using LanguageExt;
 
+using Lib.BankTypes;
 using static Lib.Validators;
 using static Lib.Route.Response;
 using AccountRegistry = Bank.Account.Actors.AccountRegistry;
@@ -84,12 +85,14 @@ public static class AccountRoutes {
    static Task<IResult> CreateAccount(
       CreateAccountCmd cmd,
       EventStoreClient es,
-      AccountRegistry accounts
+      AccountPersistence persistence,
+      AccountBroadcast broadcaster
    )
    => AccountAPI
       .Create(
          es,
-         accounts,
+         persistence,
+         broadcaster,
          AccountInitValidation(),
          cmd
       )

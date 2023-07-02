@@ -2,6 +2,7 @@ using LanguageExt;
 using static LanguageExt.List;
 
 using Lib.Types;
+using Lib.BankTypes;
 using Bank.Account.Domain;
 using AD = Bank.Account.Domain.Account;
 

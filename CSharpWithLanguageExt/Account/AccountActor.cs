@@ -6,16 +6,16 @@ using static System.Console;
 
 using Lib;
 using Lib.Types;
+using Lib.BankTypes;
 using Bank.Account.Domain;
+using Bank.Transfer.Domain;
+using Bank.Transfer.Actors;
 
 namespace Bank.Account.Actors;
 
 public record AccountRegistry(
-   Func<Guid, Task<Option<Lst<object>>>> loadAccountEvents,
-   Func<Guid, Task<Option<AccountState>>> loadAccount,
-   Func<Event, Task<Unit>> saveAndPublish,
-   Func<(Event, AccountState), Task> broadcast,
-   Func<string, Task> broadcastError
+   AccountPersistence persistence,
+   AccountBroadcast broadcast
 ) {
    public Task<Option<AccountState>> Lookup(Guid id) {
       var process = "@" + AccountActor.PID(id);
@@ -26,16 +26,17 @@ public record AccountRegistry(
       }
 
       return
-         from acct in loadAccount(id)
-         from pid in TaskSucc(Some(AccountActor.Start(acct, this)))
+         from acct in persistence.loadAccount(id)
+         from pid in TaskSucc(Some(AccountActor.Start(persistence, broadcast, acct)))
          select acct;
    }
 }
 
 public static class AccountActor {
    public static ProcessId Start(
-      AccountState initialState,
-      AccountRegistry registry
+      AccountPersistence persistence,
+      AccountBroadcast broadcaster,
+      AccountState initialState
    ) {
       var pid = spawn<AccountState, Command>(
          PID(initialState.EntityId),
@@ -43,7 +44,7 @@ public static class AccountActor {
          (AccountState account, Command cmd) => {
             if (cmd is StartChildrenCmd) {
                MaintenanceFeeActor.Start(
-                  registry.loadAccountEvents,
+                  persistence.loadAccountEvents,
                   //lookBackDate: () => DateTime.UtcNow.AddDays(-30),
                   //scheduledAt: () => TimeSpan.FromDays(30),
                   lookBackDate: () => DateTime.UtcNow.AddMinutes(-2),
@@ -61,19 +62,33 @@ public static class AccountActor {
 
             return validation.Match(
                Fail: errs => {
-                  registry.broadcastError(errs.Head.Message);
+                  broadcaster.broadcastError(errs.Head.Message);
                   WriteLine($"AccountActor: validation fail {errs.Head.Message}");
                   return account;
                },
                Succ: tup => {
+                  var evt = tup.Event;
+
                   try {
-                     registry.saveAndPublish(tup.Event).Wait();
-                     registry.broadcast(tup);
+                     persistence.save(evt).Wait();
+                     broadcaster.broadcast(tup);
                   } catch (Exception err) {
-                     registry.broadcastError(err.Message);
+                     broadcaster.broadcastError(err.Message);
                      WriteLine(err);
                      throw;
                   }
+
+
+                  if (evt is DebitedTransfer) {
+                     var childName = TransferRecipientActor.ActorName;
+
+                     if (!ActorUtil.IsAlive(child(childName))) {
+                        TransferRecipientActor.Start();
+                     }
+
+                     tellChild(childName, (DebitedTransfer) evt);
+                  }
+
                   return tup.NewState;
                }
             );

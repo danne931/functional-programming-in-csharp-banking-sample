@@ -1,11 +1,9 @@
-using static Echo.Process;
 using EventStore.Client;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
 using Lib.Types;
 using Bank.Account.API;
-using Bank.Account.Domain;
 using Bank.Transfer.Domain;
 
 namespace Bank.Transfer.API;
@@ -20,22 +18,6 @@ public static class BankTransferAPI {
          RecipientAccountEnvironment.Domestic => RecipientExistsDomestically(recipient),
          RecipientAccountEnvironment.International => RecipientExistsInternationally(recipient)
       };
-
-   public static async Task<Unit> IssueTransferToRecipient(DebitedTransfer evt) {
-      var recipient = evt.Recipient;
-      if (recipient.AccountEnvironment is RecipientAccountEnvironment.Internal) {
-         var origin = evt.EntityId.ToString();
-         tell($"@accounts_{recipient.Identification}", new DepositCashCmd(
-            new Guid(recipient.Identification),
-            evt.Date,
-            evt.DebitedAmount,
-            Origin: $"Account ({origin.Substring(origin.Length - 4)})"
-         ));
-      } else
-         await ThirdPartyBankTransfer(evt);
-
-      return unit;
-   }
 
    public static Task<Unit> ThirdPartyBankTransfer(DebitedTransfer evt) =>
       evt.Recipient.AccountEnvironment switch {

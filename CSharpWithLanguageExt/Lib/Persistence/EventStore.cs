@@ -8,7 +8,7 @@ using Lib.Types;
 namespace Lib.Persistence;
 
 public static class EventStoreManager {
-   public async static Task<Unit> SaveAndPublish(
+   public async static Task<Unit> Save(
       EventStoreClient es,
       Map<string, Type> mapping,
       string streamName,

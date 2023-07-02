@@ -3,16 +3,14 @@ using static LanguageExt.Prelude;
 using static LanguageExt.List;
 using EventStore.Client;
 using OneOf;
-using static Echo.Process;
 
 using Lib.Types;
+using Lib.BankTypes;
 using static Lib.Validators;
 using ES = Lib.Persistence.EventStoreManager;
 using AD = Bank.Account.Domain.Account;
 using Bank.Account.Domain;
 using static Bank.Account.Domain.Errors;
-using Bank.Transfer.Domain;
-using Bank.Transfer.Actors;
 using Bank.Account.Actors;
 
 namespace Bank.Account.API;
@@ -20,13 +18,14 @@ namespace Bank.Account.API;
 public static class AccountAPI {
    public static Task<Validation<Err, Guid>> Create(
       EventStoreClient client,
-      AccountRegistry registry,
+      AccountPersistence persistence,
+      AccountBroadcast broadcaster,
       Validator<CreateAccountCmd> validate,
       CreateAccountCmd command
    ) {
       var save = async (CreateAccountCmd cmd) => {
          var evt = cmd.ToEvent();
-         await ES.SaveAndPublish(
+         await ES.Save(
             client,
             AD.EventTypeMapping,
             AD.StreamName(evt.EntityId),
@@ -37,7 +36,7 @@ public static class AccountAPI {
          return Pass<CreatedAccount>()(evt);
       };
       var registerAccount = (CreatedAccount evt) =>
-         Optional(AccountActor.Start(AD.Create(evt), registry))
+         Optional(AccountActor.Start(persistence, broadcaster, AD.Create(evt)))
             .ToValidation(new Err("Account registration fail"))
             .AsTask();
 
@@ -117,28 +116,16 @@ public static class AccountAPI {
       return ES.SoftDelete(client, AD.StreamName(accountId));
    }
 
-   public static async Task<Unit> SaveAndPublish(
+   public static async Task<Unit> Save(
       EventStoreClient esClient,
       Event evt
    ) {
-      await ES.SaveAndPublish(
+      await ES.Save(
          esClient,
          AD.EventTypeMapping,
          AD.StreamName(evt.EntityId),
          evt
       );
-
-      switch (evt) {
-         case RegisteredInternalTransferRecipient:
-         case RegisteredDomesticTransferRecipient:
-         case RegisteredInternationalTransferRecipient:
-            TransferRecipientActor.Start();
-            break;
-         case DebitedTransfer:
-            tellChild(TransferRecipientActor.ActorName, (DebitedTransfer) evt);
-            break;
-      }
-
       return unit;
    }
 }
