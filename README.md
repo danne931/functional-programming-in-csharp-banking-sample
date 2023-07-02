@@ -54,4 +54,4 @@ web page to test the use cases against an account.
     }
     ```
 8. navigate to localhost in browser
-9. restart eventstoredb container if restarting the server or switching between running C# and F# apps
+9. restart eventstoredb container if switching between running C# and F# apps
