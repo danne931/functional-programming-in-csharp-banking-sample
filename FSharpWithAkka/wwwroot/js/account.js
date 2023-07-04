@@ -152,7 +152,7 @@ function renderEventIntoListView (evt) {
 function eventToTransactionString (evt) {
   switch (evt.name) {
     case 'CreatedAccount':
-      return `Created account for ${evt.firstName} ${evt.lastName} on ${evt.timestamp}`
+      return `Created account for ${evt.firstName} ${evt.lastName} with balance $${evt.balance} on ${evt.timestamp}`
     case 'DepositedCash':
       return `$${evt.depositedAmount} deposited on ${evt.timestamp} by ${evt.origin}`
     case 'DebitedAccount':
