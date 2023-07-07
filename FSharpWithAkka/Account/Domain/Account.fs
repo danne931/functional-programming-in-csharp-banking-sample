@@ -9,16 +9,22 @@ open Bank.Transfer.Domain
 open Lib.Types
 open Lib.Time
 
-let streamName (id: Guid) = "accounts_" + id.ToString()
+let streamName (id: Guid) = "accounts_" + string id
 
 module Constants =
    let DebitOriginMaintenanceFee = "actor:maintenance_fee"
+
+let recipientLookupKey (recipient: TransferRecipient) =
+   match recipient.AccountEnvironment with
+   | RecipientAccountEnvironment.Internal -> recipient.Identification
+   | RecipientAccountEnvironment.Domestic ->
+      $"{recipient.RoutingNumber.Value}_{recipient.Identification}"
 
 let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    // When accumulating events into AccountState aggregate...
    // -> Ignore debits older than a day
    if not <| IsToday evt.Timestamp then
-      0
+      0m
    elif evt.Data.Origin = Constants.DebitOriginMaintenanceFee then
       state.DailyDebitAccrued
    elif Option.isNone state.LastDebitDate then
@@ -38,9 +44,9 @@ let create (e: BankEvent<CreatedAccount>) = {
    Currency = e.Data.Currency
    Balance = e.Data.Balance
    Status = AccountStatus.Active
-   AllowedOverdraft = 0
-   DailyDebitLimit = -1
-   DailyDebitAccrued = 0
+   AllowedOverdraft = 0m
+   DailyDebitLimit = -1m
+   DailyDebitAccrued = 0m
    LastDebitDate = None
    TransferRecipients = Map.empty
 }
@@ -69,47 +75,58 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
       state with
          Status = AccountStatus.Active
      }
-   | DebitedTransfer e -> {
+   | TransferPending e -> {
       state with
          Balance = state.Balance - e.Data.DebitedAmount
      }
-   | InternalTransferRecipient e -> {
+   | TransferApproved _ -> state
+   | TransferRejected e -> {
       state with
-         TransferRecipients =
-            state.TransferRecipients.Add(
-               e.Data.AccountNumber,
-               RegisterTransferRecipientEvent.eventToRecipient (
-                  e |> RegisteredInternalTransferRecipient
-               )
-            )
+         Balance = state.Balance + e.Data.DebitedAmount
      }
-   | DomesticTransferRecipient e -> {
-      state with
-         TransferRecipients =
-            state.TransferRecipients.Add(
-               $"{e.Data.RoutingNumber}_{e.Data.AccountNumber}",
-               RegisterTransferRecipientEvent.eventToRecipient (
-                  e |> RegisteredDomesticTransferRecipient
-               )
-            )
-     }
-   | InternationalTransferRecipient e -> {
-      state with
-         TransferRecipients =
-            state.TransferRecipients.Add(
-               e.Data.Identification,
-               RegisterTransferRecipientEvent.eventToRecipient (
-                  e |> RegisteredInternationalTransferRecipient
-               )
-            )
-     }
+   | InternalTransferRecipient e ->
+      let recipient =
+         RegisterTransferRecipientEvent.eventToRecipient (
+            e |> RegisteredInternalTransferRecipient
+         )
+
+      let key = recipientLookupKey recipient
+
+      {
+         state with
+            TransferRecipients = state.TransferRecipients.Add(key, recipient)
+      }
+   | DomesticTransferRecipient e ->
+      let recipient =
+         RegisterTransferRecipientEvent.eventToRecipient (
+            e |> RegisteredDomesticTransferRecipient
+         )
+
+      let key = recipientLookupKey recipient
+
+      {
+         state with
+            TransferRecipients = state.TransferRecipients.Add(key, recipient)
+      }
+   | InternationalTransferRecipient e ->
+      let recipient =
+         RegisterTransferRecipientEvent.eventToRecipient (
+            e |> RegisteredInternationalTransferRecipient
+         )
+
+      let key = recipientLookupKey recipient
+
+      {
+         state with
+            TransferRecipients = state.TransferRecipients.Add(key, recipient)
+      }
    | _ -> state
 
 module private StateTransition =
    let deposit state (cmd: DepositCashCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
-      elif cmd.Amount <= 0 then
+      elif cmd.Amount <= 0m then
          Error "InvalidDepositAmount"
       else
          let evt = DepositedCashEvent.create cmd |> DepositedCash
@@ -145,7 +162,7 @@ module private StateTransition =
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
          Error "InsufficientBalance"
       elif
-         state.DailyDebitLimit <> -1
+         state.DailyDebitLimit <> -1m
          // Maintenance fee does not count toward daily debit accrual
          && cmd.Origin <> Constants.DebitOriginMaintenanceFee
          && IsToday cmd.Timestamp
@@ -163,12 +180,24 @@ module private StateTransition =
          Error "InsufficientBalance"
       elif
          not
-         <| state.TransferRecipients.ContainsKey cmd.Recipient.Identification
+         <| state.TransferRecipients.ContainsKey(
+            recipientLookupKey cmd.Recipient
+         )
       then
          Error "TransferErr.RecipientRegistrationRequired(cmd)"
       else
-         let evt = TransferEvent.create cmd |> DebitedTransfer
+         let evt = TransferEvent.create cmd |> TransferPending
          Ok(evt, applyEvent state evt)
+
+   let approveTransfer state (cmd: ApproveTransferCommand) =
+      let evt = TransferEvent.approve cmd |> TransferApproved
+
+      Ok(evt, applyEvent state evt)
+
+   let rejectTransfer state (cmd: RejectTransferCommand) =
+      let evt = TransferEvent.reject cmd |> TransferRejected
+
+      Ok(evt, applyEvent state evt)
 
    let registerTransferRecipient state (cmd: RegisterTransferRecipientCommand) =
       if state.TransferRecipients.ContainsKey cmd.Recipient.Identification then
@@ -198,6 +227,9 @@ let stateTransition state (command: Command) =
    | :? LockCardCommand as cmd -> StateTransition.lockCard state cmd
    | :? UnlockCardCommand as cmd -> StateTransition.unlockCard state cmd
    | :? TransferCommand as cmd -> StateTransition.transfer state cmd
+   | :? ApproveTransferCommand as cmd ->
+      StateTransition.approveTransfer state cmd
+   | :? RejectTransferCommand as cmd -> StateTransition.rejectTransfer state cmd
    | :? RegisterTransferRecipientCommand as cmd ->
       StateTransition.registerTransferRecipient state cmd
 

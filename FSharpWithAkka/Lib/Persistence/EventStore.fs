@@ -11,7 +11,7 @@ open BankTypes
 
 let tryDeserialize (e: ResolvedEvent) =
    try
-      Serialization.deserialize (e.Event.Data.ToArray()) e.Event.EventType
+      Serialization.deserializeEvent (e.Event.Data.ToArray()) e.Event.EventType
    with ex when true ->
       printfn "tryDeserialize fail: %A" ex.Message
       reraise ()
@@ -47,7 +47,7 @@ let save
       EventData(
          Uuid.NewUuid(),
          envelope.EventName,
-         Serialization.serialize event
+         Serialization.serializeEvent event
       )
 
    es.AppendToStreamAsync(streamName, streamState, [ esEvent ]) |> Task.ignore

@@ -23,11 +23,7 @@ let startActorModel () =
    let system = System.create "bank" (Configuration.defaultConfig ())
 
    let deadLetterHandler (msg: AllDeadLetters) =
-      printfn
-         "Dead Letters:\nFrom: %A\nTo: %A\nMessage: %A"
-         msg.Sender.Path
-         msg.Recipient.Path
-         msg.Message
+      printfn "Dead Letters: %A" msg
 
       Ignore
 
@@ -70,7 +66,7 @@ let injectDependencies
          (fun (event, accountState) ->
             provider
                .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
-               .Clients.Group(accountState.EntityId.ToString())
+               .Clients.Group(string accountState.EntityId)
                .ReceiveMessage(
                   {|
                      event = event

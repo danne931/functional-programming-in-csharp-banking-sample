@@ -14,7 +14,9 @@ type AccountEvent =
    | DailyDebitLimitUpdated of BankEvent<DailyDebitLimitUpdated>
    | LockedCard of BankEvent<LockedCard>
    | UnlockedCard of BankEvent<UnlockedCard>
-   | DebitedTransfer of BankEvent<DebitedTransfer>
+   | TransferPending of BankEvent<TransferPending>
+   | TransferApproved of BankEvent<TransferApproved>
+   | TransferRejected of BankEvent<TransferRejected>
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | InternationalTransferRecipient of
@@ -28,6 +30,7 @@ module Envelope =
       EntityId = evt.EntityId
       Timestamp = evt.Timestamp
       EventName = evt.EventName
+      CorrelationId = evt.CorrelationId
    }
 
    let bind (transformer: obj -> 't) (evt: AccountEvent) =
@@ -41,7 +44,9 @@ module Envelope =
       | InternalTransferRecipient evt -> transformer evt
       | DomesticTransferRecipient evt -> transformer evt
       | InternationalTransferRecipient evt -> transformer evt
-      | DebitedTransfer evt -> transformer evt
+      | TransferPending evt -> transformer evt
+      | TransferApproved evt -> transformer evt
+      | TransferRejected evt -> transformer evt
 
    let wrap (o: obj) : AccountEvent =
       match o with
@@ -58,7 +63,9 @@ module Envelope =
          evt |> DomesticTransferRecipient
       | :? BankEvent<RegisteredInternationalTransferRecipient> as evt ->
          evt |> InternationalTransferRecipient
-      | :? BankEvent<DebitedTransfer> as evt -> evt |> DebitedTransfer
+      | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
+      | :? BankEvent<TransferApproved> as evt -> evt |> TransferApproved
+      | :? BankEvent<TransferRejected> as evt -> evt |> TransferRejected
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
       match o with
@@ -71,7 +78,9 @@ module Envelope =
       | InternalTransferRecipient evt -> (wrap evt, get evt)
       | DomesticTransferRecipient evt -> (wrap evt, get evt)
       | InternationalTransferRecipient evt -> (wrap evt, get evt)
-      | DebitedTransfer evt -> (wrap evt, get evt)
+      | TransferPending evt -> (wrap evt, get evt)
+      | TransferApproved evt -> (wrap evt, get evt)
+      | TransferRejected evt -> (wrap evt, get evt)
 
 type AccountStatus =
    | Active = 0

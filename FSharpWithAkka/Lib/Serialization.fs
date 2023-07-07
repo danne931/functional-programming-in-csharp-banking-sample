@@ -23,7 +23,9 @@ let withInjectedOptions opts =
 let private eventTypeMapping =
    Map [
       nameof CreatedAccount, typeof<BankEvent<CreatedAccount>>
-      nameof DebitedTransfer, typeof<BankEvent<DebitedTransfer>>
+      nameof TransferPending, typeof<BankEvent<TransferPending>>
+      nameof TransferApproved, typeof<BankEvent<TransferApproved>>
+      nameof TransferRejected, typeof<BankEvent<TransferRejected>>
       nameof DebitedAccount, typeof<BankEvent<DebitedAccount>>
       nameof DailyDebitLimitUpdated, typeof<BankEvent<DailyDebitLimitUpdated>>
       nameof DepositedCash, typeof<BankEvent<DepositedCash>>
@@ -40,14 +42,20 @@ let private eventTypeMapping =
       typeof<BankEvent<RegisteredInternationalTransferRecipient>>
    ]
 
-let serialize (evt: AccountEvent) =
+let serializeEvent (evt: AccountEvent) =
    Envelope.bind
       (fun e -> JsonSerializer.SerializeToUtf8Bytes(e, jsonOptions))
       evt
 
-let deserialize (data: byte array) (eventName: string) =
+let deserializeEvent (data: byte[]) (eventName: string) =
    let deserialized =
       JsonSerializer.Deserialize(data, eventTypeMapping[eventName], jsonOptions)
 
    let (event, _) = deserialized |> Envelope.wrap |> Envelope.unwrap
    event
+
+let deserialize<'t> (data: string) : Result<'t, string> =
+   try
+      JsonSerializer.Deserialize<'t>(data) |> Ok
+   with err when true ->
+      $"Deserialization error: {err.Message}" |> Error

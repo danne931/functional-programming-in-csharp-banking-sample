@@ -37,6 +37,7 @@ let start
    (scheduledAt: _ -> TimeSpan)
    (mailbox: Actor<_>)
    (accountId: Guid)
+   (correlationId: Guid)
    =
    let handler (ctx: Actor<obj>) =
       let schedule =
@@ -68,10 +69,11 @@ let start
                      DateTime.UtcNow,
                      Constants.Fee,
                      Account.Constants.DebitOriginMaintenanceFee,
-                     "Monthly Maintenance Fee"
+                     "Monthly Maintenance Fee",
+                     correlationId
                   )
 
-               ctx.Parent() <! AccountMessage.StateChange cmd
+               ctx.Parent<AccountMessage>() <! AccountMessage.StateChange cmd
          | _ -> Unhandled
       }
 

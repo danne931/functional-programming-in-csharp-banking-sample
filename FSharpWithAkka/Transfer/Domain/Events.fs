@@ -4,11 +4,25 @@ open System
 
 open Lib.Types
 
-type DebitedTransfer = {
+type TransferPending = {
    Recipient: TransferRecipient
    Date: DateTime
    DebitedAmount: decimal
    Reference: string option
+}
+
+type TransferApproved = {
+   Recipient: TransferRecipient
+   Date: DateTime
+   DebitedAmount: decimal
+   AckReceipt: AckReceipt option
+}
+
+type TransferRejected = {
+   Recipient: TransferRecipient
+   Date: DateTime
+   DebitedAmount: decimal
+   Reason: string
 }
 
 module TransferEvent =
@@ -25,6 +39,35 @@ module TransferEvent =
             else
                Some cmd.Reference
       }
+      CorrelationId = cmd.CorrelationId
+   }
+
+   let approve (cmd: ApproveTransferCommand) = {
+      EntityId = cmd.EntityId
+      Timestamp = cmd.Timestamp
+      Data = {
+         Recipient = cmd.Recipient
+         Date = cmd.Date
+         DebitedAmount = cmd.Amount
+         AckReceipt =
+            if String.IsNullOrEmpty cmd.AckReceipt then
+               None
+            else
+               Some cmd.AckReceipt
+      }
+      CorrelationId = cmd.CorrelationId
+   }
+
+   let reject (cmd: RejectTransferCommand) = {
+      EntityId = cmd.EntityId
+      Timestamp = cmd.Timestamp
+      Data = {
+         Recipient = cmd.Recipient
+         Date = cmd.Date
+         DebitedAmount = cmd.Amount
+         Reason = cmd.Reason
+      }
+      CorrelationId = cmd.CorrelationId
    }
 
 type RegisteredInternalTransferRecipient = {
@@ -32,6 +75,7 @@ type RegisteredInternalTransferRecipient = {
    FirstName: string
    AccountNumber: string
    Currency: string
+   AccountEnvironment: RecipientAccountEnvironment
 }
 
 type RegisteredDomesticTransferRecipient = {
@@ -40,6 +84,7 @@ type RegisteredDomesticTransferRecipient = {
    RoutingNumber: string option
    AccountNumber: string
    Currency: string
+   AccountEnvironment: RecipientAccountEnvironment
 }
 
 type RegisteredInternationalTransferRecipient = {
@@ -48,6 +93,7 @@ type RegisteredInternationalTransferRecipient = {
    Identification: string
    IdentificationStrategy: RecipientAccountIdentificationStrategy
    Currency: string
+   AccountEnvironment: RecipientAccountEnvironment
 }
 
 module RegisterInternalTransferRecipientEvent =
@@ -59,7 +105,9 @@ module RegisterInternalTransferRecipientEvent =
          LastName = cmd.Recipient.LastName
          FirstName = cmd.Recipient.FirstName
          Currency = cmd.Recipient.Currency
+         AccountEnvironment = RecipientAccountEnvironment.Internal
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 module RegisterDomesticTransferRecipientEvent =
@@ -72,7 +120,9 @@ module RegisterDomesticTransferRecipientEvent =
          AccountNumber = cmd.Recipient.Identification
          RoutingNumber = cmd.Recipient.RoutingNumber
          Currency = cmd.Recipient.Currency
+         AccountEnvironment = RecipientAccountEnvironment.Domestic
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 module RegisterInternationalTransferRecipientEvent =
@@ -85,7 +135,9 @@ module RegisterInternationalTransferRecipientEvent =
          Identification = cmd.Recipient.Identification
          IdentificationStrategy = cmd.Recipient.IdentificationStrategy
          Currency = cmd.Recipient.Currency
+         AccountEnvironment = RecipientAccountEnvironment.International
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 
@@ -103,7 +155,7 @@ module RegisterTransferRecipientEvent =
       | RegisteredInternalTransferRecipient e -> {
          FirstName = e.Data.FirstName
          LastName = e.Data.LastName
-         AccountEnvironment = RecipientAccountEnvironment.Internal
+         AccountEnvironment = e.Data.AccountEnvironment
          Identification = e.Data.AccountNumber
          IdentificationStrategy =
             RecipientAccountIdentificationStrategy.AccountId
@@ -113,7 +165,7 @@ module RegisterTransferRecipientEvent =
       | RegisteredDomesticTransferRecipient e -> {
          FirstName = e.Data.FirstName
          LastName = e.Data.LastName
-         AccountEnvironment = RecipientAccountEnvironment.Domestic
+         AccountEnvironment = e.Data.AccountEnvironment
          Identification = e.Data.AccountNumber
          IdentificationStrategy =
             RecipientAccountIdentificationStrategy.AccountId
@@ -123,9 +175,30 @@ module RegisterTransferRecipientEvent =
       | RegisteredInternationalTransferRecipient e -> {
          FirstName = e.Data.FirstName
          LastName = e.Data.LastName
-         AccountEnvironment = RecipientAccountEnvironment.International
+         AccountEnvironment = e.Data.AccountEnvironment
          Identification = e.Data.Identification
          IdentificationStrategy = e.Data.IdentificationStrategy
          Currency = e.Data.Currency
          RoutingNumber = None
         }
+
+module TransferResponseToCommand =
+   let approve (evt: BankEvent<TransferPending>) (ackReceipt: AckReceipt) =
+      ApproveTransferCommand(
+         evt.EntityId,
+         evt.CorrelationId,
+         evt.Data.Recipient,
+         evt.Data.Date,
+         evt.Data.DebitedAmount,
+         ackReceipt
+      )
+
+   let reject (evt: BankEvent<TransferPending>) (reason: string) =
+      RejectTransferCommand(
+         evt.EntityId,
+         evt.CorrelationId,
+         evt.Data.Recipient,
+         evt.Data.Date,
+         evt.Data.DebitedAmount,
+         reason
+      )

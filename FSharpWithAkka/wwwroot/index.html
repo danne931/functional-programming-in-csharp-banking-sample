@@ -79,9 +79,13 @@
   <form id="register-transfer-recipient-form">
       <label>
           Does this account belong to our bank?:
-          <select name="transfer-recipient-account-environment" required>
-              <option value="0" selected>Our bank</option>
-              <option value="1" disabled>Domestic bank</option>
+          <select
+              id="transfer-recipient-account-environment"
+              name="transfer-recipient-account-environment"
+              required
+              onchange="transferAccountEnvironmentSelected()">
+              <option value="0">Our bank</option>
+              <option value="1">Domestic bank</option>
               <option value="2" disabled>International bank</option>
           </select>
       </label>
@@ -103,6 +107,13 @@
       <label>
           Account Number:
           <input name="transfer-recipient-account-number" type="string" required>
+      </label>
+
+      <label
+          id="transfer-recipient-routing-number"
+          style="display: none">
+          Routing Number:
+          <input name="transfer-recipient-routing-number" type="string">
       </label>
 
       <input type="submit" value="Submit">

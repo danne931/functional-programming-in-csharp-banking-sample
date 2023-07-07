@@ -21,6 +21,7 @@ module CreatedAccountEvent =
          Balance = cmd.Balance
          Currency = cmd.Currency
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 type LockedCard = { Reference: string option }
@@ -36,6 +37,7 @@ module LockedCardEvent =
             else
                Some cmd.Reference
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 type UnlockedCard = { Reference: string option }
@@ -51,6 +53,7 @@ module UnlockedCardEvent =
             else
                Some cmd.Reference
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 type DepositedCash = {
@@ -66,6 +69,7 @@ module DepositedCashEvent =
          DepositedAmount = cmd.Amount
          Origin = cmd.Origin
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 type DebitedAccount = {
@@ -89,6 +93,7 @@ module DebitedAccountEvent =
             else
                Some cmd.Reference
       }
+      CorrelationId = cmd.CorrelationId
    }
 
 type DailyDebitLimitUpdated = { DebitLimit: decimal }
@@ -102,4 +107,5 @@ module DailyDebitLimitUpdatedEvent =
          EntityId = cmd.EntityId
          Timestamp = cmd.Timestamp
          Data = { DebitLimit = cmd.DebitLimit }
+         CorrelationId = cmd.CorrelationId
       }

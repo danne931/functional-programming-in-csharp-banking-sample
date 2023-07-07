@@ -4,9 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Lib/Time.fs" />
+    <Compile Include="Lib/TCP.fs" />
     <Compile Include="Lib/Types.fs" />
     <Compile Include="Lib/Actor.fs" />
-    <Compile Include="Transfer/Domain/Transfer.fs" />
     <Compile Include="Transfer/Domain/Commands.fs" />
     <Compile Include="Transfer/Domain/Events.fs" />
     <Compile Include="Account/Domain/Commands.fs" />
@@ -18,8 +18,8 @@
     <Compile Include="Lib/Serialization.fs" />
     <Compile Include="Lib/Persistence/EventStore.fs" />
     <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
-    <Compile Include="Transfer/Api.fs" />
-    <Compile Include="Transfer/TransferRecipientActor.fs" />
+    <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
+    <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
     <Compile Include="Account/AccountActor.fs" />
     <Compile Include="Account/AccountCoordinatorActor.fs" />
     <Compile Include="Account/Domain/Validators.fs" /> 

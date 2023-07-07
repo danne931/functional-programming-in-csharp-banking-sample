@@ -19,7 +19,10 @@ connection.on('ReceiveMessage', function ({ newState, event }) {
   event = serverToClientEventMapping(event)
   renderAccountState(newState)
   renderEventIntoListView(event)
-  if (event.name === 'InternalTransferRecipient') {
+
+  if (event.name === 'InternalTransferRecipient' ||
+      event.name === 'DomesticTransferRecipient'
+  ) {
     interpolateTransferRecipientSelection(newState)
     state.transferRecipients = newState.transferRecipients
   }
@@ -163,10 +166,15 @@ function eventToTransactionString (evt) {
       return `Debit card locked on ${evt.timestamp}`
     case 'UnlockedCard':
       return `Debit card unlocked on ${evt.timestamp}`
-    case 'DebitedTransfer':
-      return `$${evt.debitedAmount} transferred to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp}`
+    case 'TransferPending':
+      return `Pending $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp}`
+    case 'TransferApproved':
+      return `Approved $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp}`
+    case 'TransferRejected':
+      return `Rejected $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp} due to ${evt.reason}.  Account refunded.`
     case 'InternalTransferRecipient':
-      return `Registered transfer recipient ${evt.firstName} ${evt.lastName} on ${evt.timestamp}`
+    case 'DomesticTransferRecipient':
+      return `Registered ${evt.accountEnvironment} transfer recipient ${evt.firstName} ${evt.lastName} on ${evt.timestamp}`
     default:
       return 'Unknown event'
   }
@@ -178,6 +186,29 @@ accountsListFormEl.addEventListener('submit', e => {
   const formData = new FormData(accountsListFormEl)
   accountSelected(formData.get('selected-account'))
 })
+
+function transferAccountEnvironmentSelected () {
+  const selected =
+    document
+      .getElementById("transfer-recipient-account-environment")
+      .value
+
+  const el = document.getElementById("transfer-recipient-routing-number")
+
+  if (selected === "1") {
+    el.style.display = "block"
+    el.setAttribute("required", true)
+  } else {
+    el.style.display = "none"
+    el.removeAttribute("required")
+  }
+}
+
+function resetDomAfterRecipientRegistration () {
+  const el = document.getElementById("transfer-recipient-routing-number")
+  el.style.display = "none"
+  el.removeAttribute("required")
+}
 
 function cardLockToggled () {
   const url = document.getElementById('account-debit-card-lock').checked
@@ -230,23 +261,35 @@ listenForFormSubmit(
 listenForFormSubmit(
   document.getElementById('register-transfer-recipient-form'),
   '/transfers/register-recipient',
-  formData => ({
-    entityId: state.selectedAccountId,
-    recipient: {
-      firstName: formData.get('transfer-recipient-first-name'),
-      lastName: formData.get('transfer-recipient-last-name'),
-      identification: formData.get('transfer-recipient-account-number'),
-      accountEnvironment: parseInt(formData.get('transfer-recipient-account-environment')),
-      identificationStrategy: 0
+  formData => {
+    const data = {
+      entityId: state.selectedAccountId,
+      recipient: {
+        firstName: formData.get('transfer-recipient-first-name'),
+        lastName: formData.get('transfer-recipient-last-name'),
+        identification: formData.get('transfer-recipient-account-number'),
+        accountEnvironment: parseInt(formData.get('transfer-recipient-account-environment')),
+        identificationStrategy: 0
+      }
     }
-  })
+    // Domestic recipient requires routing number
+    if (data.recipient.accountEnvironment === 1) {
+      data.recipient.routingNumber = formData.get('transfer-recipient-routing-number')
+    }
+    return data
+  },
+  resetDomAfterRecipientRegistration
 )
 
-function listenForFormSubmit (formEl, url, formDataToProps) {
+function listenForFormSubmit (formEl, url, formDataToProps, postSubmit) {
   formEl.addEventListener('submit', e => {
     e.preventDefault()
     jsonPost(url, formDataToProps(new FormData(formEl)))
-      .then(_ => formEl.reset())
+      .then(_ => {
+        formEl.reset()
+        if (typeof postSubmit === 'function')
+          return postSubmit()
+      })
   })
 }
 

@@ -3,7 +3,6 @@ module Bank.Transfer.Routes
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Microsoft.FSharp.Core
-open EventStore.Client
 open System
 open System.Threading.Tasks
 open Akkling
@@ -11,7 +10,6 @@ open Akkling
 open BankTypes
 open Bank.Transfer.Domain
 open Bank.Account.Api
-open Bank.Transfer.Api
 
 module private Path =
    let Base = "/transfers"
@@ -20,11 +18,11 @@ module private Path =
 let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       Path.TransferRecipient,
-      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, RegisterTransferRecipientCommand, Task<IResult>>(
-         (fun es coordinator command ->
+      Func<IActorRef<AccountCoordinatorMessage>, RegisterTransferRecipientCommand, Task<IResult>>(
+         (fun coordinator command ->
             processCommand
                coordinator
-               (Validators.registerTransferRecipient (es, recipientExists))
+               (Validators.registerTransferRecipient ())
                command
             |> RouteUtil.UnwrapValidation)
       )

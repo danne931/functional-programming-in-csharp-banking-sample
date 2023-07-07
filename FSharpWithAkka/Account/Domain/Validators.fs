@@ -14,7 +14,7 @@ module Validators =
    let accountCreate () =
       (fun (cmd: CreateAccountCommand) ->
          // TODO: handle varying currency codes
-         if cmd.Balance < 100 then
+         if cmd.Balance < 100m then
             Error $"InvalidStartBalance {cmd.Balance}"
          elif not (Enum.IsDefined(typeof<Currencies>, cmd.Currency)) then
             Error $"Invalid currency {cmd.Currency}"
@@ -23,7 +23,7 @@ module Validators =
 
    let dailyDebitLimit () =
       (fun (cmd: LimitDailyDebitsCommand) ->
-         if cmd.DebitLimit < 0 then
+         if cmd.DebitLimit < 0m then
             Error "InvalidDailyDebitLimit"
          else
             Ok())
@@ -31,7 +31,7 @@ module Validators =
 
    let deposit () =
       (fun (cmd: DepositCashCommand) ->
-         if cmd.Amount < 1 then
+         if cmd.Amount < 1m then
             Error $"InvalidDepositAmount {cmd.Amount}"
          else
             Ok())
@@ -39,7 +39,7 @@ module Validators =
 
    let debit () =
       (fun (cmd: DebitCommand) ->
-         if cmd.Amount <= 0 then
+         if cmd.Amount <= 0m then
             Error $"InvalidDebitAmount {cmd.Amount}"
          else
             Ok())

@@ -9,8 +9,29 @@ open BankTypes
 open ActorUtil
 open Bank.Transfer.Domain
 
+let transferActor
+   (mailbox: Actor<AccountMessage>)
+   (persistence: AccountPersistence)
+   (evt: BankEvent<TransferPending>)
+   =
+   let (actorName, start) =
+      match evt.Data.Recipient.AccountEnvironment with
+      | RecipientAccountEnvironment.Internal ->
+         (InternalTransferRecipientActor.ActorName,
+          fun () -> InternalTransferRecipientActor.start mailbox persistence)
+      | RecipientAccountEnvironment.Domestic ->
+         (DomesticTransferRecipientActor.ActorName,
+          fun () -> DomesticTransferRecipientActor.start mailbox)
+
+   let get () =
+      getChildActorRef<AccountMessage, BankEvent<TransferPending>>
+         mailbox
+         actorName
+
+   (get, start)
+
 let getTransferActor =
-   getChildActorRef<AccountMessage, BankEvent<DebitedTransfer>>
+   getChildActorRef<AccountMessage, BankEvent<TransferPending>>
 
 let start
    (persistence: AccountPersistence)
@@ -29,6 +50,7 @@ let start
             (fun _ -> TimeSpan.FromMinutes 2)
             mailbox
             id
+            (Guid.NewGuid())
 
          ignored ()
       | Lookup _ ->
@@ -52,16 +74,16 @@ let start
                reraise ()
 
             match event with
-            | DebitedTransfer e ->
-               let opt =
-                  getTransferActor mailbox TransferRecipientActor.ActorName
+            | TransferPending evt ->
+               let (getActor, startActor) =
+                  transferActor mailbox persistence evt
 
                let aref =
-                  match opt with
-                  | None _ -> TransferRecipientActor.start mailbox
+                  match getActor () with
+                  | None _ -> startActor ()
                   | Some aref -> aref
 
-               aref <! e
+               aref <! evt
             | _ -> ()
 
             become (handler newState mailbox)
