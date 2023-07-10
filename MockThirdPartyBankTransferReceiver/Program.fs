@@ -39,7 +39,7 @@ let parseRequest (req: Request) =
       {
          res with
             Ok = false
-            Reason = "InvalidRequestAction"
+            Reason = "InvalidAction"
       }
    elif
       String.IsNullOrEmpty req.AccountNumber
@@ -74,7 +74,7 @@ let tcpMessageHandler connection (ctx: Actor<obj>) =
 
       match msg with
       | Received(data) ->
-         let req = (string data)
+         let req = string data
          printfn "Received request %A" req
 
          let reply =

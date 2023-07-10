@@ -9,28 +9,7 @@ open BankTypes
 open ActorUtil
 open Bank.Transfer.Domain
 
-let transferActor
-   (mailbox: Actor<AccountMessage>)
-   (persistence: AccountPersistence)
-   (evt: BankEvent<TransferPending>)
-   =
-   let (actorName, start) =
-      match evt.Data.Recipient.AccountEnvironment with
-      | RecipientAccountEnvironment.Internal ->
-         (InternalTransferRecipientActor.ActorName,
-          fun () -> InternalTransferRecipientActor.start mailbox persistence)
-      | RecipientAccountEnvironment.Domestic ->
-         (DomesticTransferRecipientActor.ActorName,
-          fun () -> DomesticTransferRecipientActor.start mailbox)
-
-   let get () =
-      getChildActorRef<AccountMessage, BankEvent<TransferPending>>
-         mailbox
-         actorName
-
-   (get, start)
-
-let getTransferActor =
+let getInternalTransferActor =
    getChildActorRef<AccountMessage, BankEvent<TransferPending>>
 
 let start
@@ -74,16 +53,29 @@ let start
                reraise ()
 
             match event with
-            | TransferPending evt ->
-               let (getActor, startActor) =
-                  transferActor mailbox persistence evt
+            | TransferPending evt when
+               evt.Data.Recipient.AccountEnvironment = RecipientAccountEnvironment.Internal
+               ->
+               let selection =
+                  getInternalTransferActor
+                     mailbox
+                     InternalTransferRecipientActor.ActorName
 
                let aref =
-                  match getActor () with
-                  | None _ -> startActor ()
+                  match selection with
+                  | None _ ->
+                     InternalTransferRecipientActor.start mailbox persistence
                   | Some aref -> aref
 
                aref <! evt
+            | TransferPending evt when
+               evt.Data.Recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
+               ->
+
+               select
+                  mailbox
+                  $"../../{DomesticTransferRecipientActor.ActorName}"
+               <! (evt |> DomesticTransferRecipientActor.TransferPending)
             | _ -> ()
 
             become (handler newState mailbox)

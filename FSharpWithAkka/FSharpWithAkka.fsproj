@@ -3,6 +3,7 @@
     <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Lib/ActivePatterns.fs" />
     <Compile Include="Lib/Time.fs" />
     <Compile Include="Lib/TCP.fs" />
     <Compile Include="Lib/Types.fs" />

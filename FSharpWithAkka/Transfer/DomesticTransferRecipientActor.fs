@@ -6,7 +6,10 @@ open System.Text
 open System.Text.Json
 open System.Net
 open Akkling
+open Akka.Actor
+open Akka.Pattern
 
+open Lib.ActivePatterns
 open Lib.Types
 open BankTypes
 open Bank.Transfer.Domain
@@ -54,25 +57,74 @@ let domesticTransfer
 
 let ActorName = "domestic_transfer_recipient"
 
-let private issueTransferToRecipient
-   (mailbox: Actor<BankEvent<TransferPending>>)
-   (evt: BankEvent<TransferPending>)
-   =
-   task {
-      match! domesticTransfer evt with
-      | Error errMsg ->
-         // TODO: bring in the circuit breaker
+type Message =
+   | TransferPending of BankEvent<TransferPending>
+   | BreakerClosed
+   | BreakerHalfOpen
 
-         mailbox.Parent<AccountMessage>()
-         <! AccountMessage.StateChange(Command.reject evt errMsg)
-      | Ok ackReceipt ->
-         mailbox.Parent<AccountMessage>()
-         <! AccountMessage.StateChange(Command.approve evt ackReceipt)
-   }
+let start (system: ActorSystem) (breaker: CircuitBreaker) =
+   let handler (mailbox: Actor<Message>) (msg: Message) =
+      match msg with
+      | BreakerHalfOpen ->
+         mailbox.Unstash()
+         Ignore
+      | BreakerClosed ->
+         mailbox.UnstashAll()
+         Ignore
+      | TransferPending evt ->
+         if breaker.IsOpen then
+            mailbox.Stash()
+            Ignore
+         else
+            try
+               breaker.WithSyncCircuitBreaker(fun () ->
+                  match (domesticTransfer evt).Result with
+                  | Ok ackReceipt ->
+                     select mailbox "../account_coordinator"
+                     <! AccountCoordinatorMessage.StateChange(
+                        Command.approve evt ackReceipt
+                     )
 
-let start (mailbox: Actor<AccountMessage>) =
-   let handler (mailbox: Actor<BankEvent<TransferPending>>) evt =
-      (issueTransferToRecipient mailbox evt).Wait()
-      Ignore
+                     Ignore
+                  | Error errMsg ->
+                     match errMsg with
+                     | Contains "InvalidAmount"
+                     | Contains "InvalidAccountInfo"
+                     | Contains "InactiveAccount" ->
+                        select mailbox "../account_coordinator"
+                        <! AccountCoordinatorMessage.StateChange(
+                           Command.reject evt errMsg
+                        )
 
-   spawn mailbox ActorName (props (actorOf2 handler))
+                        Ignore
+                     | Contains "Serialization"
+                     | Contains "InvalidAction" ->
+                        printfn "DomesticTransfer - Corrupt data %A" errMsg
+                        // TODO: notify dev team
+                        Unhandled // Send to dead letters instead of stashing
+                     | Contains "Connection"
+                     | _ ->
+                        // Intermittent network error
+                        mailbox.Stash() // Store message to reprocess later
+                        failwith errMsg // Trip the circuit breaker
+               )
+            with err when true ->
+               printfn "Error: %A" err.Message
+               Ignore
+
+   let ref = spawn system ActorName (props (actorOf2 handler))
+
+   breaker.OnOpen(fun () -> printfn $"{ActorName} circuit breaker open.")
+   |> ignore
+
+   breaker.OnClose(fun () ->
+      printfn $"{ActorName} circuit breaker closed."
+      ref <! BreakerClosed)
+   |> ignore
+
+   breaker.OnHalfOpen(fun () ->
+      printfn $"{ActorName} circuit breaker half open."
+      ref <! BreakerHalfOpen)
+   |> ignore
+
+   ref

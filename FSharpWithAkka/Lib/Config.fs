@@ -3,6 +3,7 @@ module Config
 
 open System
 open Akka.Event
+open Akka.Pattern
 open Akkling
 open EventStore.Client
 open Microsoft.AspNetCore.SignalR
@@ -24,13 +25,22 @@ let startActorModel () =
 
    let deadLetterHandler (msg: AllDeadLetters) =
       printfn "Dead Letters: %A" msg
-
       Ignore
 
    let deadLetterRef =
       spawn system "deadletters" (props (actorOf deadLetterHandler))
 
    EventStreaming.subscribe deadLetterRef system.EventStream |> ignore
+
+   DomesticTransferRecipientActor.start
+      system
+      (CircuitBreaker(
+         system.Scheduler,
+         maxFailures = 2,
+         callTimeout = TimeSpan.FromSeconds 7,
+         resetTimeout = TimeSpan.FromMinutes 1
+      ))
+   |> ignore
 
    system
 
