@@ -13,6 +13,7 @@ open Microsoft.Extensions.DependencyInjection
 open BankTypes
 open Bank.Account.Api
 open Bank.Hubs
+open ActorUtil
 
 let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    builder.Services.ConfigureHttpJsonOptions(fun opts ->
@@ -24,11 +25,14 @@ let startActorModel () =
    let system = System.create "bank" (Configuration.defaultConfig ())
 
    let deadLetterHandler (msg: AllDeadLetters) =
-      printfn "Dead Letters: %A" msg
+      printfn "Dead letters: %A" msg
       Ignore
 
    let deadLetterRef =
-      spawn system "deadletters" (props (actorOf deadLetterHandler))
+      spawn
+         system
+         ActorMetadata.deadLettersMonitor.Name
+         (props (actorOf deadLetterHandler))
 
    EventStreaming.subscribe deadLetterRef system.EventStream |> ignore
 

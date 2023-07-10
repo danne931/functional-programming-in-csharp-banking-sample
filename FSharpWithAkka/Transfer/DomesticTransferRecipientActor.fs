@@ -11,10 +11,13 @@ open Akka.Pattern
 
 open Lib.ActivePatterns
 open Lib.Types
+open ActorUtil
 open BankTypes
 open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
+
+let private actorName = ActorMetadata.domesticTransfer.Name
 
 type Response = {
    AccountNumber: string
@@ -55,11 +58,8 @@ let domesticTransfer
             | false -> Error res.Reason)
    }
 
-let ActorName = "domestic_transfer_recipient"
-
 type Message =
    | TransferPending of BankEvent<TransferPending>
-   | BreakerClosed
    | BreakerHalfOpen
 
 let start (system: ActorSystem) (breaker: CircuitBreaker) =
@@ -67,9 +67,6 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
       match msg with
       | BreakerHalfOpen ->
          mailbox.Unstash()
-         Ignore
-      | BreakerClosed ->
-         mailbox.UnstashAll()
          Ignore
       | TransferPending evt ->
          if breaker.IsOpen then
@@ -80,10 +77,12 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
                breaker.WithSyncCircuitBreaker(fun () ->
                   match (domesticTransfer evt).Result with
                   | Ok ackReceipt ->
-                     select mailbox "../account_coordinator"
+                     select mailbox ActorMetadata.accountCoordinator.Path
                      <! AccountCoordinatorMessage.StateChange(
                         Command.approve evt ackReceipt
                      )
+
+                     mailbox.UnstashAll()
 
                      Ignore
                   | Error errMsg ->
@@ -91,7 +90,7 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
                      | Contains "InvalidAmount"
                      | Contains "InvalidAccountInfo"
                      | Contains "InactiveAccount" ->
-                        select mailbox "../account_coordinator"
+                        select mailbox ActorMetadata.accountCoordinator.Path
                         <! AccountCoordinatorMessage.StateChange(
                            Command.reject evt errMsg
                         )
@@ -99,8 +98,8 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
                         Ignore
                      | Contains "Serialization"
                      | Contains "InvalidAction" ->
-                        printfn "DomesticTransfer - Corrupt data %A" errMsg
-                        // TODO: notify dev team
+                        printfn "%A Error: Corrupt data %A" actorName errMsg
+                        // TODO: Notify dev team
                         Unhandled // Send to dead letters instead of stashing
                      | Contains "Connection"
                      | _ ->
@@ -109,21 +108,19 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
                         failwith errMsg // Trip the circuit breaker
                )
             with err when true ->
-               printfn "Error: %A" err.Message
+               printfn "%A Error: %A" actorName err.Message
                Ignore
 
-   let ref = spawn system ActorName (props (actorOf2 handler))
+   let ref = spawn system actorName (props (actorOf2 handler))
 
-   breaker.OnOpen(fun () -> printfn $"{ActorName} circuit breaker open.")
+   breaker.OnOpen(fun () -> printfn $"{actorName} circuit breaker open.")
    |> ignore
 
-   breaker.OnClose(fun () ->
-      printfn $"{ActorName} circuit breaker closed."
-      ref <! BreakerClosed)
+   breaker.OnClose(fun () -> printfn $"{actorName} circuit breaker closed.")
    |> ignore
 
    breaker.OnHalfOpen(fun () ->
-      printfn $"{ActorName} circuit breaker half open."
+      printfn $"{actorName} circuit breaker half open."
       ref <! BreakerHalfOpen)
    |> ignore
 

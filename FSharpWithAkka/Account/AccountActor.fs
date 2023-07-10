@@ -18,6 +18,8 @@ let start
    (mailbox: Actor<_>)
    (initialState: AccountState)
    =
+   let actorName = (ActorMetadata.account initialState.EntityId).Name
+
    let rec handler (account: AccountState) (mailbox: Actor<AccountMessage>) =
       function
       | StartChildren id ->
@@ -41,7 +43,7 @@ let start
          match validation with
          | Error(err) ->
             broadcaster.broadcastError err |> ignore
-            printfn "AccountActor: validation fail %A" err
+            printfn "%A: validation fail %A" actorName err
             become (handler account mailbox)
          | Ok((event, newState) as validationResult) ->
             try
@@ -59,12 +61,15 @@ let start
                let selection =
                   getInternalTransferActor
                      mailbox
-                     InternalTransferRecipientActor.ActorName
+                     (ActorMetadata.internalTransfer evt.EntityId).Name
 
                let aref =
                   match selection with
                   | None _ ->
-                     InternalTransferRecipientActor.start mailbox persistence
+                     InternalTransferRecipientActor.start
+                        mailbox
+                        persistence
+                        evt.EntityId
                   | Some aref -> aref
 
                aref <! evt
@@ -72,19 +77,14 @@ let start
                evt.Data.Recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
                ->
 
-               select
-                  mailbox
-                  $"../../{DomesticTransferRecipientActor.ActorName}"
+               select mailbox ActorMetadata.domesticTransfer.Path
                <! (evt |> DomesticTransferRecipientActor.TransferPending)
             | _ -> ()
 
             become (handler newState mailbox)
 
    let aref =
-      spawn
-         mailbox
-         (string initialState.EntityId)
-         (initialState |> handler |> actorOf2 |> props)
+      spawn mailbox actorName (initialState |> handler |> actorOf2 |> props)
 
    aref <! StartChildren initialState.EntityId
    aref

@@ -12,8 +12,6 @@ open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
 
-let ActorName = "internal_transfer_recipient"
-
 let private issueTransferToRecipient
    (mailbox: Actor<BankEvent<TransferPending>>)
    (persistence: AccountPersistence)
@@ -47,15 +45,23 @@ let private issueTransferToRecipient
                   evt.CorrelationId
                )
 
-            let! coordinatorActorOpt = getActorRef mailbox "../../"
+            let! coordinatorActorOpt =
+               getActorRef mailbox ActorMetadata.accountCoordinator.Path
 
             coordinatorActorOpt.Value
             <! AccountCoordinatorMessage.StateChange cmd
    }
 
-let start (mailbox: Actor<AccountMessage>) (persistence: AccountPersistence) =
+let start
+   (mailbox: Actor<AccountMessage>)
+   (persistence: AccountPersistence)
+   (accountId: Guid)
+   =
    let handler mailbox evt =
       (issueTransferToRecipient mailbox persistence evt).Wait()
       Ignore
 
-   spawn mailbox ActorName (props (actorOf2 handler))
+   spawn
+      mailbox
+      (ActorMetadata.internalTransfer accountId).Name
+      (props (actorOf2 handler))

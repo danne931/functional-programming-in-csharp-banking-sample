@@ -9,6 +9,7 @@ open Akkling
 open BankTypes
 open Bank.Account.Domain
 open MaintenanceFee
+open ActorUtil
 
 let private canIssueMaintenanceFee
    (getAccountEvents: Guid -> AccountEvent List Option Task)
@@ -39,6 +40,8 @@ let start
    (accountId: Guid)
    (correlationId: Guid)
    =
+   let actorName = (ActorMetadata.maintenanceFee accountId).Name
+
    let handler (ctx: Actor<obj>) =
       let schedule =
          ctx.ScheduleRepeatedly
@@ -69,7 +72,7 @@ let start
                      DateTime.UtcNow,
                      Constants.Fee,
                      Account.Constants.DebitOriginMaintenanceFee,
-                     "Monthly Maintenance Fee",
+                     actorName,
                      correlationId
                   )
 
@@ -77,4 +80,4 @@ let start
          | _ -> Unhandled
       }
 
-   spawn mailbox "monthly_maintenance_fee" (props handler) |> ignore
+   spawn mailbox actorName (props handler) |> ignore

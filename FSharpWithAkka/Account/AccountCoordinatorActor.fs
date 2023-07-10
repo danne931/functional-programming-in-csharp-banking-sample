@@ -8,7 +8,8 @@ open Akka.Actor
 open BankTypes
 open ActorUtil
 
-let ActorName = "account_coordinator"
+let private actorName = ActorMetadata.accountCoordinator.Name
+
 let getChild = getChildActorRef<AccountCoordinatorMessage, AccountMessage>
 
 let start
@@ -40,7 +41,10 @@ let start
                ref <! AccountMessage.StateChange cmd
                Ignore
             else
-               printfn "Attempting to change state of a non-existent account."
+               printfn
+                  "%A: Attempting to change state of a non-existent account."
+                  actorName
+
                Unhandled
       | Delete id ->
          let accountRef = getChild mailbox (string id)
@@ -50,4 +54,4 @@ let start
 
          Ignore
 
-   spawn system ActorName (props (actorOf2 handler))
+   spawn system actorName (props (actorOf2 handler))
