@@ -27,21 +27,21 @@ let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
       Func<EventStoreClient, Task<IResult>>(fun es ->
-         getAccountCreationEvents es |> RouteUtil.UnwrapOption)
+         getAccountCreationEvents es |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.Account,
       Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
-         getAccount (getAccountEvents es) id |> RouteUtil.UnwrapOption)
+         getAccount (getAccountEvents es) id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.AccountEvents,
       Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
-         getAccountEvents es id |> RouteUtil.UnwrapOption)
+         getAccountEvents es id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
@@ -50,7 +50,7 @@ let startAccountRoutes (app: WebApplication) =
       Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, CreateAccountCommand, Task<IResult>>
          (fun es coordinator command ->
             createAccount es coordinator (Validators.accountCreate ()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
@@ -58,51 +58,51 @@ let startAccountRoutes (app: WebApplication) =
       Path.AccountEvents,
       Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, Guid, Task<IResult>>
          (fun es coordinator id ->
-            softDeleteEvents es coordinator id |> RouteUtil.Unwrap)
+            softDeleteEvents es coordinator id |> RouteUtil.unwrapTask)
    )
    |> ignore
 
    app.MapPost(
       Path.Deposit,
-      Func<IActorRef<AccountCoordinatorMessage>, DepositCashCommand, Task<IResult>>
+      Func<IActorRef<AccountCoordinatorMessage>, DepositCashCommand, IResult>
          (fun coordinator command ->
             processCommand coordinator (Validators.deposit ()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<IActorRef<AccountCoordinatorMessage>, DebitCommand, Task<IResult>>
+      Func<IActorRef<AccountCoordinatorMessage>, DebitCommand, IResult>
          (fun coordinator command ->
             processCommand coordinator (Validators.debit ()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<IActorRef<AccountCoordinatorMessage>, LimitDailyDebitsCommand, Task<IResult>>
+      Func<IActorRef<AccountCoordinatorMessage>, LimitDailyDebitsCommand, IResult>
          (fun coordinator command ->
             processCommand coordinator (Validators.dailyDebitLimit ()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<IActorRef<AccountCoordinatorMessage>, LockCardCommand, Task<IResult>>
+      Func<IActorRef<AccountCoordinatorMessage>, LockCardCommand, IResult>
          (fun coordinator command ->
             processCommand coordinator (PassValidation()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<IActorRef<AccountCoordinatorMessage>, UnlockCardCommand, Task<IResult>>
+      Func<IActorRef<AccountCoordinatorMessage>, UnlockCardCommand, IResult>
          (fun coordinator command ->
             processCommand coordinator (PassValidation()) command
-            |> RouteUtil.UnwrapValidation)
+            |> RouteUtil.unwrapValidation)
    )
    |> ignore

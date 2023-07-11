@@ -14,21 +14,15 @@ open Lib.Types
 
 let processCommand
    (accounts: IActorRef<AccountCoordinatorMessage>)
-   (validate: Validators<'t>)
-   (command: 't :> Command)
+   (validate: Validator<'t>)
+   command
    =
-   task {
-      let! validation =
-         match validate with
-         | Validator v -> v command |> Task.FromResult
-         | AsyncValidator v -> v command
+   let validation = validate command
 
-      if Result.isError validation then
-         return validation
-      else
-         accounts <! AccountCoordinatorMessage.StateChange command
-         return Ok()
-   }
+   if Result.isOk validation then
+      accounts <! AccountCoordinatorMessage.StateChange command
+
+   validation
 
 let getAccountEvents esClient id =
    EventStoreManager.readStream esClient (Account.streamName id) false
@@ -70,7 +64,7 @@ let save esClient ((_, envelope) as props: OpenEventEnvelope) = task {
 let createAccount
    esClient
    (accounts: IActorRef<AccountCoordinatorMessage>)
-   (validate: CreateAccountCommand -> Result<CreateAccountCommand, string>)
+   (validate: Validator<CreateAccountCommand>)
    (command: CreateAccountCommand)
    =
    task {

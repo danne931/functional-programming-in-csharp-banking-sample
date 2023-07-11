@@ -4,7 +4,7 @@ module RouteUtil
 open System.Threading.Tasks
 open type Microsoft.AspNetCore.Http.Results
 
-let Unwrap (task: 'a Task) =
+let unwrapTask (task: 'a Task) =
    Task.FromResult(
       if task.IsFaulted then
          Problem task.Exception.Message
@@ -12,7 +12,7 @@ let Unwrap (task: 'a Task) =
          Ok task.Result
    )
 
-let UnwrapOption (task: 'a option Task) =
+let unwrapTaskOption (task: 'a option Task) =
    Task.FromResult(
       if task.IsFaulted then
          Problem task.Exception.Message
@@ -22,12 +22,15 @@ let UnwrapOption (task: 'a option Task) =
          | Some(res) -> Json(res, Serialization.jsonOptions)
    )
 
-let UnwrapValidation (task: Result<'a, string> Task) =
+let unwrapValidation (result: Result<'a, string>) =
+   match result with
+   | Error e -> BadRequest e
+   | Ok res -> Json(res, Serialization.jsonOptions)
+
+let unwrapTaskValidation (task: Result<'a, string> Task) =
    Task.FromResult(
       if task.IsFaulted then
          Problem task.Exception.Message
       else
-         match task.Result with
-         | Error(e) -> BadRequest e
-         | Ok(res) -> Json(res, Serialization.jsonOptions)
+         unwrapValidation task.Result
    )

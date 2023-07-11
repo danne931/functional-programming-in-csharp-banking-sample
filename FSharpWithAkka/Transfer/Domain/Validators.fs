@@ -1,9 +1,6 @@
 namespace Bank.Transfer.Domain
 
-open FSharp.Control
 open Microsoft.FSharp.Core.Option
-
-open Lib.Types
 
 module Validators =
    let transfer () =
@@ -11,8 +8,7 @@ module Validators =
          if cmd.Amount <= 0m then
             Error "InvalidTransferAmount"
          else
-            Ok())
-      |> Validator
+            Ok cmd)
 
    let registerTransferRecipient () =
       (fun (cmd: RegisterTransferRecipientCommand) ->
@@ -29,5 +25,4 @@ module Validators =
          then
             Error "TransferErr.InvalidInternationalRecipient"
          else
-            Ok())
-      |> Validator
+            Ok cmd)

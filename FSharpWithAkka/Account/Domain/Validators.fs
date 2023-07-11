@@ -1,8 +1,6 @@
 namespace Bank.Account.Domain
 
 open System
-open Lib.Types
-open BankTypes
 
 type private Currencies =
    | USD = 0
@@ -26,21 +24,18 @@ module Validators =
          if cmd.DebitLimit < 0m then
             Error "InvalidDailyDebitLimit"
          else
-            Ok())
-      |> Validator
+            Ok cmd)
 
    let deposit () =
       (fun (cmd: DepositCashCommand) ->
          if cmd.Amount < 1m then
             Error $"InvalidDepositAmount {cmd.Amount}"
          else
-            Ok())
-      |> Validator
+            Ok cmd)
 
    let debit () =
       (fun (cmd: DebitCommand) ->
          if cmd.Amount <= 0m then
             Error $"InvalidDebitAmount {cmd.Amount}"
          else
-            Ok())
-      |> Validator
+            Ok cmd)

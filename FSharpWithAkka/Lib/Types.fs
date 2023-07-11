@@ -1,7 +1,6 @@
 module Lib.Types
 
 open System
-open System.Threading.Tasks
 
 [<AbstractClass>]
 type Command(entityId: Guid, correlationId: Guid) =
@@ -31,11 +30,6 @@ type Envelope = {
    CorrelationId: Guid
 }
 
-type Validator<'t> = 't -> Result<unit, string>
-type AsyncValidator<'t> = 't -> Task<Result<unit, string>>
+type Validator<'t> = 't -> Result<'t :> Command, string>
 
-type Validators<'t when 't :> Command> =
-   | Validator of Validator<'t>
-   | AsyncValidator of AsyncValidator<'t>
-
-let PassValidation () = (fun _ -> Ok()) |> Validator
+let PassValidation () = fun (cmd: 't :> Command) -> Ok cmd
