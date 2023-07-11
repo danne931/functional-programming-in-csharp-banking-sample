@@ -22,7 +22,7 @@ let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    |> ignore
 
 let startActorModel () =
-   let system = System.create "bank" (Configuration.defaultConfig ())
+   let system = System.create "bank" (Configuration.load ())
 
    let deadLetterHandler (msg: AllDeadLetters) =
       printfn "Dead letters: %A" msg

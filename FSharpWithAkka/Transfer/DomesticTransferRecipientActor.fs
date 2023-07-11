@@ -8,6 +8,7 @@ open System.Net
 open Akkling
 open Akka.Actor
 open Akka.Pattern
+open Akka.Routing
 
 open Lib.ActivePatterns
 open Lib.Types
@@ -61,12 +62,17 @@ let domesticTransfer
 type Message =
    | TransferPending of BankEvent<TransferPending>
    | BreakerHalfOpen
+   | BreakerClosed
 
 let start (system: ActorSystem) (breaker: CircuitBreaker) =
    let handler (mailbox: Actor<Message>) (msg: Message) =
       match msg with
       | BreakerHalfOpen ->
          mailbox.Unstash()
+         Ignore
+      | BreakerClosed ->
+         printfn "%A: BreakerClosed - unstash all" mailbox.Self.Path
+         mailbox.UnstashAll()
          Ignore
       | TransferPending evt ->
          if breaker.IsOpen then
@@ -108,20 +114,34 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
                         failwith errMsg // Trip the circuit breaker
                )
             with err when true ->
-               printfn "%A Error: %A" actorName err.Message
+               printfn "%s Error: %s" actorName err.Message
                Ignore
 
-   let ref = spawn system actorName (props (actorOf2 handler))
+   let p = props <| actorOf2 handler
 
-   breaker.OnOpen(fun () -> printfn $"{actorName} circuit breaker open.")
-   |> ignore
-
-   breaker.OnClose(fun () -> printfn $"{actorName} circuit breaker closed.")
-   |> ignore
+   let ref =
+      spawn
+         system
+         actorName
+         {
+            p with
+               Router = Some FromConfig.Instance
+         }
 
    breaker.OnHalfOpen(fun () ->
-      printfn $"{actorName} circuit breaker half open."
+      printfn "%s: BreakerHalfOpen" actorName
       ref <! BreakerHalfOpen)
    |> ignore
+
+   // The event handler is bound once even though there may be
+   // several routees.  Need to preface BreakerClosed message with
+   // Broadcast to ensure all routees are informed.
+   // Otherwise, only messages stashed on routee $a will be unstashed.
+   breaker.OnClose(fun () ->
+      printfn "%s: BreakerClosed - broadcast" actorName
+      (retype ref) <! Broadcast BreakerClosed)
+   |> ignore
+
+   breaker.OnOpen(fun () -> printfn "%s: BreakerOpen" actorName) |> ignore
 
    ref
