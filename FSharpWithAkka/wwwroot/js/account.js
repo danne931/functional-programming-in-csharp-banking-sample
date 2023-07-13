@@ -6,6 +6,30 @@ const state = {
   transferRecipients: {}
 }
 
+const selectors = {
+  accountsList: () => document.getElementById('accounts-list'),
+  accountBalance: () => document.getElementById('account-balance'),
+  accountName: () => document.getElementById('account-name'),
+  dailyDebitLimit: () => document.getElementById('account-daily-debit-limit'),
+  dailyDebitAccrued: () => document.getElementById('account-daily-debit-accrued'),
+  debitCardLock: () => document.getElementById('account-debit-card-lock'),
+  transferRecipientSelection: () => document.querySelector('#account-transfer-form select'),
+  eventList: () => document.getElementById('event-list'),
+  progressIndicator: () => document.querySelector('progress[data-transactions-loader]'),
+  actionWrapper: () => document.getElementById('action-wrapper'),
+  form: {
+    debit: () => document.getElementById('account-debit-form'),
+    deposit: () => document.getElementById('account-deposit-form'),
+    transfer: () => document.getElementById('account-transfer-form'),
+    transferRecipient: () => document.getElementById('register-transfer-recipient-form'),
+    dailyDebitLimit: () => document.getElementById('account-daily-debit-limit-form')
+  },
+  transferRecipientAccountEnvironment: () =>
+    document.getElementById("transfer-recipient-account-environment"),
+  transferRecipientRoutingNumber: () =>
+    document.getElementById('transfer-recipient-routing-number')
+}
+
 const connection = new signalR.HubConnectionBuilder()
   .withUrl('/accountHub')
   .build()
@@ -44,6 +68,23 @@ connection
   })
   .catch(notifyError)
 
+function accountSelectionClicked (e) {
+  e.preventDefault()
+  // Close account list selection
+  selectors
+    .accountsList()
+    .closest('details')
+    .removeAttribute('open')
+
+  const accountId = e.target.getAttribute('value')
+  if (accountId === state.selectedAccountId) return
+
+  renderTransactionsLoaderStart()
+
+  accountSelected(accountId)
+    .then(() => renderTransactionsLoaderFinish())
+}
+
 function accountSelected (accountId) {
   return addAccountToConnectionGroup(accountId)
     .then(() => Promise.all([
@@ -63,6 +104,7 @@ function accountSelected (accountId) {
       interpolateTransferRecipientSelection(account)
       state.transferRecipients = account.transferRecipients
       renderEventsIntoListView(events.map(serverToClientEventMapping).reverse())
+      renderTransactionsLoaderFinish()
     })
 }
 
@@ -75,28 +117,24 @@ function addAccountToConnectionGroup (accountId) {
     .then(() => connection.invoke('AddToConnectionGroup', accountId))
     .then(() => {
       state.selectedAccountId = accountId
-      highlightSelectedAccount(accountId)
+      //highlightSelectedAccount(accountId)
     })
 }
 
 function renderAccountsList (accounts) {
   const accountsAsNodes = accounts.reduce((acc, account) => {
-    const input = document.createElement('input')
-    input.type = 'radio'
-    input.name = 'selected-account'
-    input.value = account.entityId
-    input.id = account.entityId
-
-    const label = document.createElement('label')
-    label.setAttribute('for', account.entityId)
-    label.textContent = `${account.firstName} ${account.lastName} - Account Id: ${account.entityId}`
-
-    return acc.concat([input, label, document.createElement('br')])
+    const li = document.createElement('li')
+    const a = document.createElement('a')
+    a.setAttribute('href', '')
+    a.setAttribute('value', account.entityId)
+    a.setAttribute('onclick', 'accountSelectionClicked(event)')
+    a.textContent = `${account.firstName} ${account.lastName} - Account Id: ${account.entityId}`
+    li.append(a)
+    acc.push(li)
+    return acc
   }, [])
 
-  document
-    .getElementById('accounts-list')
-    .prepend(...accountsAsNodes)
+  selectors.accountsList().prepend(...accountsAsNodes)
 }
 
 function highlightSelectedAccount (accountId) {
@@ -106,20 +144,13 @@ function highlightSelectedAccount (accountId) {
 }
 
 function renderAccountState (account) {
-  document.getElementById('account-balance').textContent =
-    `$${account.balance}`
-  document.getElementById('account-name').textContent =
-    `${account.firstName} ${account.lastName}`
-  document
-    .getElementById('account-daily-debit-limit')
-    .textContent = account.dailyDebitLimit !== -1
-      ? account.dailyDebitLimit
-      : 'No limit set'
-  document
-    .getElementById('account-daily-debit-accrued')
-    .textContent = account.dailyDebitAccrued
-  document.getElementById('account-debit-card-lock').checked =
-    account.status === 'ActiveWithLockedCard'
+  selectors.accountBalance().textContent = `$${account.balance}`
+  selectors.accountName().textContent = `${account.firstName} ${account.lastName}`
+  selectors.dailyDebitLimit().textContent = account.dailyDebitLimit !== -1
+    ? `$${account.dailyDebitLimit}`
+    : '-'
+  selectors.dailyDebitAccrued().textContent = `$${account.dailyDebitAccrued}`
+  selectors.debitCardLock().checked = account.status === 'ActiveWithLockedCard'
 }
 
 function interpolateTransferRecipientSelection (account) {
@@ -130,95 +161,157 @@ function interpolateTransferRecipientSelection (account) {
       option.label = `${val.firstName} ${val.lastName}`
       return option
     })
-  document
-    .querySelector('#account-transfer-form select')
+
+  selectors
+    .transferRecipientSelection()
     .replaceChildren(...transferRecipientsAsNodes)
 }
 
 function renderEventsIntoListView (events) {
-  const eventsAsNodes = events.map(evt => {
-    const li = document.createElement('li')
-    li.textContent = eventToTransactionString(evt)
-    return li
-  })
-  document
-    .getElementById('messagesList')
-    .replaceChildren(...eventsAsNodes)
+  selectors
+    .eventList()
+    .replaceChildren(...events.map(eventToTableRow))
 }
 
 function renderEventIntoListView (evt) {
-  const li = document.createElement('li')
-  li.textContent = eventToTransactionString(evt)
-  document.getElementById('messagesList').prepend(li)
+  selectors.eventList().prepend(eventToTableRow(evt))
+  renderTransactionsLoaderFinish()
 }
 
-function eventToTransactionString (evt) {
+function renderTransactionsLoaderStart () {
+  selectors.progressIndicator().removeAttribute('value')
+}
+
+function renderTransactionsLoaderFinish () {
+  selectors.progressIndicator().setAttribute('value', 100)
+}
+
+function eventToTableRow (evt) {
+  const tr = document.createElement('tr')
+  const th = document.createElement('th')
+  th.setAttribute('scope', 'row')
+  const amountEl = document.createElement('td')
+  const eventEl = document.createElement('td')
+  const originEl = document.createElement('td')
+  const dateEl = document.createElement('td')
+  const infoEl = document.createElement('td')
+
+  const rowProps = {
+    date: evt.timestamp,
+    name: 'Unknown Event',
+    origin: '-',
+    amount: '-',
+    info: ''
+  }
+
   switch (evt.name) {
     case 'CreatedAccount':
-      return `Created account for ${evt.firstName} ${evt.lastName} with balance $${evt.balance} on ${evt.timestamp}`
+      rowProps.name = 'Account Created'
+      rowProps.amount = `$${evt.balance}`
+      amountEl.classList.add('credit')
+      break
     case 'DepositedCash':
-      return `$${evt.depositedAmount} deposited on ${evt.timestamp} by ${evt.origin}`
+      rowProps.name = 'Deposit'
+      rowProps.amount = `$${evt.depositedAmount}`
+      rowProps.origin = evt.origin
+      amountEl.classList.add('credit')
+      break
     case 'DebitedAccount':
-      return `$${evt.debitedAmount} debited by ${evt.origin} on ${evt.timestamp}`
+      rowProps.name = 'Debit'
+      rowProps.amount = `-$${evt.debitedAmount}`
+      rowProps.origin = evt.origin === 'actor:maintenance_fee' ? 'Maintenance Fee' : evt.origin
+      amountEl.classList.add('debit')
+      break
     case 'DailyDebitLimitUpdated':
-      return `Daily debit limit updated to $${evt.debitLimit} on ${evt.timestamp}`
+      rowProps.name = 'Daily Debit Limit Updated'
+      rowProps.amount = `$${evt.debitLimit}`
+      break
     case 'LockedCard':
-      return `Debit card locked on ${evt.timestamp}`
+      rowProps.name = "Card Locked"
+      break
     case 'UnlockedCard':
-      return `Debit card unlocked on ${evt.timestamp}`
+      rowProps.name = "Card Unlocked"
+      break
     case 'TransferPending':
-      return `Pending $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp}`
+      rowProps.name = 'Pending Transfer'
+      rowProps.info = `Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName}`
+      rowProps.amount = `-$${evt.debitedAmount}`
+      amountEl.classList.add('debit')
+      break
     case 'TransferApproved':
-      return `Approved $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp}`
+      rowProps.name = 'Approved Transfer'
+      rowProps.info = `Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName}`
+      rowProps.amount = `$${evt.debitedAmount}`
+      break
     case 'TransferRejected':
-      return `Rejected $${evt.debitedAmount} transfer to ${evt.recipient.firstName} ${evt.recipient.lastName} on ${evt.timestamp} due to ${evt.reason}.  Account refunded.`
+      rowProps.amount = `+$${evt.debitedAmount}`
+      rowProps.name = 'Rejected Transfer'
+      rowProps.info = `Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName} - Reason: ${evt.reason} -  Account refunded`
+      amountEl.classList.add('credit')
+      break
     case 'InternalTransferRecipient':
     case 'DomesticTransferRecipient':
-      return `Registered ${evt.accountEnvironment} transfer recipient ${evt.firstName} ${evt.lastName} on ${evt.timestamp}`
-    default:
-      return 'Unknown event'
+      rowProps.name = `Registered ${evt.accountEnvironment} Transfer Recipient`
+      rowProps.info = `Recipient: ${evt.firstName} ${evt.lastName}`
+      break
   }
+
+  amountEl.append(rowProps.amount)
+  eventEl.append(rowProps.name)
+  originEl.append(rowProps.origin)
+  dateEl.append(rowProps.date)
+  infoEl.append(rowProps.info)
+
+  tr.replaceChildren(...[th, amountEl, eventEl, originEl, dateEl, infoEl])
+  return tr
 }
 
-const accountsListFormEl = document.getElementById('accounts-list')
-accountsListFormEl.addEventListener('submit', e => {
-  e.preventDefault()
-  const formData = new FormData(accountsListFormEl)
-  accountSelected(formData.get('selected-account'))
-})
+function accountActionButtonClicked (action) {
+  selectors.actionWrapper().classList.add('hidden')
+
+  selectors
+    .form[action]()
+    .closest('.form-wrapper')
+    .classList
+    .remove('hidden')
+}
+
+function accountActionBackButtonClicked (e) {
+  closeFormView(e.target.closest('form'))
+}
+
+function closeFormView (formEl) {
+  formEl.closest('.form-wrapper').classList.add('hidden')
+  selectors.actionWrapper().classList.remove('hidden')
+}
 
 function transferAccountEnvironmentSelected () {
-  const selected =
-    document
-      .getElementById("transfer-recipient-account-environment")
-      .value
+  const selected = selectors.transferRecipientAccountEnvironment().value
 
-  const el = document.getElementById("transfer-recipient-routing-number")
+  const el = selectors.transferRecipientRoutingNumber()
 
   if (selected === "1") {
-    el.style.display = "block"
-    el.setAttribute("required", true)
+    el.style.display = 'block'
+    el.setAttribute('required', true)
   } else {
-    el.style.display = "none"
-    el.removeAttribute("required")
+    el.style.display = 'none'
+    el.removeAttribute('required')
   }
 }
 
 function resetDomAfterRecipientRegistration () {
-  const el = document.getElementById("transfer-recipient-routing-number")
-  el.style.display = "none"
-  el.removeAttribute("required")
+  const el = selectors.transferRecipientRoutingNumber()
+  el.style.display = 'none'
+  el.removeAttribute('required')
 }
 
 function cardLockToggled () {
-  const url = document.getElementById('account-debit-card-lock').checked
-    ? '/accounts/lock'
-    : '/accounts/unlock'
+  const url = selectors.debitCardLock().checked ? '/accounts/lock' : '/accounts/unlock'
   jsonPost(url, { entityId: state.selectedAccountId })
 }
 
 listenForFormSubmit(
-  document.getElementById('account-deposit-form'),
+  selectors.form.deposit(),
   '/accounts/deposit',
   formData => ({
     entityId: state.selectedAccountId,
@@ -227,7 +320,7 @@ listenForFormSubmit(
 )
 
 listenForFormSubmit(
-  document.getElementById('account-debit-form'),
+  selectors.form.debit(),
   '/accounts/debit',
   formData => ({
     entityId: state.selectedAccountId,
@@ -237,7 +330,7 @@ listenForFormSubmit(
 )
 
 listenForFormSubmit(
-  document.getElementById('account-daily-debit-limit-form'),
+  selectors.form.dailyDebitLimit(),
   '/accounts/daily-debit-limit',
   formData => ({
     entityId: state.selectedAccountId,
@@ -246,7 +339,7 @@ listenForFormSubmit(
 )
 
 listenForFormSubmit(
-  document.getElementById('account-transfer-form'),
+  selectors.form.transfer(),
   '/transfers',
   formData => ({
     entityId: state.selectedAccountId,
@@ -259,7 +352,7 @@ listenForFormSubmit(
 )
 
 listenForFormSubmit(
-  document.getElementById('register-transfer-recipient-form'),
+  selectors.form.transferRecipient(),
   '/transfers/register-recipient',
   formData => {
     const data = {
@@ -284,6 +377,9 @@ listenForFormSubmit(
 function listenForFormSubmit (formEl, url, formDataToProps, postSubmit) {
   formEl.addEventListener('submit', e => {
     e.preventDefault()
+
+    closeFormView(formEl)
+
     jsonPost(url, formDataToProps(new FormData(formEl)))
       .then(_ => {
         formEl.reset()
