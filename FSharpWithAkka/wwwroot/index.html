@@ -71,7 +71,7 @@
             <div class="grid">
               <button
                 onclick="accountActionButtonClicked('transferRecipient')"
-                class="outline">Register a Transfer Recipient</button>
+                class="outline">Add a Transfer Recipient</button>
             </div>
 
             <div class="grid">
@@ -103,7 +103,7 @@
           </div>
 
           <div class="form-wrapper hidden">
-            <h6>Register a Transfer Recipient</h6>
+            <h6>Add a Transfer Recipient</h6>
             <button
               onclick="closeFormView(event.target)"
               class="secondary outline">Back</button>
@@ -232,6 +232,19 @@
       </label>
     </div>
   </footer>
+
+  <dialog id="validation-error-modal">
+    <article>
+      <a href=""
+        aria-label="Close"
+        class="close"
+        data-target="validation-error-modal"
+        onClick="event.preventDefault(); closeValidationErrorModal()">
+      </a>
+      <h4>Invalid Action</h4>
+      <p id='validation-error-reason' class='alert'></p>
+    </article>
+  </dialog>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.4/signalr.min.js"></script>
   <script src="/js/account.js"></script>

@@ -23,6 +23,10 @@ footer [data-tooltip] {
   color: var(--primary);
 }
 
+.alert {
+  color: var(--del-color)
+}
+
 .debit {
   color: var(--del-color)
 }

@@ -3,7 +3,8 @@
 const state = {
   accounts: {},
   selectedAccountId: null,
-  transferRecipients: {}
+  transferRecipients: {},
+  validationErrorModalOpen: false
 }
 
 const selectors = {
@@ -27,7 +28,9 @@ const selectors = {
   transferRecipientAccountEnvironment: () =>
     document.getElementById("transfer-recipient-account-environment"),
   transferRecipientRoutingNumber: () =>
-    document.getElementById('transfer-recipient-routing-number')
+    document.getElementById('transfer-recipient-routing-number'),
+  validationErrorModal: () => document.getElementById('validation-error-modal'),
+  validationErrorReason: () => document.getElementById('validation-error-reason')
 }
 
 const connection = new signalR.HubConnectionBuilder()
@@ -35,8 +38,8 @@ const connection = new signalR.HubConnectionBuilder()
   .build()
 
 connection.on('ReceiveError', function (err) {
-  const msg = `Error: ${err}`
-  notifyError(msg)
+  console.error(`Error: ${err}`)
+  openValidationErrorModal(err)
 })
 
 connection.on('ReceiveMessage', function ({ newState, event }) {
@@ -416,3 +419,59 @@ function serverToClientEventMapping (evt) {
     ...evt.Fields[0].data
   }
 }
+
+// Validation Error Modal Logic
+
+const modal = {
+  classes: {
+    open: 'modal-is-open',
+    opening: 'modal-is-opening',
+    closing: 'modal-is-closing'
+  },
+  animationDuration: 300
+}
+
+const openValidationErrorModal = errorReason => {
+  selectors.validationErrorReason().textContent = errorReason
+  document
+    .documentElement
+    .classList
+    .add(modal.classes.open, modal.classes.opening)
+
+  selectors.validationErrorModal().setAttribute('open', true)
+
+  setTimeout(() => {
+    state.isValidationErrorModalOpen = true
+    document.documentElement.classList.remove(modal.classes.opening)
+  }, modal.animationDuration)
+}
+
+const closeValidationErrorModal = () => {
+  state.isValidationErrorModalOpen = false
+  document.documentElement.classList.add(modal.classes.closing)
+
+  setTimeout(() => {
+    document
+      .documentElement
+      .classList
+      .remove(modal.classes.closing, modal.classes.open)
+
+    selectors.validationErrorModal().removeAttribute('open')
+  }, modal.animationDuration)
+}
+
+// Close with a click outside modal
+document.addEventListener('click', e => {
+  if (state.isValidationErrorModalOpen) {
+    const modalContent = selectors.validationErrorModal().querySelector('article')
+    const isClickInside = modalContent.contains(e.target)
+    !isClickInside && closeValidationErrorModal()
+  }
+})
+
+// Close with Esc key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state.isValidationErrorModalOpen) {
+    closeValidationErrorModal()
+  }
+})
