@@ -123,7 +123,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
    | _ -> state
 
 module private StateTransition =
-   let deposit state (cmd: DepositCashCommand) =
+   let deposit (state: AccountState) (cmd: DepositCashCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
       elif cmd.Amount <= 0m then
@@ -132,26 +132,26 @@ module private StateTransition =
          let evt = DepositedCashEvent.create cmd |> DepositedCash
          Ok(evt, applyEvent state evt)
 
-   let limitDailyDebits state (cmd: LimitDailyDebitsCommand) =
+   let limitDailyDebits (state: AccountState) (cmd: LimitDailyDebitsCommand) =
       let evt = DailyDebitLimitUpdatedEvent.create cmd |> DailyDebitLimitUpdated
 
       Ok(evt, applyEvent state evt)
 
-   let lockCard state (cmd: LockCardCommand) =
+   let lockCard (state: AccountState) (cmd: LockCardCommand) =
       if state.Status <> AccountStatus.Active then
          Error "AccountNotActive"
       else
          let evt = LockedCardEvent.create cmd |> LockedCard
          Ok(evt, applyEvent state evt)
 
-   let unlockCard state (cmd: UnlockCardCommand) =
+   let unlockCard (state: AccountState) (cmd: UnlockCardCommand) =
       if state.Status <> AccountStatus.ActiveWithLockedCard then
          Error $"Account card already unlocked {state.Status}"
       else
          let evt = UnlockedCardEvent.create cmd |> UnlockedCard
          Ok(evt, applyEvent state evt)
 
-   let debit state (cmd: DebitCommand) =
+   let debit (state: AccountState) (cmd: DebitCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
       elif
@@ -173,7 +173,7 @@ module private StateTransition =
          let evt = DebitedAccountEvent.create cmd |> DebitedAccount
          Ok(evt, applyEvent state evt)
 
-   let transfer state (cmd: TransferCommand) =
+   let transfer (state: AccountState) (cmd: TransferCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
@@ -189,17 +189,20 @@ module private StateTransition =
          let evt = TransferEvent.create cmd |> TransferPending
          Ok(evt, applyEvent state evt)
 
-   let approveTransfer state (cmd: ApproveTransferCommand) =
+   let approveTransfer (state: AccountState) (cmd: ApproveTransferCommand) =
       let evt = TransferEvent.approve cmd |> TransferApproved
 
       Ok(evt, applyEvent state evt)
 
-   let rejectTransfer state (cmd: RejectTransferCommand) =
+   let rejectTransfer (state: AccountState) (cmd: RejectTransferCommand) =
       let evt = TransferEvent.reject cmd |> TransferRejected
 
       Ok(evt, applyEvent state evt)
 
-   let registerTransferRecipient state (cmd: RegisterTransferRecipientCommand) =
+   let registerTransferRecipient
+      (state: AccountState)
+      (cmd: RegisterTransferRecipientCommand)
+      =
       if state.TransferRecipients.ContainsKey cmd.Recipient.Identification then
          Error "TransferErr.RecipientAlreadyRegistered(cmd)"
       else
@@ -218,7 +221,7 @@ module private StateTransition =
          Ok(evt, applyEvent state evt)
 
 
-let stateTransition state (command: Command) =
+let stateTransition (state: AccountState) (command: Command) =
    match box command with
    | :? DepositCashCommand as cmd -> StateTransition.deposit state cmd
    | :? DebitCommand as cmd -> StateTransition.debit state cmd

@@ -15,6 +15,8 @@ type IAccountClient =
 
    abstract member ReceiveError: string -> Task
 
+   abstract member ReceiveCircuitBreakerMessage: CircuitBreakerMessage -> Task
+
 type AccountHub() =
    inherit Hub<IAccountClient>()
 

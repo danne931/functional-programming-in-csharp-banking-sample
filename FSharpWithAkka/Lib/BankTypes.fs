@@ -120,7 +120,21 @@ type AccountPersistence = {
    save: OpenEventEnvelope -> unit Task
 }
 
+type Service =
+   | DomesticTransfer = 0
+
+type CircuitBreakerStatus =
+   | Closed = 0
+   | HalfOpen = 1
+   | Open = 2
+
+type CircuitBreakerMessage = {
+   Service: Service
+   Status: CircuitBreakerStatus
+}
+
 type AccountBroadcast = {
    broadcast: AccountEvent * AccountState -> Task
    broadcastError: string -> Task
+   broadcastCircuitBreaker: CircuitBreakerMessage -> Task
 }

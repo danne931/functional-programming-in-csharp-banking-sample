@@ -30,8 +30,8 @@ let startTransferRoutes (app: WebApplication) =
 
    app.MapPost(
       Path.Base,
-      Func<IActorRef<AccountCoordinatorMessage>, TransferCommand, IResult>
-         (fun coordinator command ->
+      Func<IActorRef<DomesticTransferRecipientActor.Message>, IActorRef<AccountCoordinatorMessage>, TransferCommand, IResult>
+         (fun _ coordinator command ->
             processCommand coordinator (Validators.transfer ()) command
             |> RouteUtil.unwrapValidation)
    )

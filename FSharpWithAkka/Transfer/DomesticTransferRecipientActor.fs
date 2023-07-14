@@ -64,7 +64,11 @@ type Message =
    | BreakerHalfOpen
    | BreakerClosed
 
-let start (system: ActorSystem) (breaker: CircuitBreaker) =
+let start
+   (system: ActorSystem)
+   (breaker: CircuitBreaker)
+   (broadcaster: AccountBroadcast)
+   =
    let handler (mailbox: Actor<Message>) (msg: Message) =
       match msg with
       | BreakerHalfOpen ->
@@ -130,6 +134,14 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
 
    breaker.OnHalfOpen(fun () ->
       printfn "%s: BreakerHalfOpen" actorName
+
+      broadcaster.broadcastCircuitBreaker
+         {
+            Service = Service.DomesticTransfer
+            Status = CircuitBreakerStatus.HalfOpen
+         }
+      |> ignore
+
       ref <! BreakerHalfOpen)
    |> ignore
 
@@ -139,9 +151,26 @@ let start (system: ActorSystem) (breaker: CircuitBreaker) =
    // Otherwise, only messages stashed on routee $a will be unstashed.
    breaker.OnClose(fun () ->
       printfn "%s: BreakerClosed - broadcast" actorName
+
+      broadcaster.broadcastCircuitBreaker
+         {
+            Service = Service.DomesticTransfer
+            Status = CircuitBreakerStatus.Closed
+         }
+      |> ignore
+
       (retype ref) <! Broadcast BreakerClosed)
    |> ignore
 
-   breaker.OnOpen(fun () -> printfn "%s: BreakerOpen" actorName) |> ignore
+   breaker.OnOpen(fun () ->
+      printfn "%s: BreakerOpen" actorName
+
+      broadcaster.broadcastCircuitBreaker
+         {
+            Service = Service.DomesticTransfer
+            Status = CircuitBreakerStatus.Open
+         }
+      |> ignore)
+   |> ignore
 
    ref

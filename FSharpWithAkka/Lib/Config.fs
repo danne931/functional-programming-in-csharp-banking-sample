@@ -36,16 +36,6 @@ let startActorModel () =
 
    EventStreaming.subscribe deadLetterRef system.EventStream |> ignore
 
-   DomesticTransferRecipientActor.start
-      system
-      (CircuitBreaker(
-         system.Scheduler,
-         maxFailures = 2,
-         callTimeout = TimeSpan.FromSeconds 7,
-         resetTimeout = TimeSpan.FromMinutes 1
-      ))
-   |> ignore
-
    system
 
 let startSignalR (builder: WebApplicationBuilder) =
@@ -92,6 +82,11 @@ let injectDependencies
             provider
                .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
                .Clients.All.ReceiveError(errMsg))
+      broadcastCircuitBreaker =
+         (fun circuitBreakerMessage ->
+            provider
+               .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
+               .Clients.All.ReceiveCircuitBreakerMessage(circuitBreakerMessage))
    }
 
    builder.Services.AddSingleton<AccountBroadcast>(initBroadcast) |> ignore
@@ -100,6 +95,19 @@ let injectDependencies
       (fun provider ->
          let broadcast = provider.GetRequiredService<AccountBroadcast>()
          AccountCoordinatorActor.start actorSystem persistence broadcast)
+   |> ignore
+
+   builder.Services.AddSingleton<IActorRef<DomesticTransferRecipientActor.Message>>
+      (fun provider ->
+         DomesticTransferRecipientActor.start
+            actorSystem
+            (CircuitBreaker(
+               actorSystem.Scheduler,
+               maxFailures = 2,
+               callTimeout = TimeSpan.FromSeconds 7,
+               resetTimeout = TimeSpan.FromMinutes 1
+            ))
+            (provider.GetRequiredService<AccountBroadcast>()))
    |> ignore
 
    builder.Services.AddSingleton<AccountPersistence>(persistence) |> ignore

@@ -4,7 +4,10 @@ const state = {
   accounts: {},
   selectedAccountId: null,
   transferRecipients: {},
-  validationErrorModalOpen: false
+  validationErrorModalOpen: false,
+  circuitBreaker: {
+    isDomesticTransferOpen: false
+  }
 }
 
 const selectors = {
@@ -30,7 +33,8 @@ const selectors = {
   transferRecipientRoutingNumber: () =>
     document.getElementById('transfer-recipient-routing-number'),
   validationErrorModal: () => document.getElementById('validation-error-modal'),
-  validationErrorReason: () => document.getElementById('validation-error-reason')
+  validationErrorReason: () => document.getElementById('validation-error-reason'),
+  domesticTransferCircuitBreaker: () => document.getElementById('domestic-transfer-circuit-breaker')
 }
 
 const connection = new signalR.HubConnectionBuilder()
@@ -54,6 +58,35 @@ connection.on('ReceiveMessage', function ({ newState, event }) {
     state.transferRecipients = newState.transferRecipients
   }
 })
+
+connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
+  if (service === 'DomesticTransfer') {
+    toggleDomesticTransferCircuitBreaker(status)
+  } else {
+    console.error(`Unhandled circuit breaker message for service ${service}`)
+  }
+})
+
+function toggleDomesticTransferCircuitBreaker (status) {
+  // Don't update UI if half open
+  if (status === 'HalfOpen') return
+
+  const el = selectors.domesticTransferCircuitBreaker()
+  const isOpen = state.circuitBreaker.isDomesticTransferOpen
+
+  if (status === 'Open' && !isOpen) {
+    state.circuitBreaker.isDomesticTransferOpen = true
+    el.textContent = 'Open'
+    el.classList.remove('success')
+    el.classList.add('alert')
+  }
+  else if (status === 'Closed' && isOpen) {
+    state.circuitBreaker.isDomesticTransferOpen = false
+    el.textContent = 'Closed'
+    el.classList.remove('alert')
+    el.classList.add('success')
+  }
+}
 
 connection
   .start()
