@@ -187,7 +187,7 @@ module private StateTransition =
             recipientLookupKey cmd.Recipient
          )
       then
-         Error "TransferErr.RecipientRegistrationRequired(cmd)"
+         Error "RecipientRegistrationRequired"
       else
          let evt = TransferEvent.create cmd |> TransferPending
          Ok(evt, applyEvent state evt)
@@ -207,7 +207,7 @@ module private StateTransition =
       (cmd: RegisterTransferRecipientCommand)
       =
       if state.TransferRecipients.ContainsKey cmd.Recipient.Identification then
-         Error "TransferErr.RecipientAlreadyRegistered(cmd)"
+         Error "RecipientAlreadyRegistered"
       else
          let evt =
             match cmd.Recipient.AccountEnvironment with

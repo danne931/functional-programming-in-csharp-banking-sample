@@ -14,15 +14,17 @@ module Validators =
       (fun (cmd: RegisterTransferRecipientCommand) ->
          let recipient = cmd.Recipient
 
-         if
+         if string cmd.EntityId = recipient.Identification then
+            Error "CanNotRegisterSelfAsRecipient"
+         elif
             recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
             && isNone recipient.RoutingNumber
          then
-            Error "TransferErr.InvalidDomesticRecipient"
+            Error "InvalidDomesticRecipient"
          elif
             recipient.AccountEnvironment = RecipientAccountEnvironment.International
             && isNull recipient.Currency
          then
-            Error "TransferErr.InvalidInternationalRecipient"
+            Error "InvalidInternationalRecipient"
          else
             Ok cmd)
