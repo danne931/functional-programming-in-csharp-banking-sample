@@ -27,6 +27,7 @@ let private eventTypeMapping =
       nameof TransferApproved, typeof<BankEvent<TransferApproved>>
       nameof TransferRejected, typeof<BankEvent<TransferRejected>>
       nameof DebitedAccount, typeof<BankEvent<DebitedAccount>>
+      nameof MaintenanceFeeDebited, typeof<BankEvent<MaintenanceFeeDebited>>
       nameof DailyDebitLimitUpdated, typeof<BankEvent<DailyDebitLimitUpdated>>
       nameof DepositedCash, typeof<BankEvent<DepositedCash>>
       nameof LockedCard, typeof<BankEvent<LockedCard>>

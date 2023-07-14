@@ -38,7 +38,6 @@ let start
    (scheduledAt: _ -> TimeSpan)
    (mailbox: Actor<_>)
    (accountId: Guid)
-   (correlationId: Guid)
    =
    let actorName = (ActorMetadata.maintenanceFee accountId).Name
 
@@ -66,16 +65,7 @@ let start
                   accountId
 
             if isSome criteriaMet then
-               let cmd =
-                  DebitCommand(
-                     accountId,
-                     DateTime.UtcNow,
-                     Constants.Fee,
-                     Account.Constants.DebitOriginMaintenanceFee,
-                     actorName,
-                     correlationId
-                  )
-
+               let cmd = MaintenanceFeeCommand accountId
                ctx.Parent<AccountMessage>() <! AccountMessage.StateChange cmd
          | _ -> Unhandled
       }

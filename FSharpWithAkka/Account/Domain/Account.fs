@@ -11,9 +11,6 @@ open Lib.Time
 
 let streamName (id: Guid) = "accounts_" + string id
 
-module Constants =
-   let DebitOriginMaintenanceFee = "actor:maintenance_fee"
-
 let recipientLookupKey (recipient: TransferRecipient) =
    match recipient.AccountEnvironment with
    | RecipientAccountEnvironment.Internal -> recipient.Identification
@@ -25,8 +22,6 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    // -> Ignore debits older than a day
    if not <| IsToday evt.Timestamp then
       0m
-   elif evt.Data.Origin = Constants.DebitOriginMaintenanceFee then
-      state.DailyDebitAccrued
    elif Option.isNone state.LastDebitDate then
       evt.Data.DebitedAmount
    // When applying a new event to the cached AccountState & the
@@ -62,6 +57,10 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          Balance = state.Balance - e.Data.DebitedAmount
          DailyDebitAccrued = DailyDebitAccrued state e
          LastDebitDate = Some e.Timestamp
+     }
+   | MaintenanceFeeDebited e -> {
+      state with
+         Balance = state.Balance - e.Data.DebitedAmount
      }
    | DailyDebitLimitUpdated e -> {
       state with
@@ -154,23 +153,27 @@ module private StateTransition =
    let debit (state: AccountState) (cmd: DebitCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
-      elif
-         state.Status = AccountStatus.ActiveWithLockedCard
-         && cmd.Origin <> Constants.DebitOriginMaintenanceFee
-      then
+      elif state.Status = AccountStatus.ActiveWithLockedCard then
          Error "AccountCardLocked"
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
          Error "InsufficientBalance"
       elif
          state.DailyDebitLimit <> -1m
-         // Maintenance fee does not count toward daily debit accrual
-         && cmd.Origin <> Constants.DebitOriginMaintenanceFee
          && IsToday cmd.Timestamp
          && state.DailyDebitAccrued + cmd.Amount > state.DailyDebitLimit
       then
          Error $"ExceededDailyDebit {state.DailyDebitLimit}"
       else
          let evt = DebitedAccountEvent.create cmd |> DebitedAccount
+         Ok(evt, applyEvent state evt)
+
+   let maintenanceFee (state: AccountState) (cmd: MaintenanceFeeCommand) =
+      if state.Status = AccountStatus.Closed then
+         Error "AccountNotActive"
+      elif state.Balance - cmd.Amount < state.AllowedOverdraft then
+         Error "InsufficientBalance"
+      else
+         let evt = MaintenanceFeeEvent.create cmd |> MaintenanceFeeDebited
          Ok(evt, applyEvent state evt)
 
    let transfer (state: AccountState) (cmd: TransferCommand) =
@@ -220,11 +223,11 @@ module private StateTransition =
 
          Ok(evt, applyEvent state evt)
 
-
 let stateTransition (state: AccountState) (command: Command) =
    match box command with
    | :? DepositCashCommand as cmd -> StateTransition.deposit state cmd
    | :? DebitCommand as cmd -> StateTransition.debit state cmd
+   | :? MaintenanceFeeCommand as cmd -> StateTransition.maintenanceFee state cmd
    | :? LimitDailyDebitsCommand as cmd ->
       StateTransition.limitDailyDebits state cmd
    | :? LockCardCommand as cmd -> StateTransition.lockCard state cmd

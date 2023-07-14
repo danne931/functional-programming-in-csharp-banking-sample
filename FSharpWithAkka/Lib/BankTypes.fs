@@ -11,6 +11,7 @@ type AccountEvent =
    | CreatedAccount of BankEvent<CreatedAccount>
    | DepositedCash of BankEvent<DepositedCash>
    | DebitedAccount of BankEvent<DebitedAccount>
+   | MaintenanceFeeDebited of BankEvent<MaintenanceFeeDebited>
    | DailyDebitLimitUpdated of BankEvent<DailyDebitLimitUpdated>
    | LockedCard of BankEvent<LockedCard>
    | UnlockedCard of BankEvent<UnlockedCard>
@@ -38,6 +39,7 @@ module Envelope =
       | CreatedAccount evt -> transformer evt
       | DepositedCash evt -> transformer evt
       | DebitedAccount evt -> transformer evt
+      | MaintenanceFeeDebited evt -> transformer evt
       | DailyDebitLimitUpdated evt -> transformer evt
       | LockedCard evt -> transformer evt
       | UnlockedCard evt -> transformer evt
@@ -53,6 +55,8 @@ module Envelope =
       | :? BankEvent<CreatedAccount> as evt -> evt |> CreatedAccount
       | :? BankEvent<DepositedCash> as evt -> evt |> DepositedCash
       | :? BankEvent<DebitedAccount> as evt -> evt |> DebitedAccount
+      | :? BankEvent<MaintenanceFeeDebited> as evt ->
+         evt |> MaintenanceFeeDebited
       | :? BankEvent<DailyDebitLimitUpdated> as evt ->
          evt |> DailyDebitLimitUpdated
       | :? BankEvent<LockedCard> as evt -> evt |> LockedCard
@@ -72,6 +76,7 @@ module Envelope =
       | CreatedAccount evt -> (wrap evt, get evt)
       | DepositedCash evt -> (wrap evt, get evt)
       | DebitedAccount evt -> (wrap evt, get evt)
+      | MaintenanceFeeDebited evt -> (wrap evt, get evt)
       | DailyDebitLimitUpdated evt -> (wrap evt, get evt)
       | LockedCard evt -> (wrap evt, get evt)
       | UnlockedCard evt -> (wrap evt, get evt)

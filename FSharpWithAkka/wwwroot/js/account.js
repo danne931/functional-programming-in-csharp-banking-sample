@@ -255,7 +255,12 @@ function eventToTableRow (evt) {
     case 'DebitedAccount':
       rowProps.name = 'Debit'
       rowProps.amount = `-$${evt.debitedAmount}`
-      rowProps.origin = evt.origin === 'actor:maintenance_fee' ? 'Maintenance Fee' : evt.origin
+      rowProps.origin = evt.origin
+      amountEl.classList.add('debit')
+      break
+    case 'MaintenanceFeeDebited':
+      rowProps.name = 'Maintenance Fee'
+      rowProps.amount = `-$${evt.debitedAmount}`
       amountEl.classList.add('debit')
       break
     case 'DailyDebitLimitUpdated':

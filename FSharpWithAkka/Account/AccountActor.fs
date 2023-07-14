@@ -31,7 +31,6 @@ let start
             (fun _ -> TimeSpan.FromMinutes 2)
             mailbox
             id
-            (Guid.NewGuid())
 
          ignored ()
       | Lookup _ ->

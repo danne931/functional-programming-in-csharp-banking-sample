@@ -109,3 +109,13 @@ module DailyDebitLimitUpdatedEvent =
          Data = { DebitLimit = cmd.DebitLimit }
          CorrelationId = cmd.CorrelationId
       }
+
+type MaintenanceFeeDebited = { DebitedAmount: decimal }
+
+module MaintenanceFeeEvent =
+   let create (cmd: MaintenanceFeeCommand) = {
+      EntityId = cmd.EntityId
+      Timestamp = cmd.Timestamp
+      Data = { DebitedAmount = cmd.Amount }
+      CorrelationId = cmd.CorrelationId
+   }

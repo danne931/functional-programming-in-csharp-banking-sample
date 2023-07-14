@@ -5,9 +5,8 @@ open System
 open BankTypes
 
 module Constants =
-   let Fee = decimal 5
-   let DailyBalanceThreshold = decimal 1500
-   let QualifyingDeposit = decimal 250
+   let DailyBalanceThreshold = 1500m
+   let QualifyingDeposit = 250m
 
 type FeeCriteria = {
    mutable depositCriteria: bool
