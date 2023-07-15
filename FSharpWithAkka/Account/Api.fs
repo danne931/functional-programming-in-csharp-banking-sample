@@ -22,7 +22,7 @@ let processCommand
    if Result.isOk validation then
       accounts <! AccountCoordinatorMessage.StateChange command
 
-   validation
+   Task.fromResult validation
 
 let getAccountEvents esClient id =
    EventStoreManager.readStream esClient (Account.streamName id) false

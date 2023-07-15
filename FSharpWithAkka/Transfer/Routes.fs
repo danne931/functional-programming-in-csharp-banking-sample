@@ -4,6 +4,7 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Microsoft.FSharp.Core
 open System
+open System.Threading.Tasks
 open Akkling
 
 open BankTypes
@@ -17,22 +18,22 @@ module private Path =
 let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       Path.TransferRecipient,
-      Func<IActorRef<AccountCoordinatorMessage>, RegisterTransferRecipientCommand, IResult>(
+      Func<IActorRef<AccountCoordinatorMessage>, RegisterTransferRecipientCommand, Task<IResult>>(
          (fun coordinator command ->
             processCommand
                coordinator
                (Validators.registerTransferRecipient ())
                command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
       )
    )
    |> ignore
 
    app.MapPost(
       Path.Base,
-      Func<IActorRef<DomesticTransferRecipientActor.Message>, IActorRef<AccountCoordinatorMessage>, TransferCommand, IResult>
+      Func<IActorRef<DomesticTransferRecipientActor.Message>, IActorRef<AccountCoordinatorMessage>, TransferCommand, Task<IResult>>
          (fun _ coordinator command ->
             processCommand coordinator (Validators.transfer ()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore

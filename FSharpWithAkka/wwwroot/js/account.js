@@ -440,6 +440,14 @@ function jsonPost (url, props) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(props)
   })
+  .then(res => res.json())
+  .then(res => {
+    if (res.validationError) {
+      openValidationErrorModal(res.validationError)
+      return
+    }
+    return res
+  })
   .catch(notifyError)
 }
 

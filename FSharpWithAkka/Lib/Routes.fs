@@ -22,15 +22,12 @@ let unwrapTaskOption (task: 'a option Task) =
          | Some(res) -> Json(res, Serialization.jsonOptions)
    )
 
-let unwrapValidation (result: Result<'a, string>) =
-   match result with
-   | Error e -> BadRequest e
-   | Ok res -> Json(res, Serialization.jsonOptions)
-
 let unwrapTaskValidation (task: Result<'a, string> Task) =
    Task.FromResult(
       if task.IsFaulted then
          Problem task.Exception.Message
       else
-         unwrapValidation task.Result
+         match task.Result with
+         | Error e -> BadRequest {| validationError = e |}
+         | Ok res -> Json(res, Serialization.jsonOptions)
    )

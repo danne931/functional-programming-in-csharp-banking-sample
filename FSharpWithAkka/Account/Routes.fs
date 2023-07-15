@@ -64,45 +64,45 @@ let startAccountRoutes (app: WebApplication) =
 
    app.MapPost(
       Path.Deposit,
-      Func<IActorRef<AccountCoordinatorMessage>, DepositCashCommand, IResult>
+      Func<IActorRef<AccountCoordinatorMessage>, DepositCashCommand, Task<IResult>>
          (fun coordinator command ->
             processCommand coordinator (Validators.deposit ()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<IActorRef<AccountCoordinatorMessage>, DebitCommand, IResult>
+      Func<IActorRef<AccountCoordinatorMessage>, DebitCommand, Task<IResult>>
          (fun coordinator command ->
             processCommand coordinator (Validators.debit ()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<IActorRef<AccountCoordinatorMessage>, LimitDailyDebitsCommand, IResult>
+      Func<IActorRef<AccountCoordinatorMessage>, LimitDailyDebitsCommand, Task<IResult>>
          (fun coordinator command ->
             processCommand coordinator (Validators.dailyDebitLimit ()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<IActorRef<AccountCoordinatorMessage>, LockCardCommand, IResult>
+      Func<IActorRef<AccountCoordinatorMessage>, LockCardCommand, Task<IResult>>
          (fun coordinator command ->
             processCommand coordinator (PassValidation()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<IActorRef<AccountCoordinatorMessage>, UnlockCardCommand, IResult>
+      Func<IActorRef<AccountCoordinatorMessage>, UnlockCardCommand, Task<IResult>>
          (fun coordinator command ->
             processCommand coordinator (PassValidation()) command
-            |> RouteUtil.unwrapValidation)
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
