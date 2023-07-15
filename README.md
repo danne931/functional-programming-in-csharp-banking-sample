@@ -19,10 +19,12 @@ with [Akka](https://github.com/akkadotnet/akka.net).
 1. Deposit
 2. Debit
 3. Registering a transfer recipient internal to the bank
-4. Transferring money to a registered recipient debits the sender and credits the receiver
-5. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/488cb3498b9255ef31145e94060049dac9eac3b1/CSharpWithLanguageExt/Account/AccountActor.cs#L45) to 40 seconds or so*
-6. Daily debit limit set by the customer
-7. Lock/unlock debit card
+4. Registering a transfer recipient in a 3rd party bank for domestic transfers
+5. Transferring money to a registered recipient (internal to the bank) debits the sender and credits the receiver
+6. Transferring money to an account in a mock 3rd party bank demonstrates resilience in face of intermittent network issues.  Integration with Akka circuit breaker allows our pending transfers to be reprocessed once the 3rd party bank is in a healthy state.
+7. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/488cb3498b9255ef31145e94060049dac9eac3b1/CSharpWithLanguageExt/Account/AccountActor.cs#L45) to 40 seconds or so*
+8. Daily debit limit set by the customer
+9. Lock/unlock debit card
 
 ## UI
 I created a [simple](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/main/FSharpWithAkka/wwwroot/js/account.js)
@@ -31,10 +33,15 @@ web page to test the use cases against an account.
 [SignalR](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) is used to provide real-time feedback from actors to the UI:
 - Overall account state
 - History of transactions on the account
-- Toggling between a transfer sender & receiver account demonstrates debits in one account and credits in the other
+- Toggling between a transfer sender & receiver account (internal to the bank) demonstrates debits in one account and credits in the other
+- A system operations navbar displays circuit breaker open/closed status for domestic transfers to the 3rd party bank mock server
+- When the circuit breaker closes, pending domestic transfers are reprocessed & corresponding Approved/Rejected events are interpolated into the table
 
 ## Demonstration
-![fp-dotnet-demonstration](https://github.com/danne931/functional-programming-in-csharp-banking-sample/assets/4181901/5a5fc264-e93b-4e42-9c13-dcfd3e19b059)
+### Domestic transfers to a mock 3rd party bank server with circuit breaker integration:
+![bank-domestic-transfer](https://github.com/danne931/functional-programming-in-csharp-banking-sample/assets/4181901/0c504ddd-8b56-4bcb-9001-107f4833e3d1)
+### Transfers to accounts internal to the bank:
+![bank-internal-transfer](https://github.com/danne931/functional-programming-in-csharp-banking-sample/assets/4181901/fd71e49f-f08b-4af1-9a64-3bac96490d98)
 
 ## Running the app
 1. docker pull eventstore/eventstore
