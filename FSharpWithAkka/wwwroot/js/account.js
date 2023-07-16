@@ -153,7 +153,7 @@ function addAccountToConnectionGroup (accountId) {
     .then(() => connection.invoke('AddToConnectionGroup', accountId))
     .then(() => {
       state.selectedAccountId = accountId
-      //highlightSelectedAccount(accountId)
+      highlightSelectedAccount(accountId)
     })
 }
 
@@ -174,9 +174,11 @@ function renderAccountsList (accounts) {
 }
 
 function highlightSelectedAccount (accountId) {
-  document
-    .querySelector(`#accounts-list input[value=${accountId}]`)
-    .setAttribute('checked', true)
+  document.querySelectorAll('#accounts-list a').forEach(node => {
+    node.getAttribute('value') === accountId
+       ? node.classList.add('selected')
+       : node.classList.remove('selected')
+  })
 }
 
 function renderAccountState (account) {

@@ -41,24 +41,29 @@ nav:nth-child(2) {
   padding-right: 0.5rem;
 }
 
+details[role=list] li a.selected {
+  background-color: var(--primary);
+  color: var(--primary-inverse);
+}
+
 .account-name {
   color: var(--primary);
 }
 
 .success {
-  color: var(--ins-color)
+  color: var(--ins-color);
 }
 
 .alert {
-  color: var(--del-color)
+  color: var(--del-color);
 }
 
 .debit {
-  color: var(--del-color)
+  color: var(--del-color);
 }
 
 .credit {
-  color: var(--ins-color)
+  color: var(--ins-color);
 }
 
 small {
