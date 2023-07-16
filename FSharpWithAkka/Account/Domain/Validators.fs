@@ -2,20 +2,12 @@ namespace Bank.Account.Domain
 
 open System
 
-type private Currencies =
-   | USD = 0
-   | EUR = 1
-   | THB = 2
-   | VND = 3
-
 module Validators =
    let accountCreate () =
       (fun (cmd: CreateAccountCommand) ->
          // TODO: handle varying currency codes
          if cmd.Balance < 100m then
             Error $"InvalidStartBalance {cmd.Balance}"
-         elif not (Enum.IsDefined(typeof<Currencies>, cmd.Currency)) then
-            Error $"Invalid currency {cmd.Currency}"
          else
             Ok cmd)
 

@@ -8,7 +8,7 @@ type CreatedAccount = {
    FirstName: string
    LastName: string
    Balance: decimal
-   Currency: string
+   Currency: Currency
 }
 
 module CreatedAccountEvent =

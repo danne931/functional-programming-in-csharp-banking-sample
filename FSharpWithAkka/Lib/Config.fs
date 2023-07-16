@@ -17,7 +17,7 @@ open ActorUtil
 
 let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    builder.Services.ConfigureHttpJsonOptions(fun opts ->
-      Serialization.mergeDefaultJsonOptions opts.SerializerOptions
+      Serialization.withInjectedOptions opts.SerializerOptions
       ())
    |> ignore
 

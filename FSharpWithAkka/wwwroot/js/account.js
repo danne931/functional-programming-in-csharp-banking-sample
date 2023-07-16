@@ -29,7 +29,7 @@ const selectors = {
     dailyDebitLimit: () => document.getElementById('account-daily-debit-limit-form')
   },
   transferRecipientAccountEnvironment: () =>
-    document.getElementById("transfer-recipient-account-environment"),
+    document.getElementById('transfer-recipient-account-environment'),
   transferRecipientRoutingNumber: () =>
     document.getElementById('transfer-recipient-routing-number'),
   validationErrorModal: () => document.getElementById('validation-error-modal'),
@@ -270,10 +270,10 @@ function eventToTableRow (evt) {
       rowProps.amount = `$${evt.debitLimit}`
       break
     case 'LockedCard':
-      rowProps.name = "Card Locked"
+      rowProps.name = 'Card Locked'
       break
     case 'UnlockedCard':
-      rowProps.name = "Card Unlocked"
+      rowProps.name = 'Card Unlocked'
       break
     case 'TransferPending':
       rowProps.name = 'Pending Transfer'
@@ -333,7 +333,7 @@ function transferAccountEnvironmentSelected () {
 
   const el = selectors.transferRecipientRoutingNumber()
 
-  if (selected === "1") {
+  if (selected === 'Domestic') {
     el.style.display = 'block'
     el.setAttribute('required', true)
   } else {
@@ -404,12 +404,14 @@ listenForFormSubmit(
         firstName: formData.get('transfer-recipient-first-name'),
         lastName: formData.get('transfer-recipient-last-name'),
         identification: formData.get('transfer-recipient-account-number'),
-        accountEnvironment: parseInt(formData.get('transfer-recipient-account-environment')),
-        identificationStrategy: 0
+        accountEnvironment: formData.get('transfer-recipient-account-environment'),
+        identificationStrategy: 'AccountId',
+        currency: 'USD',
+        routingNumber: null
       }
     }
     // Domestic recipient requires routing number
-    if (data.recipient.accountEnvironment === 1) {
+    if (data.recipient.accountEnvironment === 'Domestic') {
       data.recipient.routingNumber = formData.get('transfer-recipient-routing-number')
     }
     return data

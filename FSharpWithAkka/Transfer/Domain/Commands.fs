@@ -7,15 +7,15 @@ open Lib.Types
 type AckReceipt = string
 
 type RecipientAccountEnvironment =
-   | Internal = 0
-   | Domestic = 1
-   | International = 2
+   | Internal
+   | Domestic
+   | International
 
 type RecipientAccountIdentificationStrategy =
-   | AccountId = 0
-   | SwiftBIC = 1
-   | IBAN = 2
-   | NationalID = 3
+   | AccountId
+   | SwiftBIC
+   | IBAN
+   | NationalID
 
 type TransferRecipient = {
    LastName: string
@@ -24,7 +24,7 @@ type TransferRecipient = {
    AccountEnvironment: RecipientAccountEnvironment
    IdentificationStrategy: RecipientAccountIdentificationStrategy
    RoutingNumber: string option
-   Currency: string
+   Currency: Currency
 }
 
 type TransferCommand
@@ -75,12 +75,4 @@ type RejectTransferCommand
 type RegisterTransferRecipientCommand
    (entityId, recipient: TransferRecipient, correlationId) =
    inherit Command(entityId, correlationId)
-
-   member x.Recipient = {
-      recipient with
-         Currency =
-            if isNull recipient.Currency then
-               "USD"
-            else
-               recipient.Currency
-   }
+   member x.Recipient = recipient

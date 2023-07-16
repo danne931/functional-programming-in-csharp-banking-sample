@@ -9,11 +9,11 @@ type CreateAccountCommand
       balance: decimal,
       firstName: string,
       lastName: string,
-      currency: string,
+      currency: Currency,
       correlationId
    ) =
    inherit Command(entityId, correlationId)
-   member x.Currency = if isNull currency then "USD" else currency
+   member x.Currency = currency
    member x.Balance = balance
    member x.FirstName = firstName
    member x.LastName = lastName

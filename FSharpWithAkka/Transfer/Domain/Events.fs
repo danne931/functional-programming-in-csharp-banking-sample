@@ -74,7 +74,7 @@ type RegisteredInternalTransferRecipient = {
    LastName: string
    FirstName: string
    AccountNumber: string
-   Currency: string
+   Currency: Currency
    AccountEnvironment: RecipientAccountEnvironment
 }
 
@@ -83,7 +83,7 @@ type RegisteredDomesticTransferRecipient = {
    FirstName: string
    RoutingNumber: string option
    AccountNumber: string
-   Currency: string
+   Currency: Currency
    AccountEnvironment: RecipientAccountEnvironment
 }
 
@@ -92,7 +92,7 @@ type RegisteredInternationalTransferRecipient = {
    FirstName: string
    Identification: string
    IdentificationStrategy: RecipientAccountIdentificationStrategy
-   Currency: string
+   Currency: Currency
    AccountEnvironment: RecipientAccountEnvironment
 }
 

@@ -33,3 +33,9 @@ type Envelope = {
 type Validator<'t> = 't -> Result<'t :> Command, string>
 
 let PassValidation () = fun (cmd: 't :> Command) -> Ok cmd
+
+type Currency =
+   | USD
+   | EUR
+   | THB
+   | VND

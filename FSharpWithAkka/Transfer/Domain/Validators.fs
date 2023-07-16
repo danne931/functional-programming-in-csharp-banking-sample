@@ -21,10 +21,5 @@ module Validators =
             && isNone recipient.RoutingNumber
          then
             Error "InvalidDomesticRecipient"
-         elif
-            recipient.AccountEnvironment = RecipientAccountEnvironment.International
-            && isNull recipient.Currency
-         then
-            Error "InvalidInternationalRecipient"
          else
             Ok cmd)

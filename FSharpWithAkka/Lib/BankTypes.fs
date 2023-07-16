@@ -88,16 +88,16 @@ module Envelope =
       | TransferRejected evt -> (wrap evt, get evt)
 
 type AccountStatus =
-   | Active = 0
-   | ActiveWithLockedCard = 1
-   | Closed = 2
+   | Active
+   | ActiveWithLockedCard
+   | Closed
 
 type AccountState =
    {
       EntityId: Guid
       FirstName: string
       LastName: string
-      Currency: string
+      Currency: Currency
       Status: AccountStatus
       Balance: decimal
       AllowedOverdraft: decimal
@@ -125,13 +125,12 @@ type AccountPersistence = {
    save: OpenEventEnvelope -> unit Task
 }
 
-type Service =
-   | DomesticTransfer = 0
+type Service = | DomesticTransfer
 
 type CircuitBreakerStatus =
-   | Closed = 0
-   | HalfOpen = 1
-   | Open = 2
+   | Closed
+   | HalfOpen
+   | Open
 
 type CircuitBreakerMessage = {
    Service: Service
