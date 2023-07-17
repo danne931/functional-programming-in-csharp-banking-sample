@@ -4,6 +4,7 @@ const state = {
   accounts: {},
   selectedAccountId: null,
   transferRecipients: {},
+  redirectTransferToCreateRecipientView: false,
   validationErrorModalOpen: false,
   circuitBreaker: {
     isDomesticTransferOpen: false
@@ -312,6 +313,19 @@ function eventToTableRow (evt) {
 function accountActionButtonClicked (action) {
   selectors.actionWrapper().classList.add('hidden')
 
+  // If user wants to view the transfer form but hasn't already added
+  // recipients, redirect them to the transfer recipients creation form
+  // first.  Once they submit a recipient then transition the view to their
+  // intended transfer form.
+  if (action === 'transfer' && !Object.keys(state.transferRecipients).length) {
+    action = 'transferRecipient'
+    state.redirectTransferToCreateRecipientView = true
+  }
+
+  renderAccountActionForm(action)
+}
+
+function renderAccountActionForm (action) {
   selectors
     .form[action]()
     .closest('.form-wrapper')
@@ -320,11 +334,16 @@ function accountActionButtonClicked (action) {
 }
 
 function accountActionBackButtonClicked (e) {
-  closeFormView(e.target.closest('form'))
+  closeFormView(e.target.closest('.form-wrapper').querySelector('form'))
+  renderAccountActionList()
 }
 
 function closeFormView (formEl) {
+  formEl.reset()
   formEl.closest('.form-wrapper').classList.add('hidden')
+}
+
+function renderAccountActionList () {
   selectors.actionWrapper().classList.remove('hidden')
 }
 
@@ -346,6 +365,13 @@ function resetDomAfterRecipientRegistration () {
   const el = selectors.transferRecipientRoutingNumber()
   el.style.display = 'none'
   el.removeAttribute('required')
+
+  if (state.redirectTransferToCreateRecipientView) {
+    state.redirectTransferToCreateRecipientView = false
+    renderAccountActionForm('transfer')
+  } else {
+    renderAccountActionList()
+  }
 }
 
 function cardLockToggled () {
@@ -423,13 +449,11 @@ function listenForFormSubmit (formEl, url, formDataToProps, postSubmit) {
   formEl.addEventListener('submit', e => {
     e.preventDefault()
 
-    closeFormView(formEl)
-
     jsonPost(url, formDataToProps(new FormData(formEl)))
       .then(_ => {
-        formEl.reset()
-        if (typeof postSubmit === 'function')
-          return postSubmit()
+        closeFormView(formEl)
+        if (typeof postSubmit === 'function') return postSubmit()
+        renderAccountActionList()
       })
   })
 }
