@@ -36,8 +36,12 @@ let private issueTransferToRecipient
 
             let origin = string evt.EntityId
 
-            let cmd =
-               DepositCashCommand(
+            let! coordinatorActorOpt =
+               getActorRef mailbox ActorMetadata.accountCoordinator.Path
+
+            let msg =
+               AccountCoordinatorMessage.StateChange
+               <| DepositCashCommand(
                   Guid recipient.Identification,
                   evt.Data.DebitedAmount,
                   $"Account ({origin.Substring(origin.Length - 4)})",
@@ -45,11 +49,7 @@ let private issueTransferToRecipient
                   evt.CorrelationId
                )
 
-            let! coordinatorActorOpt =
-               getActorRef mailbox ActorMetadata.accountCoordinator.Path
-
-            coordinatorActorOpt.Value
-            <! AccountCoordinatorMessage.StateChange cmd
+            coordinatorActorOpt.Value <! msg.consistentHash ()
    }
 
 let start

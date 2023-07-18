@@ -4,6 +4,7 @@ module AccountCoordinatorActor
 open Microsoft.FSharp.Core.Option
 open Akkling
 open Akka.Actor
+open Akka.Routing
 
 open BankTypes
 open ActorUtil
@@ -54,4 +55,10 @@ let start
 
          Ignore
 
-   spawn system actorName (props (actorOf2 handler))
+   spawn
+      system
+      actorName
+      {
+         (props <| actorOf2 handler) with
+            Router = Some FromConfig.Instance
+      }

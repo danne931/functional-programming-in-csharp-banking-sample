@@ -20,7 +20,8 @@ let processCommand
    let validation = validate command
 
    if Result.isOk validation then
-      accounts <! AccountCoordinatorMessage.StateChange command
+      let msg = AccountCoordinatorMessage.StateChange command
+      retype accounts <! msg.consistentHash ()
 
    Task.fromResult validation
 
@@ -41,7 +42,8 @@ let softDeleteEvents
    (accounts: IActorRef<AccountCoordinatorMessage>)
    accountId
    =
-   accounts <! AccountCoordinatorMessage.Delete accountId
+   let msg = AccountCoordinatorMessage.Delete accountId
+   retype accounts <! msg.consistentHash ()
    EventStoreManager.softDelete esClient (Account.streamName accountId)
 
 /// <summary>
@@ -84,7 +86,9 @@ let createAccount
                (Some StreamState.NoStream)
 
          let acct = Account.create evt
-         accounts <! AccountCoordinatorMessage.InitAccount acct
+
+         let msg = AccountCoordinatorMessage.InitAccount acct
+         retype accounts <! msg.consistentHash ()
 
          return Ok evt.EntityId
    }

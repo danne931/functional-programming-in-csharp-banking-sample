@@ -88,9 +88,9 @@ let start
                   match (domesticTransfer evt).Result with
                   | Ok ackReceipt ->
                      select mailbox ActorMetadata.accountCoordinator.Path
-                     <! AccountCoordinatorMessage.StateChange(
-                        Command.approve evt ackReceipt
-                     )
+                     <! AccountCoordinatorMessage
+                        .StateChange(Command.approve evt ackReceipt)
+                        .consistentHash ()
 
                      mailbox.UnstashAll()
 
@@ -101,9 +101,9 @@ let start
                      | Contains "InvalidAccountInfo"
                      | Contains "InactiveAccount" ->
                         select mailbox ActorMetadata.accountCoordinator.Path
-                        <! AccountCoordinatorMessage.StateChange(
-                           Command.reject evt errMsg
-                        )
+                        <! AccountCoordinatorMessage
+                           .StateChange(Command.reject evt errMsg)
+                           .consistentHash ()
 
                         Ignore
                      | Contains "Serialization"
@@ -121,14 +121,12 @@ let start
                printfn "%s Error: %s" actorName err.Message
                Ignore
 
-   let p = props <| actorOf2 handler
-
    let ref =
       spawn
          system
          actorName
          {
-            p with
+            (props <| actorOf2 handler) with
                Router = Some FromConfig.Instance
          }
 
