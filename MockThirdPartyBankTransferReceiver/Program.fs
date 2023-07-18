@@ -48,7 +48,7 @@ let parseRequest (req: Request) =
       {
          res with
             Ok = false
-            Reason = "InvalidAccount"
+            Reason = "InvalidAccountInfo"
       }
    elif req.Amount <= 0m then
       {
@@ -100,26 +100,34 @@ let endpoint = IPEndPoint(IPAddress.Loopback, 5001)
 let tcpConnectionListener ctx =
    IO.Tcp(ctx) <! TcpMessage.Bind(untyped ctx.Self, endpoint, 100)
 
-   let rec loop () = actor {
+   let rec loop (counter: int) = actor {
       let! (msg: obj) = ctx.Receive()
 
       match msg with
       | Connected(remote, _) ->
          let conn = ctx.Sender()
 
-         printfn
-            "<Connected> \nRemote Address: %A\nSender Actor Path: %A"
-            remote
-            conn.Path
+         // Simulate intermittent network issues by aborting
+         // the TCP connection twice for every 10 requests.
+         // The circuit breaker will open when configured with
+         // with maxFailures = 2.
+         if counter > 2 && counter < 5 then
+            conn <! TcpMessage.Abort()
+            return! loop (counter + 1)
+         else
+            printfn
+               "<Connected> \nRemote Address: %A\nSender Actor Path: %A"
+               remote
+               conn.Path
 
-         let aref = spawn ctx null (props (tcpMessageHandler conn))
-         conn <! TcpMessage.Register(untyped aref)
+            let aref = spawn ctx null (props (tcpMessageHandler conn))
+            conn <! TcpMessage.Register(untyped aref)
 
-         return! loop ()
+            return! loop (if counter = 10 then 1 else counter + 1)
       | _ -> return Ignore
    }
 
-   loop ()
+   loop 1
 
 let listener =
    spawn actorSystem "tcpConnectionListener" (props tcpConnectionListener)
