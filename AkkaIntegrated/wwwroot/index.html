@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+  <link rel="stylesheet" href="/css/site.css">
+  <title>Bank</title>
+</head>
+<body>
+  <nav class="container-fluid">
+    <ul>
+      <li>
+        <a href="" onclick="event.preventDefault()"><strong>Bank</strong></a>
+      </li>
+    </ul>
+
+    <ul data-tooltip="Select an account to process transactions on." data-placement="left">
+      <li>
+        <details role="list" dir="rtl">
+          <summary aria-haspopup="listbox" role="link" class="contrast">Accounts</summary>
+          <ul id="accounts-list" role="listbox"></ul>
+        </details>
+      </li>
+    </ul>
+  </nav>
+
+  <nav class="container-fluid">
+    <small>
+      <span class="system-ops-title">Operations</span>
+      <span class="system-op">Domestic Transfer Circuit Breaker:
+        <span class="success" id="domestic-transfer-circuit-breaker">Closed</span>
+      </span>
+    </small>
+  </nav>
+
+  <main class="container-fluid">
+    <div class="grid">
+      <section>
+        <h5>Event History</h5>
+
+        <progress data-transactions-loader></progress>
+
+        <figure>
+          <table role="grid">
+            <thead>
+              <tr>
+                <th scope="col"></th>
+                <th scope="col">Amount</th>
+                <th scope="col">Event</th>
+                <th scope="col">Origin</th>
+                <th scope="col">Date</th>
+                <th scope="col">Info</th>
+              </tr>
+            </thead>
+            <tbody id='event-list'></tbody>
+          </table>
+        </figure>
+      </section>
+
+      <aside>
+        <h5>Actions</h5>
+        <article>
+          <div id="action-wrapper">
+            <div class="grid">
+              <button
+                onclick="accountActionButtonClicked('debit')"
+                class="outline">Debit</button>
+              <button
+                onclick="accountActionButtonClicked('deposit')"
+                class="outline">Deposit</button>
+            </div>
+
+            <div class="grid">
+              <button
+                onclick="accountActionButtonClicked('transfer')"
+                class="outline">Transfer</button>
+            </div>
+
+            <div class="grid">
+              <button
+                onclick="accountActionButtonClicked('transferRecipient')"
+                class="outline">Add a Transfer Recipient</button>
+            </div>
+
+            <div class="grid">
+              <button
+                onclick="accountActionButtonClicked('dailyDebitLimit')"
+                class="outline">Daily Debit Limit</button>
+            </div>
+          </div>
+
+          <div class="form-wrapper hidden">
+            <h6>Transfer Money</h6>
+            <button
+              onclick="accountActionBackButtonClicked(event)"
+              class="secondary outline">Back</button>
+
+            <form id="account-transfer-form">
+              <label>
+                Select a recipient:
+                <select name="account-transfer-recipient-id" required></select>
+              </label>
+
+              <label>
+                Transfer Amount:
+                <input name="account-transfer-amount" type="number" min="1" placeholder="1.0" step="0.01" required>
+              </label>
+
+              <input type="submit" value="Submit">
+            </form>
+          </div>
+
+          <div class="form-wrapper hidden">
+            <h6>Add a Transfer Recipient</h6>
+            <button
+              onclick="accountActionBackButtonClicked(event)"
+              class="secondary outline">Back</button>
+
+            <form id="register-transfer-recipient-form">
+              <label>
+                Does this account belong to our bank?:
+                <select
+                  id="transfer-recipient-account-environment"
+                  name="transfer-recipient-account-environment"
+                  required
+                  onchange="transferAccountEnvironmentSelected()">
+                  <option value="Internal">Our bank</option>
+                  <option value="Domestic">Domestic bank</option>
+                  <option value="International" disabled>International bank</option>
+                </select>
+              </label>
+
+              <div class="grid">
+                <label>
+                  First Name:
+                  <input name="transfer-recipient-first-name" type="string" placeholder="First Name" aria-label="First Name" required>
+                </label>
+
+                <label>
+                  Last Name:
+                  <input name="transfer-recipient-last-name" type="string" placeholder="Last Name" required>
+                </label>
+              </div>
+
+              <label>
+                Account Number:
+                <input name="transfer-recipient-account-number" type="string" placeholder="Account Number" required>
+              </label>
+
+              <label
+                id="transfer-recipient-routing-number"
+                style="display: none">
+                Routing Number:
+                <input name="transfer-recipient-routing-number" placeholder="Routing Number" type="string">
+              </label>
+
+              <input type="submit" value="Submit">
+            </form>
+          </div>
+
+          <div class="form-wrapper hidden">
+            <h6>Set a Daily Allowance</h6>
+            <button
+              onclick="accountActionBackButtonClicked(event)"
+              class="secondary outline">Back</button>
+
+            <form id="account-daily-debit-limit-form">
+              <label>
+                Daily Debit Limit
+                <input name="account-daily-debit-limit" type="number" min="1" placeholder="1.0" step="0.01" required>
+              </label>
+
+              <input type="submit" value="Submit">
+            </form>
+          </div>
+
+          <div class="form-wrapper hidden">
+            <h6>Deposit Cash</h6>
+            <button
+              onclick="accountActionBackButtonClicked(event)"
+              class="secondary outline">Back</button>
+
+            <form id="account-deposit-form">
+              <label>
+                Deposit
+                <input name="account-deposit-amount" type="number" min="1" placeholder="1.0" step="0.01" required>
+              </label>
+
+              <input type="submit" value="Submit">
+            </form>
+          </div>
+
+          <div class="form-wrapper hidden">
+            <h6>Debit Purchase</h6>
+            <button
+              onclick="accountActionBackButtonClicked(event)"
+              class="secondary outline">Back</button>
+
+            <form id="account-debit-form">
+              <label>
+                Debit Amount:
+                <input name="account-debit-amount" type="number" min="1" placeholder="1.0" step="0.01" required>
+              </label>
+
+              <label>
+                Origin:
+                <input name="account-debit-origin" type="text" placeholder="Trader Joe's" required> 
+              </label>
+
+              <input type="submit" value="Submit">
+            </form>
+          </div>
+        </article>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="container-fluid grid">
+    <b class="account-name" id="account-name"></b>
+
+    <div>
+      <p>Balance:</p>
+      <ins id="account-balance">$0</ins>
+    </div>
+
+    <div data-tooltip="Monthly maintenance fee is not accrued." data-placement="top">
+      <p>Daily Debit Accrued:</p>
+      <ins id="account-daily-debit-accrued">$0</ins>
+    </div>
+
+    <div>
+      <p>Daily Debit Limit:</p>
+      <ins id="account-daily-debit-limit">-</ins>
+    </div>
+
+    <div>
+      <label>
+        Lock Debit Card:
+        <input type="checkbox" id="account-debit-card-lock" onclick="cardLockToggled()">
+      </label>
+    </div>
+  </footer>
+
+  <dialog id="validation-error-modal">
+    <article>
+      <a href=""
+        aria-label="Close"
+        class="close"
+        data-target="validation-error-modal"
+        onClick="event.preventDefault(); closeValidationErrorModal()">
+      </a>
+      <h4>Invalid Action</h4>
+      <p id='validation-error-reason' class='alert'></p>
+    </article>
+  </dialog>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.4/signalr.min.js"></script>
+  <script src="/js/account.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Lib/ActivePatterns.fs" />
+    <Compile Include="Lib/Time.fs" />
+    <Compile Include="Lib/TCP.fs" />
+    <Compile Include="Lib/Types.fs" />
+    <Compile Include="Lib/Actor.fs" />
+    <Compile Include="Transfer/Domain/Commands.fs" />
+    <Compile Include="Transfer/Domain/Events.fs" />
+    <Compile Include="Account/Domain/Commands.fs" />
+    <Compile Include="Account/Domain/Events.fs" />
+    <Compile Include="Lib/BankTypes.fs" />
+    <Compile Include="Account/Domain/Account.fs" />
+    <Compile Include="MaintenanceFee/Domain/MaintenanceFee.fs" />
+    <Compile Include="Account/Hub.fs" />
+    <Compile Include="Lib/Serialization.fs" />
+    <Compile Include="Lib/Persistence/EventStore.fs" />
+    <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
+    <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
+    <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
+    <Compile Include="Account/AccountActor.fs" />
+    <Compile Include="Account/AccountCoordinatorActor.fs" />
+    <Compile Include="Account/Domain/Validators.fs" /> 
+    <Compile Include="Account/Api.fs" />
+    <Compile Include="Lib/Routes.fs" />
+    <Compile Include="Account/Routes.fs" />
+    <Compile Include="Transfer/Domain/Validators.fs" />
+    <Compile Include="Transfer/Routes.fs" />
+    <Compile Include="Lib/Config.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Akka" Version="1.5.4" />
+    <PackageReference Include="Akka.FSharp" Version="1.5.4" />
+    <PackageReference Include="Akkling" Version="0.13.0" />
+    <PackageReference Include="EventStore.Client.Grpc.Streams" Version="23.0.0" />
+    <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
+  </ItemGroup>
+</Project>
