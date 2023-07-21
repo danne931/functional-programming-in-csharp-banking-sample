@@ -8,6 +8,7 @@ open Akkling.Persistence
 open Lib.Types
 open BankTypes
 open ActorUtil
+open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 let private getInternalTransferActor =
@@ -19,9 +20,9 @@ let private persist e =
 let start
    (broadcaster: AccountBroadcast)
    (mailbox: Actor<_>)
-   (initialState: AccountState)
+   (accountId: Guid)
    =
-   let actorName = (ActorMetadata.account initialState.EntityId).Name
+   let actorName = (ActorMetadata.account accountId).Name
 
    let handler (mailbox: Eventsourced<AccountMessage>) =
       let rec loop (account: AccountState) = actor {
@@ -75,6 +76,9 @@ let start
                *)
 
                ignored ()
+            | InitAccount cmd ->
+               let evt = cmd |> CreatedAccountEvent.create |> CreatedAccount
+               persist evt
             | Lookup _ ->
                mailbox.Sender() <! account
                ignored ()
@@ -92,9 +96,8 @@ let start
                | Ok(event, _) -> persist event
       }
 
-      loop initialState
+      loop AccountState.empty
 
    let aref = spawn mailbox actorName (propsPersist handler)
 
-   aref <! StartChildren initialState.EntityId
    aref

@@ -16,36 +16,19 @@ let getChild = getChildActorRef<AccountCoordinatorMessage, AccountMessage>
 let start (system: ActorSystem) (broadcast: AccountBroadcast) =
    let handler (mailbox: Actor<AccountCoordinatorMessage>) =
       function
-      | InitAccount account ->
-         ignored (AccountActor.start broadcast mailbox account)
-      | AccountCoordinatorMessage.StateChange cmd ->
-         let accountRef = getChild mailbox (string cmd.EntityId)
-         accountRef.Value <! AccountMessage.StateChange cmd
+      | AccountCoordinatorMessage.InitAccount cmd ->
+         let aref = AccountActor.start broadcast mailbox cmd.EntityId
+         aref <! AccountMessage.InitAccount cmd
          Ignore
+      | AccountCoordinatorMessage.StateChange cmd ->
+         let aref =
+            string cmd.EntityId
+            |> getChild mailbox
+            |> Option.defaultWith (fun _ ->
+               AccountActor.start broadcast mailbox cmd.EntityId)
 
-      (*
-         if isSome accountRef then
-            accountRef.Value <! AccountMessage.StateChange cmd
-            Ignore
-         else
-            let accountOpt = (persistence.loadAccount cmd.EntityId).Result
-
-            if isSome accountOpt then
-               let ref =
-                  AccountActor.start
-                     broadcast
-                     mailbox
-                     accountOpt.Value
-
-               ref <! AccountMessage.StateChange cmd
-               Ignore
-            else
-               printfn
-                  "%A: Attempting to change state of a non-existent account."
-                  actorName
-
-               Unhandled
-         *)
+         aref <! AccountMessage.StateChange cmd
+         Ignore
       | Delete id ->
          let accountRef = getChild mailbox (string id)
 

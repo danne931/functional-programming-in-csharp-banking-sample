@@ -3,6 +3,8 @@ module ActorUtil
 open System
 open Akkling
 open Akka.Actor
+open Akka.Persistence.Query
+open Akka.Persistence.MongoDb.Query
 
 let getActorRef actorCtx path = task {
    try
@@ -57,3 +59,8 @@ module ActorMetadata =
       Name = "dead_letters_monitor"
       Path = "akka://bank/user/dead_letters_monitor"
    }
+
+let readJournal (system: ActorSystem) : MongoDbReadJournal =
+   PersistenceQuery
+      .Get(system)
+      .ReadJournalFor<MongoDbReadJournal>("akka.persistence.query.mongodb")

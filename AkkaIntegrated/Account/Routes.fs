@@ -5,6 +5,7 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Akkling
+open Akka.Actor
 
 open Lib.Types
 open BankTypes
@@ -25,22 +26,23 @@ module private Path =
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
-      Func<Task<IResult>>(fun _ ->
-         getAccountCreationEvents () |> RouteUtil.unwrapTaskOption)
+      Func<ActorSystem, Task<IResult>>(fun actorSystem ->
+         getAccountIds actorSystem |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.Account,
-      Func<Guid, Task<IResult>>(fun id ->
-         getAccount getAccountEvents id |> RouteUtil.unwrapTaskOption)
+      Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
+         getAccount (getAccountEvents actorSystem) id
+         |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.AccountEvents,
-      Func<Guid, Task<IResult>>(fun id ->
-         getAccountEvents id |> RouteUtil.unwrapTaskOption)
+      Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
+         getAccountEvents actorSystem id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 

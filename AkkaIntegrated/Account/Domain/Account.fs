@@ -9,8 +9,6 @@ open Bank.Transfer.Domain
 open Lib.Types
 open Lib.Time
 
-let streamName (id: Guid) = "accounts_" + string id
-
 let recipientLookupKey (recipient: TransferRecipient) =
    match recipient.AccountEnvironment with
    | RecipientAccountEnvironment.Internal -> recipient.Identification
@@ -32,22 +30,17 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    else
       state.DailyDebitAccrued + evt.Data.DebitedAmount
 
-let create (e: BankEvent<CreatedAccount>) = {
-   EntityId = e.EntityId
-   FirstName = e.Data.FirstName
-   LastName = e.Data.LastName
-   Currency = e.Data.Currency
-   Balance = e.Data.Balance
-   Status = AccountStatus.Active
-   AllowedOverdraft = 0m
-   DailyDebitLimit = -1m
-   DailyDebitAccrued = 0m
-   LastDebitDate = None
-   TransferRecipients = Map.empty
-}
-
 let applyEvent (state: AccountState) (evt: AccountEvent) =
    match evt with
+   | CreatedAccount e -> {
+      AccountState.empty with
+         EntityId = e.EntityId
+         FirstName = e.Data.FirstName
+         LastName = e.Data.LastName
+         Currency = e.Data.Currency
+         Balance = e.Data.Balance
+         Status = AccountStatus.Active
+     }
    | DepositedCash e -> {
       state with
          Balance = state.Balance + e.Data.DepositedAmount
@@ -119,7 +112,6 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          state with
             TransferRecipients = state.TransferRecipients.Add(key, recipient)
       }
-   | _ -> state
 
 module private StateTransition =
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
@@ -239,12 +231,5 @@ let stateTransition (state: AccountState) (command: Command) =
    | :? RegisterTransferRecipientCommand as cmd ->
       StateTransition.registerTransferRecipient state cmd
 
-let initialAccountStateFromEventHistory events =
-   let (CreatedAccount createdEvt) = List.head events
-   create createdEvt
-
 let foldEventsIntoAccount events =
-   List.fold
-      applyEvent
-      (initialAccountStateFromEventHistory events)
-      (List.tail events)
+   List.fold applyEvent AccountState.empty events

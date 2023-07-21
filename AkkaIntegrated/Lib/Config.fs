@@ -2,6 +2,7 @@
 module Config
 
 open System
+open Akka.Actor
 open Akka.Event
 open Akka.Pattern
 open Akkling
@@ -46,11 +47,11 @@ let startSignalR (builder: WebApplicationBuilder) =
 
 let injectDependencies
    (builder: WebApplicationBuilder)
-   (actorSystem: Akka.Actor.ActorSystem)
+   (actorSystem: ActorSystem)
    =
    let persistence: AccountPersistence = {
-      loadAccountEvents = getAccountEvents
-      loadAccount = getAccount getAccountEvents
+      loadAccountEvents = getAccountEvents actorSystem
+      loadAccount = getAccount (getAccountEvents actorSystem)
    }
 
    let initBroadcast (provider: IServiceProvider) : AccountBroadcast = {
@@ -99,5 +100,7 @@ let injectDependencies
    |> ignore
 
    builder.Services.AddSingleton<AccountPersistence>(persistence) |> ignore
+
+   builder.Services.AddSingleton<ActorSystem>(actorSystem) |> ignore
 
    ()

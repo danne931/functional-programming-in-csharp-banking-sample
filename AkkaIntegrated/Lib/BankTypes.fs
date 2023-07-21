@@ -108,10 +108,22 @@ type AccountState =
       TransferRecipients: Map<string, TransferRecipient>
    }
 
-   member x.FullName = $"{x.FirstName} {x.LastName}"
+   static member empty = {
+      EntityId = Guid.Empty
+      FirstName = ""
+      LastName = ""
+      Currency = Currency.USD
+      Status = AccountStatus.Closed
+      Balance = 0m
+      AllowedOverdraft = 0m
+      DailyDebitLimit = -1m
+      DailyDebitAccrued = 0m
+      LastDebitDate = None
+      TransferRecipients = Map.empty
+   }
 
 type AccountCoordinatorMessage =
-   | InitAccount of AccountState
+   | InitAccount of CreateAccountCommand
    | StateChange of Command
    | Delete of Guid
 
@@ -124,6 +136,7 @@ type AccountCoordinatorMessage =
       | Delete id -> ConsistentHashableEnvelope(Delete id, id)
 
 type AccountMessage =
+   | InitAccount of CreateAccountCommand
    | StartChildren of Guid
    | Lookup of Guid
    | StateChange of Command

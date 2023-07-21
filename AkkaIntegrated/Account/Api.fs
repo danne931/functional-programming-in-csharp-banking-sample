@@ -2,29 +2,47 @@ module Bank.Account.Api
 
 open System
 open System.Threading.Tasks
-open Microsoft.FSharp.Core.Option
 open FSharp.Control
 open Akkling
+open Akka.Actor
+open Akka.Streams
 
 open BankTypes
 open Bank.Account.Domain
 open Lib.Types
-
 
 let processCommand
    (accounts: IActorRef<AccountCoordinatorMessage>)
    (validate: Validator<'t>)
    command
    =
-   let validation = validate command
-
-   if Result.isOk validation then
+   command
+   |> validate
+   |> Result.map (fun _ ->
       let msg = AccountCoordinatorMessage.StateChange command
-      retype accounts <! msg.consistentHash ()
+      retype accounts <! msg.consistentHash ())
+   |> Task.fromResult
 
-   Task.fromResult validation
+let getAccountEvents
+   (actorSystem: ActorSystem)
+   (id: Guid)
+   : AccountEvent list option Task
+   =
+   task {
+      let! events =
+         ActorUtil
+            .readJournal(actorSystem)
+            .CurrentEventsByPersistenceId(string id, 0, System.Int64.MaxValue)
+            .RunAggregate(
+               [],
+               (fun acc envelope ->
+                  let (Event evt) = unbox envelope.Event
+                  evt :: acc),
+               actorSystem.Materializer()
+            )
 
-let getAccountEvents id = Task.fromResult None
+      return if events.IsEmpty then None else events |> List.rev |> Some
+   }
 
 let getAccount
    (getAccountEvents: Guid -> AccountEvent list option Task)
@@ -32,7 +50,7 @@ let getAccount
    =
    task {
       let! evtsOption = getAccountEvents accountId
-      return map Account.foldEventsIntoAccount evtsOption
+      return Option.map Account.foldEventsIntoAccount evtsOption
    }
 
 let softDeleteEvents
@@ -44,27 +62,32 @@ let softDeleteEvents
    Task.fromResult accountId
 
 /// <summary>
-/// Get all CreatedAccount events for UI demonstration purposes.
-/// Allows demonstration consumer to choose what account to process
-/// transactions on.
+/// Get all account IDs for UI demonstration purposes.
+/// Allows user to choose what account to process transactions on.
 /// </summary>
-let getAccountCreationEvents () = Task.fromResult None
+let getAccountIds actorSystem = task {
+   let! ids =
+      ActorUtil
+         .readJournal(actorSystem)
+         .CurrentPersistenceIds()
+         .RunAggregate(
+            [],
+            (fun acc id -> Guid id :: acc),
+            actorSystem.Materializer()
+         )
+
+   return if ids.IsEmpty then None else Some ids
+}
 
 let createAccount
    (accounts: IActorRef<AccountCoordinatorMessage>)
    (validate: Validator<CreateAccountCommand>)
    (command: CreateAccountCommand)
    =
-   task {
-      let validation = command |> validate |> Result.map (fun c -> c.EntityId)
-
-      if Result.isError validation then
-         return validation
-      else
-         let account = command |> CreatedAccountEvent.create |> Account.create
-
-         let msg = AccountCoordinatorMessage.InitAccount account
-         retype accounts <! msg.consistentHash ()
-
-         return Ok account.EntityId
-   }
+   command
+   |> validate
+   |> Result.map (fun _ ->
+      let msg = AccountCoordinatorMessage.InitAccount command
+      retype accounts <! msg.consistentHash ()
+      command.EntityId)
+   |> Task.FromResult

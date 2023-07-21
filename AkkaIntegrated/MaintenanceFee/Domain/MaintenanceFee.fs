@@ -14,10 +14,10 @@ type FeeCriteria = {
    mutable account: AccountState
 }
 
-let initFeeCriteria events = {
+let initFeeCriteria = {
    depositCriteria = false
    balanceCriteria = true
-   account = Account.initialAccountStateFromEventHistory events
+   account = AccountState.empty
 }
 
 let computeFeeCriteria (lookback: DateTime) (events: AccountEvent list) =
@@ -46,5 +46,5 @@ let computeFeeCriteria (lookback: DateTime) (events: AccountEvent list) =
             | _ -> ()
 
             acc)
-      (initFeeCriteria events)
+      initFeeCriteria
       events
