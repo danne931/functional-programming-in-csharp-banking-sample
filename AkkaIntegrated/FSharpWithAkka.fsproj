@@ -17,7 +17,6 @@
     <Compile Include="MaintenanceFee/Domain/MaintenanceFee.fs" />
     <Compile Include="Account/Hub.fs" />
     <Compile Include="Lib/Serialization.fs" />
-    <Compile Include="Lib/Persistence/EventStore.fs" />
     <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
@@ -33,10 +32,11 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Akka" Version="1.5.4" />
+    <PackageReference Include="Akka" Version="1.5.8" />
     <PackageReference Include="Akka.FSharp" Version="1.5.4" />
+    <PackageReference Include="Akka.Persistence.MongoDb" Version="1.5.8" />
     <PackageReference Include="Akkling" Version="0.13.0" />
-    <PackageReference Include="EventStore.Client.Grpc.Streams" Version="23.0.0" />
+    <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
   </ItemGroup>

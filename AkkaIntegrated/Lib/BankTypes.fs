@@ -127,11 +127,11 @@ type AccountMessage =
    | StartChildren of Guid
    | Lookup of Guid
    | StateChange of Command
+   | Event of AccountEvent
 
 type AccountPersistence = {
    loadAccountEvents: Guid -> AccountEvent list option Task
    loadAccount: Guid -> AccountState option Task
-   save: OpenEventEnvelope -> unit Task
 }
 
 type Service = | DomesticTransfer

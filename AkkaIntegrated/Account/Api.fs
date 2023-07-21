@@ -3,7 +3,6 @@ module Bank.Account.Api
 open System
 open System.Threading.Tasks
 open Microsoft.FSharp.Core.Option
-open EventStore.Client
 open FSharp.Control
 open Akkling
 
@@ -25,8 +24,7 @@ let processCommand
 
    Task.fromResult validation
 
-let getAccountEvents esClient id =
-   EventStoreManager.readStream esClient (Account.streamName id) false
+let getAccountEvents id = Task.fromResult None
 
 let getAccount
    (getAccountEvents: Guid -> AccountEvent list option Task)
@@ -38,33 +36,21 @@ let getAccount
    }
 
 let softDeleteEvents
-   esClient
    (accounts: IActorRef<AccountCoordinatorMessage>)
    accountId
    =
    let msg = AccountCoordinatorMessage.Delete accountId
    retype accounts <! msg.consistentHash ()
-   EventStoreManager.softDelete esClient (Account.streamName accountId)
+   Task.fromResult accountId
 
 /// <summary>
 /// Get all CreatedAccount events for UI demonstration purposes.
 /// Allows demonstration consumer to choose what account to process
 /// transactions on.
 /// </summary>
-let getAccountCreationEvents esClient =
-   EventStoreManager.readStream esClient "$et-CreatedAccount" true
-
-let save esClient ((_, envelope) as props: OpenEventEnvelope) = task {
-   do!
-      EventStoreManager.save
-         esClient
-         (Account.streamName envelope.EntityId)
-         props
-         None
-}
+let getAccountCreationEvents () = Task.fromResult None
 
 let createAccount
-   esClient
    (accounts: IActorRef<AccountCoordinatorMessage>)
    (validate: Validator<CreateAccountCommand>)
    (command: CreateAccountCommand)
@@ -75,20 +61,10 @@ let createAccount
       if Result.isError validation then
          return validation
       else
-         let evt = CreatedAccountEvent.create command
+         let account = command |> CreatedAccountEvent.create |> Account.create
 
-         do!
-            EventStoreManager.save
-               esClient
-               (Account.streamName evt.EntityId)
-               (evt |> Envelope.wrap |> Envelope.unwrap)
-               // Create event stream only if it doesn't already exist.
-               (Some StreamState.NoStream)
-
-         let acct = Account.create evt
-
-         let msg = AccountCoordinatorMessage.InitAccount acct
+         let msg = AccountCoordinatorMessage.InitAccount account
          retype accounts <! msg.consistentHash ()
 
-         return Ok evt.EntityId
+         return Ok account.EntityId
    }

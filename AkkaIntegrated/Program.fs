@@ -10,11 +10,9 @@ Config.enableDefaultHttpJsonSerialization builder
 
 Config.startSignalR builder
 
-let es = Config.startEventStore builder
-
 let actorSystem = Config.startActorModel ()
 
-Config.injectDependencies builder es actorSystem
+Config.injectDependencies builder actorSystem
 
 let app = builder.Build()
 

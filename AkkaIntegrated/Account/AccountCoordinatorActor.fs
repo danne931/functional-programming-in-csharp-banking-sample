@@ -13,18 +13,17 @@ let private actorName = ActorMetadata.accountCoordinator.Name
 
 let getChild = getChildActorRef<AccountCoordinatorMessage, AccountMessage>
 
-let start
-   (system: ActorSystem)
-   (persistence: AccountPersistence)
-   (broadcast: AccountBroadcast)
-   =
+let start (system: ActorSystem) (broadcast: AccountBroadcast) =
    let handler (mailbox: Actor<AccountCoordinatorMessage>) =
       function
       | InitAccount account ->
-         ignored (AccountActor.start persistence broadcast mailbox account)
+         ignored (AccountActor.start broadcast mailbox account)
       | AccountCoordinatorMessage.StateChange cmd ->
          let accountRef = getChild mailbox (string cmd.EntityId)
+         accountRef.Value <! AccountMessage.StateChange cmd
+         Ignore
 
+      (*
          if isSome accountRef then
             accountRef.Value <! AccountMessage.StateChange cmd
             Ignore
@@ -34,7 +33,6 @@ let start
             if isSome accountOpt then
                let ref =
                   AccountActor.start
-                     persistence
                      broadcast
                      mailbox
                      accountOpt.Value
@@ -47,6 +45,7 @@ let start
                   actorName
 
                Unhandled
+         *)
       | Delete id ->
          let accountRef = getChild mailbox (string id)
 

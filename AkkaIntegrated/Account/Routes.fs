@@ -4,7 +4,6 @@ open System
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
-open EventStore.Client
 open Akkling
 
 open Lib.Types
@@ -26,39 +25,39 @@ module private Path =
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
-      Func<EventStoreClient, Task<IResult>>(fun es ->
-         getAccountCreationEvents es |> RouteUtil.unwrapTaskOption)
+      Func<Task<IResult>>(fun _ ->
+         getAccountCreationEvents () |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.Account,
-      Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
-         getAccount (getAccountEvents es) id |> RouteUtil.unwrapTaskOption)
+      Func<Guid, Task<IResult>>(fun id ->
+         getAccount getAccountEvents id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.AccountEvents,
-      Func<EventStoreClient, Guid, Task<IResult>>(fun es id ->
-         getAccountEvents es id |> RouteUtil.unwrapTaskOption)
+      Func<Guid, Task<IResult>>(fun id ->
+         getAccountEvents id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapPost(
       Path.Base,
-      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, CreateAccountCommand, Task<IResult>>
-         (fun es coordinator command ->
-            createAccount es coordinator (Validators.accountCreate ()) command
+      Func<IActorRef<AccountCoordinatorMessage>, CreateAccountCommand, Task<IResult>>
+         (fun coordinator command ->
+            createAccount coordinator (Validators.accountCreate ()) command
             |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
 
    app.MapDelete(
       Path.AccountEvents,
-      Func<EventStoreClient, IActorRef<AccountCoordinatorMessage>, Guid, Task<IResult>>
-         (fun es coordinator id ->
-            softDeleteEvents es coordinator id |> RouteUtil.unwrapTask)
+      Func<IActorRef<AccountCoordinatorMessage>, Guid, Task<IResult>>
+         (fun coordinator id ->
+            softDeleteEvents coordinator id |> RouteUtil.unwrapTask)
    )
    |> ignore
 
