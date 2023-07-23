@@ -48,12 +48,12 @@ web page to test the use cases against an account.
 2. docker run --name esdb-node -it -p 2113:2113 -p 1113:1113 eventstore/eventstore:latest --insecure --run-projections=All --mem-db
 3. run eventstoredb container
 4. enable eventstoredb projections: make an empty JSON POST request to http://127.0.0.1:2113/projection/$by_event_type/command/enable
-5. navigate to the C# or F# directories in this repo
-6. dotnet run
+5. navigate to the C# or FSharpWithAkka directories in this repo & dotnet run
+6. navigate to MockThirdPartyBankTransferReceiver and dotnet run
 7. make POST requests to http://localhost:PORT/accounts to create accounts ex:
     ```
     {
-	      "FirstName": "Small",
+	      "FirstName": "Jelly",
 	      "LastName": "Fish",
 	      "EntityId": "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a1",
 	      "Balance": 931,
