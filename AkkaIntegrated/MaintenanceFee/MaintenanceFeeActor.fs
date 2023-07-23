@@ -11,6 +11,10 @@ open Bank.Account.Domain
 open MaintenanceFee
 open ActorUtil
 
+// TODO: This implementation of checking past events for the month
+//       is likely not going to work once I enable actor persistence snapshotting.
+//       Refactor to account for arbitrary snapshotting with deletion of events
+//       preceding the snapshot.
 let private canIssueMaintenanceFee
    (getAccountEvents: Guid -> AccountEvent List Option Task)
    lookBackDate

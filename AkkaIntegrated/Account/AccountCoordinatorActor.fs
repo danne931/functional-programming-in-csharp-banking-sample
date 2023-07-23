@@ -13,11 +13,17 @@ let private actorName = ActorMetadata.accountCoordinator.Name
 
 let getChild = getChildActorRef<AccountCoordinatorMessage, AccountMessage>
 
-let start (system: ActorSystem) (broadcast: AccountBroadcast) =
+let start
+   (system: ActorSystem)
+   (persistence: AccountPersistence)
+   (broadcast: AccountBroadcast)
+   =
+   let startAccountActor = AccountActor.start persistence broadcast
+
    let handler (mailbox: Actor<AccountCoordinatorMessage>) =
       function
       | AccountCoordinatorMessage.InitAccount cmd ->
-         let aref = AccountActor.start broadcast mailbox cmd.EntityId
+         let aref = startAccountActor mailbox cmd.EntityId
          aref <! AccountMessage.InitAccount cmd
          Ignore
       | AccountCoordinatorMessage.StateChange cmd ->
@@ -25,7 +31,7 @@ let start (system: ActorSystem) (broadcast: AccountBroadcast) =
             string cmd.EntityId
             |> getChild mailbox
             |> Option.defaultWith (fun _ ->
-               AccountActor.start broadcast mailbox cmd.EntityId)
+               startAccountActor mailbox cmd.EntityId)
 
          aref <! AccountMessage.StateChange cmd
          Ignore

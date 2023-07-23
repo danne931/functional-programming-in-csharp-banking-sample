@@ -18,6 +18,7 @@ let private persist e =
    e |> Event |> Persist :> Effect<AccountMessage>
 
 let start
+   (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
    (mailbox: Actor<_>)
    (accountId: Guid)
@@ -30,41 +31,17 @@ let start
 
          return!
             match msg with
+            // TODO: Listen on persistence lifecycle events such as PersistenceFail
             | Persisted mailbox (Event evt) ->
-               printfn "2. event persisted to journal %A" evt
-               printfn "3. account: %A" account
-               broadcaster.broadcast (evt, account) |> ignore
+               let newState = Account.applyEvent account evt
+               broadcaster.broadcast (evt, newState) |> ignore
 
                match evt with
-               | TransferPending evt when
-                  evt.Data.Recipient.AccountEnvironment = RecipientAccountEnvironment.Internal
-                  ->
-                  let selection =
-                     getInternalTransferActor
-                        mailbox
-                        (ActorMetadata.internalTransfer evt.EntityId).Name
-
-                  let aref =
-                     match selection with
-                     | None _ ->
-                        InternalTransferRecipientActor.start
-                           mailbox
-                           evt.EntityId
-                     | Some aref -> aref
-
-                  aref <! evt
-               | TransferPending evt when
-                  evt.Data.Recipient.AccountEnvironment = RecipientAccountEnvironment.Domestic
-                  ->
-
-                  select mailbox ActorMetadata.domesticTransfer.Path
-                  <! (evt |> DomesticTransferRecipientActor.TransferPending)
+               | TransferPending evt -> mailbox.Self <! DispatchTransfer evt
                | _ -> ()
 
-               loop <| Account.applyEvent account evt
-
+               loop newState
             | StartChildren id ->
-               (*
                MaintenanceFeeActor.start
                   persistence.loadAccountEvents
                   //(fun _ -> DateTime.UtcNow.AddDays -30)
@@ -73,7 +50,6 @@ let start
                   (fun _ -> TimeSpan.FromSeconds 90)
                   mailbox
                   id
-               *)
 
                ignored ()
             | InitAccount cmd ->
@@ -82,9 +58,7 @@ let start
             | Lookup _ ->
                mailbox.Sender() <! account
                ignored ()
-            | Event e ->
-               printfn "1. event replay %A" e
-               loop <| Account.applyEvent account e
+            | Event e -> loop <| Account.applyEvent account e
             | StateChange cmd ->
                let validation = Account.stateTransition account cmd
 
@@ -94,10 +68,37 @@ let start
                   printfn "%A: validation fail %A" actorName err
                   ignored ()
                | Ok(event, _) -> persist event
+            | DispatchTransfer evt ->
+               let id = evt.EntityId
+
+               match evt.Data.Recipient.AccountEnvironment with
+               | RecipientAccountEnvironment.Internal ->
+                  let selection =
+                     getInternalTransferActor
+                        mailbox
+                        (ActorMetadata.internalTransfer id).Name
+
+                  let aref =
+                     match selection with
+                     | None _ ->
+                        InternalTransferRecipientActor.start
+                           mailbox
+                           persistence
+                           id
+                     | Some aref -> aref
+
+                  aref <! evt
+               | RecipientAccountEnvironment.Domestic ->
+
+                  select mailbox ActorMetadata.domesticTransfer.Path
+                  <! (evt |> DomesticTransferRecipientActor.TransferPending)
+               | _ -> ()
+
+               ignored ()
       }
 
       loop AccountState.empty
 
    let aref = spawn mailbox actorName (propsPersist handler)
-
+   aref <! StartChildren accountId
    aref

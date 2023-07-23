@@ -35,22 +35,6 @@ module Envelope =
       CorrelationId = evt.CorrelationId
    }
 
-   let bind (transformer: obj -> 't) (evt: AccountEvent) =
-      match evt with
-      | CreatedAccount evt -> transformer evt
-      | DepositedCash evt -> transformer evt
-      | DebitedAccount evt -> transformer evt
-      | MaintenanceFeeDebited evt -> transformer evt
-      | DailyDebitLimitUpdated evt -> transformer evt
-      | LockedCard evt -> transformer evt
-      | UnlockedCard evt -> transformer evt
-      | InternalTransferRecipient evt -> transformer evt
-      | DomesticTransferRecipient evt -> transformer evt
-      | InternationalTransferRecipient evt -> transformer evt
-      | TransferPending evt -> transformer evt
-      | TransferApproved evt -> transformer evt
-      | TransferRejected evt -> transformer evt
-
    let wrap (o: obj) : AccountEvent =
       match o with
       | :? BankEvent<CreatedAccount> as evt -> evt |> CreatedAccount
@@ -141,6 +125,7 @@ type AccountMessage =
    | Lookup of Guid
    | StateChange of Command
    | Event of AccountEvent
+   | DispatchTransfer of BankEvent<TransferPending>
 
 type AccountPersistence = {
    loadAccountEvents: Guid -> AccountEvent list option Task

@@ -27,7 +27,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
       Func<ActorSystem, Task<IResult>>(fun actorSystem ->
-         getAccountIds actorSystem |> RouteUtil.unwrapTaskOption)
+         getAccountCreatedEvents actorSystem |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 

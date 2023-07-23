@@ -6,10 +6,24 @@ open FSharp.Control
 open Akkling
 open Akka.Actor
 open Akka.Streams
+open Akka.Persistence
 
 open BankTypes
 open Bank.Account.Domain
 open Lib.Types
+
+let createAccount
+   (accounts: IActorRef<AccountCoordinatorMessage>)
+   (validate: Validator<CreateAccountCommand>)
+   (command: CreateAccountCommand)
+   =
+   command
+   |> validate
+   |> Result.map (fun _ ->
+      let msg = AccountCoordinatorMessage.InitAccount command
+      retype accounts <! msg.consistentHash ()
+      command.EntityId)
+   |> Task.FromResult
 
 let processCommand
    (accounts: IActorRef<AccountCoordinatorMessage>)
@@ -20,8 +34,22 @@ let processCommand
    |> validate
    |> Result.map (fun _ ->
       let msg = AccountCoordinatorMessage.StateChange command
-      retype accounts <! msg.consistentHash ())
+      retype accounts <! msg.consistentHash ()
+      command.EntityId)
    |> Task.fromResult
+
+let aggregateEvents
+   (actorSystem: ActorSystem)
+   (source: Dsl.Source<Query.EventEnvelope, _>)
+   : AccountEvent list Task
+   =
+   source.RunAggregate(
+      [],
+      (fun acc envelope ->
+         let (Event evt) = unbox envelope.Event
+         evt :: acc),
+      actorSystem.Materializer()
+   )
 
 let getAccountEvents
    (actorSystem: ActorSystem)
@@ -29,19 +57,13 @@ let getAccountEvents
    : AccountEvent list option Task
    =
    task {
-      let! events =
+      let! evts =
          ActorUtil
             .readJournal(actorSystem)
             .CurrentEventsByPersistenceId(string id, 0, System.Int64.MaxValue)
-            .RunAggregate(
-               [],
-               (fun acc envelope ->
-                  let (Event evt) = unbox envelope.Event
-                  evt :: acc),
-               actorSystem.Materializer()
-            )
+         |> aggregateEvents actorSystem
 
-      return if events.IsEmpty then None else events |> List.rev |> Some
+      return if evts.IsEmpty then None else evts |> List.rev |> Some
    }
 
 let getAccount
@@ -62,32 +84,15 @@ let softDeleteEvents
    Task.fromResult accountId
 
 /// <summary>
-/// Get all account IDs for UI demonstration purposes.
+/// TODO: Will not work once persistence snapshotting is enabled.
+///       Refactor to pull user records instead.
+/// Get all created account events for UI demonstration purposes.
 /// Allows user to choose what account to process transactions on.
 /// </summary>
-let getAccountIds actorSystem = task {
-   let! ids =
-      ActorUtil
-         .readJournal(actorSystem)
-         .CurrentPersistenceIds()
-         .RunAggregate(
-            [],
-            (fun acc id -> Guid id :: acc),
-            actorSystem.Materializer()
-         )
+let getAccountCreatedEvents actorSystem = task {
+   let! evts =
+      ActorUtil.readJournal(actorSystem).CurrentEventsByTag("CreatedAccount")
+      |> aggregateEvents actorSystem
 
-   return if ids.IsEmpty then None else Some ids
+   return if evts.IsEmpty then None else Some evts
 }
-
-let createAccount
-   (accounts: IActorRef<AccountCoordinatorMessage>)
-   (validate: Validator<CreateAccountCommand>)
-   (command: CreateAccountCommand)
-   =
-   command
-   |> validate
-   |> Result.map (fun _ ->
-      let msg = AccountCoordinatorMessage.InitAccount command
-      retype accounts <! msg.consistentHash ()
-      command.EntityId)
-   |> Task.FromResult

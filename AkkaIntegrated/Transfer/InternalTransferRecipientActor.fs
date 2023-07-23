@@ -14,13 +14,12 @@ module Command = TransferResponseToCommand
 
 let private issueTransferToRecipient
    (mailbox: Actor<BankEvent<TransferPending>>)
+   (persistence: AccountPersistence)
    (evt: BankEvent<TransferPending>)
    =
    task {
       let recipient = evt.Data.Recipient
-      return ()
 
-   (*
       match! persistence.loadAccount (Guid recipient.Identification) with
       | None ->
          mailbox.Parent<AccountMessage>()
@@ -51,12 +50,15 @@ let private issueTransferToRecipient
                )
 
             coordinatorActorOpt.Value <! msg.consistentHash ()
-      *)
    }
 
-let start (mailbox: Actor<AccountMessage>) (accountId: Guid) =
+let start
+   (mailbox: Actor<AccountMessage>)
+   (persistence: AccountPersistence)
+   (accountId: Guid)
+   =
    let handler mailbox evt =
-      (issueTransferToRecipient mailbox evt).Wait()
+      (issueTransferToRecipient mailbox persistence evt).Wait()
       Ignore
 
    spawn

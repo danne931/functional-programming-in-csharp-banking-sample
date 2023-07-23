@@ -83,7 +83,7 @@ let injectDependencies
    builder.Services.AddSingleton<IActorRef<AccountCoordinatorMessage>>
       (fun provider ->
          let broadcast = provider.GetRequiredService<AccountBroadcast>()
-         AccountCoordinatorActor.start actorSystem broadcast)
+         AccountCoordinatorActor.start actorSystem persistence broadcast)
    |> ignore
 
    builder.Services.AddSingleton<IActorRef<DomesticTransferRecipientActor.Message>>
