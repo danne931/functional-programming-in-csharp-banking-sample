@@ -18,12 +18,48 @@ public record TransferCmd(
 )
 : Command(EntityId)
 {
-   public DebitedTransfer ToEvent() => new(
+   public TransferPending ToEvent() => new(
       EntityId: EntityId,
       Date: Date,
       Recipient: Recipient,
       DebitedAmount: Amount,
       Reference: Reference,
+      Timestamp: Timestamp
+   );
+}
+
+public record ApproveTransferCmd(
+   Guid EntityId,
+   TransferRecipient Recipient,
+   DateTime Date,
+   decimal Amount
+)
+: Command(EntityId)
+{
+   public TransferApproved ToEvent() => new(
+      EntityId: EntityId,
+      Date: Date,
+      Recipient: Recipient,
+      DebitedAmount: Amount,
+      Timestamp: Timestamp
+   );
+}
+
+public record RejectTransferCmd(
+   Guid EntityId,
+   TransferRecipient Recipient,
+   DateTime Date,
+   decimal Amount,
+   string Reason
+)
+: Command(EntityId)
+{
+   public TransferRejected ToEvent() => new(
+      EntityId: EntityId,
+      Date: Date,
+      Recipient: Recipient,
+      DebitedAmount: Amount,
+      Reason: Reason,
       Timestamp: Timestamp
    );
 }

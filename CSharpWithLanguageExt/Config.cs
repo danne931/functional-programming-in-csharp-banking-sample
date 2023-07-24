@@ -37,6 +37,7 @@ public static class Config {
                id => AccountAPI.GetAccountEvents(esClient, id),
                id
             ),
+            exists: id => AccountAPI.Exists(esClient, id),
             save: evt => AccountAPI.Save(
                esClient,
                evt

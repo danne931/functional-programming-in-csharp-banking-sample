@@ -20,7 +20,7 @@ public static class Response {
    TryAsync(WrappedResult).Match(
       Fail: ExceptionResponse,
       Succ: val => val.Match(
-         Fail: BadRequest,
+         Fail: e => BadRequest(new { validationError = e.Head.Message }),
          Succ: state => Ok(ShapeResponse != null ? ShapeResponse(state) : state)
       )
    );

@@ -1,4 +1,3 @@
-using EventStore.Client;
 using LanguageExt;
 
 using Lib.Types;
@@ -6,7 +5,6 @@ using static Lib.Route.Response;
 using Bank.Account.API;
 using Bank.Account.Actors;
 using Bank.Transfer.Domain;
-using Bank.Transfer.API;
 using Validators = Bank.Transfer.Domain.Validators;
 
 namespace Bank.Transfer.Routes;
@@ -24,13 +22,12 @@ public static class TransferRoutes {
 
    static Task<IResult> RegisterTransferRecipient(
       RegisterTransferRecipientCmd cmd,
-      EventStoreClient es,
       AccountRegistry accounts
    ) =>
       AccountAPI.ProcessCommand<RegisterTransferRecipientCmd>(
          cmd,
          accounts,
-         Validators.RegisterTransferRecipient(es, BankTransferAPI.RecipientExists)
+         Validators.RegisterTransferRecipient()
       )
       .Unwrap<Unit>();
 

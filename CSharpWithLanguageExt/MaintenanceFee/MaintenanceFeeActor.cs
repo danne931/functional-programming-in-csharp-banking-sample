@@ -4,7 +4,6 @@ using LanguageExt;
 using static System.Console;
 
 using Bank.Account.Domain;
-using AD = Bank.Account.Domain.Account;
 using MF = Bank.MaintenanceFee.Domain.MaintenanceFee;
 
 namespace Bank.Account.Actors;
@@ -34,12 +33,7 @@ public static class MaintenanceFeeActor {
                   return;
                }
 
-               tellParent(new DebitCmd(
-                  accountId,
-                  DateTime.UtcNow,
-                  MF.Fee,
-                  Origin: AD.Constants.DebitOriginMaintenanceFee
-               ));
+               tellParent(new MaintenanceFeeCmd(accountId));
             });
 
             tellSelf(evt, scheduledAt());

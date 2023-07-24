@@ -10,7 +10,7 @@ using TransferRecipientEvent = OneOf<
    RegisteredInternationalTransferRecipient
 >;
 
-public record DebitedTransfer(
+public record TransferPending(
    Guid EntityId,
    DateTime Date,
    DateTime Timestamp,
@@ -18,7 +18,26 @@ public record DebitedTransfer(
    decimal DebitedAmount,
    string Reference
 )
-: Event(EntityId, Timestamp, nameof(DebitedTransfer), 1.2F);
+: Event(EntityId, Timestamp, nameof(TransferPending), 1.0F);
+
+public record TransferApproved(
+   Guid EntityId,
+   DateTime Date,
+   DateTime Timestamp,
+   TransferRecipient Recipient,
+   decimal DebitedAmount
+)
+: Event(EntityId, Timestamp, nameof(TransferApproved), 1.0F);
+
+public record TransferRejected(
+   Guid EntityId,
+   DateTime Date,
+   DateTime Timestamp,
+   TransferRecipient Recipient,
+   decimal DebitedAmount,
+   string Reason
+)
+: Event(EntityId, Timestamp, nameof(TransferRejected), 1.0F);
 
 public record RegisteredInternalTransferRecipient(
    Guid EntityId,
@@ -89,4 +108,25 @@ public static class TransferEventsExt {
          _ => evtWrapped.AsT1,
          _ => evtWrapped.AsT2
       );
+}
+
+public static class TransferResponseToCommand {
+   public static ApproveTransferCmd Approve(TransferPending evt) {
+      return new ApproveTransferCmd(
+         evt.EntityId,
+         evt.Recipient,
+         evt.Date,
+         evt.DebitedAmount
+      );
+   }
+
+   public static RejectTransferCmd Reject(TransferPending evt, string reason) {
+      return new RejectTransferCmd(
+         evt.EntityId,
+         evt.Recipient,
+         evt.Date,
+         evt.DebitedAmount,
+         reason
+      );
+   }
 }

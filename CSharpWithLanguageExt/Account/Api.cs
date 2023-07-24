@@ -2,7 +2,6 @@ using LanguageExt;
 using static LanguageExt.Prelude;
 using static LanguageExt.List;
 using EventStore.Client;
-using OneOf;
 
 using Lib.Types;
 using Lib.BankTypes;
@@ -88,22 +87,17 @@ public static class AccountAPI {
    public static Task<Validation<Err, Unit>> ProcessCommand<T>(
       T command,
       AccountRegistry registry,
-      OneOf<Validator<T>, AsyncValidator<T>> validate
+      Validator<T> validate
    )
    where T : Command
    {
-      var validation = validate.Match(
-         validate => TaskSucc(validate(command)),
-         asyncValidate => asyncValidate(command)
-      );
-
       var getAccountVal = (Command cmd) =>
          registry
             .Lookup(cmd.EntityId)
             .Map(opt => opt.ToValidation(UnknownAccountId(cmd.EntityId)));
 
       return
-         from cmd in validation
+         from cmd in TaskSucc(validate(command))
          from acc in getAccountVal(cmd)
          select AccountActor.SyncStateChange(cmd);
    }

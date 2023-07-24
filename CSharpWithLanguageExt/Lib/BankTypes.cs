@@ -28,6 +28,7 @@ public enum AccountStatus {
 public sealed record AccountPersistence(
    Func<Guid, Task<Option<Lst<object>>>> loadAccountEvents,
    Func<Guid, Task<Option<AccountState>>> loadAccount,
+   Func<Guid, Task<bool>> exists,
    Func<Event, Task<Unit>> save
 ) {};
 

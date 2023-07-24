@@ -2,12 +2,6 @@ using Lib.Types;
 
 namespace Bank.Account.Domain;
 
-public record EchoCmd(
-   Guid EntityId,
-   string Message
-)
-: Command(EntityId);
-
 public record CreateAccountCmd(
    Guid EntityId,
    string Currency,
@@ -82,4 +76,13 @@ public record UnlockCardCmd(
 : Command(EntityId)
 {
    public UnlockedCard ToEvent() => new(EntityId, Timestamp, Reference);
+}
+
+public record MaintenanceFeeCmd(
+   Guid EntityId,
+   decimal Amount = 5
+)
+: Command(EntityId)
+{
+   public MaintenanceFeeDebited ToEvent() => new(EntityId, Timestamp, Amount);
 }

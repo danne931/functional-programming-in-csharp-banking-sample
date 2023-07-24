@@ -79,14 +79,14 @@ public static class AccountActor {
                   }
 
 
-                  if (evt is DebitedTransfer) {
+                  if (evt is TransferPending) {
                      var childName = TransferRecipientActor.ActorName;
 
                      if (!ActorUtil.IsAlive(child(childName))) {
-                        TransferRecipientActor.Start();
+                        TransferRecipientActor.Start(persistence);
                      }
 
-                     tellChild(childName, (DebitedTransfer) evt);
+                     tellChild(childName, (TransferPending) evt);
                   }
 
                   return tup.NewState;

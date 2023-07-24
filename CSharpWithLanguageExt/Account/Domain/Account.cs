@@ -14,8 +14,11 @@ public static class Account {
 
    public static Map<string, Type> EventTypeMapping = (
       (nameof(CreatedAccount), typeof(CreatedAccount)),
-      (nameof(DebitedTransfer), typeof(DebitedTransfer)),
+      (nameof(TransferPending), typeof(TransferPending)),
+      (nameof(TransferApproved), typeof(TransferApproved)),
+      (nameof(TransferRejected), typeof(TransferRejected)),
       (nameof(DebitedAccount), typeof(DebitedAccount)),
+      (nameof(MaintenanceFeeDebited), typeof(MaintenanceFeeDebited)),
       (nameof(DailyDebitLimitUpdated), typeof(DailyDebitLimitUpdated)),
       (nameof(DepositedCash), typeof(DepositedCash)),
       (nameof(LockedCard), typeof(LockedCard)),
@@ -30,7 +33,15 @@ public static class Account {
          DepositedCash e
             => acc with { Balance = acc.Balance + e.DepositedAmount },
 
-         DebitedTransfer e
+         TransferPending e
+            => acc with { Balance = acc.Balance - e.DebitedAmount },
+
+         TransferApproved _ => acc,
+
+         TransferRejected e
+            => acc with { Balance = acc.Balance + e.DebitedAmount },
+
+         MaintenanceFeeDebited e
             => acc with { Balance = acc.Balance - e.DebitedAmount },
 
          DebitedAccount e
@@ -78,8 +89,6 @@ public static class Account {
       // -> Ignore debits older than a day
       if (!Time.IsToday(evt.Timestamp)) return 0;
 
-      if (evt.Origin == Constants.DebitOriginMaintenanceFee) return state.DailyDebitAccrued;
-
       // When applying a new event to the cached AccountState & the
       // last debit event did not occur today...
       // -> Ignore the cached DailyDebitAccrued
@@ -94,7 +103,10 @@ public static class Account {
    ) =>
       command switch {
          TransferCmd cmd => state.Transfer(cmd),
+         ApproveTransferCmd cmd => state.ApproveTransfer(cmd),
+         RejectTransferCmd cmd => state.RejectTransfer(cmd),
          DebitCmd cmd => state.Debit(cmd),
+         MaintenanceFeeCmd cmd => state.MaintenanceFee(cmd),
          LimitDailyDebitsCmd cmd => state.LimitDailyDebits(cmd),
          DepositCashCmd cmd => state.Deposit(cmd),
          LockCardCmd cmd => state.LockCard(cmd),
@@ -120,6 +132,35 @@ public static class Account {
       return (evt, state.Apply(evt));
    }
 
+   public static StateTransitionResult ApproveTransfer(
+      this AccountState state,
+      ApproveTransferCmd cmd
+   ) {
+      var evt = cmd.ToEvent();
+      return (evt, state.Apply(evt));
+   }
+
+   public static StateTransitionResult RejectTransfer(
+      this AccountState state,
+      RejectTransferCmd cmd
+   ) {
+      var evt = cmd.ToEvent();
+      return (evt, state.Apply(evt));
+   }
+
+   public static StateTransitionResult MaintenanceFee(
+      this AccountState state,
+      MaintenanceFeeCmd cmd
+   ) {
+      if (state.Status == AccountStatus.Closed)
+         return Errors.AccountNotActive;
+      if (state.Balance - cmd.Amount < state.AllowedOverdraft)
+         return Errors.InsufficientBalance;
+
+      var evt = cmd.ToEvent();
+      return (evt, state.Apply(evt));
+   }
+
    public static StateTransitionResult Debit(
       this AccountState state,
       DebitCmd cmd
@@ -127,16 +168,13 @@ public static class Account {
       if (state.Status == AccountStatus.Closed)
          return Errors.AccountNotActive;
 
-      if (state.Status == AccountStatus.ActiveWithLockedCard &&
-          cmd.Origin != Constants.DebitOriginMaintenanceFee)
+      if (state.Status == AccountStatus.ActiveWithLockedCard)
          return Errors.AccountCardLocked;
 
       if (state.Balance - cmd.Amount < state.AllowedOverdraft)
          return Errors.InsufficientBalance;
 
       if (state.DailyDebitLimit != -1 &&
-         // Maintenance fee does not count toward daily debit accrual
-         cmd.Origin != Constants.DebitOriginMaintenanceFee &&
          Time.IsToday(cmd.Timestamp) &&
          state.DailyDebitAccrued + cmd.Amount > state.DailyDebitLimit
       ) {
@@ -210,8 +248,4 @@ public static class Account {
          Currency: evt.Currency,
          Balance: evt.Balance
       );
-
-   public static class Constants {
-      public const string DebitOriginMaintenanceFee = "actor:maintenance_fee";
-   }
 }

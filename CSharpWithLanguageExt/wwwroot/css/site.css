@@ -1,5 +1,137 @@
-html {
-  font-size: 16px;
+@media screen {
+  :root:not([data-theme]) {
+    --primary: #fdd835;
+    --primary-hover: #ffeb3b;
+    --primary-focus: rgba(253, 216, 53, 0.25);
+    --primary-inverse: rgba(0, 0, 0, 0.75);
+  }
+}
+
+:root {
+  --form-element-active-border-color: var(--primary);
+  --form-element-focus-color: var(--primary-focus);
+  --switch-color: var(--primary-inverse);
+  --switch-checked-background-color: var(--primary);
+}
+
+nav [data-tooltip],
+footer [data-tooltip] {
+  border-bottom: none;
+}
+
+nav:nth-child(1) {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+details[role=list] li a.selected {
+  background-color: var(--primary);
+  color: var(--primary-inverse);
+}
+
+.account-name {
+  color: var(--primary);
+}
+
+.success {
+  color: var(--ins-color);
+}
+
+.alert {
+  color: var(--del-color);
+}
+
+.debit {
+  color: var(--del-color);
+}
+
+.credit {
+  color: var(--ins-color);
+}
+
+small {
+  color: var(--muted-color);
+}
+
+button {
+  text-align: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.form-wrapper h6 {
+  display: inline-block;
+  margin-top: 0.35rem;
+}
+.form-wrapper button {
   position: relative;
-  min-height: 100%;
+  float: right;
+  padding: 0.3rem 1rem;
+  width: auto;
+}
+
+footer {
+  text-align: center;
+  position: fixed;
+  bottom: 0;
+  background: var(--card-background-color);
+  box-shadow: var(--card-box-shadow);
+}
+footer p {
+  display: inline;
+}
+
+main > .grid article {
+  padding: 1rem;
+  margin: .5rem 0;
+}
+
+@media (min-width: 992px) {
+  main > .grid {
+    grid-template-columns: auto 30%;
+  }
+}
+
+@media (min-width: 576px) {
+  body > main {
+    --block-spacing-vertical: calc(var(--spacing) * 1.5);
+  }
+}
+@media (min-width: 768px) {
+  body > main {
+    --block-spacing-vertical: calc(var(--spacing) * 1.5);
+  }
+}
+@media (min-width: 992px) {
+  body > main {
+    --block-spacing-vertical: calc(var(--spacing) * 1.5);
+  }
+}
+@media (min-width: 1200px) {
+  body > main {
+    --block-spacing-vertical: calc(var(--spacing) * 1.5);
+  }
+}
+
+@media (min-width: 576px) {
+  body > footer {
+    --block-spacing-vertical: var(--spacing);
+  }
+}
+@media (min-width: 768px) {
+  body > footer {
+    --block-spacing-vertical: var(--spacing);
+  }
+}
+@media (min-width: 992px) {
+  body > footer {
+    --block-spacing-vertical: var(--spacing);
+  }
+}
+@media (min-width: 1200px) {
+  body > footer {
+    --block-spacing-vertical: var(--spacing);
+  }
 }

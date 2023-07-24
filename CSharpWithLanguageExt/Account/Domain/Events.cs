@@ -48,3 +48,10 @@ public record DailyDebitLimitUpdated(
    decimal DebitLimit,
    DateTime Timestamp
 ) : Event(EntityId, Timestamp, nameof(DailyDebitLimitUpdated));
+
+public record MaintenanceFeeDebited(
+   Guid EntityId,
+   DateTime Timestamp,
+   decimal DebitedAmount
+)
+: Event(EntityId, Timestamp, nameof(MaintenanceFeeDebited));

@@ -9,10 +9,10 @@ using AD = Bank.Account.Domain.Account;
 namespace Bank.MaintenanceFee.Domain;
 
 public static class MaintenanceFee {
-   public const decimal Fee = 5;
    public const decimal DailyBalanceThreshold = 1500;
    public const decimal QualifyingDeposit = 250;
 
+   // NOTE: This implementation would need to be refactored if utilizing event snapshotting.
    public static
       (bool depositCriteria, bool balanceCriteria, AccountState account)
       ComputeFeeCriteria(

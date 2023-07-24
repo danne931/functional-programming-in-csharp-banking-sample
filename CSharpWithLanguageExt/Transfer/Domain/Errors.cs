@@ -9,11 +9,14 @@ public static class TransferErr {
    public static Err InvalidRecipient
       => new Err("LastName & Identification required.");
 
-   public static Err InvalidDomesticRecipient
-      => new Err("Routing number required for domestic transfers.");
+   public static Err RecipientCanNotBeSelf
+      => new Err("Adding self as recipient is not allowed.");
 
-   public static Err InvalidInternationalRecipient
-      => new Err("IdentificationMethod required for international transfers.");
+   public static Err InvalidAccountEnvironment
+      => new Err("Only internal transfers allowed.");
+
+   public static Err InvalidAmount
+      => new Err("Transfer amount must be greater than 0.");
 
    public static Err RecipientNotFound(Guid id)
       => new Err($"Recipient not found: {id.ToString()}");
