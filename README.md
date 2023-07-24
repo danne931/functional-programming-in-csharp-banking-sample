@@ -19,10 +19,10 @@ with [Akka](https://github.com/akkadotnet/akka.net).
 1. Deposit
 2. Debit
 3. Registering a transfer recipient internal to the bank
-4. Registering a transfer recipient in a 3rd party bank for domestic transfers
+4. Registering a transfer recipient in a 3rd party bank for domestic transfers (*exclusive to F# app*)
 5. Transferring money to a registered recipient (internal to the bank) debits the sender and credits the receiver
-6. Transferring money to an account in a mock 3rd party bank demonstrates resilience in face of intermittent network issues.  Integration with Akka circuit breaker allows our pending transfers to be reprocessed once the 3rd party bank is in a healthy state.
-7. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/488cb3498b9255ef31145e94060049dac9eac3b1/CSharpWithLanguageExt/Account/AccountActor.cs#L45) to 40 seconds or so*
+6. Transferring money to an account in a mock 3rd party bank demonstrates resilience in face of intermittent network issues.  Integration with Akka circuit breaker allows our pending transfers to be reprocessed once the 3rd party bank is in a healthy state.  (*exclusive to F# app*)
+7. Recurring maintenance fee for a period unless a qualified deposit found or a daily account balance threshold met.  *Typically 30 days but I've set it to 2 minutes for a faster feedback loop.  For a faster feedback loop adjust the [config](https://github.com/danne931/functional-programming-in-csharp-banking-sample/blob/main/FSharpWithAkka/Account/AccountActor.fs#L30) to 40 seconds or so*
 8. Daily debit limit set by the customer
 9. Lock/unlock debit card
 
@@ -34,8 +34,8 @@ web page to test the use cases against an account.
 - Overall account state
 - History of transactions on the account
 - Toggling between a transfer sender & receiver account (internal to the bank) demonstrates debits in one account and credits in the other
-- A system operations navbar displays circuit breaker open/closed status for domestic transfers to the 3rd party bank mock server
-- When the circuit breaker closes, pending domestic transfers are reprocessed & corresponding Approved/Rejected events are interpolated into the table
+- A system operations navbar displays circuit breaker open/closed status for domestic transfers to the 3rd party bank mock server (*exclusive to F# app*)
+- When the circuit breaker closes, pending domestic transfers are reprocessed & corresponding Approved/Rejected events are interpolated into the table (*exclusive to F# app*)
 
 ## Demonstration
 ### Domestic transfers to a mock 3rd party bank server with circuit breaker integration:
@@ -49,7 +49,7 @@ web page to test the use cases against an account.
 3. run eventstoredb container
 4. enable eventstoredb projections: make an empty JSON POST request to http://127.0.0.1:2113/projection/$by_event_type/command/enable
 5. navigate to the C# or FSharpWithAkka directories in this repo & dotnet run
-6. navigate to MockThirdPartyBankTransferReceiver and dotnet run
+6. navigate to MockThirdPartyBankTransferReceiver and dotnet run (*exclusive to F# app*)
 7. make POST requests to http://localhost:PORT/accounts to create accounts ex:
     ```
     {
