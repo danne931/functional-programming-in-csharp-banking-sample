@@ -24,7 +24,7 @@ let private issueTransferToRecipient
       | None ->
          mailbox.Parent<AccountMessage>()
          <! AccountMessage.StateChange(
-            TransferResponseToCommand.reject evt "NoRecepientFound"
+            Command.reject evt "NoRecepientFound"
          )
       | Some account ->
          if account.Status = AccountStatus.Closed then

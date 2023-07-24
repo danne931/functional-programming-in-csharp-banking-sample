@@ -31,6 +31,8 @@ let start
 
          return!
             match msg with
+            // Event replay on actor start
+            | Event e -> loop <| Account.applyEvent account e
             // TODO: Listen on persistence lifecycle events such as PersistenceFail
             | Persisted mailbox (Event evt) ->
                let newState = Account.applyEvent account evt
@@ -58,7 +60,6 @@ let start
             | Lookup _ ->
                mailbox.Sender() <! account
                ignored ()
-            | Event e -> loop <| Account.applyEvent account e
             | StateChange cmd ->
                let validation = Account.stateTransition account cmd
 
@@ -73,23 +74,17 @@ let start
 
                match evt.Data.Recipient.AccountEnvironment with
                | RecipientAccountEnvironment.Internal ->
-                  let selection =
-                     getInternalTransferActor
-                        mailbox
-                        (ActorMetadata.internalTransfer id).Name
-
                   let aref =
-                     match selection with
-                     | None _ ->
+                     (ActorMetadata.internalTransfer id).Name
+                     |> getInternalTransferActor mailbox
+                     |> Option.defaultWith (fun _ ->
                         InternalTransferRecipientActor.start
                            mailbox
                            persistence
-                           id
-                     | Some aref -> aref
+                           id)
 
                   aref <! evt
                | RecipientAccountEnvironment.Domestic ->
-
                   select mailbox ActorMetadata.domesticTransfer.Path
                   <! (evt |> DomesticTransferRecipientActor.TransferPending)
                | _ -> ()

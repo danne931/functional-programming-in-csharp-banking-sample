@@ -20,6 +20,7 @@ let initFeeCriteria events = {
    account = Account.initialAccountStateFromEventHistory events
 }
 
+// TODO: This implementation would need to be refactored if utilizing event snapshotting. 
 let computeFeeCriteria (lookback: DateTime) (events: AccountEvent list) =
    List.fold
       (fun acc event ->
