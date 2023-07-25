@@ -32,7 +32,8 @@ let start
          return!
             match msg with
             // Event replay on actor start
-            | Event e -> loop <| Account.applyEvent account e
+            | Event e when mailbox.IsRecovering() ->
+               loop <| Account.applyEvent account e
             // TODO: Listen on persistence lifecycle events such as PersistenceFail
             | Persisted mailbox (Event evt) ->
                let newState = Account.applyEvent account evt
@@ -90,6 +91,7 @@ let start
                | _ -> ()
 
                ignored ()
+            | _ -> Unhandled
       }
 
       loop AccountState.empty
