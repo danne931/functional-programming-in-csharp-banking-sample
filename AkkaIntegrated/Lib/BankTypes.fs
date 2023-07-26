@@ -13,6 +13,7 @@ type AccountEvent =
    | DepositedCash of BankEvent<DepositedCash>
    | DebitedAccount of BankEvent<DebitedAccount>
    | MaintenanceFeeDebited of BankEvent<MaintenanceFeeDebited>
+   | MaintenanceFeeSkipped of BankEvent<MaintenanceFeeSkipped>
    | DailyDebitLimitUpdated of BankEvent<DailyDebitLimitUpdated>
    | LockedCard of BankEvent<LockedCard>
    | UnlockedCard of BankEvent<UnlockedCard>
@@ -42,6 +43,8 @@ module Envelope =
       | :? BankEvent<DebitedAccount> as evt -> evt |> DebitedAccount
       | :? BankEvent<MaintenanceFeeDebited> as evt ->
          evt |> MaintenanceFeeDebited
+      | :? BankEvent<MaintenanceFeeSkipped> as evt ->
+         evt |> MaintenanceFeeSkipped
       | :? BankEvent<DailyDebitLimitUpdated> as evt ->
          evt |> DailyDebitLimitUpdated
       | :? BankEvent<LockedCard> as evt -> evt |> LockedCard
@@ -62,6 +65,7 @@ module Envelope =
       | DepositedCash evt -> (wrap evt, get evt)
       | DebitedAccount evt -> (wrap evt, get evt)
       | MaintenanceFeeDebited evt -> (wrap evt, get evt)
+      | MaintenanceFeeSkipped evt -> (wrap evt, get evt)
       | DailyDebitLimitUpdated evt -> (wrap evt, get evt)
       | LockedCard evt -> (wrap evt, get evt)
       | UnlockedCard evt -> (wrap evt, get evt)
@@ -90,6 +94,7 @@ type AccountState =
       DailyDebitAccrued: decimal
       LastDebitDate: DateTime option
       TransferRecipients: Map<string, TransferRecipient>
+      MaintenanceFeeCriteria: MaintenanceFeeCriteria
    }
 
    static member empty = {
@@ -104,6 +109,10 @@ type AccountState =
       DailyDebitAccrued = 0m
       LastDebitDate = None
       TransferRecipients = Map.empty
+      MaintenanceFeeCriteria = {
+         QualifyingDepositFound = false
+         DailyBalanceThreshold = false
+      }
    }
 
 type AccountCoordinatorMessage =
@@ -121,8 +130,8 @@ type AccountCoordinatorMessage =
 
 type AccountMessage =
    | InitAccount of CreateAccountCommand
-   | StartChildren of Guid
-   | Lookup of Guid
+   | StartChildren
+   | Lookup
    | StateChange of Command
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>

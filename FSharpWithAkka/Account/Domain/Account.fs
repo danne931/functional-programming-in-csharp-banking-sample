@@ -32,36 +32,50 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    else
       state.DailyDebitAccrued + evt.Data.DebitedAmount
 
-let create (e: BankEvent<CreatedAccount>) = {
-   EntityId = e.EntityId
-   FirstName = e.Data.FirstName
-   LastName = e.Data.LastName
-   Currency = e.Data.Currency
-   Balance = e.Data.Balance
-   Status = AccountStatus.Active
-   AllowedOverdraft = 0m
-   DailyDebitLimit = -1m
-   DailyDebitAccrued = 0m
-   LastDebitDate = None
-   TransferRecipients = Map.empty
-}
+let create (e: BankEvent<CreatedAccount>) =
+   MaintenanceFee.reset
+      {
+         EntityId = e.EntityId
+         FirstName = e.Data.FirstName
+         LastName = e.Data.LastName
+         Currency = e.Data.Currency
+         Balance = e.Data.Balance
+         Status = AccountStatus.Active
+         AllowedOverdraft = 0m
+         DailyDebitLimit = -1m
+         DailyDebitAccrued = 0m
+         LastDebitDate = None
+         TransferRecipients = Map.empty
+         MaintenanceFeeCriteria = {
+            DailyBalanceThreshold = false
+            QualifyingDepositFound = false
+         }
+      }
 
 let applyEvent (state: AccountState) (evt: AccountEvent) =
    match evt with
-   | DepositedCash e -> {
-      state with
-         Balance = state.Balance + e.Data.DepositedAmount
-     }
-   | DebitedAccount e -> {
-      state with
-         Balance = state.Balance - e.Data.DebitedAmount
-         DailyDebitAccrued = DailyDebitAccrued state e
-         LastDebitDate = Some e.Timestamp
-     }
-   | MaintenanceFeeDebited e -> {
-      state with
-         Balance = state.Balance - e.Data.DebitedAmount
-     }
+   | DepositedCash e ->
+      MaintenanceFee.fromDeposit
+         {
+            state with
+               Balance = state.Balance + e.Data.DepositedAmount
+         }
+         e.Data.DepositedAmount
+   | DebitedAccount e ->
+      MaintenanceFee.fromDebit
+         {
+            state with
+               Balance = state.Balance - e.Data.DebitedAmount
+               DailyDebitAccrued = DailyDebitAccrued state e
+               LastDebitDate = Some e.Timestamp
+         }
+   | MaintenanceFeeDebited e ->
+      MaintenanceFee.reset
+         {
+            state with
+               Balance = state.Balance - e.Data.DebitedAmount
+         }
+   | MaintenanceFeeSkipped _ -> MaintenanceFee.reset state
    | DailyDebitLimitUpdated e -> {
       state with
          DailyDebitLimit = e.Data.DebitLimit
@@ -74,15 +88,19 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
       state with
          Status = AccountStatus.Active
      }
-   | TransferPending e -> {
-      state with
-         Balance = state.Balance - e.Data.DebitedAmount
-     }
+   | TransferPending e ->
+      MaintenanceFee.fromDebit
+         {
+            state with
+               Balance = state.Balance - e.Data.DebitedAmount
+         }
    | TransferApproved _ -> state
-   | TransferRejected e -> {
-      state with
-         Balance = state.Balance + e.Data.DebitedAmount
-     }
+   | TransferRejected e ->
+      MaintenanceFee.fromDebitReversal
+         {
+            state with
+               Balance = state.Balance + e.Data.DebitedAmount
+         }
    | InternalTransferRecipient e ->
       let recipient =
          RegisterTransferRecipientEvent.eventToRecipient (
@@ -176,6 +194,13 @@ module private StateTransition =
          let evt = MaintenanceFeeEvent.create cmd |> MaintenanceFeeDebited
          Ok(evt, applyEvent state evt)
 
+   let skipMaintenanceFee
+      (state: AccountState)
+      (cmd: SkipMaintenanceFeeCommand)
+      =
+      let evt = MaintenanceFeeEvent.reset cmd |> MaintenanceFeeSkipped
+      Ok(evt, applyEvent state evt)
+
    let transfer (state: AccountState) (cmd: TransferCommand) =
       if state.Status = AccountStatus.Closed then
          Error "AccountNotActive"
@@ -228,6 +253,8 @@ let stateTransition (state: AccountState) (command: Command) =
    | :? DepositCashCommand as cmd -> StateTransition.deposit state cmd
    | :? DebitCommand as cmd -> StateTransition.debit state cmd
    | :? MaintenanceFeeCommand as cmd -> StateTransition.maintenanceFee state cmd
+   | :? SkipMaintenanceFeeCommand as cmd ->
+      StateTransition.skipMaintenanceFee state cmd
    | :? LimitDailyDebitsCommand as cmd ->
       StateTransition.limitDailyDebits state cmd
    | :? LockCardCommand as cmd -> StateTransition.lockCard state cmd

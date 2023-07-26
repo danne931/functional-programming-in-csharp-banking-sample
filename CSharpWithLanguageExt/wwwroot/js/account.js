@@ -30,6 +30,10 @@ const selectors = {
   validationErrorReason: () => document.getElementById('validation-error-reason')
 }
 
+const eventsToIgnore = {
+  MaintenanceFeeSkipped: true
+}
+
 const connection = new signalR.HubConnectionBuilder()
   .withUrl('/accountHub')
   .build()
@@ -40,6 +44,8 @@ connection.on('ReceiveError', function (err) {
 })
 
 connection.on('ReceiveMessage', function ({ newState, event }) {
+  if (eventsToIgnore[event.name]) return
+
   renderAccountState(newState)
   renderEventIntoListView(event)
 
@@ -167,14 +173,18 @@ function interpolateTransferRecipientSelection (account) {
 }
 
 function renderEventsIntoListView (events) {
+  const rows = events.reduce((acc, val) => {
+    if (!eventsToIgnore[val.name]) acc.push(eventToTableRow(val))
+    return acc
+  }, [])
+
   selectors
     .eventList()
-    .replaceChildren(...events.map(eventToTableRow))
+    .replaceChildren(...rows)
 }
 
 function renderEventIntoListView (evt) {
   selectors.eventList().prepend(eventToTableRow(evt))
-  renderTransactionsLoaderFinish()
 }
 
 function renderTransactionsLoaderStart () {

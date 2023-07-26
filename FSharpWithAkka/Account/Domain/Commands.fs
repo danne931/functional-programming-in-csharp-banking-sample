@@ -52,5 +52,9 @@ type UnlockCardCommand(entityId, reference: string, correlationId) =
    member x.Reference = reference
 
 type MaintenanceFeeCommand(entityId) =
-   inherit Command(entityId, Guid.Empty)
+   inherit Command(entityId, correlationId = Guid.Empty)
    member x.Amount = 5m
+
+type SkipMaintenanceFeeCommand(entityId, reason: MaintenanceFeeCriteria) =
+   inherit Command(entityId, correlationId = Guid.Empty)
+   member x.Reason = reason

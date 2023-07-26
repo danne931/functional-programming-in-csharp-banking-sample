@@ -13,8 +13,8 @@
     <Compile Include="Account/Domain/Commands.fs" />
     <Compile Include="Account/Domain/Events.fs" />
     <Compile Include="Lib/BankTypes.fs" />
-    <Compile Include="Account/Domain/Account.fs" />
     <Compile Include="MaintenanceFee/Domain/MaintenanceFee.fs" />
+    <Compile Include="Account/Domain/Account.fs" />
     <Compile Include="Account/Hub.fs" />
     <Compile Include="Lib/Serialization.fs" />
     <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />

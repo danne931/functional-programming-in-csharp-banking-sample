@@ -4,6 +4,7 @@ using Time = Lib.Time;
 using Lib.Types;
 using Lib.BankTypes;
 using Bank.Transfer.Domain;
+using MF = Bank.MaintenanceFee.Domain.MaintenanceFee;
 
 namespace Bank.Account.Domain;
 
@@ -19,6 +20,7 @@ public static class Account {
       (nameof(TransferRejected), typeof(TransferRejected)),
       (nameof(DebitedAccount), typeof(DebitedAccount)),
       (nameof(MaintenanceFeeDebited), typeof(MaintenanceFeeDebited)),
+      (nameof(MaintenanceFeeSkipped), typeof(MaintenanceFeeSkipped)),
       (nameof(DailyDebitLimitUpdated), typeof(DailyDebitLimitUpdated)),
       (nameof(DepositedCash), typeof(DepositedCash)),
       (nameof(LockedCard), typeof(LockedCard)),
@@ -30,35 +32,39 @@ public static class Account {
 
    public static AccountState Apply(this AccountState acc, object evt) =>
       evt switch {
-         DepositedCash e
-            => acc with { Balance = acc.Balance + e.DepositedAmount },
+         DepositedCash e =>
+            MF.FromDeposit(
+               acc with { Balance = acc.Balance + e.DepositedAmount },
+               e.DepositedAmount),
 
-         TransferPending e
-            => acc with { Balance = acc.Balance - e.DebitedAmount },
+         TransferPending e =>
+            MF.FromDebit(acc with { Balance = acc.Balance - e.DebitedAmount }),
 
          TransferApproved _ => acc,
 
-         TransferRejected e
-            => acc with { Balance = acc.Balance + e.DebitedAmount },
+         TransferRejected e =>
+            MF.FromDebitReversal(acc with { Balance = acc.Balance + e.DebitedAmount }),
 
-         MaintenanceFeeDebited e
-            => acc with { Balance = acc.Balance - e.DebitedAmount },
+         MaintenanceFeeDebited e =>
+            MF.Reset(acc with { Balance = acc.Balance - e.DebitedAmount }),
 
-         DebitedAccount e
-            => acc with {
-                  Balance = acc.Balance - e.DebitedAmount,
-                  DailyDebitAccrued = DailyDebitAccrued(acc, e),
-                  LastDebitDate = e.Timestamp
-               },
+         MaintenanceFeeSkipped _ => MF.Reset(acc),
 
-         DailyDebitLimitUpdated e
-            => acc with { DailyDebitLimit = e.DebitLimit },
+         DebitedAccount e =>
+            MF.FromDebit(acc with {
+               Balance = acc.Balance - e.DebitedAmount,
+               DailyDebitAccrued = DailyDebitAccrued(acc, e),
+               LastDebitDate = e.Timestamp
+            }),
 
-         LockedCard _
-            => acc with { Status = AccountStatus.ActiveWithLockedCard },
+         DailyDebitLimitUpdated e =>
+            acc with { DailyDebitLimit = e.DebitLimit },
 
-         UnlockedCard _
-            => acc with { Status = AccountStatus.Active },
+         LockedCard _ =>
+            acc with { Status = AccountStatus.ActiveWithLockedCard },
+
+         UnlockedCard _ =>
+            acc with { Status = AccountStatus.Active },
 
          RegisteredInternalTransferRecipient e => acc with {
             TransferRecipients = acc.TransferRecipients.AddOrUpdate(
@@ -107,6 +113,7 @@ public static class Account {
          RejectTransferCmd cmd => state.RejectTransfer(cmd),
          DebitCmd cmd => state.Debit(cmd),
          MaintenanceFeeCmd cmd => state.MaintenanceFee(cmd),
+         SkipMaintenanceFeeCmd cmd => state.SkipMaintenanceFee(cmd),
          LimitDailyDebitsCmd cmd => state.LimitDailyDebits(cmd),
          DepositCashCmd cmd => state.Deposit(cmd),
          LockCardCmd cmd => state.LockCard(cmd),
@@ -157,6 +164,14 @@ public static class Account {
       if (state.Balance - cmd.Amount < state.AllowedOverdraft)
          return Errors.InsufficientBalance;
 
+      var evt = cmd.ToEvent();
+      return (evt, state.Apply(evt));
+   }
+
+   public static StateTransitionResult SkipMaintenanceFee(
+      this AccountState state,
+      SkipMaintenanceFeeCmd cmd
+   ) {
       var evt = cmd.ToEvent();
       return (evt, state.Apply(evt));
    }
@@ -241,11 +256,12 @@ public static class Account {
    }
 
    public static AccountState Create(CreatedAccount evt) =>
-      new AccountState(
+      MF.Reset(new AccountState(
          FirstName: evt.FirstName,
          LastName: evt.LastName,
          EntityId: evt.EntityId,
          Currency: evt.Currency,
-         Balance: evt.Balance
-      );
+         Balance: evt.Balance,
+         MaintenanceFeeCriteria: new()
+      ));
 }

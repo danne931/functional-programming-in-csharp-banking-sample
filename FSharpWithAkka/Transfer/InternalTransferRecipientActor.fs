@@ -23,9 +23,7 @@ let private issueTransferToRecipient
       match! persistence.loadAccount (Guid recipient.Identification) with
       | None ->
          mailbox.Parent<AccountMessage>()
-         <! AccountMessage.StateChange(
-            Command.reject evt "NoRecepientFound"
-         )
+         <! AccountMessage.StateChange(Command.reject evt "NoRecepientFound")
       | Some account ->
          if account.Status = AccountStatus.Closed then
             mailbox.Parent<AccountMessage>()

@@ -22,18 +22,15 @@ let start
 
    let rec handler (account: AccountState) (mailbox: Actor<AccountMessage>) =
       function
-      | StartChildren id ->
+      | StartChildren ->
          MaintenanceFeeActor.start
-            persistence.loadAccountEvents
-            //(fun _ -> DateTime.UtcNow.AddDays -30)
             //(fun _ -> TimeSpan.FromDays 30)
-            (fun _ -> DateTime.UtcNow.AddMinutes -2)
             (fun _ -> TimeSpan.FromMinutes 2)
             mailbox
-            id
+            initialState.EntityId
 
          ignored ()
-      | Lookup _ ->
+      | Lookup ->
          mailbox.Sender() <! account
          ignored ()
       | StateChange cmd ->
@@ -85,5 +82,5 @@ let start
    let aref =
       spawn mailbox actorName (initialState |> handler |> actorOf2 |> props)
 
-   aref <! StartChildren initialState.EntityId
+   aref <! StartChildren
    aref

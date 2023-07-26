@@ -39,3 +39,8 @@ type Currency =
    | EUR
    | THB
    | VND
+
+type MaintenanceFeeCriteria = {
+   QualifyingDepositFound: bool
+   DailyBalanceThreshold: bool
+}

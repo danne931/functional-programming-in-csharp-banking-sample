@@ -17,3 +17,8 @@ public abstract record Event(
    string Name,
    float Version = 1.0F
 );
+
+public record MaintenanceFeeCriteria(
+   bool QualifyingDepositFound = false,
+   bool DailyBalanceThreshold = false
+);

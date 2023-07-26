@@ -2,52 +2,20 @@
 module MaintenanceFeeActor
 
 open System
-open System.Threading.Tasks
-open Microsoft.FSharp.Core.Option
 open Akkling
 
 open BankTypes
 open Bank.Account.Domain
-open MaintenanceFee
 open ActorUtil
 
-let private canIssueMaintenanceFee
-   (getAccountEvents: Guid -> AccountEvent List Option Task)
-   lookBackDate
-   accountId
-   =
-   let eventsOpt = getAccountEvents(accountId).Result
+type private Message = | Start
 
-   eventsOpt
-   |> Option.bind (fun events ->
-      let res = computeFeeCriteria lookBackDate events
-
-      if res.depositCriteria || res.balanceCriteria then
-         printfn
-            "Some criteria met for skipping the monthly maintenance fee: Deposit (%A) / Balance (%A)"
-            res.depositCriteria
-            res.balanceCriteria
-
-         None
-      else
-         Some res)
-
-let start
-   (getAccountEvents: Guid -> AccountEvent List Option Task)
-   (lookBackDate: _ -> DateTime)
-   (scheduledAt: _ -> TimeSpan)
-   (mailbox: Actor<_>)
-   (accountId: Guid)
-   =
+let start (scheduledAt: _ -> TimeSpan) (mailbox: Actor<_>) (accountId: Guid) =
    let actorName = (ActorMetadata.maintenanceFee accountId).Name
 
    let handler (ctx: Actor<obj>) =
-      let schedule =
-         ctx.ScheduleRepeatedly
-            (scheduledAt ())
-            (scheduledAt ())
-            ctx.Self
-            accountId
+      let time = scheduledAt ()
+      let schedule = ctx.ScheduleRepeatedly time time ctx.Self Start
 
       actor {
          let! msg = ctx.Receive()
@@ -57,14 +25,17 @@ let start
             match e with
             | PostStop -> schedule.Cancel()
             | _ -> Ignore
-         | :? Guid ->
-            let criteriaMet =
-               canIssueMaintenanceFee
-                  getAccountEvents
-                  (lookBackDate ())
-                  accountId
+         | :? Message ->
+            let! account = ctx.Parent<AccountMessage>() <? Lookup
 
-            if isSome criteriaMet then
+            let criteria = account.MaintenanceFeeCriteria
+
+            if
+               criteria.QualifyingDepositFound || criteria.DailyBalanceThreshold
+            then
+               let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
+               ctx.Parent<AccountMessage>() <! AccountMessage.StateChange cmd
+            else
                let cmd = MaintenanceFeeCommand accountId
                ctx.Parent<AccountMessage>() <! AccountMessage.StateChange cmd
          | _ -> Unhandled

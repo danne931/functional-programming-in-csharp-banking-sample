@@ -10,6 +10,7 @@ public sealed record AccountState(
    string FirstName,
    string LastName,
    string Currency,
+   MaintenanceFeeCriteria MaintenanceFeeCriteria,
    AccountStatus Status = AccountStatus.Active,
    decimal Balance = 0,
    decimal AllowedOverdraft = 0,

@@ -55,3 +55,10 @@ public record MaintenanceFeeDebited(
    decimal DebitedAmount
 )
 : Event(EntityId, Timestamp, nameof(MaintenanceFeeDebited));
+
+public record MaintenanceFeeSkipped(
+   Guid EntityId,
+   DateTime Timestamp,
+   MaintenanceFeeCriteria Reason
+)
+: Event(EntityId, Timestamp, nameof(MaintenanceFeeSkipped));

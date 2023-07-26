@@ -13,6 +13,7 @@ type AccountEvent =
    | DepositedCash of BankEvent<DepositedCash>
    | DebitedAccount of BankEvent<DebitedAccount>
    | MaintenanceFeeDebited of BankEvent<MaintenanceFeeDebited>
+   | MaintenanceFeeSkipped of BankEvent<MaintenanceFeeSkipped>
    | DailyDebitLimitUpdated of BankEvent<DailyDebitLimitUpdated>
    | LockedCard of BankEvent<LockedCard>
    | UnlockedCard of BankEvent<UnlockedCard>
@@ -41,6 +42,7 @@ module Envelope =
       | DepositedCash evt -> transformer evt
       | DebitedAccount evt -> transformer evt
       | MaintenanceFeeDebited evt -> transformer evt
+      | MaintenanceFeeSkipped evt -> transformer evt
       | DailyDebitLimitUpdated evt -> transformer evt
       | LockedCard evt -> transformer evt
       | UnlockedCard evt -> transformer evt
@@ -58,6 +60,8 @@ module Envelope =
       | :? BankEvent<DebitedAccount> as evt -> evt |> DebitedAccount
       | :? BankEvent<MaintenanceFeeDebited> as evt ->
          evt |> MaintenanceFeeDebited
+      | :? BankEvent<MaintenanceFeeSkipped> as evt ->
+         evt |> MaintenanceFeeSkipped
       | :? BankEvent<DailyDebitLimitUpdated> as evt ->
          evt |> DailyDebitLimitUpdated
       | :? BankEvent<LockedCard> as evt -> evt |> LockedCard
@@ -78,6 +82,7 @@ module Envelope =
       | DepositedCash evt -> (wrap evt, get evt)
       | DebitedAccount evt -> (wrap evt, get evt)
       | MaintenanceFeeDebited evt -> (wrap evt, get evt)
+      | MaintenanceFeeSkipped evt -> (wrap evt, get evt)
       | DailyDebitLimitUpdated evt -> (wrap evt, get evt)
       | LockedCard evt -> (wrap evt, get evt)
       | UnlockedCard evt -> (wrap evt, get evt)
@@ -106,6 +111,7 @@ type AccountState =
       DailyDebitAccrued: decimal
       LastDebitDate: DateTime option
       TransferRecipients: Map<string, TransferRecipient>
+      MaintenanceFeeCriteria: MaintenanceFeeCriteria
    }
 
    member x.FullName = $"{x.FirstName} {x.LastName}"
@@ -124,8 +130,8 @@ type AccountCoordinatorMessage =
       | Delete id -> ConsistentHashableEnvelope(Delete id, id)
 
 type AccountMessage =
-   | StartChildren of Guid
-   | Lookup of Guid
+   | StartChildren
+   | Lookup
    | StateChange of Command
 
 type AccountPersistence = {

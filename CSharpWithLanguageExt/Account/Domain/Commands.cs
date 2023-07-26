@@ -86,3 +86,12 @@ public record MaintenanceFeeCmd(
 {
    public MaintenanceFeeDebited ToEvent() => new(EntityId, Timestamp, Amount);
 }
+
+public record SkipMaintenanceFeeCmd(
+   Guid EntityId,
+   MaintenanceFeeCriteria Reason
+)
+: Command(EntityId)
+{
+   public MaintenanceFeeSkipped ToEvent() => new(EntityId, Timestamp, Reason);
+}

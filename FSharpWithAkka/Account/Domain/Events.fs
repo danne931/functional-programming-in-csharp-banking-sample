@@ -111,11 +111,23 @@ module DailyDebitLimitUpdatedEvent =
       }
 
 type MaintenanceFeeDebited = { DebitedAmount: decimal }
+type MaintenanceFeeSkipped = { Reason: MaintenanceFeeCriteria }
 
 module MaintenanceFeeEvent =
-   let create (cmd: MaintenanceFeeCommand) = {
+   let create (cmd: MaintenanceFeeCommand) : BankEvent<MaintenanceFeeDebited> = {
       EntityId = cmd.EntityId
       Timestamp = cmd.Timestamp
       Data = { DebitedAmount = cmd.Amount }
       CorrelationId = cmd.CorrelationId
    }
+
+   let reset
+      (cmd: SkipMaintenanceFeeCommand)
+      : BankEvent<MaintenanceFeeSkipped>
+      =
+      {
+         EntityId = cmd.EntityId
+         Timestamp = cmd.Timestamp
+         Data = { Reason = cmd.Reason }
+         CorrelationId = cmd.CorrelationId
+      }

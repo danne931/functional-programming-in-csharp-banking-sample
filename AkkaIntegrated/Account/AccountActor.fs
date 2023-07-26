@@ -44,21 +44,18 @@ let start
                | _ -> ()
 
                loop newState
-            | StartChildren id ->
+            | StartChildren ->
                MaintenanceFeeActor.start
-                  persistence.loadAccountEvents
-                  //(fun _ -> DateTime.UtcNow.AddDays -30)
                   //(fun _ -> TimeSpan.FromDays 30)
-                  (fun _ -> DateTime.UtcNow.AddSeconds -90)
                   (fun _ -> TimeSpan.FromSeconds 90)
                   mailbox
-                  id
+                  accountId
 
                ignored ()
             | InitAccount cmd ->
                let evt = cmd |> CreatedAccountEvent.create |> CreatedAccount
                persist evt
-            | Lookup _ ->
+            | Lookup ->
                mailbox.Sender() <! account
                ignored ()
             | StateChange cmd ->
@@ -97,5 +94,5 @@ let start
       loop AccountState.empty
 
    let aref = spawn mailbox actorName (propsPersist handler)
-   aref <! StartChildren accountId
+   aref <! StartChildren
    aref

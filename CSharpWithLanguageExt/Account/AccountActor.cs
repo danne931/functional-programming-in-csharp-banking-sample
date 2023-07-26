@@ -44,10 +44,7 @@ public static class AccountActor {
          (AccountState account, Command cmd) => {
             if (cmd is StartChildrenCmd) {
                MaintenanceFeeActor.Start(
-                  persistence.loadAccountEvents,
-                  //lookBackDate: () => DateTime.UtcNow.AddDays(-30),
                   //scheduledAt: () => TimeSpan.FromDays(30),
-                  lookBackDate: () => DateTime.UtcNow.AddMinutes(-2),
                   scheduledAt: () => TimeSpan.FromMinutes(2),
                   cmd.EntityId
                );
