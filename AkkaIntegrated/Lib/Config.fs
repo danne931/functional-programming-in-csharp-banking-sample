@@ -80,23 +80,23 @@ let injectDependencies
 
    builder.Services.AddSingleton<AccountBroadcast>(initBroadcast) |> ignore
 
-   builder.Services.AddSingleton<IActorRef<AccountCoordinatorMessage>>
-      (fun provider ->
-         let broadcast = provider.GetRequiredService<AccountBroadcast>()
-         AccountCoordinatorActor.start actorSystem persistence broadcast)
+   builder.Services.AddSingleton<AccountActorFac>(fun provider ->
+      let broadcast = provider.GetRequiredService<AccountBroadcast>()
+      AccountActor.start persistence broadcast actorSystem |> ignore
+      ActorUtil.AccountActorFac actorSystem)
    |> ignore
 
    builder.Services.AddSingleton<IActorRef<DomesticTransferRecipientActor.Message>>
       (fun provider ->
-         DomesticTransferRecipientActor.start
-            actorSystem
-            (CircuitBreaker(
-               actorSystem.Scheduler,
-               maxFailures = 2,
-               callTimeout = TimeSpan.FromSeconds 7,
-               resetTimeout = TimeSpan.FromMinutes 1
-            ))
-            (provider.GetRequiredService<AccountBroadcast>()))
+         DomesticTransferRecipientActor.start actorSystem
+         <| CircuitBreaker(
+            actorSystem.Scheduler,
+            maxFailures = 2,
+            callTimeout = TimeSpan.FromSeconds 7,
+            resetTimeout = TimeSpan.FromMinutes 1
+         )
+         <| provider.GetRequiredService<AccountBroadcast>()
+         <| provider.GetRequiredService<AccountActorFac>())
    |> ignore
 
    builder.Services.AddSingleton<AccountPersistence>(persistence) |> ignore

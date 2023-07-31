@@ -68,6 +68,7 @@ let start
    (system: ActorSystem)
    (breaker: CircuitBreaker)
    (broadcaster: AccountBroadcast)
+   (accountFac: AccountActorFac)
    =
    let handler (mailbox: Actor<Message>) (msg: Message) =
       match msg with
@@ -87,10 +88,12 @@ let start
                breaker.WithSyncCircuitBreaker(fun () ->
                   match (domesticTransfer evt).Result with
                   | Ok ackReceipt ->
-                     select mailbox ActorMetadata.accountCoordinator.Path
-                     <! AccountCoordinatorMessage
-                        .StateChange(Command.approve evt ackReceipt)
-                        .consistentHash ()
+                     let msg =
+                        AccountMessage.StateChange(
+                           Command.approve evt ackReceipt
+                        )
+
+                     accountFac.tell evt.EntityId msg
 
                      mailbox.UnstashAll()
 
@@ -100,10 +103,12 @@ let start
                      | Contains "InvalidAmount"
                      | Contains "InvalidAccountInfo"
                      | Contains "InactiveAccount" ->
-                        select mailbox ActorMetadata.accountCoordinator.Path
-                        <! AccountCoordinatorMessage
-                           .StateChange(Command.reject evt errMsg)
-                           .consistentHash ()
+                        let msg =
+                           AccountMessage.StateChange(
+                              Command.reject evt errMsg
+                           )
+
+                        accountFac.tell evt.EntityId msg
 
                         Ignore
                      | Contains "Serialization"

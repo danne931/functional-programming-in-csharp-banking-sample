@@ -7,35 +7,32 @@ open Akkling
 open Akka.Actor
 open Akka.Streams
 open Akka.Persistence
+open ActorUtil
 
 open BankTypes
 open Bank.Account.Domain
 open Lib.Types
 
 let createAccount
-   (accounts: IActorRef<AccountCoordinatorMessage>)
+   (fac: AccountActorFac)
    (validate: Validator<CreateAccountCommand>)
-   (command: CreateAccountCommand)
+   (cmd: CreateAccountCommand)
    =
-   command
+   cmd
    |> validate
    |> Result.map (fun _ ->
-      let msg = AccountCoordinatorMessage.InitAccount command
-      retype accounts <! msg.consistentHash ()
-      command.EntityId)
+      fac.tell cmd.EntityId <| AccountMessage.InitAccount cmd
+
+      cmd.EntityId)
    |> Task.FromResult
 
-let processCommand
-   (accounts: IActorRef<AccountCoordinatorMessage>)
-   (validate: Validator<'t>)
-   command
-   =
-   command
+let processCommand (fac: AccountActorFac) (validate: Validator<'t>) cmd =
+   cmd
    |> validate
    |> Result.map (fun _ ->
-      let msg = AccountCoordinatorMessage.StateChange command
-      retype accounts <! msg.consistentHash ()
-      command.EntityId)
+      fac.tell cmd.EntityId <| AccountMessage.StateChange cmd
+
+      cmd.EntityId)
    |> Task.fromResult
 
 let aggregateEvents
@@ -45,9 +42,7 @@ let aggregateEvents
    =
    source.RunAggregate(
       [],
-      (fun acc envelope ->
-         let (Event evt) = unbox envelope.Event
-         evt :: acc),
+      (fun acc envelope -> unbox envelope.Event :: acc),
       actorSystem.Materializer()
    )
 
@@ -57,10 +52,16 @@ let getAccountEvents
    : AccountEvent list option Task
    =
    task {
+      let persistenceId = $"account/shardid/{string id}"
+
       let! evts =
          ActorUtil
             .readJournal(actorSystem)
-            .CurrentEventsByPersistenceId(string id, 0, System.Int64.MaxValue)
+            .CurrentEventsByPersistenceId(
+               persistenceId,
+               0,
+               System.Int64.MaxValue
+            )
          |> aggregateEvents actorSystem
 
       return if evts.IsEmpty then None else evts |> List.rev |> Some
@@ -75,12 +76,8 @@ let getAccount
       return Option.map Account.foldEventsIntoAccount evtsOption
    }
 
-let softDeleteEvents
-   (accounts: IActorRef<AccountCoordinatorMessage>)
-   accountId
-   =
-   let msg = AccountCoordinatorMessage.Delete accountId
-   retype accounts <! msg.consistentHash ()
+let softDeleteEvents (fac: AccountActorFac) accountId =
+   fac.tell accountId AccountMessage.Delete
    Task.fromResult accountId
 
 /// <summary>

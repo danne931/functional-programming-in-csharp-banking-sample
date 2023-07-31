@@ -21,7 +21,6 @@
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
     <Compile Include="Account/AccountActor.fs" />
-    <Compile Include="Account/AccountCoordinatorActor.fs" />
     <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Account/Api.fs" />
     <Compile Include="Lib/Routes.fs" />
@@ -33,9 +32,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Akka" Version="1.5.8" />
-    <PackageReference Include="Akka.FSharp" Version="1.5.4" />
+    <PackageReference Include="Akka.Cluster" Version="1.5.8" />
     <PackageReference Include="Akka.Persistence.MongoDb" Version="1.5.8" />
     <PackageReference Include="Akkling" Version="0.13.0" />
+    <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />

@@ -3,6 +3,8 @@ module Serialization
 
 open System.Text.Json
 open System.Text.Json.Serialization
+open Akka.Serialization
+open Akka.Actor
 
 open BankTypes
 open Lib.Types
@@ -44,3 +46,18 @@ type AkkaPersistenceEventAdapter() =
 
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
+
+type AccountEventSerializer(system: ExtendedActorSystem) =
+   inherit Serializer(system)
+
+   override x.Identifier = 931
+   override x.IncludeManifest = false
+
+   override x.ToBinary(o: obj) =
+      match unbox o with
+      | AccountMessage.Event e ->
+         JsonSerializer.SerializeToUtf8Bytes(e, jsonOptions)
+      | _ -> failwith "Attempt to serialize unknown object"
+
+   override x.FromBinary(bytes: byte[], _) : obj =
+      JsonSerializer.Deserialize(bytes, typeof<AccountEvent>, jsonOptions)

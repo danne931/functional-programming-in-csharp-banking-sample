@@ -2,7 +2,6 @@ module BankTypes
 
 open System
 open System.Threading.Tasks
-open Akka.Routing
 
 open Lib.Types
 open Bank.Account.Domain
@@ -115,23 +114,11 @@ type AccountState =
       }
    }
 
-type AccountCoordinatorMessage =
-   | InitAccount of CreateAccountCommand
-   | StateChange of Command
-   | Delete of Guid
-
-   member x.consistentHash() =
-      match x with
-      | InitAccount account ->
-         ConsistentHashableEnvelope(InitAccount account, account.EntityId)
-      | StateChange cmd ->
-         ConsistentHashableEnvelope(StateChange cmd, cmd.EntityId)
-      | Delete id -> ConsistentHashableEnvelope(Delete id, id)
-
 type AccountMessage =
    | InitAccount of CreateAccountCommand
    | StartChildren
    | Lookup
+   | Delete
    | StateChange of Command
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>

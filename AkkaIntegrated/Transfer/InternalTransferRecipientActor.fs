@@ -13,7 +13,7 @@ open Bank.Transfer.Domain
 module Command = TransferResponseToCommand
 
 let private issueTransferToRecipient
-   (mailbox: Actor<BankEvent<TransferPending>>)
+   (accountFac: AccountActorFac)
    (persistence: AccountPersistence)
    (evt: BankEvent<TransferPending>)
    =
@@ -22,43 +22,45 @@ let private issueTransferToRecipient
 
       match! persistence.loadAccount (Guid recipient.Identification) with
       | None ->
-         mailbox.Parent<AccountMessage>()
-         <! AccountMessage.StateChange(
-            TransferResponseToCommand.reject evt "NoRecepientFound"
-         )
+         let msg =
+            AccountMessage.StateChange <| Command.reject evt "NoRecipientFound"
+
+         accountFac.tell evt.EntityId msg
       | Some account ->
          if account.Status = AccountStatus.Closed then
-            mailbox.Parent<AccountMessage>()
-            <! AccountMessage.StateChange(Command.reject evt "AccountClosed")
+            let msg =
+               AccountMessage.StateChange <| Command.reject evt "AccountClosed"
+
+            accountFac.tell evt.EntityId msg
          else
-            mailbox.Parent<AccountMessage>()
-            <! AccountMessage.StateChange(Command.approve evt "")
+            let msg = AccountMessage.StateChange <| Command.approve evt ""
+            accountFac.tell evt.EntityId msg
 
             let origin = string evt.EntityId
-
-            let! coordinatorActorOpt =
-               getActorRef mailbox ActorMetadata.accountCoordinator.Path
+            let recipientId = Guid recipient.Identification
 
             let msg =
-               AccountCoordinatorMessage.StateChange
+               AccountMessage.StateChange
                <| DepositCashCommand(
-                  Guid recipient.Identification,
+                  recipientId,
                   evt.Data.DebitedAmount,
                   $"Account ({origin.Substring(origin.Length - 4)})",
                   // CorrelationId from sender transfer request traced to receiver's deposit.
                   evt.CorrelationId
                )
 
-            coordinatorActorOpt.Value <! msg.consistentHash ()
+            accountFac.tell recipientId msg
    }
 
 let start
-   (mailbox: Actor<AccountMessage>)
+   (mailbox: Actor<_>)
    (persistence: AccountPersistence)
    (accountId: Guid)
    =
-   let handler mailbox evt =
-      (issueTransferToRecipient mailbox persistence evt).Wait()
+   let fac = AccountActorFac mailbox.System
+
+   let handler _ evt =
+      (issueTransferToRecipient fac persistence evt).Wait()
       Ignore
 
    spawn
