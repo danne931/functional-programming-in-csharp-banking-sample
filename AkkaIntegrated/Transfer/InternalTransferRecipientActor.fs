@@ -12,32 +12,31 @@ open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
 
-let private issueTransferToRecipient
-   (accountFac: AccountActorFac)
-   (persistence: AccountPersistence)
-   (evt: BankEvent<TransferPending>)
-   =
-   task {
-      let recipient = evt.Data.Recipient
+let start (mailbox: Actor<_>) : IActorRef<BankEvent<TransferPending>> =
+   let fac = AccountActorFac mailbox.System
 
-      match! persistence.loadAccount (Guid recipient.Identification) with
+   let handler _ (evt: BankEvent<TransferPending>) = actor {
+      let recipient = evt.Data.Recipient
+      let recipientId = Guid recipient.Identification
+      let! accountOpt = fac.ask<AccountState option> recipientId Lookup
+
+      match accountOpt with
       | None ->
          let msg =
             AccountMessage.StateChange <| Command.reject evt "NoRecipientFound"
 
-         accountFac.tell evt.EntityId msg
+         fac.tell evt.EntityId msg
       | Some account ->
          if account.Status = AccountStatus.Closed then
             let msg =
                AccountMessage.StateChange <| Command.reject evt "AccountClosed"
 
-            accountFac.tell evt.EntityId msg
+            fac.tell evt.EntityId msg
          else
             let msg = AccountMessage.StateChange <| Command.approve evt ""
-            accountFac.tell evt.EntityId msg
+            fac.tell evt.EntityId msg
 
             let origin = string evt.EntityId
-            let recipientId = Guid recipient.Identification
 
             let msg =
                AccountMessage.StateChange
@@ -49,21 +48,12 @@ let private issueTransferToRecipient
                   evt.CorrelationId
                )
 
-            accountFac.tell recipientId msg
+            fac.tell recipientId msg
    }
 
-let start
-   (mailbox: Actor<_>)
-   (persistence: AccountPersistence)
-   (accountId: Guid)
-   =
-   let fac = AccountActorFac mailbox.System
+   spawn mailbox ActorMetadata.internalTransfer.Name (props (actorOf2 handler))
 
-   let handler _ evt =
-      (issueTransferToRecipient fac persistence evt).Wait()
-      Ignore
-
-   spawn
-      mailbox
-      (ActorMetadata.internalTransfer accountId).Name
-      (props (actorOf2 handler))
+let getOrStart mailbox =
+   ActorMetadata.internalTransfer.Name
+   |> getChildActorRef<_, BankEvent<TransferPending>> mailbox
+   |> Option.defaultWith (fun _ -> start mailbox)

@@ -34,7 +34,7 @@ module ActorMetadata =
 
    let account = { Name = "account"; Path = None }
 
-   let internalTransfer (id: Guid) = {
+   let internalTransfer = {
       Name = "internal_transfer_recipient"
       Path = None
    }
@@ -63,6 +63,9 @@ type ClusteredActorFac(shardRegionName: string, system: ActorSystem) =
 
    member x.tell (entityId: Guid) (msg: _) =
       x.shardRegionRef () <! x.shardEnvelope entityId msg
+
+   member x.ask<'t> (entityId: Guid) (msg: _) : Async<'t> =
+      x.shardRegionRef () <? x.shardEnvelope entityId msg
 
 type AccountActorFac(system: ActorSystem) =
    inherit ClusteredActorFac("account", system)

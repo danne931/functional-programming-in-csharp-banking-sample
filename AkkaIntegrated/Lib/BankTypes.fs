@@ -123,11 +123,6 @@ type AccountMessage =
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>
 
-type AccountPersistence = {
-   loadAccountEvents: Guid -> AccountEvent list option Task
-   loadAccount: Guid -> AccountState option Task
-}
-
 type Service = | DomesticTransfer
 
 type CircuitBreakerStatus =

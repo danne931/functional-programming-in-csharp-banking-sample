@@ -13,22 +13,16 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-let private getInternalTransferActor =
-   getChildActorRef<_, BankEvent<TransferPending>>
-
 let private persist e = e |> Event |> box |> Persist
 
-let start
-   (persistence: AccountPersistence)
-   (broadcaster: AccountBroadcast)
-   (system: ActorSystem)
-   =
+let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
    let actorName = ActorMetadata.account.Name
 
    let handler (mailbox: Eventsourced<obj>) =
-      let rec loop (account: AccountState) = actor {
+      let rec loop (accountOpt: AccountState option) = actor {
          let path = mailbox.Self.Path
          let! msg = mailbox.Receive()
+         let account = Option.defaultValue AccountState.empty accountOpt
 
          return!
             match box msg with
@@ -41,7 +35,7 @@ let start
                | TransferPending evt -> mailbox.Self <! DispatchTransfer evt
                | _ -> ()
 
-               loop newState
+               loop (Some newState)
             | :? AccountMessage as msg ->
                match msg with
                | StartChildren ->
@@ -57,7 +51,7 @@ let start
                   let evt = cmd |> CreatedAccountEvent.create |> CreatedAccount
                   persist evt
                | Lookup ->
-                  mailbox.Sender() <! account
+                  mailbox.Sender() <! accountOpt
                   ignored ()
                | StateChange cmd ->
                   let validation = Account.stateTransition account cmd
@@ -69,18 +63,10 @@ let start
                      ignored ()
                   | Ok(event, _) -> persist event
                | DispatchTransfer evt ->
-                  let id = evt.EntityId
-
                   match evt.Data.Recipient.AccountEnvironment with
                   | RecipientAccountEnvironment.Internal ->
                      let aref =
-                        (ActorMetadata.internalTransfer id).Name
-                        |> getInternalTransferActor mailbox
-                        |> Option.defaultWith (fun _ ->
-                           InternalTransferRecipientActor.start
-                              (mailbox :> Actor<_>)
-                              persistence
-                              id)
+                        InternalTransferRecipientActor.getOrStart mailbox
 
                      aref <! evt
                   | RecipientAccountEnvironment.Domestic ->
@@ -94,7 +80,7 @@ let start
                   DeleteMessages Int64.MaxValue
             // Event replay on actor start
             | :? AccountEvent as e when mailbox.IsRecovering() ->
-               loop <| Account.applyEvent account e
+               loop <| Some(Account.applyEvent account e)
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
             | :? Akka.Persistence.DeleteMessagesSuccess ->
@@ -121,6 +107,6 @@ let start
                unhandled ()
       }
 
-      loop AccountState.empty
+      loop None
 
    AkklingExt.entityFactoryFor system actorName <| propsPersist handler

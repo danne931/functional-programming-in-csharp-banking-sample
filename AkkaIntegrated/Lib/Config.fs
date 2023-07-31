@@ -49,11 +49,6 @@ let injectDependencies
    (builder: WebApplicationBuilder)
    (actorSystem: ActorSystem)
    =
-   let persistence: AccountPersistence = {
-      loadAccountEvents = getAccountEvents actorSystem
-      loadAccount = getAccount (getAccountEvents actorSystem)
-   }
-
    let initBroadcast (provider: IServiceProvider) : AccountBroadcast = {
       broadcast =
          (fun (event, accountState) ->
@@ -82,7 +77,7 @@ let injectDependencies
 
    builder.Services.AddSingleton<AccountActorFac>(fun provider ->
       let broadcast = provider.GetRequiredService<AccountBroadcast>()
-      AccountActor.start persistence broadcast actorSystem |> ignore
+      AccountActor.start broadcast actorSystem |> ignore
       ActorUtil.AccountActorFac actorSystem)
    |> ignore
 
@@ -98,8 +93,6 @@ let injectDependencies
          <| provider.GetRequiredService<AccountBroadcast>()
          <| provider.GetRequiredService<AccountActorFac>())
    |> ignore
-
-   builder.Services.AddSingleton<AccountPersistence>(persistence) |> ignore
 
    builder.Services.AddSingleton<ActorSystem>(actorSystem) |> ignore
 
