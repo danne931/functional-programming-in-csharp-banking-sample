@@ -1,5 +1,6 @@
 open Microsoft.AspNetCore.Builder
 
+open Bank.User.Routes
 open Bank.Account.Routes
 open Bank.Transfer.Routes
 open Bank.Hubs
@@ -21,6 +22,7 @@ app.UseStaticFiles() |> ignore
 
 app.MapHub<AccountHub>("/accountHub") |> ignore
 
+startUserRoutes app
 startTransferRoutes app
 startAccountRoutes app
 

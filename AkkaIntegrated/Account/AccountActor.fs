@@ -12,8 +12,10 @@ open BankTypes
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.User.Api
 
-let private persist e = e |> Event |> box |> Persist
+let private persist e =
+   e |> Event |> box |> Persist :> Effect<_>
 
 let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
    let actorName = ActorMetadata.account.Name
@@ -32,24 +34,28 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
                broadcaster.broadcast (evt, newState) |> ignore
 
                match evt with
-               | TransferPending evt -> mailbox.Self <! DispatchTransfer evt
+               | TransferPending e -> mailbox.Self <! DispatchTransfer e
                | _ -> ()
 
                loop (Some newState)
             | :? AccountMessage as msg ->
                match msg with
-               | StartChildren ->
-                  (*
-                  MaintenanceFeeActor.start
-                     //(fun _ -> TimeSpan.FromDays 30)
-                     (fun _ -> TimeSpan.FromSeconds 40)
-                     mailbox
-                     accountId
-                  *)
-                  ignored ()
                | InitAccount cmd ->
-                  let evt = cmd |> CreatedAccountEvent.create |> CreatedAccount
-                  persist evt
+                  let evt = cmd |> CreatedAccountEvent.create
+                  // TODO: Consider creating a user actor & integrating an
+                  //       auth workflow in the future.
+                  //       Create the record & move along for now.
+                  let (user: User.User) = {
+                     FirstName = evt.Data.FirstName
+                     LastName = evt.Data.LastName
+                     AccountId = evt.EntityId
+                     Email = evt.Data.Email
+                  }
+
+                  createUser(user).Wait()
+
+                  mailbox.Self <! UserCreated evt
+                  ignored ()
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
@@ -75,6 +81,8 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
                   | _ -> ()
 
                   ignored ()
+               | UserCreated(evt: BankEvent<CreatedAccount>) ->
+                  persist <| CreatedAccount evt
                | Delete ->
                   printfn "Deleting message history: %A" path
                   DeleteMessages Int64.MaxValue

@@ -9,9 +9,9 @@ open Akka.Streams
 open Akka.Persistence
 open ActorUtil
 
+open Lib.Types
 open BankTypes
 open Bank.Account.Domain
-open Lib.Types
 
 let createAccount
    (fac: AccountActorFac)
@@ -79,17 +79,3 @@ let getAccount
 let softDeleteEvents (fac: AccountActorFac) accountId =
    fac.tell accountId AccountMessage.Delete
    Task.fromResult accountId
-
-/// <summary>
-/// TODO: Will not work once persistence snapshotting is enabled.
-///       Refactor to pull user records instead.
-/// Get all created account events for UI demonstration purposes.
-/// Allows user to choose what account to process transactions on.
-/// </summary>
-let getAccountCreatedEvents actorSystem = task {
-   let! evts =
-      ActorUtil.readJournal(actorSystem).CurrentEventsByTag("CreatedAccount")
-      |> aggregateEvents actorSystem
-
-   return if evts.IsEmpty then None else Some evts
-}

@@ -11,7 +11,6 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
 
 open BankTypes
-open Bank.Account.Api
 open Bank.Hubs
 open ActorUtil
 
@@ -22,7 +21,7 @@ let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    |> ignore
 
 let startActorModel () =
-   let system = System.create "bank" (Configuration.load ())
+   let system = System.create "bank" <| Configuration.load ()
 
    let deadLetterHandler (msg: AllDeadLetters) =
       printfn "Dead letters: %A" msg
@@ -49,6 +48,14 @@ let injectDependencies
    (builder: WebApplicationBuilder)
    (actorSystem: ActorSystem)
    =
+   let pgConnString =
+      builder.Configuration.GetSection("ConnectionStrings").Item "Postgres"
+
+   if isNull pgConnString then
+      failwith "Missing Postgres connection string in appsettings.json"
+
+   Environment.SetEnvironmentVariable("PostgresConnectionString", pgConnString)
+
    let initBroadcast (provider: IServiceProvider) : AccountBroadcast = {
       broadcast =
          (fun (event, accountState) ->

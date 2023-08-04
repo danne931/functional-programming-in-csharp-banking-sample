@@ -5,6 +5,7 @@ open System
 open Lib.Types
 
 type CreatedAccount = {
+   Email: string
    FirstName: string
    LastName: string
    Balance: decimal
@@ -16,6 +17,7 @@ module CreatedAccountEvent =
       EntityId = cmd.EntityId
       Timestamp = cmd.Timestamp
       Data = {
+         Email = cmd.Email
          FirstName = cmd.FirstName
          LastName = cmd.LastName
          Balance = cmd.Balance

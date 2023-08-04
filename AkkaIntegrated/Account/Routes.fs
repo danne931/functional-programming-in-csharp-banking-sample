@@ -24,13 +24,6 @@ module private Path =
 
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
-      Path.Base,
-      Func<ActorSystem, Task<IResult>>(fun actorSystem ->
-         getAccountCreatedEvents actorSystem |> RouteUtil.unwrapTaskOption)
-   )
-   |> ignore
-
-   app.MapGet(
       Path.Account,
       Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
          getAccount (getAccountEvents actorSystem) id

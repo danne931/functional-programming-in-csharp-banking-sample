@@ -116,7 +116,7 @@ type AccountState =
 
 type AccountMessage =
    | InitAccount of CreateAccountCommand
-   | StartChildren
+   | UserCreated of BankEvent<CreatedAccount>
    | Lookup
    | Delete
    | StateChange of Command

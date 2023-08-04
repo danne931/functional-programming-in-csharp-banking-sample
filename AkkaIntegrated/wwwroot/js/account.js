@@ -97,7 +97,7 @@ function toggleDomesticTransferCircuitBreaker (status) {
 
 connection
   .start()
-  .then(() => fetch('/accounts'))
+  .then(() => fetch('/users'))
   .then(res => {
     if (!res.ok) {
       throw new Error(`Http status: ${res.status}`)
@@ -105,9 +105,9 @@ connection
     return res.json()
   })
   .then(accounts => {
-    state.accounts = accounts = accounts.map(serverToClientEventMapping)
+    state.accounts = accounts
     renderAccountsList(accounts)
-    return accountSelected(accounts[0].entityId)
+    return accountSelected(accounts[0].accountId)
   })
   .catch(notifyError)
 
@@ -169,9 +169,9 @@ function renderAccountsList (accounts) {
     const li = document.createElement('li')
     const a = document.createElement('a')
     a.setAttribute('href', '')
-    a.setAttribute('value', account.entityId)
+    a.setAttribute('value', account.accountId)
     a.setAttribute('onclick', 'accountSelectionClicked(event)')
-    a.textContent = `${account.firstName} ${account.lastName} - Account Id: ${account.entityId}`
+    a.textContent = `${account.firstName} ${account.lastName} - ${account.email}`
     li.append(a)
     acc.push(li)
     return acc

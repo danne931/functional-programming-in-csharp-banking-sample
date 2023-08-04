@@ -6,6 +6,7 @@ open Lib.Types
 type CreateAccountCommand
    (
       entityId,
+      email: string,
       balance: decimal,
       firstName: string,
       lastName: string,
@@ -13,6 +14,7 @@ type CreateAccountCommand
       correlationId
    ) =
    inherit Command(entityId, correlationId)
+   member x.Email = email
    member x.Currency = currency
    member x.Balance = balance
    member x.FirstName = firstName

@@ -5,6 +5,7 @@
   <ItemGroup>
     <Compile Include="Lib/ActivePatterns.fs" />
     <Compile Include="Lib/Time.fs" />
+    <Compile Include="Lib/Postgres.fs" />
     <Compile Include="Lib/TCP.fs" />
     <Compile Include="Lib/Types.fs" />
     <Compile Include="Lib/Actor.fs" />
@@ -20,6 +21,8 @@
     <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
+    <Compile Include="User/Domain/User.fs" />
+    <Compile Include="User/Api.fs" />
     <Compile Include="Account/AccountActor.fs" />
     <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Account/Api.fs" />
@@ -27,6 +30,7 @@
     <Compile Include="Account/Routes.fs" />
     <Compile Include="Transfer/Domain/Validators.fs" />
     <Compile Include="Transfer/Routes.fs" />
+    <Compile Include="User/Routes.fs" />
     <Compile Include="Lib/Config.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -39,5 +43,6 @@
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
+    <PackageReference Include="Npgsql.FSharp" Version="5.7.0" />
   </ItemGroup>
 </Project>

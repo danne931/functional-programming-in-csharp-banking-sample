@@ -44,7 +44,7 @@ module ActorMetadata =
       Path = Some "akka://bank/user/domestic_transfer_recipient"
    }
 
-   let maintenanceFee (id: Guid) = {
+   let maintenanceFee = {
       Name = "maintenance_fee"
       Path = None
    }
