@@ -8,7 +8,7 @@ open User
 /// Allows user to choose what account to process transactions on.
 /// </summary>
 let getUsers () =
-   pgGet<User> "SELECT * FROM users" None User.pgMapper
+   pgQuery<User> "SELECT * FROM users" None User.pgMapper
 
 let createUser (user: User) =
    pgPersist "INSERT into users \

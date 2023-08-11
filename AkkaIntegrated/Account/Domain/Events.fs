@@ -133,3 +133,19 @@ module MaintenanceFeeEvent =
          Data = { Reason = cmd.Reason }
          CorrelationId = cmd.CorrelationId
       }
+
+type AccountClosed = { Reference: string option }
+
+module AccountClosedEvent =
+   let create (cmd: CloseAccountCommand) = {
+      EntityId = cmd.EntityId
+      Timestamp = cmd.Timestamp
+      Data = {
+         Reference =
+            if String.IsNullOrEmpty cmd.Reference then
+               None
+            else
+               Some cmd.Reference
+      }
+      CorrelationId = cmd.CorrelationId
+   }

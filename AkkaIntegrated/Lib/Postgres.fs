@@ -7,7 +7,7 @@ open Npgsql.FSharp
 let private connString =
    Environment.GetEnvironmentVariable "PostgresConnectionString"
 
-let pgGet<'t>
+let pgQuery<'t>
    (query: string)
    (parameters: (string * SqlValue) list option)
    (mapper: RowReader -> 't)

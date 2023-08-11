@@ -41,6 +41,10 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                Balance = e.Data.Balance
                Status = AccountStatus.Active
          }
+   | AccountClosed _ -> {
+      state with
+         Status = AccountStatus.Closed
+     }
    | DepositedCash e ->
       MaintenanceFee.fromDeposit
          {
@@ -234,6 +238,10 @@ module private StateTransition =
 
          Ok(evt, applyEvent state evt)
 
+   let closeAccount (state: AccountState) (cmd: CloseAccountCommand) =
+      let evt = AccountClosedEvent.create cmd |> AccountClosed
+      Ok(evt, applyEvent state evt)
+
 let stateTransition (state: AccountState) (command: Command) =
    match box command with
    | :? DepositCashCommand as cmd -> StateTransition.deposit state cmd
@@ -251,6 +259,7 @@ let stateTransition (state: AccountState) (command: Command) =
    | :? RejectTransferCommand as cmd -> StateTransition.rejectTransfer state cmd
    | :? RegisterTransferRecipientCommand as cmd ->
       StateTransition.registerTransferRecipient state cmd
+   | :? CloseAccountCommand as cmd -> StateTransition.closeAccount state cmd
 
 let foldEventsIntoAccount events =
    List.fold applyEvent AccountState.empty events

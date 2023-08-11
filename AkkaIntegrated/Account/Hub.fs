@@ -17,6 +17,8 @@ type IAccountClient =
 
    abstract member ReceiveCircuitBreakerMessage: CircuitBreakerMessage -> Task
 
+   abstract member ReceiveBillingCycleEnd: unit -> Task
+
 type AccountHub() =
    inherit Hub<IAccountClient>()
 

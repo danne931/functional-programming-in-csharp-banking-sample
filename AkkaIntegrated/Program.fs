@@ -1,4 +1,5 @@
 open Microsoft.AspNetCore.Builder
+open Microsoft.Extensions.Hosting
 
 open Bank.User.Routes
 open Bank.Account.Routes
@@ -7,13 +8,17 @@ open Bank.Hubs
 
 let builder = WebApplication.CreateBuilder()
 
+Config.setEnvironment builder
+
 Config.enableDefaultHttpJsonSerialization builder
 
 Config.startSignalR builder
 
-let actorSystem = Config.startActorModel ()
+Config.startActorModel builder
 
-Config.injectDependencies builder actorSystem
+Config.startQuartz builder
+
+Config.injectDependencies builder
 
 let app = builder.Build()
 
@@ -27,7 +32,3 @@ startTransferRoutes app
 startAccountRoutes app
 
 app.Run()
-
-type Program() =
-   class
-   end

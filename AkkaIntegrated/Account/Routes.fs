@@ -4,7 +4,6 @@ open System
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
-open Akka.Actor
 
 open Lib.Types
 open ActorUtil
@@ -21,19 +20,20 @@ module private Path =
    let DailyDebitLimit = Base + "/daily-debit-limit"
    let LockCard = Base + "/lock"
    let UnlockCard = Base + "/unlock"
+   let CloseAccount = Base + "/close-account"
 
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Account,
-      Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
-         getAccount (getAccountEvents actorSystem) id
-         |> RouteUtil.unwrapTaskOption)
+      Func<AccountActorFac, Guid, Task<IResult>>(fun fac id ->
+         getAccount fac id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       Path.AccountEvents,
-      Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
+      Func<AkkaService, Guid, Task<IResult>>(fun akkaService id ->
+         let actorSystem = (akkaService :> IBridge).getActorSystem ()
          getAccountEvents actorSystem id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
@@ -50,7 +50,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapDelete(
       Path.AccountEvents,
       Func<AccountActorFac, Guid, Task<IResult>>(fun fac id ->
-         softDeleteEvents fac id |> RouteUtil.unwrapTask)
+         diagnosticDelete fac id |> RouteUtil.unwrapTask)
    )
    |> ignore
 
@@ -93,5 +93,14 @@ let startAccountRoutes (app: WebApplication) =
       Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(fun fac command ->
          processCommand fac (PassValidation()) command
          |> RouteUtil.unwrapTaskValidation)
+   )
+   |> ignore
+
+   app.MapPost(
+      Path.CloseAccount,
+      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>
+         (fun fac command ->
+            processCommand fac (PassValidation()) command
+            |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore

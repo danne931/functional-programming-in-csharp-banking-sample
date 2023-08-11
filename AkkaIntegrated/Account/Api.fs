@@ -67,15 +67,13 @@ let getAccountEvents
       return if evts.IsEmpty then None else evts |> List.rev |> Some
    }
 
-let getAccount
-   (getAccountEvents: Guid -> AccountEvent list option Task)
-   (accountId: Guid)
-   =
-   task {
-      let! evtsOption = getAccountEvents accountId
-      return Option.map Account.foldEventsIntoAccount evtsOption
-   }
+let getAccount (fac: AccountActorFac) (accountId: Guid) = task {
+   let! (accountOpt: AccountState option) =
+      fac.ask accountId AccountMessage.Lookup |> Async.toTask
 
-let softDeleteEvents (fac: AccountActorFac) accountId =
+   return accountOpt
+}
+
+let diagnosticDelete (fac: AccountActorFac) accountId =
    fac.tell accountId AccountMessage.Delete
    Task.fromResult accountId

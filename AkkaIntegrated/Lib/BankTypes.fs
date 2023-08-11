@@ -23,6 +23,7 @@ type AccountEvent =
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | InternationalTransferRecipient of
       BankEvent<RegisteredInternationalTransferRecipient>
+   | AccountClosed of BankEvent<AccountClosed>
 
 type OpenEventEnvelope = AccountEvent * Envelope
 
@@ -57,6 +58,7 @@ module Envelope =
       | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
       | :? BankEvent<TransferApproved> as evt -> evt |> TransferApproved
       | :? BankEvent<TransferRejected> as evt -> evt |> TransferRejected
+      | :? BankEvent<AccountClosed> as evt -> evt |> AccountClosed
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
       match o with
@@ -74,6 +76,7 @@ module Envelope =
       | TransferPending evt -> (wrap evt, get evt)
       | TransferApproved evt -> (wrap evt, get evt)
       | TransferRejected evt -> (wrap evt, get evt)
+      | AccountClosed evt -> (wrap evt, get evt)
 
 type AccountStatus =
    | Active
@@ -114,14 +117,18 @@ type AccountState =
       }
    }
 
+   member x.Name = $"{x.FirstName} {x.LastName}"
+
 type AccountMessage =
    | InitAccount of CreateAccountCommand
    | UserCreated of BankEvent<CreatedAccount>
    | Lookup
-   | Delete
    | StateChange of Command
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>
+   | BillingCycle of BillingCycleCommand
+   | Delete
+   | BillingCycleEnd
 
 type Service = | DomesticTransfer
 
@@ -139,4 +146,9 @@ type AccountBroadcast = {
    broadcast: AccountEvent * AccountState -> Task
    broadcastError: string -> Task
    broadcastCircuitBreaker: CircuitBreakerMessage -> Task
+   broadcastBillingCycleEnd: unit -> Task
+}
+
+type AccountPersistence = {
+   getEvents: Guid -> AccountEvent list option Task
 }

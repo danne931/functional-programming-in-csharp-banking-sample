@@ -74,6 +74,8 @@ connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
   }
 })
 
+connection.on('ReceiveBillingCycleEnd', renderNewBillingCycle)
+
 function toggleDomesticTransferCircuitBreaker (status) {
   // Don't update UI if half open
   if (status === 'HalfOpen') return
@@ -227,6 +229,13 @@ function renderEventIntoListView (evt) {
   selectors.eventList().prepend(eventToTableRow(evt))
 }
 
+function renderNewBillingCycle () {
+  renderEventsIntoListView([{
+    name: 'BillingCycleStarted',
+    timestamp: '-'
+  }])
+}
+
 function renderTransactionsLoaderStart () {
   selectors.progressIndicator().removeAttribute('value')
 }
@@ -307,6 +316,14 @@ function eventToTableRow (evt) {
     case 'DomesticTransferRecipient':
       rowProps.name = `Registered ${evt.accountEnvironment} Transfer Recipient`
       rowProps.info = `Recipient: ${evt.firstName} ${evt.lastName}`
+      break
+    case 'BillingCycleStarted':
+      rowProps.name = 'New Billing Cycle'
+      rowProps.info = 'Previous transactions consolidated into billing statement'
+      break
+    case 'AccountClosed':
+      rowProps.name = 'Account Closed'
+      if (evt.reference != null) rowProps.info = evt.reference
       break
   }
 

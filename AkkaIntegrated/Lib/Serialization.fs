@@ -23,6 +23,9 @@ let withInjectedOptions opts =
    mergeDefaultJsonOptions opts
    baseConfig.AddToJsonSerializerOptions opts
 
+let serialize (data: _) : string =
+   JsonSerializer.Serialize(data, jsonOptions)
+
 let deserialize<'t> (data: string) : Result<'t, string> =
    try
       JsonSerializer.Deserialize<'t>(data) |> Ok
@@ -61,3 +64,18 @@ type AccountEventSerializer(system: ExtendedActorSystem) =
 
    override x.FromBinary(bytes: byte[], _) : obj =
       JsonSerializer.Deserialize(bytes, typeof<AccountEvent>, jsonOptions)
+
+type AccountSnapshotSerializer(system: ExtendedActorSystem) =
+   inherit Serializer(system)
+
+   override x.Identifier = 932
+   override x.IncludeManifest = false
+
+   override x.ToBinary(o: obj) =
+      match o with
+      | :? AccountState as account ->
+         JsonSerializer.SerializeToUtf8Bytes(account, jsonOptions)
+      | _ -> failwith "Attempt to serialize unknown object"
+
+   override x.FromBinary(bytes: byte[], _) : obj =
+      JsonSerializer.Deserialize(bytes, typeof<AccountState>, jsonOptions)

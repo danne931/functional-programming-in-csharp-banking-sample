@@ -8,8 +8,16 @@ open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.MongoDb.Query
+open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Hosting
+open Akka.Configuration
+open System.Threading
+open System.Threading.Tasks
+open Akka.DependencyInjection
 
-let getActorRef actorCtx path = task {
+let getActorRef actorCtx (path: ActorPath) = task {
+   let path = string path
+
    try
       let! aref = (select actorCtx path).ResolveOne(TimeSpan.FromSeconds 3)
       return Some aref
@@ -20,19 +28,24 @@ let getActorRef actorCtx path = task {
 
 let getChildActorRef<'t, 'r>
    (actorCtx: Actor<'t>)
-   (path: string)
+   (name: string)
    : IActorRef<'r> option
    =
-   let accountRef = actorCtx.UntypedContext.Child(path)
+   let accountRef = actorCtx.UntypedContext.Child(name)
 
    match accountRef = ActorRefs.Nobody with
    | true -> None
    | false -> Some(typed accountRef)
 
 module ActorMetadata =
-   type ActorMetadata = { Name: string; Path: string option }
+   type ActorMetadata = { Name: string; Path: ActorPath option }
 
    let account = { Name = "account"; Path = None }
+
+   let accountClosure = {
+      Name = "account_closure"
+      Path = Some(ActorPath.Parse "akka://bank/user/account_closure")
+   }
 
    let internalTransfer = {
       Name = "internal_transfer_recipient"
@@ -41,12 +54,15 @@ module ActorMetadata =
 
    let domesticTransfer = {
       Name = "domestic_transfer_recipient"
-      Path = Some "akka://bank/user/domestic_transfer_recipient"
+      Path =
+         Some(ActorPath.Parse "akka://bank/user/domestic_transfer_recipient")
    }
 
-   let maintenanceFee = {
-      Name = "maintenance_fee"
-      Path = None
+   let billingCycle = { Name = "billing_cycle"; Path = None }
+
+   let email = {
+      Name = "email"
+      Path = Some(ActorPath.Parse "akka://bank/user/email")
    }
 
    let deadLettersMonitor = {
@@ -172,3 +188,29 @@ module AkklingExt =
          ShardRegion = shardRegion
          TypeName = name
       }
+
+type IBridge =
+   abstract member getActorSystem: _ -> ActorSystem
+
+type AkkaService(provider: IServiceProvider) =
+   let mutable actorSystem = null
+
+   interface IBridge with
+      member x.getActorSystem _ = actorSystem
+
+   interface IHostedService with
+      member x.StartAsync(ct: CancellationToken) =
+         let hocon = ConfigurationFactory.Load()
+         let bootstrap = BootstrapSetup.Create().WithConfig hocon
+         let di = DependencyResolverSetup.Create provider
+         let actorSystemSetup = bootstrap.And di
+         let system = ActorSystem.Create("bank", actorSystemSetup)
+
+         actorSystem <- system
+
+         // Bootstrap account actor cluster & top level actors
+         provider.GetRequiredService<AccountActorFac>() |> ignore
+
+         Task.FromResult system
+
+      member x.StopAsync(ct: CancellationToken) = Task.FromResult()

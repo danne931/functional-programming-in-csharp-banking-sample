@@ -14,15 +14,20 @@
     <Compile Include="Account/Domain/Commands.fs" />
     <Compile Include="Account/Domain/Events.fs" />
     <Compile Include="Lib/BankTypes.fs" />
-    <Compile Include="MaintenanceFee/Domain/MaintenanceFee.fs" />
+    <Compile Include="Lib/Serialization.fs" />
+    <Compile Include="BillingCycle/Domain/MaintenanceFee.fs" />
+    <Compile Include="BillingCycle/Domain/BillingStatement.fs" />
+    <Compile Include="BillingCycle/Api.fs" />
     <Compile Include="Account/Domain/Account.fs" />
     <Compile Include="Account/Hub.fs" />
-    <Compile Include="Lib/Serialization.fs" />
-    <Compile Include="MaintenanceFee/MaintenanceFeeActor.fs" />
+    <Compile Include="Notifications/EmailActor.fs" />
+    <Compile Include="BillingCycle/BillingCycleActor.fs" />
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
     <Compile Include="User/Domain/User.fs" />
     <Compile Include="User/Api.fs" />
+    <Compile Include="AccountClosure/Api.fs" />
+    <Compile Include="AccountClosure/Actor.fs" />
     <Compile Include="Account/AccountActor.fs" />
     <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Account/Api.fs" />
@@ -35,14 +40,21 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Akka" Version="1.5.8" />
-    <PackageReference Include="Akka.Cluster" Version="1.5.8" />
+    <PackageReference Include="Akka" Version="1.5.12" />
+    <PackageReference Include="Akka.Cluster" Version="1.5.12" />
+    <PackageReference Include="Akka.DependencyInjection" Version="1.5.12" />
     <PackageReference Include="Akka.Persistence.MongoDb" Version="1.5.8" />
+    <PackageReference Include="Akka.Quartz.Actor" Version="1.5.1" />
     <PackageReference Include="Akkling" Version="0.13.0" />
     <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
     <PackageReference Include="Npgsql.FSharp" Version="5.7.0" />
+    <PackageReference Include="Quartz" Version="3.7.0" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.7.0" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.7.0" />
+    <PackageReference Include="Quartz.Plugins" Version="3.7.0" />
+    <PackageReference Include="Quartz.Serialization.Json" Version="3.7.0" />
   </ItemGroup>
 </Project>

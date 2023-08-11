@@ -3,6 +3,7 @@ module AccountActor
 
 open System
 open Akka.Actor
+open Akka.Persistence
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
@@ -17,13 +18,17 @@ open Bank.User.Api
 let private persist e =
    e |> Event |> box |> Persist :> Effect<_>
 
-let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
+let start
+   (persistence: AccountPersistence)
+   (broadcaster: AccountBroadcast)
+   (system: ActorSystem)
+   =
    let actorName = ActorMetadata.account.Name
 
    let handler (mailbox: Eventsourced<obj>) =
       let rec loop (accountOpt: AccountState option) = actor {
-         let path = mailbox.Self.Path
          let! msg = mailbox.Receive()
+         let path = mailbox.Self.Path
          let account = Option.defaultValue AccountState.empty accountOpt
 
          return!
@@ -35,9 +40,18 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
 
                match evt with
                | TransferPending e -> mailbox.Self <! DispatchTransfer e
+               | CreatedAccount e ->
+                  select mailbox (string ActorMetadata.email.Path.Value)
+                  <! EmailActor.AccountOpen account
+               | AccountClosed _ ->
+                  select
+                     mailbox
+                     (string ActorMetadata.accountClosure.Path.Value)
+                  <! (account |> AccountClosureActor.Register)
                | _ -> ()
 
                loop (Some newState)
+            | :? SnapshotOffer as o -> loop <| Some(unbox o.Snapshot)
             | :? AccountMessage as msg ->
                match msg with
                | InitAccount cmd ->
@@ -59,13 +73,15 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
+               | BillingCycle _ when accountOpt.IsSome ->
+                  ignored <| BillingCycleActor.start mailbox persistence account
                | StateChange cmd ->
                   let validation = Account.stateTransition account cmd
 
                   match validation with
                   | Error err ->
                      broadcaster.broadcastError err |> ignore
-                     printfn "%A: validation fail %A" actorName err
+                     printfn "validation fail %A %A" path err
                      ignored ()
                   | Ok(event, _) -> persist event
                | DispatchTransfer evt ->
@@ -76,7 +92,9 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
 
                      aref <! evt
                   | RecipientAccountEnvironment.Domestic ->
-                     select mailbox ActorMetadata.domesticTransfer.Path.Value
+                     select
+                        mailbox
+                        (string ActorMetadata.domesticTransfer.Path.Value)
                      <! (evt |> DomesticTransferRecipientActor.TransferPending)
                   | _ -> ()
 
@@ -84,16 +102,24 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
                | UserCreated(evt: BankEvent<CreatedAccount>) ->
                   persist <| CreatedAccount evt
                | Delete ->
-                  printfn "Deleting message history: %A" path
-                  DeleteMessages Int64.MaxValue
+                  // TODO: Fix passivate shutting down the actor
+                  //       before the DeleteSnapshotsSuccess
+                  //       message arrives causing an unnecessary
+                  //       dead letter.
+                  DeleteSnapshots(SnapshotSelectionCriteria Int64.MaxValue)
+                  <@> DeleteMessages Int64.MaxValue
+                  <@> passivate ()
+               | BillingCycleEnd ->
+                  broadcaster.broadcastBillingCycleEnd () |> ignore
+
+                  SaveSnapshot account :> Effect<_>
+                  <@> DeleteMessages Int64.MaxValue
             // Event replay on actor start
             | :? AccountEvent as e when mailbox.IsRecovering() ->
                loop <| Some(Account.applyEvent account e)
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
-            | :? Akka.Persistence.DeleteMessagesSuccess ->
-               printfn "Deleted message history. Shutting down actor. %A" path
-               passivate ()
+            | :? Akka.Persistence.DeleteMessagesSuccess -> ignored ()
             | :? Akka.Persistence.DeleteMessagesFailure as e ->
                printfn
                   "Failure to delete message history %A %A"
@@ -110,8 +136,12 @@ let start (broadcaster: AccountBroadcast) (system: ActorSystem) =
                | PersistFailed(exn, _, _) ->
                   broadcaster.broadcastError exn.Message |> ignore
                   failwith $"Persistence failed: {exn.Message}"
+            | :? SaveSnapshotSuccess -> ignored ()
+            | :? SaveSnapshotFailure as e ->
+               printfn "SaveSnapshotFailure %A %A" e.Metadata path
+               unhandled ()
             | msg ->
-               printfn "Unknown message %A %A" msg mailbox.Self.Path
+               printfn "Unknown message %A %A" msg path
                unhandled ()
       }
 

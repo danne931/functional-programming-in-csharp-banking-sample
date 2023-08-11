@@ -60,3 +60,10 @@ type MaintenanceFeeCommand(entityId) =
 type SkipMaintenanceFeeCommand(entityId, reason: MaintenanceFeeCriteria) =
    inherit Command(entityId, correlationId = Guid.Empty)
    member x.Reason = reason
+
+type BillingCycleCommand() =
+   inherit Command(entityId = Guid.Empty, correlationId = Guid.Empty)
+
+type CloseAccountCommand(entityId, reference: string) =
+   inherit Command(entityId, correlationId = Guid.Empty)
+   member x.Reference = reference
