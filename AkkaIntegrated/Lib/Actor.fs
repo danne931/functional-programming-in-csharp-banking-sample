@@ -7,7 +7,7 @@ open Akkling.Cluster.Sharding
 open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
-open Akka.Persistence.MongoDb.Query
+open Akka.Persistence.Sql.Query
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
 open Akka.Configuration
@@ -92,10 +92,10 @@ type AccountActorFac(system: ActorSystem) =
       Message = msg
    }
 
-let readJournal (system: ActorSystem) : MongoDbReadJournal =
+let readJournal (system: ActorSystem) : SqlReadJournal =
    PersistenceQuery
       .Get(system)
-      .ReadJournalFor<MongoDbReadJournal>("akka.persistence.query.mongodb")
+      .ReadJournalFor<SqlReadJournal>("akka.persistence.query.sql")
 (*
 type private MessageExtractor() =
    inherit HashCodeMessageExtractor(maxNumberOfShards = 1000)

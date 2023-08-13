@@ -99,9 +99,10 @@ let scheduleMonthly
          .CurrentPersistenceIds()
          .RunForeach(
             (fun id ->
-               let id = id.Split("/")[2] |> Guid
-               let fac = ActorUtil.AccountActorFac system
-               fac.tell id <| AccountMessage.BillingCycle msg),
+               if id.Contains("account/") then
+                  let id = id.Split("/")[2] |> Guid
+                  let fac = ActorUtil.AccountActorFac system
+                  fac.tell id <| AccountMessage.BillingCycle msg),
             system.Materializer()
          )
 

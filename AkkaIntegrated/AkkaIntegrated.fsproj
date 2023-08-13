@@ -43,7 +43,7 @@
     <PackageReference Include="Akka" Version="1.5.12" />
     <PackageReference Include="Akka.Cluster" Version="1.5.12" />
     <PackageReference Include="Akka.DependencyInjection" Version="1.5.12" />
-    <PackageReference Include="Akka.Persistence.MongoDb" Version="1.5.8" />
+    <PackageReference Include="Akka.Persistence.Sql" Version="1.5.12" />
     <PackageReference Include="Akka.Quartz.Actor" Version="1.5.1" />
     <PackageReference Include="Akkling" Version="0.13.0" />
     <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />

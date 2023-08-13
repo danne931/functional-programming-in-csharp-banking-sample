@@ -45,7 +45,7 @@ type AkkaPersistenceEventAdapter() =
 
       member x.ToJournal(evt: obj) : obj =
          let envelope = envelopeFromJournal evt
-         Tagged(evt, Set.empty<string>.Add("Account").Add(envelope.EventName))
+         Tagged(evt, Set.empty<string>.Add(envelope.EventName))
 
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
