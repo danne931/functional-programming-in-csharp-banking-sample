@@ -4,6 +4,7 @@ open System
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
+open Akka.Actor
 
 open Lib.Types
 open ActorUtil
@@ -32,8 +33,7 @@ let startAccountRoutes (app: WebApplication) =
 
    app.MapGet(
       Path.AccountEvents,
-      Func<AkkaService, Guid, Task<IResult>>(fun akkaService id ->
-         let actorSystem = (akkaService :> IBridge).getActorSystem ()
+      Func<ActorSystem, Guid, Task<IResult>>(fun actorSystem id ->
          getAccountEvents actorSystem id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore

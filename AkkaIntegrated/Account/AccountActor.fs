@@ -40,14 +40,11 @@ let start
 
                match evt with
                | TransferPending e -> mailbox.Self <! DispatchTransfer e
-               | CreatedAccount e ->
-                  select mailbox (string ActorMetadata.email.Path.Value)
-                  <! EmailActor.AccountOpen account
+               | CreatedAccount _ ->
+                  EmailActor.get system <! EmailActor.AccountOpen account
                | AccountClosed _ ->
-                  select
-                     mailbox
-                     (string ActorMetadata.accountClosure.Path.Value)
-                  <! (account |> AccountClosureActor.Register)
+                  AccountClosureActor.get system
+                  <! AccountClosureActor.Register account
                | _ -> ()
 
                loop (Some newState)
@@ -87,14 +84,9 @@ let start
                | DispatchTransfer evt ->
                   match evt.Data.Recipient.AccountEnvironment with
                   | RecipientAccountEnvironment.Internal ->
-                     let aref =
-                        InternalTransferRecipientActor.getOrStart mailbox
-
-                     aref <! evt
+                     InternalTransferRecipientActor.getOrStart mailbox <! evt
                   | RecipientAccountEnvironment.Domestic ->
-                     select
-                        mailbox
-                        (string ActorMetadata.domesticTransfer.Path.Value)
+                     DomesticTransferRecipientActor.get system
                      <! (evt |> DomesticTransferRecipientActor.TransferPending)
                   | _ -> ()
 

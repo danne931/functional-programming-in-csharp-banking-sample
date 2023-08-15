@@ -2,15 +2,24 @@
 module Config
 
 open System
-open Akka.Event
-open Akka.Pattern
-open Akkling
-open Akka.Cluster.Sharding
+
 open Microsoft.AspNetCore.SignalR
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
-open Quartz
+open Akka.Actor
+open Akka.Event
+open Akka.Routing
+open Akka.Pattern
+open Akka.Hosting
+open Akka.Remote.Hosting
+open Akka.Cluster.Hosting
+open Akka.Persistence.Hosting
+open Akka.Persistence.Sql
+open Akka.Persistence.Sql.Hosting
+open Akka.Cluster.Sharding
+open Akkling
 open Akka.Quartz.Actor
+open Quartz
 
 open BankTypes
 open Bank.Hubs
@@ -30,27 +39,160 @@ let startSignalR (builder: WebApplicationBuilder) =
          Serialization.withInjectedOptions opts.PayloadSerializerOptions)
    |> ignore
 
-// TODO: Integrate Akka.Hosting HOCON-less configuration,
-//       actor instantiation & dependency injection
 let startActorModel (builder: WebApplicationBuilder) =
-   builder.Services.AddHostedService<AkkaService>(fun sp ->
-      sp.GetRequiredService<AkkaService>())
-   |> ignore
+   let akkaConfig = builder.Configuration.GetSection "akka"
 
-let injectDependencies (builder: WebApplicationBuilder) =
-   builder.Services.AddSingleton<AkkaService>() |> ignore
+   let connString =
+      Environment.GetEnvironmentVariable "PostgresConnectionStringAdoFormat"
 
-   let quartzSchedulerFactory =
-      builder.Services
-         .BuildServiceProvider()
-         .GetRequiredService<ISchedulerFactory>()
+   let dbProvider = "PostgreSQL.15"
+   let db_prefix = "akka_"
 
-   builder.Services.AddSingleton<IScheduler>(
-      quartzSchedulerFactory.GetScheduler().Result
+   let journalOpts = SqlJournalOptions()
+   journalOpts.ConnectionString <- connString
+   journalOpts.ProviderName <- dbProvider
+   journalOpts.AutoInitialize <- true
+   let jdo = JournalDatabaseOptions(DatabaseMapping.Default)
+   let jto = JournalTableOptions()
+   jto.TableName <- $"{db_prefix}event_journal"
+   jto.UseWriterUuidColumn <- true
+   jdo.JournalTable <- jto
+   journalOpts.DatabaseOptions <- jdo
+
+   journalOpts.Adapters.AddEventAdapter<Serialization.AkkaPersistenceEventAdapter>(
+      "v1",
+      [ typedefof<BankTypes.AccountMessage> ]
    )
    |> ignore
 
-   let initBroadcast (provider: IServiceProvider) : AccountBroadcast = {
+   let snapshotOpts = SqlSnapshotOptions()
+   snapshotOpts.ConnectionString <- connString
+   snapshotOpts.ProviderName <- dbProvider
+   snapshotOpts.AutoInitialize <- true
+   let sdo = SnapshotDatabaseOptions(DatabaseMapping.Default)
+   let sto = SnapshotTableOptions()
+   sto.TableName <- $"{db_prefix}snapshots"
+   sdo.SnapshotTable <- sto
+   snapshotOpts.DatabaseOptions <- sdo
+
+   builder.Services.AddAkka(
+      "bank",
+      (fun builder provider ->
+         builder
+            .AddHocon(akkaConfig, HoconAddMode.Prepend)
+            .WithRemoting("localhost", 8081)
+            .WithClustering(
+               ClusterOptions(
+                  SeedNodes = [| "akka.tcp://bank@localhost:8081/" |]
+               )
+            )
+            .WithSqlPersistence(connString, dbProvider, PersistenceMode.Both)
+            .WithJournalAndSnapshot(journalOpts, snapshotOpts)
+            .WithCustomSerializer(
+               "json",
+               [ typedefof<String>; typedefof<Object> ],
+               fun system ->
+                  Akka.Serialization.NewtonSoftJsonSerializer(system)
+            )
+            .WithCustomSerializer(
+               "accountevent",
+               [ typedefof<BankTypes.AccountMessage> ],
+               fun system -> Serialization.AccountEventSerializer(system)
+            )
+            .WithCustomSerializer(
+               "accountsnapshot",
+               [ typedefof<BankTypes.AccountState> ],
+               fun system -> Serialization.AccountSnapshotSerializer(system)
+            )
+            // TODO: See if can init Akkling typed clustered account actor
+            //       here and do away with ActorUtil.AkklingExt.entityFactoryFor
+            //       & sharding HOCON config.  May have to forgo Akkling typed
+            //       actor ref if done this way.
+            //.WithShardRegion("account", )
+            .WithActors(fun system registry ->
+               let deadLetterHandler (msg: AllDeadLetters) =
+                  printfn "Dead letters: %A" msg
+                  Ignore
+
+               let deadLetterRef =
+                  spawn
+                     system
+                     ActorMetadata.deadLettersMonitor.Name
+                     (props (actorOf deadLetterHandler))
+
+               EventStreaming.subscribe deadLetterRef system.EventStream
+               |> ignore
+
+               let scheduler = provider.GetRequiredService<IScheduler>()
+
+               let quartzPersistentARef =
+                  system.ActorOf(
+                     Akka.Actor.Props.Create(fun () ->
+                        QuartzPersistentActor scheduler),
+                     "QuartzScheduler"
+                  )
+
+               registry.Register<QuartzPersistentActor>(quartzPersistentARef)
+
+               registry.Register<ActorMetadata.EmailMarker>(
+                  untyped <| EmailActor.start system
+               )
+
+               BillingCycleActor.scheduleMonthly system quartzPersistentARef
+
+               registry.Register<ActorMetadata.AccountClosureMarker>(
+                  untyped
+                  <| AccountClosureActor.start system quartzPersistentARef
+               )
+
+               AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
+
+               let broadcast = provider.GetRequiredService<AccountBroadcast>()
+
+               let persistence =
+                  provider.GetRequiredService<AccountPersistence>()
+
+               AccountActor.start persistence broadcast system |> ignore
+
+               let fac = provider.GetRequiredService<AccountActorFac>()
+
+               let domesticTransferRouter =
+                  RoundRobinPool(5, DefaultResizer(1, 10))
+
+               registry.Register<ActorMetadata.DomesticTransferMarker>(
+                  DomesticTransferRecipientActor.start system
+                  <| CircuitBreaker(
+                     system.Scheduler,
+                     maxFailures = 2,
+                     callTimeout = TimeSpan.FromSeconds 7,
+                     resetTimeout = TimeSpan.FromMinutes 1
+                  )
+                  <| provider.GetRequiredService<AccountBroadcast>()
+                  <| fac
+                  <| domesticTransferRouter
+                  |> untyped
+               )
+
+               ())
+         |> ignore
+
+         ())
+   )
+   |> ignore
+
+   ()
+
+let injectDependencies (builder: WebApplicationBuilder) =
+   builder.Services.AddSingleton<IScheduler>(
+      builder.Services
+         .BuildServiceProvider()
+         .GetRequiredService<ISchedulerFactory>()
+         .GetScheduler()
+         .Result
+   )
+   |> ignore
+
+   builder.Services.AddSingleton<AccountBroadcast>(fun provider -> {
       broadcast =
          (fun (event, accountState) ->
             provider
@@ -71,66 +213,25 @@ let injectDependencies (builder: WebApplicationBuilder) =
          (fun circuitBreakerMessage ->
             provider
                .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
-               .Clients.All.ReceiveCircuitBreakerMessage(circuitBreakerMessage))
+               .Clients.All.ReceiveCircuitBreakerMessage(
+                  circuitBreakerMessage
+               ))
       broadcastBillingCycleEnd =
          (fun _ ->
             provider
                .GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
                .Clients.All.ReceiveBillingCycleEnd())
-   }
-
-   builder.Services.AddSingleton<AccountBroadcast>(initBroadcast) |> ignore
-
-   builder.Services.AddSingleton<AccountActorFac>(fun provider ->
-      let akkaService = provider.GetRequiredService<AkkaService>()
-      let system = (akkaService :> IBridge).getActorSystem ()
-
-      let deadLetterHandler (msg: AllDeadLetters) =
-         printfn "Dead letters: %A" msg
-         Ignore
-
-      let deadLetterRef =
-         spawn
-            system
-            ActorMetadata.deadLettersMonitor.Name
-            (props (actorOf deadLetterHandler))
-
-      EventStreaming.subscribe deadLetterRef system.EventStream |> ignore
-
-      let scheduler = provider.GetRequiredService<IScheduler>()
-
-      let quartzPersistentARef =
-         system.ActorOf(
-            Akka.Actor.Props.Create(fun () -> QuartzPersistentActor scheduler),
-            "QuartzScheduler"
-         )
-
-      EmailActor.start system |> ignore
-      BillingCycleActor.scheduleMonthly system quartzPersistentARef
-      AccountClosureActor.start system quartzPersistentARef |> ignore
-      AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
-
-      let broadcast = provider.GetRequiredService<AccountBroadcast>()
-      let persistence = { getEvents = getAccountEvents system }
-
-      AccountActor.start persistence broadcast system |> ignore
-      ActorUtil.AccountActorFac system)
+   })
    |> ignore
 
-   builder.Services.AddSingleton<IActorRef<DomesticTransferRecipientActor.Message>>
-      (fun provider ->
-         let akkaService = provider.GetRequiredService<AkkaService>()
-         let actorSystem = (akkaService :> IBridge).getActorSystem ()
+   builder.Services.AddSingleton<AccountPersistence>(fun provider ->
+      let system = provider.GetRequiredService<ActorSystem>()
+      { getEvents = getAccountEvents system })
+   |> ignore
 
-         DomesticTransferRecipientActor.start actorSystem
-         <| CircuitBreaker(
-            actorSystem.Scheduler,
-            maxFailures = 2,
-            callTimeout = TimeSpan.FromSeconds 7,
-            resetTimeout = TimeSpan.FromMinutes 1
-         )
-         <| provider.GetRequiredService<AccountBroadcast>()
-         <| provider.GetRequiredService<AccountActorFac>())
+   builder.Services.AddSingleton<AccountActorFac>(fun provider ->
+      let system = provider.GetRequiredService<ActorSystem>()
+      ActorUtil.AccountActorFac system)
    |> ignore
 
    ()

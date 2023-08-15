@@ -2,6 +2,7 @@
 module EmailActor
 
 open Akka.Actor
+open Akka.Hosting
 open Akkling
 
 open BankTypes
@@ -49,3 +50,6 @@ let start (system: ActorSystem) : IActorRef<EmailMessage> =
    }
 
    spawn system ActorMetadata.email.Name (props (actorOf handler))
+
+let get (system: ActorSystem) : IActorRef<EmailMessage> =
+   typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()

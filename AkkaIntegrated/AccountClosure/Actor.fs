@@ -2,6 +2,7 @@
 module AccountClosureActor
 
 open System
+open Akka.Hosting
 open Akka.Actor
 open Akka.Persistence
 open Akka.Quartz.Actor.Commands
@@ -69,8 +70,7 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
                else
                   let accountAref = AccountActorFac(mailbox.System)
 
-                  let emailAref =
-                     select mailbox (string ActorMetadata.email.Path.Value)
+                  let emailAref = EmailActor.get mailbox.System
 
                   let accountIds =
                      accounts
@@ -143,3 +143,6 @@ let scheduleNightlyCheck (quartzPersistentActorRef: IActorRef) =
 
    quartzPersistentActorRef.Tell(job, ActorRefs.NoSender)
    ()
+
+let get (system: ActorSystem) : IActorRef<AccountClosureMessage> =
+   typed <| ActorRegistry.For(system).Get<ActorMetadata.AccountClosureMarker>()

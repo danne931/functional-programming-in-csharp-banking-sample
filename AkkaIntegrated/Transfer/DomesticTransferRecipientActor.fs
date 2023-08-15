@@ -6,6 +6,7 @@ open System.Text
 open System.Text.Json
 open System.Net
 open Akkling
+open Akka.Hosting
 open Akka.Actor
 open Akka.Pattern
 open Akka.Routing
@@ -69,6 +70,7 @@ let start
    (breaker: CircuitBreaker)
    (broadcaster: AccountBroadcast)
    (accountFac: AccountActorFac)
+   (poolRouter: Pool)
    =
    let handler (mailbox: Actor<Message>) (msg: Message) =
       match msg with
@@ -132,7 +134,7 @@ let start
          actorName
          {
             (props <| actorOf2 handler) with
-               Router = Some FromConfig.Instance
+               Router = Some poolRouter
          }
 
    breaker.OnHalfOpen(fun () ->
@@ -177,3 +179,7 @@ let start
    |> ignore
 
    ref
+
+let get (system: ActorSystem) : IActorRef<Message> =
+   typed
+   <| ActorRegistry.For(system).Get<ActorMetadata.DomesticTransferMarker>()

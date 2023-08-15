@@ -8,23 +8,6 @@ open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
-open Microsoft.Extensions.DependencyInjection
-open Microsoft.Extensions.Hosting
-open Akka.Configuration
-open System.Threading
-open System.Threading.Tasks
-open Akka.DependencyInjection
-
-let getActorRef actorCtx (path: ActorPath) = task {
-   let path = string path
-
-   try
-      let! aref = (select actorCtx path).ResolveOne(TimeSpan.FromSeconds 3)
-      return Some aref
-   with ex when true ->
-      printfn "ActorNotFoundException: %A %A" path ex
-      return None
-}
 
 let getChildActorRef<'t, 'r>
    (actorCtx: Actor<'t>)
@@ -39,6 +22,18 @@ let getChildActorRef<'t, 'r>
 
 module ActorMetadata =
    type ActorMetadata = { Name: string; Path: ActorPath option }
+
+   type EmailMarker() =
+      class
+      end
+
+   type AccountClosureMarker() =
+      class
+      end
+
+   type DomesticTransferMarker() =
+      class
+      end
 
    let account = { Name = "account"; Path = None }
 
@@ -95,7 +90,7 @@ type AccountActorFac(system: ActorSystem) =
 let readJournal (system: ActorSystem) : SqlReadJournal =
    PersistenceQuery
       .Get(system)
-      .ReadJournalFor<SqlReadJournal>("akka.persistence.query.sql")
+      .ReadJournalFor<SqlReadJournal>(SqlReadJournal.Identifier)
 (*
 type private MessageExtractor() =
    inherit HashCodeMessageExtractor(maxNumberOfShards = 1000)
@@ -188,29 +183,3 @@ module AkklingExt =
          ShardRegion = shardRegion
          TypeName = name
       }
-
-type IBridge =
-   abstract member getActorSystem: _ -> ActorSystem
-
-type AkkaService(provider: IServiceProvider) =
-   let mutable actorSystem = null
-
-   interface IBridge with
-      member x.getActorSystem _ = actorSystem
-
-   interface IHostedService with
-      member x.StartAsync(ct: CancellationToken) =
-         let hocon = ConfigurationFactory.Load()
-         let bootstrap = BootstrapSetup.Create().WithConfig hocon
-         let di = DependencyResolverSetup.Create provider
-         let actorSystemSetup = bootstrap.And di
-         let system = ActorSystem.Create("bank", actorSystemSetup)
-
-         actorSystem <- system
-
-         // Bootstrap account actor cluster & top level actors
-         provider.GetRequiredService<AccountActorFac>() |> ignore
-
-         Task.FromResult system
-
-      member x.StopAsync(ct: CancellationToken) = Task.FromResult()

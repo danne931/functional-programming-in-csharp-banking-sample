@@ -14,9 +14,9 @@ Config.enableDefaultHttpJsonSerialization builder
 
 Config.startSignalR builder
 
-Config.startActorModel builder
-
 Config.startQuartz builder
+
+Config.startActorModel builder
 
 Config.injectDependencies builder
 

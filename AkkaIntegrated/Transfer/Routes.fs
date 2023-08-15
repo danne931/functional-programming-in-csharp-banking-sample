@@ -5,7 +5,6 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.FSharp.Core
 open System
 open System.Threading.Tasks
-open Akkling
 
 open Bank.Transfer.Domain
 open Bank.Account.Api
@@ -31,9 +30,8 @@ let startTransferRoutes (app: WebApplication) =
 
    app.MapPost(
       Path.Base,
-      Func<IActorRef<DomesticTransferRecipientActor.Message>, AccountActorFac, TransferCommand, Task<IResult>>
-         (fun _ fac command ->
-            processCommand fac (Validators.transfer ()) command
-            |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, TransferCommand, Task<IResult>>(fun fac command ->
+         processCommand fac (Validators.transfer ()) command
+         |> RouteUtil.unwrapTaskValidation)
    )
    |> ignore
