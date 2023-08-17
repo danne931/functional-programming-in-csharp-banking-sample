@@ -15,19 +15,24 @@ module Command = TransferResponseToCommand
 let start (mailbox: Actor<_>) : IActorRef<BankEvent<TransferPending>> =
    let fac = AccountActorFac mailbox.System
 
-   let handler _ (evt: BankEvent<TransferPending>) = actor {
+   let handler (ctx: Actor<_>) (evt: BankEvent<TransferPending>) = actor {
+      let logWarning = logWarning ctx
       let recipient = evt.Data.Recipient
       let recipientId = Guid recipient.Identification
       let! accountOpt = fac.ask<AccountState option> recipientId Lookup
 
       match accountOpt with
       | None ->
+         logWarning $"Transfer recipient not found {recipientId}"
+
          let msg =
             AccountMessage.StateChange <| Command.reject evt "NoRecipientFound"
 
          fac.tell evt.EntityId msg
       | Some account ->
          if account.Status = AccountStatus.Closed then
+            logWarning $"Transfer recipient account closed"
+
             let msg =
                AccountMessage.StateChange <| Command.reject evt "AccountClosed"
 

@@ -20,28 +20,29 @@ type EmailMessage =
    | SendgridWebhook //of
 
 let start (system: ActorSystem) : IActorRef<EmailMessage> =
-   let handler (msg: EmailMessage) = actor {
+   let handler (ctx: Actor<_>) (msg: EmailMessage) = actor {
       match msg with
       | AccountOpen account ->
-         printfn "send account welcome email"
+         logInfo ctx "send account welcome email"
          ignored ()
       | AccountClose account ->
-         printfn "send account close email"
+         logInfo ctx "send account close email"
          ignored ()
       | BillingStatement account ->
-         printfn "send billing statement email"
+         logInfo ctx "send billing statement email"
          ignored ()
       | DailyBalanceThreshold account ->
-         printfn
+         logInfo
+            ctx
             "user needs to raise threshold to place more purchases for the
-         day email"
+      day email"
 
          ignored ()
       | LowBalance account ->
-         printfn "send low balance warning"
+         logInfo ctx "send low balance warning"
          ignored ()
       | DepositReceived(evt, account) ->
-         printfn "deposit received email"
+         logInfo ctx "deposit received email"
          ignored ()
       | SendgridWebhook _ ->
          // TODO: Save sendgrid email state such as opened/bounced/dropped etc.
@@ -49,7 +50,7 @@ let start (system: ActorSystem) : IActorRef<EmailMessage> =
          ignored ()
    }
 
-   spawn system ActorMetadata.email.Name (props (actorOf handler))
+   spawn system ActorMetadata.email.Name (props (actorOf2 handler))
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()

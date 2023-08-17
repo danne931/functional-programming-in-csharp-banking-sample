@@ -1,5 +1,6 @@
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.Hosting
+open Serilog
 
 open Bank.User.Routes
 open Bank.Account.Routes
@@ -9,6 +10,8 @@ open Bank.Hubs
 let builder = WebApplication.CreateBuilder()
 
 Config.setEnvironment builder
+
+Config.startLogger builder
 
 Config.enableDefaultHttpJsonSerialization builder
 
@@ -24,6 +27,7 @@ let app = builder.Build()
 
 app.UseDefaultFiles() |> ignore
 app.UseStaticFiles() |> ignore
+app.UseSerilogRequestLogging() |> ignore
 
 app.MapHub<AccountHub>("/accountHub") |> ignore
 

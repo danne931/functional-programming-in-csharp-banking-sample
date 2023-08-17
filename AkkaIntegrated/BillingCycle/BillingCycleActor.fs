@@ -36,7 +36,7 @@ let start
          let! txnsOpt = persistence.getEvents accountId |> Async.AwaitTask
 
          if txnsOpt.IsNone then
-            printfn "Oops... No accounts found for billing cycle."
+            logWarning ctx "No transactions found for billing cycle."
          else
             let! statement =
                saveBillingStatement account txnsOpt.Value |> Async.AwaitTask

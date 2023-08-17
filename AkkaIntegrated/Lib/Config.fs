@@ -2,10 +2,13 @@
 module Config
 
 open System
-
 open Microsoft.AspNetCore.SignalR
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
+open Serilog
+open Serilog.Sinks.SystemConsole
+open Serilog.Formatting.Compact
+open Akka.Logger.Serilog
 open Akka.Actor
 open Akka.Event
 open Akka.Routing
@@ -17,14 +20,29 @@ open Akka.Persistence.Hosting
 open Akka.Persistence.Sql
 open Akka.Persistence.Sql.Hosting
 open Akka.Cluster.Sharding
-open Akkling
 open Akka.Quartz.Actor
 open Quartz
+open Akkling
 
 open BankTypes
 open Bank.Hubs
 open Bank.Account.Api
 open ActorUtil
+
+let startLogger (builder: WebApplicationBuilder) =
+   // NOTE: Initial logger logs errors during during start up.
+   //       It's replaced by the config in UseSerilog below.
+   Log.Logger <- LoggerConfiguration().WriteTo.Console().CreateLogger()
+
+   builder.Host.UseSerilog(fun ctx services loggerConfig ->
+      loggerConfig.ReadFrom
+         .Configuration(ctx.Configuration)
+         .ReadFrom.Services(services)
+         .Enrich.FromLogContext()
+         .WriteTo.Console(theme = Themes.AnsiConsoleTheme.Code)
+         .WriteTo.File(CompactJsonFormatter(), "logs.json")
+      |> ignore)
+   |> ignore
 
 let enableDefaultHttpJsonSerialization (builder: WebApplicationBuilder) =
    builder.Services.ConfigureHttpJsonOptions(fun opts ->
@@ -109,16 +127,23 @@ let startActorModel (builder: WebApplicationBuilder) =
             //       & sharding HOCON config.  May have to forgo Akkling typed
             //       actor ref if done this way.
             //.WithShardRegion("account", )
+            .ConfigureLoggers(fun builder ->
+               builder.LogLevel <- LogLevel.InfoLevel
+               builder.LogConfigOnStart <- true
+               builder.AddLogger<SerilogLogger>() |> ignore
+
+               builder.LogMessageFormatter <-
+                  typeof<SerilogLogMessageFormatter>)
             .WithActors(fun system registry ->
-               let deadLetterHandler (msg: AllDeadLetters) =
-                  printfn "Dead letters: %A" msg
+               let deadLetterHandler (ctx: Actor<_>) (msg: AllDeadLetters) =
+                  logError ctx $"Dead letters: {msg}"
                   Ignore
 
                let deadLetterRef =
                   spawn
                      system
                      ActorMetadata.deadLettersMonitor.Name
-                     (props (actorOf deadLetterHandler))
+                     (props (actorOf2 deadLetterHandler))
 
                EventStreaming.subscribe deadLetterRef system.EventStream
                |> ignore

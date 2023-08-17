@@ -57,16 +57,18 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
    let actorName = ActorMetadata.accountClosure.Name
 
    let handler (mailbox: Eventsourced<obj>) =
+      let logInfo = logInfo mailbox
+      let logError = logError mailbox
+
       let rec loop (accounts: AccountState list) = actor {
          let! msg = mailbox.Receive()
-         let path = mailbox.Self.Path
 
          return!
             match box msg with
             | :? SnapshotOffer as o -> loop <| unbox o.Snapshot
             | :? ScheduleDeleteAll ->
                if accounts.IsEmpty then
-                  printfn "AccountClosure - no accounts requested closure."
+                  logInfo "AccountClosure - no accounts requested closure."
                else
                   let accountAref = AccountActorFac(mailbox.System)
 
@@ -94,10 +96,10 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
                let emailsOpt = deleteHistoricalRecords(accountIds).Result
 
                if emailsOpt.IsNone then
-                  printfn "Account closure went awry.  No records deleted."
+                  logError "Account closure went awry.  No records deleted."
                   unhandled ()
                else
-                  printfn "Account closure finished %A" emailsOpt.Value
+                  logInfo $"Account closure finished {emailsOpt.Value}"
                   loop [] <@> SaveSnapshot []
             | :? AccountClosureMessage as msg ->
                match msg with
@@ -109,10 +111,10 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
             | :? PersistentLifecycleEvent as _ -> ignored ()
             | :? SaveSnapshotSuccess -> ignored ()
             | :? SaveSnapshotFailure as e ->
-               printfn "SaveSnapshotFailure %A %A" e.Metadata path
+               logError $"SaveSnapshotFailure {e.Cause}"
                unhandled ()
             | msg ->
-               printfn "Unknown message %A %A" msg path
+               logError $"Unknown message {msg}"
                unhandled ()
       }
 

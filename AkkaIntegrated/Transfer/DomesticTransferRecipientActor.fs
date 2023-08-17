@@ -73,16 +73,21 @@ let start
    (poolRouter: Pool)
    =
    let handler (mailbox: Actor<Message>) (msg: Message) =
+      let logError = logError mailbox
+      let logInfo = logInfo mailbox
+
       match msg with
       | BreakerHalfOpen ->
+         logInfo "Breaker half open - unstash one"
          mailbox.Unstash()
          Ignore
       | BreakerClosed ->
-         printfn "%A: BreakerClosed - unstash all" mailbox.Self.Path
+         logInfo "Breaker closed - unstash all"
          mailbox.UnstashAll()
          Ignore
       | TransferPending evt ->
          if breaker.IsOpen then
+            logInfo "Domestic transfer breaker Open - stashing message"
             mailbox.Stash()
             Ignore
          else
@@ -115,7 +120,7 @@ let start
                         Ignore
                      | Contains "Serialization"
                      | Contains "InvalidAction" ->
-                        printfn "%A Error: Corrupt data %A" actorName errMsg
+                        logError "Corrupt data: {errMsg}"
                         // TODO: Notify dev team
                         Unhandled // Send to dead letters instead of stashing
                      | Contains "Connection"
@@ -125,7 +130,7 @@ let start
                         failwith errMsg // Trip the circuit breaker
                )
             with err when true ->
-               printfn "%s Error: %s" actorName err.Message
+               logError err.Message
                Ignore
 
    let ref =
@@ -138,8 +143,6 @@ let start
          }
 
    breaker.OnHalfOpen(fun () ->
-      printfn "%s: BreakerHalfOpen" actorName
-
       broadcaster.broadcastCircuitBreaker
          {
             Service = Service.DomesticTransfer
@@ -155,8 +158,6 @@ let start
    // Broadcast to ensure all routees are informed.
    // Otherwise, only messages stashed on routee $a will be unstashed.
    breaker.OnClose(fun () ->
-      printfn "%s: BreakerClosed - broadcast" actorName
-
       broadcaster.broadcastCircuitBreaker
          {
             Service = Service.DomesticTransfer
@@ -168,7 +169,11 @@ let start
    |> ignore
 
    breaker.OnOpen(fun () ->
-      printfn "%s: BreakerOpen" actorName
+      system.Log.Log(
+         Akka.Event.LogLevel.WarningLevel,
+         null,
+         "Domestic transfer circuit breaker open"
+      )
 
       broadcaster.broadcastCircuitBreaker
          {

@@ -34,7 +34,6 @@ let request
          let! received = stream.ReadAsync(buffer, ctsRead.Token)
 
          return Ok(encoding.GetString(buffer, 0, received))
-      with err when true ->
-         printfn "Error communicating with TCP server %A" err.Message
+      with err ->
          return Error err.Message
    }

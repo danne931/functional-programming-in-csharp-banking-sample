@@ -26,9 +26,11 @@ let start
    let actorName = ActorMetadata.account.Name
 
    let handler (mailbox: Eventsourced<obj>) =
+      let logError = logError mailbox
+      let logWarning = logWarning mailbox
+
       let rec loop (accountOpt: AccountState option) = actor {
          let! msg = mailbox.Receive()
-         let path = mailbox.Self.Path
          let account = Option.defaultValue AccountState.empty accountOpt
 
          return!
@@ -78,7 +80,7 @@ let start
                   match validation with
                   | Error err ->
                      broadcaster.broadcastError err |> ignore
-                     printfn "validation fail %A %A" path err
+                     logWarning $"Validation fail {err}"
                      ignored ()
                   | Ok(event, _) -> persist event
                | DispatchTransfer evt ->
@@ -113,11 +115,7 @@ let start
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
             | :? Akka.Persistence.DeleteMessagesSuccess -> ignored ()
             | :? Akka.Persistence.DeleteMessagesFailure as e ->
-               printfn
-                  "Failure to delete message history %A %A"
-                  e.Cause.Message
-                  path
-
+               logError $"Failure to delete message history {e.Cause.Message}"
                unhandled ()
             | :? PersistentLifecycleEvent as e ->
                match e with
@@ -130,10 +128,10 @@ let start
                   failwith $"Persistence failed: {exn.Message}"
             | :? SaveSnapshotSuccess -> ignored ()
             | :? SaveSnapshotFailure as e ->
-               printfn "SaveSnapshotFailure %A %A" e.Metadata path
+               logError $"SaveSnapshotFailure {e.Metadata}"
                unhandled ()
             | msg ->
-               printfn "Unknown message %A %A" msg path
+               logError $"Unknown message {msg}"
                unhandled ()
       }
 

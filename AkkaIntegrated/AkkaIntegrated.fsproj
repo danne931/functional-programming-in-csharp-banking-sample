@@ -45,6 +45,7 @@
     <PackageReference Include="Akka.Cluster.Hosting" Version="1.5.12" />
     <PackageReference Include="Akka.DependencyInjection" Version="1.5.12" />
     <PackageReference Include="Akka.Hosting" Version="1.5.12" />
+    <PackageReference Include="Akka.Logger.Serilog" Version="1.5.7" />
     <PackageReference Include="Akka.Persistence.Hosting" Version="1.5.12" />
     <PackageReference Include="Akka.Persistence.Sql" Version="1.5.12" />
     <PackageReference Include="Akka.Persistence.Sql.Hosting" Version="1.5.12" />
@@ -61,5 +62,7 @@
     <PackageReference Include="Quartz.Extensions.Hosting" Version="3.7.0" />
     <PackageReference Include="Quartz.Plugins" Version="3.7.0" />
     <PackageReference Include="Quartz.Serialization.Json" Version="3.7.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="7.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
   </ItemGroup>
 </Project>

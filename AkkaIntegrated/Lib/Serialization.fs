@@ -29,7 +29,7 @@ let serialize (data: _) : string =
 let deserialize<'t> (data: string) : Result<'t, string> =
    try
       JsonSerializer.Deserialize<'t>(data) |> Ok
-   with err when true ->
+   with err ->
       $"Deserialization error: {err.Message}" |> Error
 
 let private envelopeFromJournal (entry: obj) : Envelope =
