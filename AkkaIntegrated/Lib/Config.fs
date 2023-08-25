@@ -338,3 +338,17 @@ let setEnvironment (builder: WebApplicationBuilder) =
       "PostgresConnectionStringAdoFormat",
       pgAdoConnString
    )
+
+   // For local development, this value is set in ~/.microsoft/usersecrets.
+   // See https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-7.0&tabs=linux#set-a-secret
+   let emailBearerToken =
+      builder.Configuration.GetSection("EmailBearerToken").Value
+
+   if isNull emailBearerToken then
+#if !DEBUG
+      failwith "Missing EmailBearerToken configuration setting"
+#else
+      printfn "Emails will not be sent if EmailBearerToken not configured."
+#endif
+   else
+      Environment.SetEnvironmentVariable("EmailBearerToken", emailBearerToken)

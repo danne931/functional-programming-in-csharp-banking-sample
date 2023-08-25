@@ -76,3 +76,9 @@ type RegisterTransferRecipientCommand
    (entityId, recipient: TransferRecipient, correlationId) =
    inherit Command(entityId, correlationId)
    member x.Recipient = recipient
+
+type DepositTransferCommand
+   (entityId, amount: decimal, origin: string, correlationId) =
+   inherit Command(entityId, correlationId)
+   member x.Amount = amount
+   member x.Origin = origin

@@ -312,6 +312,12 @@ function eventToTableRow (evt) {
       rowProps.info = `Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName} - Reason: ${evt.reason} -  Account refunded`
       amountEl.classList.add('credit')
       break
+    case 'TransferDeposited':
+      rowProps.name = 'Transfer Deposited'
+      rowProps.amount = `$${evt.depositedAmount}`
+      rowProps.origin = evt.origin
+      amountEl.classList.add('credit')
+      break
     case 'InternalTransferRecipient':
     case 'DomesticTransferRecipient':
       rowProps.name = `Registered ${evt.accountEnvironment} Transfer Recipient`

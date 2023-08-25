@@ -59,8 +59,7 @@ let start
             let cmd = MaintenanceFeeCommand accountId
             aref <! AccountMessage.StateChange cmd
 
-         select mailbox (string ActorMetadata.email.Path.Value)
-         <! EmailActor.BillingStatement billingStatement
+         EmailActor.get ctx.System <! EmailActor.BillingStatement account
 
          retype ctx.Self <! PoisonPill.Instance
    }

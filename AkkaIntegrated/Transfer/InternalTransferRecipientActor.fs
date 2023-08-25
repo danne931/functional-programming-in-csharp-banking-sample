@@ -7,7 +7,6 @@ open Akkling
 open Lib.Types
 open BankTypes
 open ActorUtil
-open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
@@ -45,7 +44,7 @@ let start (mailbox: Actor<_>) : IActorRef<BankEvent<TransferPending>> =
 
             let msg =
                AccountMessage.StateChange
-               <| DepositCashCommand(
+               <| DepositTransferCommand(
                   recipientId,
                   evt.Data.DebitedAmount,
                   $"Account ({origin.Substring(origin.Length - 4)})",

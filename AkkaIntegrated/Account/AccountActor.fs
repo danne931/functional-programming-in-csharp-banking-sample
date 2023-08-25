@@ -9,6 +9,7 @@ open Akkling.Persistence
 open Akkling.Cluster.Sharding
 
 open Lib.Types
+open Lib.ActivePatterns
 open BankTypes
 open ActorUtil
 open Bank.Account.Domain
@@ -42,11 +43,14 @@ let start
 
                match evt with
                | TransferPending e -> mailbox.Self <! DispatchTransfer e
+               | TransferDeposited e ->
+                  EmailActor.get system
+                  <! EmailActor.TransferDeposited(e, newState)
                | CreatedAccount _ ->
-                  EmailActor.get system <! EmailActor.AccountOpen account
+                  EmailActor.get system <! EmailActor.AccountOpen newState
                | AccountClosed _ ->
                   AccountClosureActor.get system
-                  <! AccountClosureActor.Register account
+                  <! AccountClosureActor.Register newState
                | _ -> ()
 
                loop (Some newState)
@@ -81,6 +85,13 @@ let start
                   | Error err ->
                      broadcaster.broadcastError err |> ignore
                      logWarning $"Validation fail {err}"
+
+                     match err with
+                     | Contains "InsufficientBalance"
+                     | Contains "ExceededDailyDebit" ->
+                        EmailActor.get system
+                        <! EmailActor.DebitDeclined(err, account)
+
                      ignored ()
                   | Ok(event, _) -> persist event
                | DispatchTransfer evt ->

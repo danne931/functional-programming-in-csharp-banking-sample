@@ -35,6 +35,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          {
             AccountState.empty with
                EntityId = e.EntityId
+               Email = e.Data.Email
                FirstName = e.Data.FirstName
                LastName = e.Data.LastName
                Currency = e.Data.Currency
@@ -92,6 +93,13 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
             state with
                Balance = state.Balance + e.Data.DebitedAmount
          }
+   | TransferDeposited e ->
+      MaintenanceFee.fromDeposit
+         {
+            state with
+               Balance = state.Balance + e.Data.DepositedAmount
+         }
+         e.Data.DepositedAmount
    | InternalTransferRecipient e ->
       let recipient =
          RegisterTransferRecipientEvent.eventToRecipient (
@@ -238,6 +246,15 @@ module private StateTransition =
 
          Ok(evt, applyEvent state evt)
 
+   let depositTransfer (state: AccountState) (cmd: DepositTransferCommand) =
+      if state.Status = AccountStatus.Closed then
+         Error "AccountNotActive"
+      elif cmd.Amount <= 0m then
+         Error "InvalidTransferDepositAmount"
+      else
+         let evt = TransferDepositedEvent.create cmd |> TransferDeposited
+         Ok(evt, applyEvent state evt)
+
    let closeAccount (state: AccountState) (cmd: CloseAccountCommand) =
       let evt = AccountClosedEvent.create cmd |> AccountClosed
       Ok(evt, applyEvent state evt)
@@ -257,9 +274,8 @@ let stateTransition (state: AccountState) (command: Command) =
    | :? ApproveTransferCommand as cmd ->
       StateTransition.approveTransfer state cmd
    | :? RejectTransferCommand as cmd -> StateTransition.rejectTransfer state cmd
+   | :? DepositTransferCommand as cmd ->
+      StateTransition.depositTransfer state cmd
    | :? RegisterTransferRecipientCommand as cmd ->
       StateTransition.registerTransferRecipient state cmd
    | :? CloseAccountCommand as cmd -> StateTransition.closeAccount state cmd
-
-let foldEventsIntoAccount events =
-   List.fold applyEvent AccountState.empty events

@@ -202,3 +202,19 @@ module TransferResponseToCommand =
          evt.Data.DebitedAmount,
          reason
       )
+
+type TransferDeposited = {
+   DepositedAmount: decimal
+   Origin: string
+}
+
+module TransferDepositedEvent =
+   let create (cmd: DepositTransferCommand) = {
+      EntityId = cmd.EntityId
+      Timestamp = cmd.Timestamp
+      Data = {
+         DepositedAmount = cmd.Amount
+         Origin = cmd.Origin
+      }
+      CorrelationId = cmd.CorrelationId
+   }

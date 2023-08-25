@@ -19,6 +19,7 @@ type AccountEvent =
    | TransferPending of BankEvent<TransferPending>
    | TransferApproved of BankEvent<TransferApproved>
    | TransferRejected of BankEvent<TransferRejected>
+   | TransferDeposited of BankEvent<TransferDeposited>
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | InternationalTransferRecipient of
@@ -58,6 +59,7 @@ module Envelope =
       | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
       | :? BankEvent<TransferApproved> as evt -> evt |> TransferApproved
       | :? BankEvent<TransferRejected> as evt -> evt |> TransferRejected
+      | :? BankEvent<TransferDeposited> as evt -> evt |> TransferDeposited
       | :? BankEvent<AccountClosed> as evt -> evt |> AccountClosed
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
@@ -76,6 +78,7 @@ module Envelope =
       | TransferPending evt -> (wrap evt, get evt)
       | TransferApproved evt -> (wrap evt, get evt)
       | TransferRejected evt -> (wrap evt, get evt)
+      | TransferDeposited evt -> (wrap evt, get evt)
       | AccountClosed evt -> (wrap evt, get evt)
 
 type AccountStatus =
@@ -86,6 +89,7 @@ type AccountStatus =
 type AccountState =
    {
       EntityId: Guid
+      Email: string
       FirstName: string
       LastName: string
       Currency: Currency
@@ -101,6 +105,7 @@ type AccountState =
 
    static member empty = {
       EntityId = Guid.Empty
+      Email = ""
       FirstName = ""
       LastName = ""
       Currency = Currency.USD

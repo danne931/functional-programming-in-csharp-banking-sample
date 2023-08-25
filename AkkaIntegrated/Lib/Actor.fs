@@ -49,16 +49,12 @@ module ActorMetadata =
 
    let domesticTransfer = {
       Name = "domestic_transfer_recipient"
-      Path =
-         Some(ActorPath.Parse "akka://bank/user/domestic_transfer_recipient")
+      Path = None
    }
 
    let billingCycle = { Name = "billing_cycle"; Path = None }
 
-   let email = {
-      Name = "email"
-      Path = Some(ActorPath.Parse "akka://bank/user/email")
-   }
+   let email = { Name = "email"; Path = None }
 
    let deadLettersMonitor = {
       Name = "dead_letters_monitor"
