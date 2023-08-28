@@ -2,7 +2,7 @@
 
 ## Intent
 Looking over this repo may be a useful next step after reading [Functional Programming in C#](https://www.manning.com/books/functional-programming-in-c-sharp-second-edition)
-by **Enrico Buonanno** or material on F#, as well as material on Akka.  The [AkkaIntegrated directory](https://github.com/danne931/akka-dotnet-bank/tree/main/AkkaIntegrated) is a continuous effort aiming to utilize best practices in event sourcing and the actor model.  Integrating more tightly with Akka nudges us towards that end.  The AkkaIntegrated directory evolved from the FSharpWithAkka directory, which in turn evolved from the CSharpWithLanguageExt directory.  EventStoreDB, utilized in CSharpWithLanguageExt and FSharpWithAkka, is replaced with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  Actor system initialization, manual dependency injection of ActorRef's and actor selection is replaced with Akka.Hosting and Akka's ActorRegistry.  We take advantage of [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) for our account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
+by **Enrico Buonanno** or material on F#, as well as material on Akka.  The [AkkaIntegrated directory](https://github.com/danne931/akka-dotnet-bank/tree/main/AkkaIntegrated) utilizes event sourcing and the actor model via Akka.NET to build typical banking functionality.  The AkkaIntegrated directory evolved from the FSharpWithAkka directory, which in turn evolved from the CSharpWithLanguageExt directory.  EventStoreDB, utilized in CSharpWithLanguageExt and FSharpWithAkka, is replaced with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  Actor system initialization, manual dependency injection of ActorRef's and actor selection is replaced with Akka.Hosting and Akka's ActorRegistry.  We take advantage of [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) for our account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
 
 The [CSharpWithLanguageExt directory](https://github.com/danne931/akka-dotnet-bank/tree/main/CSharpWithLanguageExt) expands on **Enrico Buonanno**'s banking account example [actor](https://github.com/la-yumba/functional-csharp-code-2/blob/master/Examples/Chapter19/Boc/AccountProcess.cs)
 and [domain logic](https://github.com/la-yumba/functional-csharp-code-2/blob/master/Examples/Chapter13/Domain/Account.cs) to include
@@ -47,10 +47,11 @@ web page to test the use cases against an account.
 1. docker pull postgres
 2. docker run --name bank-postgres-container -e POSTGRES_PASSWORD=password -d postgres -p 5432
 3. run postgres container
-4. if testing email notifications, you will need to create an account with [Plunk](https://app.useplunk.com/) and create events in Plunk such as [transfer-deposited](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/Notifications/EmailActor.fs#L70C14-L70C14).  You will also need to create templates and link events to templates via actions.  To authenticate you can add a [user secret](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/Lib/Config.fs#L342C39-L342C39) for the email bearer token.
-5. navigate to AkkaIntegrated directory & dotnet run
-6. navigate to MockThirdPartyBankTransferReceiver and dotnet run if testing domestic transfers
-7. make POST requests to http://localhost:PORT/accounts to create accounts ex:
+4. psql postgres < Migrations/*.sql
+5. if testing email notifications, you will need to create an account with [Plunk](https://app.useplunk.com/) and create events in Plunk such as [transfer-deposited](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/Notifications/EmailActor.fs#L70C14-L70C14).  You will also need to create templates and link events to templates via actions.  To authenticate you can add a [user secret](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/Lib/Config.fs#L342C39-L342C39) for the email bearer token.
+6. dotnet run
+7. navigate to MockThirdPartyBankTransferReceiver and dotnet run if testing domestic transfers
+8. make POST requests to http://localhost:PORT/accounts to create accounts ex:
     ```
     {
 	      "FirstName": "Jelly",
@@ -61,7 +62,7 @@ web page to test the use cases against an account.
 	      "Currency": "USD"
     }
     ```
-8. navigate to localhost in browser
+9. navigate to localhost in browser
 
 ## Running CSharpWithLanguageExt or FSharpWithAkka
 1. docker pull eventstore/eventstore
