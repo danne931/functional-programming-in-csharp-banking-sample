@@ -11,13 +11,15 @@ open Akkling
 open BankTypes
 open Bank.Account.Domain
 open BillingStatement
-open Bank.BillingCycle.Api
 open ActorUtil
+
+module Api = Bank.BillingCycle.Api
 
 type Message =
    private
    | SaveBillingStatement
    | Broadcast of BillingStatement
+   | AccountTransactionsLoaded of AccountEvent list option
 
 let start
    (mailbox: Actor<obj>)
@@ -27,26 +29,33 @@ let start
    let actorName = ActorMetadata.billingCycle.Name
    let accountId = account.EntityId
 
+   let saveBillingStatement (transactions: AccountEvent list) = async {
+      let! bs = Api.saveBillingStatement account transactions |> Async.AwaitTask
+      return Broadcast bs
+   }
+
+   let getTransactions () = async {
+      let! txnsOpt = persistence.getEvents accountId |> Async.AwaitTask
+      return AccountTransactionsLoaded txnsOpt
+   }
+
    let handler (ctx: Actor<Message>) = actor {
       let! msg = ctx.Receive()
-      let aref = ctx.Parent()
+      let accountRef = ctx.Parent()
 
       match msg with
-      | SaveBillingStatement ->
-         let! txnsOpt = persistence.getEvents accountId |> Async.AwaitTask
-
+      | SaveBillingStatement -> getTransactions () |!> ctx.Self
+      | AccountTransactionsLoaded txnsOpt ->
          if txnsOpt.IsNone then
             logWarning ctx "No transactions found for billing cycle."
+            retype ctx.Self <! PoisonPill.Instance
          else
-            let! statement =
-               saveBillingStatement account txnsOpt.Value |> Async.AwaitTask
-
-            ctx.Self <! Broadcast statement
+            saveBillingStatement txnsOpt.Value |!> ctx.Self
       | Broadcast billingStatement ->
          // Maintenance fee conditionally applied after account transactions
          // have been consolidated. If applied, it will be the first transaction
          // of the new billing cycle.
-         aref <! AccountMessage.BillingCycleEnd
+         accountRef <! AccountMessage.BillingCycleEnd
 
          let criteria = account.MaintenanceFeeCriteria
 
@@ -54,10 +63,10 @@ let start
             criteria.QualifyingDepositFound || criteria.DailyBalanceThreshold
          then
             let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
-            aref <! AccountMessage.StateChange cmd
+            accountRef <! AccountMessage.StateChange cmd
          else
             let cmd = MaintenanceFeeCommand accountId
-            aref <! AccountMessage.StateChange cmd
+            accountRef <! AccountMessage.StateChange cmd
 
          EmailActor.get ctx.System <! EmailActor.BillingStatement account
 
