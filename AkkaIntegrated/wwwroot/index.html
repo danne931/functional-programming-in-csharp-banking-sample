@@ -124,7 +124,7 @@
                   id="transfer-recipient-account-environment"
                   name="transfer-recipient-account-environment"
                   required
-                  onchange="transferAccountEnvironmentSelected()">
+                  onchange="transferAccountEnvironmentSelected(this.value)">
                   <option value="Internal">Our bank</option>
                   <option value="Domestic">Domestic bank</option>
                   <option value="International" disabled>International bank</option>
@@ -143,17 +143,25 @@
                 </label>
               </div>
 
-              <label>
-                Account Number:
-                <input name="transfer-recipient-account-number" type="string" placeholder="Account Number" required>
-              </label>
+              <div id="internal-transfer-recipient-inputs">
+                <label>
+                  Email:
+                  <input name="transfer-recipient-email" type="string" placeholder="Email Address" required>
+                </label>
+              </div>
 
-              <label
-                id="transfer-recipient-routing-number"
-                style="display: none">
-                Routing Number:
-                <input name="transfer-recipient-routing-number" placeholder="Routing Number" type="string">
-              </label>
+              <div id="domestic-transfer-recipient-inputs" style="display:none">
+                <label>
+                  Account Number:
+                  <input name="transfer-recipient-account-number" type="string" placeholder="Account Number">
+                </label>
+
+                <label
+                  id="transfer-recipient-routing-number">
+                  Routing Number:
+                  <input name="transfer-recipient-routing-number" placeholder="Routing Number" type="string">
+                </label>
+              </div>
 
               <input type="submit" value="Submit">
             </form>

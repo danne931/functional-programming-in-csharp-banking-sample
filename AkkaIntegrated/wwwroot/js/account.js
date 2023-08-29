@@ -29,10 +29,10 @@ const selectors = {
     transferRecipient: () => document.getElementById('register-transfer-recipient-form'),
     dailyDebitLimit: () => document.getElementById('account-daily-debit-limit-form')
   },
-  transferRecipientAccountEnvironment: () =>
-    document.getElementById('transfer-recipient-account-environment'),
-  transferRecipientRoutingNumber: () =>
-    document.getElementById('transfer-recipient-routing-number'),
+  internalTransferRecipientInputs: () =>
+    document.getElementById('internal-transfer-recipient-inputs'),
+  domesticTransferRecipientInputs: () =>
+    document.getElementById('domestic-transfer-recipient-inputs'),
   validationErrorModal: () => document.getElementById('validation-error-modal'),
   validationErrorReason: () => document.getElementById('validation-error-reason'),
   domesticTransferCircuitBreaker: () => document.getElementById('domestic-transfer-circuit-breaker')
@@ -107,7 +107,10 @@ connection
     return res.json()
   })
   .then(accounts => {
-    state.accounts = accounts
+    state.accounts = accounts.reduce((acc, val) => {
+      acc[val.email] = val
+      return acc
+    }, {})
     renderAccountsList(accounts)
     return accountSelected(accounts[0].accountId)
   })
@@ -368,6 +371,7 @@ function renderAccountActionForm (action) {
 
 function accountActionBackButtonClicked (e) {
   closeFormView(e.target.closest('.form-wrapper').querySelector('form'))
+  transferAccountEnvironmentSelected('Internal')
   renderAccountActionList()
 }
 
@@ -380,24 +384,25 @@ function renderAccountActionList () {
   selectors.actionWrapper().classList.remove('hidden')
 }
 
-function transferAccountEnvironmentSelected () {
-  const selected = selectors.transferRecipientAccountEnvironment().value
-
-  const el = selectors.transferRecipientRoutingNumber()
+function transferAccountEnvironmentSelected (selected) {
+  const domesticInputs = selectors.domesticTransferRecipientInputs()
+  const internalInputs = selectors.internalTransferRecipientInputs()
 
   if (selected === 'Domestic') {
-    el.style.display = 'block'
-    el.setAttribute('required', true)
+    domesticInputs.style.display = 'block'
+    domesticInputs.setAttribute('required', true)
+    internalInputs.style.display = 'none'
+    internalInputs.removeAttribute('required')
   } else {
-    el.style.display = 'none'
-    el.removeAttribute('required')
+    internalInputs.style.display = 'block'
+    internalInputs.setAttribute('required', true)
+    domesticInputs.style.display = 'none'
+    domesticInputs.removeAttribute('required')
   }
 }
 
 function resetDomAfterRecipientRegistration () {
-  const el = selectors.transferRecipientRoutingNumber()
-  el.style.display = 'none'
-  el.removeAttribute('required')
+  transferAccountEnvironmentSelected('Internal')
 
   if (state.redirectTransferToCreateRecipientView) {
     state.redirectTransferToCreateRecipientView = false
@@ -453,39 +458,51 @@ listenForFormSubmit(
   })
 )
 
-listenForFormSubmit(
-  selectors.form.transferRecipient(),
-  '/transfers/register-recipient',
-  formData => {
-    const data = {
-      entityId: state.selectedAccountId,
-      recipient: {
-        firstName: formData.get('transfer-recipient-first-name'),
-        lastName: formData.get('transfer-recipient-last-name'),
-        identification: formData.get('transfer-recipient-account-number'),
-        accountEnvironment: formData.get('transfer-recipient-account-environment'),
-        identificationStrategy: 'AccountId',
-        currency: 'USD',
-        routingNumber: null
-      }
-    }
-    // Domestic recipient requires routing number
-    if (data.recipient.accountEnvironment === 'Domestic') {
-      data.recipient.routingNumber = formData.get('transfer-recipient-routing-number')
-    }
-    return data
-  },
-  resetDomAfterRecipientRegistration
-)
+selectors.form.transferRecipient().addEventListener('submit', e => {
+  e.preventDefault()
+  const formEl = selectors.form.transferRecipient()
+  const formData = new FormData(formEl)
 
-function listenForFormSubmit (formEl, url, formDataToProps, postSubmit) {
+  const data = {
+    entityId: state.selectedAccountId,
+    recipient: {
+      firstName: formData.get('transfer-recipient-first-name'),
+      lastName: formData.get('transfer-recipient-last-name'),
+      accountEnvironment: formData.get('transfer-recipient-account-environment'),
+      identificationStrategy: 'AccountId',
+      currency: 'USD',
+      routingNumber: null
+    }
+  }
+
+  if (data.recipient.accountEnvironment === 'Internal') {
+    const email = formData.get('transfer-recipient-email')
+
+    let account = state.accounts[email]
+    if (!account) {
+      return openValidationErrorModal('An account with that email does not exist.')
+    }
+
+    data.recipient.identification = account.accountId
+  } else if (data.recipient.accountEnvironment === 'Domestic') {
+    data.recipient.identification = formData.get('transfer-recipient-account-number')
+    data.recipient.routingNumber = formData.get('transfer-recipient-routing-number')
+  }
+
+  jsonPost('/transfers/register-recipient', data)
+    .then(_ => {
+      closeFormView(formEl)
+      resetDomAfterRecipientRegistration()
+    })
+})
+
+function listenForFormSubmit (formEl, url, formDataToProps) {
   formEl.addEventListener('submit', e => {
     e.preventDefault()
 
     jsonPost(url, formDataToProps(new FormData(formEl)))
       .then(_ => {
         closeFormView(formEl)
-        if (typeof postSubmit === 'function') return postSubmit()
         renderAccountActionList()
       })
   })
