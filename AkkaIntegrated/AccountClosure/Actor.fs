@@ -57,8 +57,7 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
    let actorName = ActorMetadata.accountClosure.Name
 
    let handler (mailbox: Eventsourced<obj>) =
-      let logInfo = logInfo mailbox
-      let logError = logError mailbox
+      let logInfo, logError = logInfo mailbox, logError mailbox
 
       let rec loop (accounts: AccountState list) = actor {
          let! msg = mailbox.Receive()
@@ -143,7 +142,7 @@ let scheduleNightlyCheck (quartzPersistentActorRef: IActorRef) =
    let path = ActorMetadata.accountClosure.Path.Value
    let job = CreatePersistentJob(path, ScheduleDeleteAll(), trigger)
 
-   quartzPersistentActorRef.Tell(job, ActorRefs.NoSender)
+   quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
    ()
 
 let get (system: ActorSystem) : IActorRef<AccountClosureMessage> =

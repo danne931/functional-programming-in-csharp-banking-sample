@@ -120,5 +120,5 @@ let scheduleMonthly
    let job =
       CreatePersistentJob(publisherAref.Path, BillingCycleCommand(), trigger)
 
-   quartzPersistentActorRef.Tell(job, ActorRefs.NoSender)
+   quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
    ()
