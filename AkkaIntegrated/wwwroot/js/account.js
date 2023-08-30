@@ -7,7 +7,10 @@ const state = {
   redirectTransferToCreateRecipientView: false,
   validationErrorModalOpen: false,
   circuitBreaker: {
-    isDomesticTransferOpen: false
+    isOpen: {
+      DomesticTransfer: false,
+      Email: false
+    }
   }
 }
 
@@ -35,7 +38,11 @@ const selectors = {
     document.getElementById('domestic-transfer-recipient-inputs'),
   validationErrorModal: () => document.getElementById('validation-error-modal'),
   validationErrorReason: () => document.getElementById('validation-error-reason'),
-  domesticTransferCircuitBreaker: () => document.getElementById('domestic-transfer-circuit-breaker')
+  circuitBreaker: {
+    DomesticTransfer: () =>
+      document.getElementById('domestic-transfer-circuit-breaker'),
+    Email: () => document.getElementById('email-circuit-breaker')
+  }
 }
 
 const eventsToIgnore = {
@@ -67,8 +74,11 @@ connection.on('ReceiveMessage', function ({ newState, event }) {
 })
 
 connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
-  if (service === 'DomesticTransfer') {
-    toggleDomesticTransferCircuitBreaker(status)
+  // Don't update UI if half open
+  if (status === 'HalfOpen') return
+
+  if (service === 'DomesticTransfer' || service === 'Email') {
+    toggleCircuitBreaker(status, service)
   } else {
     console.error(`Unhandled circuit breaker message for service ${service}`)
   }
@@ -76,21 +86,18 @@ connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
 
 connection.on('ReceiveBillingCycleEnd', renderNewBillingCycle)
 
-function toggleDomesticTransferCircuitBreaker (status) {
-  // Don't update UI if half open
-  if (status === 'HalfOpen') return
-
-  const el = selectors.domesticTransferCircuitBreaker()
-  const isOpen = state.circuitBreaker.isDomesticTransferOpen
+function toggleCircuitBreaker (status, service) {
+  const el = selectors.circuitBreaker[service]()
+  const isOpen = state.circuitBreaker.isOpen[service]
 
   if (status === 'Open' && !isOpen) {
-    state.circuitBreaker.isDomesticTransferOpen = true
+    state.circuitBreaker.isOpen[service] = true
     el.textContent = 'Open'
     el.classList.remove('success')
     el.classList.add('alert')
   }
   else if (status === 'Closed' && isOpen) {
-    state.circuitBreaker.isDomesticTransferOpen = false
+    state.circuitBreaker.isOpen[service] = false
     el.textContent = 'Closed'
     el.classList.remove('alert')
     el.classList.add('success')

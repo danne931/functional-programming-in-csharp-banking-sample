@@ -135,6 +135,11 @@ let startActorModel (builder: WebApplicationBuilder) =
                builder.LogMessageFormatter <-
                   typeof<SerilogLogMessageFormatter>)
             .WithActors(fun system registry ->
+               let broadcast = provider.GetRequiredService<AccountBroadcast>()
+
+               let persistence =
+                  provider.GetRequiredService<AccountPersistence>()
+
                let deadLetterHandler (ctx: Actor<_>) (msg: AllDeadLetters) =
                   logError ctx $"Dead letters: {msg}"
                   Ignore
@@ -159,10 +164,6 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                registry.Register<QuartzPersistentActor>(quartzPersistentARef)
 
-               registry.Register<ActorMetadata.EmailMarker>(
-                  untyped <| EmailActor.start system
-               )
-
                BillingCycleActor.scheduleMonthly system quartzPersistentARef
 
                registry.Register<ActorMetadata.AccountClosureMarker>(
@@ -172,10 +173,17 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
 
-               let broadcast = provider.GetRequiredService<AccountBroadcast>()
-
-               let persistence =
-                  provider.GetRequiredService<AccountPersistence>()
+               registry.Register<ActorMetadata.EmailMarker>(
+                  EmailActor.start system
+                  <| CircuitBreaker(
+                     system.Scheduler,
+                     maxFailures = 2,
+                     callTimeout = TimeSpan.FromSeconds 7,
+                     resetTimeout = TimeSpan.FromMinutes 1
+                  )
+                  <| broadcast
+                  |> untyped
+               )
 
                AccountActor.start persistence broadcast system |> ignore
 

@@ -135,7 +135,9 @@ type AccountMessage =
    | Delete
    | BillingCycleEnd
 
-type Service = | DomesticTransfer
+type Service =
+   | DomesticTransfer
+   | Email
 
 type CircuitBreakerStatus =
    | Closed
