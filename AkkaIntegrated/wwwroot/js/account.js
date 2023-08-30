@@ -32,10 +32,10 @@ const selectors = {
     transferRecipient: () => document.getElementById('register-transfer-recipient-form'),
     dailyDebitLimit: () => document.getElementById('account-daily-debit-limit-form')
   },
-  internalTransferRecipientInputs: () =>
-    document.getElementById('internal-transfer-recipient-inputs'),
-  domesticTransferRecipientInputs: () =>
-    document.getElementById('domestic-transfer-recipient-inputs'),
+  internalTransferRecipientFormView: () =>
+    document.getElementById('internal-transfer-recipient-form-view'),
+  domesticTransferRecipientFormView: () =>
+    document.getElementById('domestic-transfer-recipient-form-view'),
   validationErrorModal: () => document.getElementById('validation-error-modal'),
   validationErrorReason: () => document.getElementById('validation-error-reason'),
   circuitBreaker: {
@@ -392,19 +392,29 @@ function renderAccountActionList () {
 }
 
 function transferAccountEnvironmentSelected (selected) {
-  const domesticInputs = selectors.domesticTransferRecipientInputs()
-  const internalInputs = selectors.internalTransferRecipientInputs()
+  const domesticFormView = selectors.domesticTransferRecipientFormView()
+  const domesticInputs = domesticFormView.querySelectorAll('input')
+  const internalFormView = selectors.internalTransferRecipientFormView()
+  const internalInputs = internalFormView.querySelectorAll('input')
 
   if (selected === 'Domestic') {
-    domesticInputs.style.display = 'block'
-    domesticInputs.setAttribute('required', true)
-    internalInputs.style.display = 'none'
-    internalInputs.removeAttribute('required')
+    domesticFormView.style.display = 'block'
+    domesticInputs.forEach(node => {
+      node.setAttribute('required', true)
+    })
+    internalFormView.style.display = 'none'
+    internalInputs.forEach(node => {
+      node.removeAttribute('required')
+    })
   } else {
-    internalInputs.style.display = 'block'
-    internalInputs.setAttribute('required', true)
-    domesticInputs.style.display = 'none'
-    domesticInputs.removeAttribute('required')
+    internalFormView.style.display = 'block'
+    internalInputs.forEach(node => {
+      node.setAttribute('required', true)
+    })
+    domesticFormView.style.display = 'none'
+    domesticInputs.forEach(node => {
+      node.removeAttribute('required')
+    })
   }
 }
 
