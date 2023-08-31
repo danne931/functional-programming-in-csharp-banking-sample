@@ -190,7 +190,7 @@ let startActorModel (builder: WebApplicationBuilder) =
                let fac = provider.GetRequiredService<AccountActorFac>()
 
                let domesticTransferRouter =
-                  RoundRobinPool(5, DefaultResizer(1, 10))
+                  RoundRobinPool(1, DefaultResizer(1, 10))
 
                registry.Register<ActorMetadata.DomesticTransferMarker>(
                   DomesticTransferRecipientActor.start system
@@ -360,3 +360,14 @@ let setEnvironment (builder: WebApplicationBuilder) =
 #endif
    else
       Environment.SetEnvironmentVariable("EmailBearerToken", emailBearerToken)
+
+   let supportEmail = builder.Configuration.GetSection("SupportEmail").Value
+
+   if isNull supportEmail then
+#if !DEBUG
+      failwith "Missing SupportEmail configuration setting"
+#else
+      printfn "Missing SupportEmail configuration setting"
+#endif
+   else
+      Environment.SetEnvironmentVariable("SupportEmail", supportEmail)

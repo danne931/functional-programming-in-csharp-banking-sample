@@ -26,6 +26,7 @@ type EmailMessage =
    | BillingStatement of AccountState
    | DebitDeclined of string * AccountState
    | TransferDeposited of BankEvent<TransferDeposited> * AccountState
+   | ApplicationErrorRequiresSupport of string
 
 type private TrackingEvent = {
    event: string
@@ -85,6 +86,11 @@ let private emailPropsFromMessage (msg: EmailMessage) =
          origin = evt.Data.Origin
       |}
      }
+   | ApplicationErrorRequiresSupport errMsg -> {
+      event = "application-error-requires-support"
+      email = Environment.GetEnvironmentVariable("SupportEmail")
+      data = {| error = errMsg |}
+     }
 
 // Side effect: Raise an exception instead of returning Result.Error
 //              to trip circuit breaker
@@ -137,6 +143,11 @@ let start
 
          if client.IsNone then
             logWarning "EmailBearerToken not set.  Will not send email."
+         elif
+            emailData.event = "application-error-requires-support"
+            && isNull emailData.email
+         then
+            logWarning "Support email not configured. Will not send."
          else
             breaker.WithCircuitBreaker(fun () ->
                sendEmail client.Value emailData)

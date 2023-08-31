@@ -120,8 +120,12 @@ let start
                         Ignore
                      | Contains "Serialization"
                      | Contains "InvalidAction" ->
-                        logError "Corrupt data: {errMsg}"
-                        // TODO: Notify dev team
+                        let errMsg = $"Developer error: {errMsg}"
+                        logError errMsg
+
+                        EmailActor.get mailbox.System
+                        <! EmailActor.ApplicationErrorRequiresSupport errMsg
+
                         Unhandled // Send to dead letters instead of stashing
                      | Contains "Connection"
                      | _ ->
@@ -165,7 +169,7 @@ let start
          }
       |> ignore
 
-      (retype ref) <! Broadcast BreakerClosed)
+      retype ref <! Broadcast BreakerClosed)
    |> ignore
 
    breaker.OnOpen(fun () ->
