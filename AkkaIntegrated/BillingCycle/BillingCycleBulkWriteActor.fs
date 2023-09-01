@@ -39,8 +39,17 @@ let private schedulePersist (ctx: Actor<Message>) (seconds: int) =
    ctx.Schedule (TimeSpan.FromSeconds seconds) ctx.Self PersistBillingStatements
    |> ignore
 
+// Collects billing statement records to insert in batches.
+// Billing statements are persisted in a single transaction
+// once the batch size limit is reached or after some duration
+// in seconds from the initial RegisterBillingStatement message.
 let start (system: ActorSystem) =
    let handler (ctx: Actor<Message>) =
+      let initState = { Billing = []; IsScheduled = false }
+      let batchSizeLimit = 1000
+      let schedulePersist = schedulePersist ctx
+      let logInfo, logError = logInfo ctx, logError ctx
+
       let rec loop (state: BulkWriteState) =
          function
          | RegisterBillingStatement statement ->
@@ -49,31 +58,31 @@ let start (system: ActorSystem) =
                   Billing = statement :: state.Billing
             }
 
-            if newState.Billing.Length >= 1000 then
+            if newState.Billing.Length >= batchSizeLimit then
                ctx.Self <! PersistBillingStatements
                become <| loop newState
             elif state.IsScheduled then
                become <| loop newState
             else
-               schedulePersist ctx 5
+               schedulePersist 5
 
                become <| loop { newState with IsScheduled = true }
          | PersistBillingStatements ->
-            let refreshedState = { Billing = []; IsScheduled = false }
-
             if state.Billing.Length > 0 then
                let res = Api.saveBillingStatements(state.Billing).Result
 
                match res with
-               | Ok _ -> become <| loop refreshedState
+               | Ok o ->
+                  logInfo $"Saved billing statements {o}"
+                  become <| loop initState
                | Error e ->
-                  logError ctx $"Issue saving billing statements {e}"
-                  schedulePersist ctx 90
+                  logError $"Error saving billing statements {e}"
+                  schedulePersist 10
                   unhandled ()
             else
-               become <| loop refreshedState
+               become <| loop initState
 
-      loop { Billing = []; IsScheduled = false }
+      loop initState
 
    spawn
       system

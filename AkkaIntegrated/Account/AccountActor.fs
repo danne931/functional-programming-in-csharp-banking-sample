@@ -27,8 +27,7 @@ let start
    let actorName = ActorMetadata.account.Name
 
    let handler (mailbox: Eventsourced<obj>) =
-      let logError = logError mailbox
-      let logWarning = logWarning mailbox
+      let logError, logWarning = logError mailbox, logWarning mailbox
 
       let rec loop (accountOpt: AccountState option) = actor {
          let! msg = mailbox.Receive()
@@ -69,10 +68,13 @@ let start
                      Email = evt.Data.Email
                   }
 
-                  createUser(user).Wait()
-
-                  mailbox.Self <! UserCreated evt
-                  ignored ()
+                  match createUser(user).Result with
+                  | Ok _ ->
+                     mailbox.Self <! UserCreated evt
+                     ignored ()
+                  | Error e ->
+                     logError $"Error creating user {e}"
+                     unhandled ()
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
@@ -91,6 +93,7 @@ let start
                      | Contains "ExceededDailyDebit" ->
                         EmailActor.get system
                         <! EmailActor.DebitDeclined(err, account)
+                     | _ -> ()
 
                      ignored ()
                   | Ok(event, _) -> persist event

@@ -13,7 +13,7 @@ type SqlTransactionStatement = string * SqlParameterList list
 
 let pgQuery<'t>
    (query: string)
-   (parameters: (string * SqlValue) list option)
+   (parameters: SqlParameterList option)
    (mapper: RowReader -> 't)
    : 't list option Task
    =
@@ -28,12 +28,24 @@ let pgQuery<'t>
       return if res.IsEmpty then None else Some res
    }
 
-let pgPersist (query: string) (parameters: SqlParameterList) : int Task =
-   connString
-   |> Sql.connect
-   |> Sql.query query
-   |> Sql.parameters parameters
-   |> Sql.executeNonQueryAsync
+let pgPersist
+   (query: string)
+   (parameters: SqlParameterList)
+   : Result<int, string> Task
+   =
+   task {
+      try
+         let! res =
+            connString
+            |> Sql.connect
+            |> Sql.query query
+            |> Sql.parameters parameters
+            |> Sql.executeNonQueryAsync
+
+         return Ok res
+      with e ->
+         return Error e.Message
+   }
 
 let pgTransaction
    (txn: SqlTransactionStatement list)
