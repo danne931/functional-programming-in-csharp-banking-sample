@@ -24,7 +24,7 @@ The [FSharpWithAkka directory](https://github.com/danne931/akka-dotnet-bank/tree
 10. Billing statements issued for each billing cycle (*exclusive to AkkaIntegrated app*)
 11. Emails sent for account open/close, billing statement, debit declined, & transfer deposited (*exclusive to AkkaIntegrated app*)
 
-![bank-8-26](https://github.com/danne931/akka-dotnet-bank/assets/4181901/24698fc1-c682-4ef9-8aee-23eefda45d38)
+![bank-9-1](https://github.com/danne931/akka-dotnet-bank/assets/4181901/b9d0a710-7ef6-43f2-8ac7-4580746f8853)
 
 ## UI
 I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/wwwroot/js/account.js)
