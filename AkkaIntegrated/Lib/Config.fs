@@ -58,8 +58,6 @@ let startSignalR (builder: WebApplicationBuilder) =
    |> ignore
 
 let startActorModel (builder: WebApplicationBuilder) =
-   let akkaConfig = builder.Configuration.GetSection "akka"
-
    let connString =
       Environment.GetEnvironmentVariable "PostgresConnectionStringAdoFormat"
 
@@ -93,11 +91,21 @@ let startActorModel (builder: WebApplicationBuilder) =
    sdo.SnapshotTable <- sto
    snapshotOpts.DatabaseOptions <- sdo
 
+   let akkaConfig = builder.Configuration.GetSection "akka"
+
    builder.Services.AddAkka(
       "bank",
       (fun builder provider ->
          builder
             .AddHocon(akkaConfig, HoconAddMode.Prepend)
+            .AddHocon(
+               """
+                  billing-cycle-bulk-write-mailbox: {
+                     mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, AkkaIntegrated"
+                  }
+               """,
+               HoconAddMode.Prepend
+            )
             .WithRemoting("localhost", 8081)
             .WithClustering(
                ClusterOptions(
@@ -166,9 +174,13 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                BillingCycleActor.scheduleMonthly system quartzPersistentARef
 
+               registry.Register<ActorMetadata.BillingCycleBulkWriteMarker>(
+                  BillingCycleBulkWriteActor.start system |> untyped
+               )
+
                registry.Register<ActorMetadata.AccountClosureMarker>(
-                  untyped
-                  <| AccountClosureActor.start system quartzPersistentARef
+                  AccountClosureActor.start system quartzPersistentARef
+                  |> untyped
                )
 
                AccountClosureActor.scheduleNightlyCheck quartzPersistentARef

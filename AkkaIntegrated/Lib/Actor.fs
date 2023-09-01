@@ -35,6 +35,10 @@ module ActorMetadata =
       class
       end
 
+   type BillingCycleBulkWriteMarker() =
+      class
+      end
+
    let account = { Name = "account"; Path = None }
 
    let accountClosure = {
@@ -53,6 +57,11 @@ module ActorMetadata =
    }
 
    let billingCycle = { Name = "billing_cycle"; Path = None }
+
+   let billingCycleBulkWrite = {
+      Name = "billing_cycle_bulk_write"
+      Path = None
+   }
 
    let email = { Name = "email"; Path = None }
 

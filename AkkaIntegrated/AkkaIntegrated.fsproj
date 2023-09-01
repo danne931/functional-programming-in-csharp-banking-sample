@@ -22,6 +22,7 @@
     <Compile Include="Account/Domain/Account.fs" />
     <Compile Include="Account/Hub.fs" />
     <Compile Include="Notifications/EmailActor.fs" />
+    <Compile Include="BillingCycle/BillingCycleBulkWriteActor.fs" />
     <Compile Include="BillingCycle/BillingCycleActor.fs" />
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />

@@ -10,7 +10,6 @@ open Akkling
 
 open BankTypes
 open Bank.Account.Domain
-open BillingStatement
 open ActorUtil
 
 module Api = Bank.BillingCycle.Api
@@ -18,7 +17,6 @@ module Api = Bank.BillingCycle.Api
 type Message =
    private
    | SaveBillingStatement
-   | Broadcast of BillingStatement
    | AccountTransactionsLoaded of AccountEvent list option
 
 let start
@@ -26,13 +24,7 @@ let start
    (persistence: AccountPersistence)
    (account: AccountState)
    =
-   let actorName = ActorMetadata.billingCycle.Name
    let accountId = account.EntityId
-
-   let saveBillingStatement (transactions: AccountEvent list) = async {
-      let! bs = Api.saveBillingStatement account transactions |> Async.AwaitTask
-      return Broadcast bs
-   }
 
    let getTransactions () = async {
       let! txnsOpt = persistence.getEvents accountId |> Async.AwaitTask
@@ -48,32 +40,34 @@ let start
       | AccountTransactionsLoaded txnsOpt ->
          if txnsOpt.IsNone then
             logWarning ctx "No transactions found for billing cycle."
-            retype ctx.Self <! PoisonPill.Instance
          else
-            saveBillingStatement txnsOpt.Value |!> ctx.Self
-      | Broadcast billingStatement ->
-         // Maintenance fee conditionally applied after account transactions
-         // have been consolidated. If applied, it will be the first transaction
-         // of the new billing cycle.
-         accountRef <! AccountMessage.BillingCycleEnd
+            let billing = BillingStatement.create account txnsOpt.Value
 
-         let criteria = account.MaintenanceFeeCriteria
+            BillingCycleBulkWriteActor.get mailbox.System
+            <! BillingCycleBulkWriteActor.RegisterBillingStatement billing
 
-         if
-            criteria.QualifyingDepositFound || criteria.DailyBalanceThreshold
-         then
-            let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
-            accountRef <! AccountMessage.StateChange cmd
-         else
-            let cmd = MaintenanceFeeCommand accountId
-            accountRef <! AccountMessage.StateChange cmd
+            // Maintenance fee conditionally applied after account transactions
+            // have been consolidated. If applied, it will be the first transaction
+            // of the new billing cycle.
+            accountRef <! AccountMessage.BillingCycleEnd
 
-         EmailActor.get ctx.System <! EmailActor.BillingStatement account
+            let criteria = account.MaintenanceFeeCriteria
+
+            if
+               criteria.QualifyingDepositFound || criteria.DailyBalanceThreshold
+            then
+               let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
+               accountRef <! AccountMessage.StateChange cmd
+            else
+               let cmd = MaintenanceFeeCommand accountId
+               accountRef <! AccountMessage.StateChange cmd
+
+            EmailActor.get ctx.System <! EmailActor.BillingStatement account
 
          retype ctx.Self <! PoisonPill.Instance
    }
 
-   let aref = spawn mailbox actorName <| props handler
+   let aref = spawn mailbox ActorMetadata.billingCycle.Name <| props handler
    aref <! SaveBillingStatement
    aref
 
