@@ -6,7 +6,6 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Akka.Actor
 
-open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Account.Api
@@ -42,8 +41,7 @@ let startAccountRoutes (app: WebApplication) =
       Path.Base,
       Func<AccountActorFac, CreateAccountCommand, Task<IResult>>
          (fun fac command ->
-            createAccount fac (Validators.accountCreate ()) command
-            |> RouteUtil.unwrapTaskValidation)
+            createAccount fac command |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
@@ -54,53 +52,43 @@ let startAccountRoutes (app: WebApplication) =
    )
    |> ignore
 
+   let processCommand fac command =
+      processCommand fac command |> RouteUtil.unwrapTaskResult
+
    app.MapPost(
       Path.Deposit,
-      Func<AccountActorFac, DepositCashCommand, Task<IResult>>
-         (fun fac command ->
-            processCommand fac (Validators.deposit ()) command
-            |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, DepositCashCommand, Task<IResult>>(processCommand)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<AccountActorFac, DebitCommand, Task<IResult>>(fun fac command ->
-         processCommand fac (Validators.debit ()) command
-         |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, DebitCommand, Task<IResult>>(processCommand)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<AccountActorFac, LimitDailyDebitsCommand, Task<IResult>>
-         (fun fac command ->
-            processCommand fac (Validators.dailyDebitLimit ()) command
-            |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, LimitDailyDebitsCommand, Task<IResult>>(
+         processCommand
+      )
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<AccountActorFac, LockCardCommand, Task<IResult>>(fun fac command ->
-         processCommand fac (PassValidation()) command
-         |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, LockCardCommand, Task<IResult>>(processCommand)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(fun fac command ->
-         processCommand fac (PassValidation()) command
-         |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(processCommand)
    )
    |> ignore
 
    app.MapPost(
       Path.CloseAccount,
-      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>
-         (fun fac command ->
-            processCommand fac (PassValidation()) command
-            |> RouteUtil.unwrapTaskValidation)
+      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>(processCommand)
    )
    |> ignore

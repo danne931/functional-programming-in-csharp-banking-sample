@@ -1,6 +1,8 @@
 [<RequireQualifiedAccess>]
 module Account
 
+open Validus
+
 open BankTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -101,10 +103,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          }
          e.Data.DepositedAmount
    | InternalTransferRecipient e ->
-      let recipient =
-         RegisterTransferRecipientEvent.eventToRecipient (
-            e |> RegisteredInternalTransferRecipient
-         )
+      let recipient = e.Data.toRecipient ()
 
       let key = recipientLookupKey recipient
 
@@ -113,10 +112,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
             TransferRecipients = state.TransferRecipients.Add(key, recipient)
       }
    | DomesticTransferRecipient e ->
-      let recipient =
-         RegisterTransferRecipientEvent.eventToRecipient (
-            e |> RegisteredDomesticTransferRecipient
-         )
+      let recipient = e.Data.toRecipient ()
 
       let key = recipientLookupKey recipient
 
@@ -125,11 +121,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
             TransferRecipients = state.TransferRecipients.Add(key, recipient)
       }
    | InternationalTransferRecipient e ->
-      let recipient =
-         RegisterTransferRecipientEvent.eventToRecipient (
-            e |> RegisteredInternationalTransferRecipient
-         )
-
+      let recipient = e.Data.toRecipient ()
       let key = recipientLookupKey recipient
 
       {
@@ -138,126 +130,118 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
       }
 
 module private StateTransition =
+   let transitionErr (err: StateTransitionError) =
+      Error <| StateTransitionError err
+
+   let map
+      (evtTransform: BankEvent<'t> -> AccountEvent)
+      (state: AccountState)
+      (eventValidation: ValidationResult<BankEvent<'t>>)
+      =
+      eventValidation
+      |> Result.mapError ValidationError
+      |> Result.map (fun evt ->
+         let evt = evtTransform evt
+         (evt, applyEvent state evt))
+
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
       if state.Status = AccountStatus.Closed then
-         Error "AccountNotActive"
-      elif cmd.Amount <= 0m then
-         Error "InvalidDepositAmount"
+         transitionErr AccountNotActive
       else
-         let evt = DepositedCashEvent.create cmd |> DepositedCash
-         Ok(evt, applyEvent state evt)
+         map DepositedCash state <| cmd.toEvent ()
 
    let limitDailyDebits (state: AccountState) (cmd: LimitDailyDebitsCommand) =
-      let evt = DailyDebitLimitUpdatedEvent.create cmd |> DailyDebitLimitUpdated
-
-      Ok(evt, applyEvent state evt)
+      map DailyDebitLimitUpdated state <| cmd.toEvent ()
 
    let lockCard (state: AccountState) (cmd: LockCardCommand) =
       if state.Status <> AccountStatus.Active then
-         Error "AccountNotActive"
+         transitionErr AccountNotActive
       else
-         let evt = LockedCardEvent.create cmd |> LockedCard
-         Ok(evt, applyEvent state evt)
+         map LockedCard state <| cmd.toEvent ()
 
    let unlockCard (state: AccountState) (cmd: UnlockCardCommand) =
       if state.Status <> AccountStatus.ActiveWithLockedCard then
-         Error $"Account card already unlocked {state.Status}"
+         transitionErr AccountCardAlreadyUnlocked
       else
-         let evt = UnlockedCardEvent.create cmd |> UnlockedCard
-         Ok(evt, applyEvent state evt)
+         map UnlockedCard state <| cmd.toEvent ()
 
    let debit (state: AccountState) (cmd: DebitCommand) =
       if state.Status = AccountStatus.Closed then
-         Error "AccountNotActive"
+         transitionErr AccountNotActive
       elif state.Status = AccountStatus.ActiveWithLockedCard then
-         Error "AccountCardLocked"
+         transitionErr AccountCardLocked
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
-         Error "InsufficientBalance"
+         transitionErr <| InsufficientBalance state.Balance
       elif
          state.DailyDebitLimit <> -1m
          && IsToday cmd.Timestamp
          && state.DailyDebitAccrued + cmd.Amount > state.DailyDebitLimit
       then
-         Error $"ExceededDailyDebit {state.DailyDebitLimit}"
+         transitionErr <| ExceededDailyDebit state.DailyDebitLimit
       else
-         let evt = DebitedAccountEvent.create cmd |> DebitedAccount
-         Ok(evt, applyEvent state evt)
+         map DebitedAccount state <| cmd.toEvent ()
 
    let maintenanceFee (state: AccountState) (cmd: MaintenanceFeeCommand) =
       if state.Status = AccountStatus.Closed then
-         Error "AccountNotActive"
+         transitionErr AccountNotActive
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
-         Error "InsufficientBalance"
+         transitionErr <| InsufficientBalance state.Balance
       else
-         let evt = MaintenanceFeeEvent.create cmd |> MaintenanceFeeDebited
-         Ok(evt, applyEvent state evt)
+         map MaintenanceFeeDebited state <| cmd.toEvent ()
 
    let skipMaintenanceFee
       (state: AccountState)
       (cmd: SkipMaintenanceFeeCommand)
       =
-      let evt = MaintenanceFeeEvent.reset cmd |> MaintenanceFeeSkipped
-      Ok(evt, applyEvent state evt)
+      map MaintenanceFeeSkipped state <| cmd.toEvent ()
 
    let transfer (state: AccountState) (cmd: TransferCommand) =
       if state.Status = AccountStatus.Closed then
-         Error "AccountNotActive"
+         transitionErr AccountNotActive
       elif state.Balance - cmd.Amount < state.AllowedOverdraft then
-         Error "InsufficientBalance"
+         transitionErr <| InsufficientBalance state.Balance
       elif
          not
          <| state.TransferRecipients.ContainsKey(
             recipientLookupKey cmd.Recipient
          )
       then
-         Error "RecipientRegistrationRequired"
+         transitionErr RecipientRegistrationRequired
       else
-         let evt = TransferEvent.create cmd |> TransferPending
-         Ok(evt, applyEvent state evt)
+         map TransferPending state <| cmd.toEvent ()
 
    let approveTransfer (state: AccountState) (cmd: ApproveTransferCommand) =
-      let evt = TransferEvent.approve cmd |> TransferApproved
-
-      Ok(evt, applyEvent state evt)
+      map TransferApproved state <| cmd.toEvent ()
 
    let rejectTransfer (state: AccountState) (cmd: RejectTransferCommand) =
-      let evt = TransferEvent.reject cmd |> TransferRejected
-
-      Ok(evt, applyEvent state evt)
+      map TransferRejected state <| cmd.toEvent ()
 
    let registerTransferRecipient
       (state: AccountState)
       (cmd: RegisterTransferRecipientCommand)
       =
       if state.TransferRecipients.ContainsKey cmd.Recipient.Identification then
-         Error "RecipientAlreadyRegistered"
+         transitionErr RecipientAlreadyRegistered
       else
-         let evt =
-            match cmd.Recipient.AccountEnvironment with
-            | RecipientAccountEnvironment.Internal ->
-               RegisterInternalTransferRecipientEvent.create cmd
-               |> InternalTransferRecipient
-            | RecipientAccountEnvironment.Domestic ->
-               RegisterDomesticTransferRecipientEvent.create cmd
-               |> DomesticTransferRecipient
-            | RecipientAccountEnvironment.International ->
-               RegisterInternationalTransferRecipientEvent.create cmd
-               |> InternationalTransferRecipient
-
-         Ok(evt, applyEvent state evt)
+         match cmd.Recipient.AccountEnvironment with
+         | RecipientAccountEnvironment.Internal ->
+            map InternalTransferRecipient state
+            <| TransferRecipientEvent.local cmd
+         | RecipientAccountEnvironment.Domestic ->
+            map DomesticTransferRecipient state
+            <| TransferRecipientEvent.domestic cmd
+         | RecipientAccountEnvironment.International ->
+            map InternationalTransferRecipient state
+            <| TransferRecipientEvent.international cmd
 
    let depositTransfer (state: AccountState) (cmd: DepositTransferCommand) =
       if state.Status = AccountStatus.Closed then
-         Error "AccountNotActive"
-      elif cmd.Amount <= 0m then
-         Error "InvalidTransferDepositAmount"
+         transitionErr AccountNotActive
       else
-         let evt = TransferDepositedEvent.create cmd |> TransferDeposited
-         Ok(evt, applyEvent state evt)
+         map TransferDeposited state <| cmd.toEvent ()
 
    let closeAccount (state: AccountState) (cmd: CloseAccountCommand) =
-      let evt = AccountClosedEvent.create cmd |> AccountClosed
-      Ok(evt, applyEvent state evt)
+      map AccountClosed state <| cmd.toEvent ()
 
 let stateTransition (state: AccountState) (command: Command) =
    match box command with

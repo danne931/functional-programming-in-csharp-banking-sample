@@ -1,7 +1,7 @@
 module Bank.AccountClosure.Api
 
 open System
-open System.Threading.Tasks
+open FsToolkit.ErrorHandling
 
 open Lib.Postgres
 
@@ -12,9 +12,9 @@ open Lib.Postgres
 // ON CASCADE DELETE is configured. Deletion of a user
 // with a given account ID deletes corresponding billing
 // statements in the same transaction.
-let deleteHistoricalRecords (accountIds: Guid list) : string list option Task =
+let deleteHistoricalRecords (accountIds: Guid list) =
    if accountIds.IsEmpty then
-      Task.FromResult None
+      TaskResult.ok None
    else
       pgQuery<string>
          "DELETE FROM users WHERE account_id = ANY(@accountIds) RETURNING email"

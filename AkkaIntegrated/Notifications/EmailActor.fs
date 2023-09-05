@@ -38,24 +38,24 @@ let private emailPropsFromMessage (msg: EmailMessage) =
    match msg with
    | AccountOpen account -> {
       event = "account-opened"
-      email = account.Email
+      email = string account.Email
       data = {| firstName = account.FirstName |}
      }
    | AccountClose account -> {
       event = "account-closed"
-      email = account.Email
+      email = string account.Email
       data = {| firstName = account.FirstName |}
      }
    // TODO: Include link to view statement
    | BillingStatement account -> {
       event = "billing-statement"
-      email = account.Email
+      email = string account.Email
       data = {| |}
      }
    | DebitDeclined(reason, account) ->
       let o = {
          event = "debit-declined"
-         email = account.Email
+         email = string account.Email
          data = {| reason = reason |}
       }
 
@@ -79,7 +79,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
       | _ -> o
    | TransferDeposited(evt, account) -> {
       event = "transfer-deposited"
-      email = account.Email
+      email = string account.Email
       data = {|
          firstName = account.FirstName
          amount = $"${evt.Data.DepositedAmount}"

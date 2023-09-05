@@ -9,7 +9,6 @@ open Akkling.Persistence
 open Akkling.Cluster.Sharding
 
 open Lib.Types
-open Lib.ActivePatterns
 open BankTypes
 open ActorUtil
 open Bank.Account.Domain
@@ -57,24 +56,28 @@ let start
             | :? AccountMessage as msg ->
                match msg with
                | InitAccount cmd ->
-                  let evt = cmd |> CreatedAccountEvent.create
-                  // TODO: Consider creating a user actor & integrating an
-                  //       auth workflow in the future.
-                  //       Create the record & move along for now.
-                  let (user: User.User) = {
-                     FirstName = evt.Data.FirstName
-                     LastName = evt.Data.LastName
-                     AccountId = evt.EntityId
-                     Email = evt.Data.Email
-                  }
-
-                  match createUser(user).Result with
-                  | Ok _ ->
-                     mailbox.Self <! UserCreated evt
-                     ignored ()
-                  | Error e ->
-                     logError $"Error creating user {e}"
+                  match cmd.toEvent () with
+                  | Error err ->
+                     logError <| $"Validation error creating account {err}"
                      unhandled ()
+                  | Ok evt ->
+                     // TODO: Consider creating a user actor & integrating an
+                     //       auth workflow in the future.
+                     //       Create the record & move along for now.
+                     let (user: User.User) = {
+                        FirstName = evt.Data.FirstName
+                        LastName = evt.Data.LastName
+                        AccountId = evt.EntityId
+                        Email = evt.Data.Email
+                     }
+
+                     match createUser(user).Result with
+                     | Ok _ ->
+                        mailbox.Self <! UserCreated evt
+                        ignored ()
+                     | Error e ->
+                        logError $"Error creating user {e}"
+                        unhandled ()
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
@@ -85,14 +88,18 @@ let start
 
                   match validation with
                   | Error err ->
-                     broadcaster.broadcastError err |> ignore
-                     logWarning $"Validation fail {err}"
+                     let errStr = string err
+                     broadcaster.broadcastError errStr |> ignore
+                     logWarning $"Validation fail %s{errStr}"
 
                      match err with
-                     | Contains "InsufficientBalance"
-                     | Contains "ExceededDailyDebit" ->
-                        EmailActor.get system
-                        <! EmailActor.DebitDeclined(err, account)
+                     | StateTransitionError e ->
+                        match e with
+                        | InsufficientBalance _
+                        | ExceededDailyDebit _ ->
+                           EmailActor.get system
+                           <! EmailActor.DebitDeclined(errStr, account)
+                        | _ -> ()
                      | _ -> ()
 
                      ignored ()
@@ -129,17 +136,17 @@ let start
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
             | :? Akka.Persistence.DeleteMessagesSuccess -> ignored ()
             | :? Akka.Persistence.DeleteMessagesFailure as e ->
-               logError $"Failure to delete message history {e.Cause.Message}"
+               logError $"Failure to delete message history %s{e.Cause.Message}"
                unhandled ()
             | :? PersistentLifecycleEvent as e ->
                match e with
                | ReplaySucceed -> ignored ()
                | ReplayFailed(exn, _) ->
-                  failwith $"Persistence replay failed: {exn.Message}"
+                  failwith $"Persistence replay failed: %s{exn.Message}"
                | PersistRejected(exn, _, _)
                | PersistFailed(exn, _, _) ->
                   broadcaster.broadcastError exn.Message |> ignore
-                  failwith $"Persistence failed: {exn.Message}"
+                  failwith $"Persistence failed: %s{exn.Message}"
             | :? SaveSnapshotSuccess -> ignored ()
             | :? SaveSnapshotFailure as e ->
                logError $"SaveSnapshotFailure {e.Metadata}"

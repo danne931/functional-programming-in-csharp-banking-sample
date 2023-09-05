@@ -13,6 +13,6 @@ module private Path =
 let startUserRoutes (app: WebApplication) =
    app.MapGet(
       Path.Base,
-      Func<Task<IResult>>(getUsers >> RouteUtil.unwrapTaskOption)
+      Func<Task<IResult>>(getUsers >> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore

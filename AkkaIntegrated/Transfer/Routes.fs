@@ -19,11 +19,7 @@ let startTransferRoutes (app: WebApplication) =
       Path.TransferRecipient,
       Func<AccountActorFac, RegisterTransferRecipientCommand, Task<IResult>>(
          (fun fac command ->
-            processCommand
-               fac
-               (Validators.registerTransferRecipient ())
-               command
-            |> RouteUtil.unwrapTaskValidation)
+            processCommand fac command |> RouteUtil.unwrapTaskResult)
       )
    )
    |> ignore
@@ -31,7 +27,6 @@ let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       Path.Base,
       Func<AccountActorFac, TransferCommand, Task<IResult>>(fun fac command ->
-         processCommand fac (Validators.transfer ()) command
-         |> RouteUtil.unwrapTaskValidation)
+         processCommand fac command |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

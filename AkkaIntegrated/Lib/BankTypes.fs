@@ -89,7 +89,7 @@ type AccountStatus =
 type AccountState =
    {
       EntityId: Guid
-      Email: string
+      Email: Email
       FirstName: string
       LastName: string
       Currency: Currency
@@ -105,7 +105,7 @@ type AccountState =
 
    static member empty = {
       EntityId = Guid.Empty
-      Email = ""
+      Email = Email.empty
       FirstName = ""
       LastName = ""
       Currency = Currency.USD

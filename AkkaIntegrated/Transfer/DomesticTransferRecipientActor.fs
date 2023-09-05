@@ -10,6 +10,7 @@ open Akka.Hosting
 open Akka.Actor
 open Akka.Pattern
 open Akka.Routing
+open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
 open Lib.Types
@@ -33,7 +34,7 @@ let domesticTransfer
    (evt: BankEvent<TransferPending>)
    : Task<Result<AckReceipt, string>>
    =
-   task {
+   taskResult {
       let msg = {|
          Action = "TransferRequest"
          AccountNumber = evt.Data.Recipient.Identification
@@ -50,14 +51,12 @@ let domesticTransfer
             Encoding.UTF8
             (JsonSerializer.SerializeToUtf8Bytes msg)
 
-      return
-         response
-         |> Result.bind (fun res ->
-            res |> string |> Serialization.deserialize<Response>)
-         |> Result.bind (fun res ->
-            match res.Ok with
-            | true -> Ok res.AckReceipt
-            | false -> Error res.Reason)
+      let! res = Serialization.deserialize<Response> response
+
+      return!
+         match res.Ok with
+         | true -> Ok res.AckReceipt
+         | false -> Error res.Reason
    }
 
 type Message =

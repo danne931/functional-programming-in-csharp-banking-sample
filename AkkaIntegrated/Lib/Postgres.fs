@@ -3,6 +3,9 @@ module Lib.Postgres
 open System
 open System.Threading.Tasks
 open Npgsql.FSharp
+open FsToolkit.ErrorHandling
+
+open Lib.Types
 
 let private connString =
    Environment.GetEnvironmentVariable "PostgresConnectionString"
@@ -15,46 +18,36 @@ let pgQuery<'t>
    (query: string)
    (parameters: SqlParameterList option)
    (mapper: RowReader -> 't)
-   : 't list option Task
+   : Result<'t list option, Err> Task
    =
-   task {
-      let! res =
-         connString
-         |> Sql.connect
-         |> Sql.query query
-         |> Sql.parameters (Option.defaultValue [] parameters)
-         |> Sql.executeAsync mapper
-
-      return if res.IsEmpty then None else Some res
-   }
+   connString
+   |> Sql.connect
+   |> Sql.query query
+   |> Sql.parameters (Option.defaultValue [] parameters)
+   |> Sql.executeAsync mapper
+   |> Task.map (fun res -> if res.IsEmpty then None else Some res)
+   |> TaskResult.ofTask
+   |> TaskResult.catch DatabaseError
 
 let pgPersist
    (query: string)
    (parameters: SqlParameterList)
-   : Result<int, string> Task
+   : Result<int, Err> Task
    =
-   task {
-      try
-         let! res =
-            connString
-            |> Sql.connect
-            |> Sql.query query
-            |> Sql.parameters parameters
-            |> Sql.executeNonQueryAsync
-
-         return Ok res
-      with e ->
-         return Error e.Message
-   }
+   connString
+   |> Sql.connect
+   |> Sql.query query
+   |> Sql.parameters parameters
+   |> Sql.executeNonQueryAsync
+   |> TaskResult.ofTask
+   |> TaskResult.catch DatabaseError
 
 let pgTransaction
    (txn: SqlTransactionStatement list)
-   : Result<int list, string> Task
+   : Result<int list, Err> Task
    =
-   task {
-      try
-         let! res = connString |> Sql.connect |> Sql.executeTransactionAsync txn
-         return Ok res
-      with e ->
-         return Error e.Message
-   }
+   connString
+   |> Sql.connect
+   |> Sql.executeTransactionAsync txn
+   |> TaskResult.ofTask
+   |> TaskResult.catch DatabaseError

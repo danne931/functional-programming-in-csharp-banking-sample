@@ -6,14 +6,15 @@
   <ItemGroup>
     <Compile Include="Lib/ActivePatterns.fs" />
     <Compile Include="Lib/Time.fs" />
-    <Compile Include="Lib/Postgres.fs" />
+    <Compile Include="Lib/Validators.fs" />
     <Compile Include="Lib/TCP.fs" />
     <Compile Include="Lib/Types.fs" />
+    <Compile Include="Lib/Postgres.fs" />
     <Compile Include="Lib/Actor.fs" />
-    <Compile Include="Transfer/Domain/Commands.fs" />
     <Compile Include="Transfer/Domain/Events.fs" />
-    <Compile Include="Account/Domain/Commands.fs" />
+    <Compile Include="Transfer/Domain/Commands.fs" />
     <Compile Include="Account/Domain/Events.fs" />
+    <Compile Include="Account/Domain/Commands.fs" />
     <Compile Include="Lib/BankTypes.fs" />
     <Compile Include="Lib/Serialization.fs" />
     <Compile Include="BillingCycle/Domain/MaintenanceFee.fs" />
@@ -31,11 +32,9 @@
     <Compile Include="AccountClosure/Api.fs" />
     <Compile Include="AccountClosure/Actor.fs" />
     <Compile Include="Account/AccountActor.fs" />
-    <Compile Include="Account/Domain/Validators.fs" /> 
     <Compile Include="Account/Api.fs" />
     <Compile Include="Lib/Routes.fs" />
     <Compile Include="Account/Routes.fs" />
-    <Compile Include="Transfer/Domain/Validators.fs" />
     <Compile Include="Transfer/Routes.fs" />
     <Compile Include="User/Routes.fs" />
     <Compile Include="Lib/Config.fs" />
@@ -58,6 +57,7 @@
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
+    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="4.9.0" />
     <PackageReference Include="Npgsql.FSharp" Version="5.7.0" />
     <PackageReference Include="Quartz" Version="3.7.0" />
     <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.7.0" />
@@ -66,5 +66,6 @@
     <PackageReference Include="Quartz.Serialization.Json" Version="3.7.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="7.0.0" />
     <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
+    <PackageReference Include="Validus" Version="4.1.3" />
   </ItemGroup>
 </Project>

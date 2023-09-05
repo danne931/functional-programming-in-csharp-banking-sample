@@ -92,14 +92,20 @@ let start (system: ActorSystem) (quartzPersistentActorRef: IActorRef) =
                ignored ()
             | :? DeleteAll as o ->
                let accountIds = o.AccountIds
-               let emailsOpt = deleteHistoricalRecords(accountIds).Result
+               let emailsTask = deleteHistoricalRecords (accountIds)
 
-               if emailsOpt.IsNone then
-                  logError "Account closure went awry.  No records deleted."
+               match emailsTask.Result with
+               | Error e ->
+                  logError $"Error deleting users & billing history {e}"
                   unhandled ()
-               else
-                  logInfo $"Account closure finished {emailsOpt.Value}"
-                  loop [] <@> SaveSnapshot []
+               | Ok opt ->
+                  match opt with
+                  | None ->
+                     logError "Account closure went awry.  No records deleted."
+                     unhandled ()
+                  | Some res ->
+                     logInfo $"Account closure finished {res}"
+                     loop [] <@> SaveSnapshot []
             | :? AccountClosureMessage as msg ->
                match msg with
                | Register account ->
