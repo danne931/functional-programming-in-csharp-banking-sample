@@ -3,9 +3,15 @@
   "isRoot": true,
   "tools": {
     "fsautocomplete": {
-      "version": "0.59.6",
+      "version": "0.62.0",
       "commands": [
         "fsautocomplete"
+      ]
+    },
+    "fantomas": {
+      "version": "6.2.0",
+      "commands": [
+        "fantomas"
       ]
     }
   }

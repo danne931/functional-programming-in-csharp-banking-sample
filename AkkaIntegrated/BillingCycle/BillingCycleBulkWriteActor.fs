@@ -84,13 +84,10 @@ let start (system: ActorSystem) =
 
       loop initState
 
-   spawn
-      system
-      ActorMetadata.billingCycleBulkWrite.Name
-      {
-         (props <| actorOf2 handler) with
-            Mailbox = Some "billing-cycle-bulk-write-mailbox"
-      }
+   spawn system ActorMetadata.billingCycleBulkWrite.Name {
+      (props <| actorOf2 handler) with
+         Mailbox = Some "billing-cycle-bulk-write-mailbox"
+   }
 
 let get (system: ActorSystem) : IActorRef<Message> =
    typed

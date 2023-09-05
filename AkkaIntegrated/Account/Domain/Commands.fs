@@ -118,83 +118,78 @@ type LockCardCommand(entityId, reference: string, correlationId) =
    member x.Reference = reference
 
    member x.toEvent() : ValidationResult<BankEvent<LockedCard>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               Reference =
-                  if String.IsNullOrEmpty x.Reference then
-                     None
-                  else
-                     Some x.Reference
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Reference =
+               if String.IsNullOrEmpty x.Reference then
+                  None
+               else
+                  Some x.Reference
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type UnlockCardCommand(entityId, reference: string, correlationId) =
    inherit Command(entityId, correlationId)
    member x.Reference = reference
 
    member x.toEvent() : ValidationResult<BankEvent<UnlockedCard>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               Reference =
-                  if String.IsNullOrEmpty x.Reference then
-                     None
-                  else
-                     Some x.Reference
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Reference =
+               if String.IsNullOrEmpty x.Reference then
+                  None
+               else
+                  Some x.Reference
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type MaintenanceFeeCommand(entityId) =
    inherit Command(entityId, correlationId = Guid.Empty)
    member x.Amount = 5m
 
    member x.toEvent() : ValidationResult<BankEvent<MaintenanceFeeDebited>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = { DebitedAmount = x.Amount }
-            CorrelationId = x.CorrelationId
-         }
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = { DebitedAmount = x.Amount }
+         CorrelationId = x.CorrelationId
+      }
 
 type SkipMaintenanceFeeCommand(entityId, reason: MaintenanceFeeCriteria) =
    inherit Command(entityId, correlationId = Guid.Empty)
    member x.Reason = reason
 
    member x.toEvent() : ValidationResult<BankEvent<MaintenanceFeeSkipped>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = { Reason = x.Reason }
-            CorrelationId = x.CorrelationId
-         }
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = { Reason = x.Reason }
+         CorrelationId = x.CorrelationId
+      }
 
 type CloseAccountCommand(entityId, reference: string) =
    inherit Command(entityId, correlationId = Guid.Empty)
    member x.Reference = reference
 
    member x.toEvent() : ValidationResult<BankEvent<AccountClosed>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               Reference =
-                  if String.IsNullOrEmpty x.Reference then
-                     None
-                  else
-                     Some x.Reference
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Reference =
+               if String.IsNullOrEmpty x.Reference then
+                  None
+               else
+                  Some x.Reference
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type BillingCycleCommand() =
    inherit Command(entityId = Guid.Empty, correlationId = Guid.Empty)

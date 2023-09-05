@@ -48,14 +48,13 @@ type TransferRejected = {
    Reason: string
 }
 
-type RegisteredInternalTransferRecipient =
-   {
-      LastName: string
-      FirstName: string
-      AccountNumber: string
-      Currency: Currency
-      AccountEnvironment: RecipientAccountEnvironment
-   }
+type RegisteredInternalTransferRecipient = {
+   LastName: string
+   FirstName: string
+   AccountNumber: string
+   Currency: Currency
+   AccountEnvironment: RecipientAccountEnvironment
+} with
 
    member x.toRecipient() = {
       FirstName = x.FirstName
@@ -67,15 +66,14 @@ type RegisteredInternalTransferRecipient =
       RoutingNumber = None
    }
 
-type RegisteredDomesticTransferRecipient =
-   {
-      LastName: string
-      FirstName: string
-      RoutingNumber: string option
-      AccountNumber: string
-      Currency: Currency
-      AccountEnvironment: RecipientAccountEnvironment
-   }
+type RegisteredDomesticTransferRecipient = {
+   LastName: string
+   FirstName: string
+   RoutingNumber: string option
+   AccountNumber: string
+   Currency: Currency
+   AccountEnvironment: RecipientAccountEnvironment
+} with
 
    member x.toRecipient() = {
       FirstName = x.FirstName
@@ -87,15 +85,14 @@ type RegisteredDomesticTransferRecipient =
       RoutingNumber = x.RoutingNumber
    }
 
-type RegisteredInternationalTransferRecipient =
-   {
-      LastName: string
-      FirstName: string
-      Identification: string
-      IdentificationStrategy: RecipientAccountIdentificationStrategy
-      Currency: Currency
-      AccountEnvironment: RecipientAccountEnvironment
-   }
+type RegisteredInternationalTransferRecipient = {
+   LastName: string
+   FirstName: string
+   Identification: string
+   IdentificationStrategy: RecipientAccountIdentificationStrategy
+   Currency: Currency
+   AccountEnvironment: RecipientAccountEnvironment
+} with
 
    member x.toRecipient() = {
       FirstName = x.FirstName

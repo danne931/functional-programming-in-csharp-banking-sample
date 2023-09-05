@@ -169,20 +169,18 @@ let start
    let ref = spawn system ActorMetadata.email.Name (props <| actorOf2 handler)
 
    breaker.OnHalfOpen(fun () ->
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.Email
-            Status = CircuitBreakerStatus.HalfOpen
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.Email
+         Status = CircuitBreakerStatus.HalfOpen
+      }
       |> ignore)
    |> ignore
 
    breaker.OnClose(fun () ->
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.Email
-            Status = CircuitBreakerStatus.Closed
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.Email
+         Status = CircuitBreakerStatus.Closed
+      }
       |> ignore)
    |> ignore
 
@@ -193,11 +191,10 @@ let start
          "Email circuit breaker open"
       )
 
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.Email
-            Status = CircuitBreakerStatus.Open
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.Email
+         Status = CircuitBreakerStatus.Open
+      }
       |> ignore)
    |> ignore
 

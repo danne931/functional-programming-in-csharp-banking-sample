@@ -137,20 +137,16 @@ let start
                Ignore
 
    let ref =
-      spawn
-         system
-         actorName
-         {
-            (props <| actorOf2 handler) with
-               Router = Some poolRouter
-         }
+      spawn system actorName {
+         (props <| actorOf2 handler) with
+            Router = Some poolRouter
+      }
 
    breaker.OnHalfOpen(fun () ->
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.HalfOpen
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.HalfOpen
+      }
       |> ignore
 
       ref <! BreakerHalfOpen)
@@ -161,11 +157,10 @@ let start
    // Broadcast to ensure all routees are informed.
    // Otherwise, only messages stashed on routee $a will be unstashed.
    breaker.OnClose(fun () ->
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.Closed
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.Closed
+      }
       |> ignore
 
       retype ref <! Broadcast BreakerClosed)
@@ -178,11 +173,10 @@ let start
          "Domestic transfer circuit breaker open"
       )
 
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.Open
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.Open
+      }
       |> ignore)
    |> ignore
 

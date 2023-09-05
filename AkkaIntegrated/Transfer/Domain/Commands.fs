@@ -57,22 +57,21 @@ type ApproveTransferCommand
    member x.AckReceipt = ackReceipt
 
    member x.toEvent() : ValidationResult<BankEvent<TransferApproved>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               Recipient = x.Recipient
-               Date = x.Date
-               DebitedAmount = x.Amount
-               AckReceipt =
-                  if String.IsNullOrEmpty x.AckReceipt then
-                     None
-                  else
-                     Some x.AckReceipt
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Recipient = x.Recipient
+            Date = x.Date
+            DebitedAmount = x.Amount
+            AckReceipt =
+               if String.IsNullOrEmpty x.AckReceipt then
+                  None
+               else
+                  Some x.AckReceipt
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type RejectTransferCommand
    (
@@ -90,18 +89,17 @@ type RejectTransferCommand
    member x.Reason = reason
 
    member x.toEvent() : ValidationResult<BankEvent<TransferRejected>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               Recipient = x.Recipient
-               Date = x.Date
-               DebitedAmount = x.Amount
-               Reason = x.Reason
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Recipient = x.Recipient
+            Date = x.Date
+            DebitedAmount = x.Amount
+            Reason = x.Reason
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type DepositTransferCommand
    (entityId, amount: decimal, origin: string, correlationId) =
@@ -110,16 +108,15 @@ type DepositTransferCommand
    member x.Origin = origin
 
    member x.toEvent() : ValidationResult<BankEvent<TransferDeposited>> =
-      Ok
-         {
-            EntityId = x.EntityId
-            Timestamp = x.Timestamp
-            Data = {
-               DepositedAmount = x.Amount
-               Origin = x.Origin
-            }
-            CorrelationId = x.CorrelationId
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            DepositedAmount = x.Amount
+            Origin = x.Origin
          }
+         CorrelationId = x.CorrelationId
+      }
 
 type RegisterTransferRecipientCommand
    (entityId, recipient: TransferRecipient, correlationId) =

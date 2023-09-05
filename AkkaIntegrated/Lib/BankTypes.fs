@@ -86,22 +86,21 @@ type AccountStatus =
    | ActiveWithLockedCard
    | Closed
 
-type AccountState =
-   {
-      EntityId: Guid
-      Email: Email
-      FirstName: string
-      LastName: string
-      Currency: Currency
-      Status: AccountStatus
-      Balance: decimal
-      AllowedOverdraft: decimal
-      DailyDebitLimit: decimal
-      DailyDebitAccrued: decimal
-      LastDebitDate: DateTime option
-      TransferRecipients: Map<string, TransferRecipient>
-      MaintenanceFeeCriteria: MaintenanceFeeCriteria
-   }
+type AccountState = {
+   EntityId: Guid
+   Email: Email
+   FirstName: string
+   LastName: string
+   Currency: Currency
+   Status: AccountStatus
+   Balance: decimal
+   AllowedOverdraft: decimal
+   DailyDebitLimit: decimal
+   DailyDebitAccrued: decimal
+   LastDebitDate: DateTime option
+   TransferRecipients: Map<string, TransferRecipient>
+   MaintenanceFeeCriteria: MaintenanceFeeCriteria
+} with
 
    static member empty = {
       EntityId = Guid.Empty

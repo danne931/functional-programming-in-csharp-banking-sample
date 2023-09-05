@@ -33,17 +33,16 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
 let applyEvent (state: AccountState) (evt: AccountEvent) =
    match evt with
    | CreatedAccount e ->
-      MaintenanceFee.reset
-         {
-            AccountState.empty with
-               EntityId = e.EntityId
-               Email = e.Data.Email
-               FirstName = e.Data.FirstName
-               LastName = e.Data.LastName
-               Currency = e.Data.Currency
-               Balance = e.Data.Balance
-               Status = AccountStatus.Active
-         }
+      MaintenanceFee.reset {
+         AccountState.empty with
+            EntityId = e.EntityId
+            Email = e.Data.Email
+            FirstName = e.Data.FirstName
+            LastName = e.Data.LastName
+            Currency = e.Data.Currency
+            Balance = e.Data.Balance
+            Status = AccountStatus.Active
+      }
    | AccountClosed _ -> {
       state with
          Status = AccountStatus.Closed
@@ -56,19 +55,17 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          }
          e.Data.DepositedAmount
    | DebitedAccount e ->
-      MaintenanceFee.fromDebit
-         {
-            state with
-               Balance = state.Balance - e.Data.DebitedAmount
-               DailyDebitAccrued = DailyDebitAccrued state e
-               LastDebitDate = Some e.Timestamp
-         }
+      MaintenanceFee.fromDebit {
+         state with
+            Balance = state.Balance - e.Data.DebitedAmount
+            DailyDebitAccrued = DailyDebitAccrued state e
+            LastDebitDate = Some e.Timestamp
+      }
    | MaintenanceFeeDebited e ->
-      MaintenanceFee.reset
-         {
-            state with
-               Balance = state.Balance - e.Data.DebitedAmount
-         }
+      MaintenanceFee.reset {
+         state with
+            Balance = state.Balance - e.Data.DebitedAmount
+      }
    | MaintenanceFeeSkipped _ -> MaintenanceFee.reset state
    | DailyDebitLimitUpdated e -> {
       state with
@@ -83,18 +80,16 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          Status = AccountStatus.Active
      }
    | TransferPending e ->
-      MaintenanceFee.fromDebit
-         {
-            state with
-               Balance = state.Balance - e.Data.DebitedAmount
-         }
+      MaintenanceFee.fromDebit {
+         state with
+            Balance = state.Balance - e.Data.DebitedAmount
+      }
    | TransferApproved _ -> state
    | TransferRejected e ->
-      MaintenanceFee.fromDebitReversal
-         {
-            state with
-               Balance = state.Balance + e.Data.DebitedAmount
-         }
+      MaintenanceFee.fromDebitReversal {
+         state with
+            Balance = state.Balance + e.Data.DebitedAmount
+      }
    | TransferDeposited e ->
       MaintenanceFee.fromDeposit
          {
