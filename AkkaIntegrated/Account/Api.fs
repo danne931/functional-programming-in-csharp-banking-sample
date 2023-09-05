@@ -9,6 +9,7 @@ open Akka.Streams
 open Akka.Persistence
 open ActorUtil
 open FsToolkit.ErrorHandling
+open Validus
 
 open Lib.Types
 open BankTypes
@@ -20,11 +21,16 @@ let createAccount (fac: AccountActorFac) (cmd: CreateAccountCommand) = taskResul
    return cmd.EntityId
 }
 
-let processCommand (fac: AccountActorFac) (cmd: 't :> Command) = taskResult {
-   let! _ = cmd.toEvent () |> Result.mapError ValidationError
-   fac.tell cmd.EntityId <| AccountMessage.StateChange cmd
-   return cmd.EntityId
-}
+let processCommand
+   (fac: AccountActorFac)
+   (command: 'C :> Command)
+   (validation: ValidationResult<BankEvent<'E>>)
+   =
+   taskResult {
+      let! _ = Result.mapError ValidationError validation
+      fac.tell command.EntityId <| AccountMessage.StateChange command
+      return validation
+   }
 
 let aggregateEvents
    (actorSystem: ActorSystem)

@@ -15,8 +15,6 @@ type Command(entityId: Guid, correlationId: Guid) =
       else
          correlationId
 
-   member x.toEvent() = Ok x
-
 type BankEvent<'E> =
    {
       EntityId: Guid

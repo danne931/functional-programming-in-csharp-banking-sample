@@ -52,43 +52,47 @@ let startAccountRoutes (app: WebApplication) =
    )
    |> ignore
 
-   let processCommand fac command =
-      processCommand fac command |> RouteUtil.unwrapTaskResult
-
    app.MapPost(
       Path.Deposit,
-      Func<AccountActorFac, DepositCashCommand, Task<IResult>>(processCommand)
+      Func<AccountActorFac, DepositCashCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<AccountActorFac, DebitCommand, Task<IResult>>(processCommand)
+      Func<AccountActorFac, DebitCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<AccountActorFac, LimitDailyDebitsCommand, Task<IResult>>(
-         processCommand
-      )
+      Func<AccountActorFac, LimitDailyDebitsCommand, Task<IResult>>
+         (fun fac cmd ->
+            cmd.toEvent ()
+            |> processCommand fac cmd
+            |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<AccountActorFac, LockCardCommand, Task<IResult>>(processCommand)
+      Func<AccountActorFac, LockCardCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(processCommand)
+      Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.CloseAccount,
-      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>(processCommand)
+      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

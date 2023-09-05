@@ -134,14 +134,14 @@ module private StateTransition =
       Error <| StateTransitionError err
 
    let map
-      (evtTransform: BankEvent<'t> -> AccountEvent)
+      (eventTransform: BankEvent<'t> -> AccountEvent)
       (state: AccountState)
       (eventValidation: ValidationResult<BankEvent<'t>>)
       =
       eventValidation
       |> Result.mapError ValidationError
       |> Result.map (fun evt ->
-         let evt = evtTransform evt
+         let evt = eventTransform evt
          (evt, applyEvent state evt))
 
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
