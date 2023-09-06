@@ -1,14 +1,12 @@
 module Lib.Postgres
 
-open System
 open System.Threading.Tasks
 open Npgsql.FSharp
 open FsToolkit.ErrorHandling
 
 open Lib.Types
 
-let private connString =
-   Environment.GetEnvironmentVariable "PostgresConnectionString"
+let private connString = EnvironmentConfig.config.ConnectionStrings.Postgres
 
 type SqlParameter = string * SqlValue
 type SqlParameterList = SqlParameter list

@@ -7,9 +7,7 @@ open Bank.Account.Routes
 open Bank.Transfer.Routes
 open Bank.Hubs
 
-let builder = WebApplication.CreateBuilder()
-
-Config.setEnvironment builder
+let builder = EnvironmentConfig.builder
 
 Config.startLogger builder
 

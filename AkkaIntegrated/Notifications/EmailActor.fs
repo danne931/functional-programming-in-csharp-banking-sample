@@ -15,6 +15,8 @@ open Lib.Types
 open ActorUtil
 open Bank.Transfer.Domain
 
+let private envConfig = EnvironmentConfig.config
+
 // NOTE: May have to throttle requests to email service as number of
 //       TransferDeposited/BillingStatement messages received per second
 //       may be higher than the number of requests per second that
@@ -88,7 +90,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
      }
    | ApplicationErrorRequiresSupport errMsg -> {
       event = "application-error-requires-support"
-      email = Environment.GetEnvironmentVariable("SupportEmail")
+      email = envConfig.SupportEmail |> Option.defaultValue null
       data = {| error = errMsg |}
      }
 
@@ -113,8 +115,7 @@ let private sendEmail (client: HttpClient) (data: TrackingEvent) = task {
 }
 
 let private createClient (bearerToken: string) =
-   let client =
-      new HttpClient(BaseAddress = Uri("https://api.useplunk.com/v1/"))
+   let client = new HttpClient(BaseAddress = Uri(envConfig.EmailServiceUri))
 
    client.DefaultRequestHeaders.Authorization <-
       Headers.AuthenticationHeaderValue("Bearer", bearerToken)
@@ -127,12 +128,8 @@ let start
    (broadcaster: AccountBroadcast)
    : IActorRef<obj>
    =
-   let emailBearerToken = Environment.GetEnvironmentVariable("EmailBearerToken")
-
    let client =
-      match isNull emailBearerToken with
-      | true -> None
-      | false -> Some(createClient emailBearerToken)
+      EnvironmentConfig.config.EmailBearerToken |> Option.map createClient
 
    let handler (ctx: Actor<_>) (msg: obj) =
       let logWarning, logError = logWarning ctx, logError ctx

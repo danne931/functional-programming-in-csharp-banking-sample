@@ -29,6 +29,8 @@ open Bank.Hubs
 open Bank.Account.Api
 open ActorUtil
 
+let private envConfig = EnvironmentConfig.config
+
 let startLogger (builder: WebApplicationBuilder) =
    // NOTE: Initial logger logs errors during during start up.
    //       It's replaced by the config in UseSerilog below.
@@ -40,7 +42,7 @@ let startLogger (builder: WebApplicationBuilder) =
          .ReadFrom.Services(services)
          .Enrich.FromLogContext()
          .WriteTo.Console(theme = Themes.AnsiConsoleTheme.Code)
-         .WriteTo.File(CompactJsonFormatter(), "logs.json")
+         .WriteTo.File(CompactJsonFormatter(), envConfig.SerilogOutputFile)
       |> ignore)
    |> ignore
 
@@ -58,11 +60,8 @@ let startSignalR (builder: WebApplicationBuilder) =
    |> ignore
 
 let startActorModel (builder: WebApplicationBuilder) =
-   let connString =
-      Environment.GetEnvironmentVariable "PostgresConnectionStringAdoFormat"
-
-   let dbProvider = "PostgreSQL.15"
-   let db_prefix = "akka_"
+   let connString = envConfig.ConnectionStrings.PostgresAdoFormat
+   let dbProvider = envConfig.AkkaPersistence.DbProvider
 
    let journalOpts = SqlJournalOptions()
    journalOpts.ConnectionString <- connString
@@ -70,7 +69,7 @@ let startActorModel (builder: WebApplicationBuilder) =
    journalOpts.AutoInitialize <- true
    let jdo = JournalDatabaseOptions(DatabaseMapping.Default)
    let jto = JournalTableOptions()
-   jto.TableName <- $"{db_prefix}event_journal"
+   jto.TableName <- envConfig.AkkaPersistence.JournalTableName
    jto.UseWriterUuidColumn <- true
    jdo.JournalTable <- jto
    journalOpts.DatabaseOptions <- jdo
@@ -87,14 +86,14 @@ let startActorModel (builder: WebApplicationBuilder) =
    snapshotOpts.AutoInitialize <- true
    let sdo = SnapshotDatabaseOptions(DatabaseMapping.Default)
    let sto = SnapshotTableOptions()
-   sto.TableName <- $"{db_prefix}snapshots"
+   sto.TableName <- envConfig.AkkaPersistence.SnapshotTableName
    sdo.SnapshotTable <- sto
    snapshotOpts.DatabaseOptions <- sdo
 
    let akkaConfig = builder.Configuration.GetSection "akka"
 
    builder.Services.AddAkka(
-      "bank",
+      envConfig.AkkaSystemName,
       (fun builder provider ->
          builder
             .AddHocon(akkaConfig, HoconAddMode.Prepend)
@@ -106,10 +105,10 @@ let startActorModel (builder: WebApplicationBuilder) =
                """,
                HoconAddMode.Prepend
             )
-            .WithRemoting("localhost", 8081)
+            .WithRemoting(envConfig.AkkaRemoteHost, envConfig.AkkaRemotePort)
             .WithClustering(
                ClusterOptions(
-                  SeedNodes = [| "akka.tcp://bank@localhost:8081/" |]
+                  SeedNodes = List.toArray envConfig.AkkaClusterSeedNodes
                )
             )
             .WithSqlPersistence(connString, dbProvider, PersistenceMode.Both)
@@ -137,7 +136,7 @@ let startActorModel (builder: WebApplicationBuilder) =
             //.WithShardRegion("account", )
             .ConfigureLoggers(fun builder ->
                builder.LogLevel <- LogLevel.InfoLevel
-               builder.LogConfigOnStart <- true
+               //builder.LogConfigOnStart <- true
                builder.AddLogger<SerilogLogger>() |> ignore
 
                builder.LogMessageFormatter <-
@@ -285,7 +284,7 @@ let startQuartz (builder: WebApplicationBuilder) =
    builder.Services
       .AddOptions<QuartzOptions>()
       .Configure(fun opts ->
-         opts.SchedulerName <- "Quartz Bank Scheduler"
+         opts.SchedulerName <- envConfig.Quartz.SchedulerName
          opts.Scheduling.OverWriteExistingData <- false
          // Attempts to add a job with a name of a job already
          // scheduled will be ignored.
@@ -293,13 +292,12 @@ let startQuartz (builder: WebApplicationBuilder) =
          ())
       .Services.AddQuartz(fun q ->
          q.UsePersistentStore(fun store ->
-            store.SetProperty("quartz.jobStore.tablePrefix", "qrtz_")
-
-            store.UsePostgres(
-               Environment.GetEnvironmentVariable(
-                  "PostgresConnectionStringAdoFormat"
-               )
+            store.SetProperty(
+               "quartz.jobStore.tablePrefix",
+               envConfig.Quartz.TablePrefix
             )
+
+            store.UsePostgres(envConfig.ConnectionStrings.PostgresAdoFormat)
 
             store.UseNewtonsoftJsonSerializer()
 
@@ -337,49 +335,3 @@ let startQuartz (builder: WebApplicationBuilder) =
       // Avoid running jobs until application started
       opts.AwaitApplicationStarted <- true)
    |> ignore
-
-let setEnvironment (builder: WebApplicationBuilder) =
-   let pgConnString =
-      builder.Configuration.GetSection("ConnectionStrings").Item "Postgres"
-
-   if isNull pgConnString then
-      failwith "Missing Postgres connection string in appsettings.json"
-
-   Environment.SetEnvironmentVariable("PostgresConnectionString", pgConnString)
-
-   let pgAdoConnString =
-      builder.Configuration.GetSection("ConnectionStrings").Item
-         "PostgresAdoFormat"
-
-   if isNull pgAdoConnString then
-      failwith "Missing Postgres ADO connection string in appsettings.json"
-
-   Environment.SetEnvironmentVariable(
-      "PostgresConnectionStringAdoFormat",
-      pgAdoConnString
-   )
-
-   // For local development, this value is set in ~/.microsoft/usersecrets.
-   // See https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-7.0&tabs=linux#set-a-secret
-   let emailBearerToken =
-      builder.Configuration.GetSection("EmailBearerToken").Value
-
-   if isNull emailBearerToken then
-#if !DEBUG
-      failwith "Missing EmailBearerToken configuration setting"
-#else
-      printfn "Emails will not be sent if EmailBearerToken not configured."
-#endif
-   else
-      Environment.SetEnvironmentVariable("EmailBearerToken", emailBearerToken)
-
-   let supportEmail = builder.Configuration.GetSection("SupportEmail").Value
-
-   if isNull supportEmail then
-#if !DEBUG
-      failwith "Missing SupportEmail configuration setting"
-#else
-      printfn "Missing SupportEmail configuration setting"
-#endif
-   else
-      Environment.SetEnvironmentVariable("SupportEmail", supportEmail)

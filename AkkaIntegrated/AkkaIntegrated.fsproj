@@ -4,6 +4,7 @@
     <UserSecretsId>786cd0ff-1b7e-4af1-9d49-0c7e1c26017a</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Lib/EnvironmentConfig.fs" />
     <Compile Include="Lib/ActivePatterns.fs" />
     <Compile Include="Lib/Time.fs" />
     <Compile Include="Lib/Validators.fs" />
@@ -55,6 +56,7 @@
     <PackageReference Include="Akkling" Version="0.13.0" />
     <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
+    <PackageReference Include="FsConfig" Version="4.0.0" />
     <PackageReference Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="4.9.0" />
