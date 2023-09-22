@@ -207,7 +207,7 @@ function renderAccountState (account) {
     ? `$${account.dailyDebitLimit}`
     : '-'
   selectors.dailyDebitAccrued().textContent = `$${account.dailyDebitAccrued}`
-  selectors.debitCardLock().checked = account.status === 'ActiveWithLockedCard'
+  selectors.debitCardLock().checked = account.status === 'CardLocked'
 }
 
 function interpolateTransferRecipientSelection (account) {
@@ -439,7 +439,8 @@ listenForFormSubmit(
   '/accounts/deposit',
   formData => ({
     entityId: state.selectedAccountId,
-    amount: formData.get('account-deposit-amount')
+    amount: formData.get('account-deposit-amount'),
+    date: new Date()
   })
 )
 
@@ -449,7 +450,8 @@ listenForFormSubmit(
   formData => ({
     entityId: state.selectedAccountId,
     amount: formData.get('account-debit-amount'),
-    origin: formData.get('account-debit-origin')
+    origin: formData.get('account-debit-origin'),
+    date: new Date()
   })
 )
 

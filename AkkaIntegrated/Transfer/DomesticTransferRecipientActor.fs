@@ -1,7 +1,7 @@
 [<RequireQualifiedAccess>]
 module DomesticTransferRecipientActor
 
-open System.Threading.Tasks
+open System
 open System.Text
 open System.Text.Json
 open System.Net
@@ -20,8 +20,6 @@ open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
 
-let private actorName = ActorMetadata.domesticTransfer.Name
-
 type Response = {
    AccountNumber: string
    RoutingNumber: string
@@ -32,7 +30,7 @@ type Response = {
 
 let domesticTransfer
    (evt: BankEvent<TransferPending>)
-   : Task<Result<AckReceipt, string>>
+   : TaskResult<Response, string>
    =
    taskResult {
       let msg = {|
@@ -51,94 +49,153 @@ let domesticTransfer
             Encoding.UTF8
             (JsonSerializer.SerializeToUtf8Bytes msg)
 
-      let! res = Serialization.deserialize<Response> response
-
-      return!
-         match res.Ok with
-         | true -> Ok res.AckReceipt
-         | false -> Error res.Reason
+      return! Serialization.deserialize<Response> response
    }
 
 type Message =
    | TransferPending of BankEvent<TransferPending>
+   | TransferResponse of Response * BankEvent<TransferPending>
    | BreakerHalfOpen
    | BreakerClosed
 
+let actorProps
+   (breaker: CircuitBreaker)
+   (getAccountRef: EntityRefGetter<obj>)
+   (emailActor: IActorRef<EmailActor.EmailMessage>)
+   (requestTransfer: BankEvent<TransferPending> -> TaskResult<Response, string>)
+   =
+   let handler (mailbox: Actor<obj>) (message: obj) =
+      let logError, logInfo = logError mailbox, logInfo mailbox
+
+      let transfer (evt: BankEvent<TransferPending>) = task {
+         let! result = requestTransfer evt
+
+         return
+            match result with
+            | Ok res -> TransferResponse(res, evt)
+            | Error errMsg ->
+               match errMsg with
+               | Contains "Serialization"
+               | Contains "Deserialization" ->
+                  let errMsg = $"Corrupt data: {errMsg}"
+                  logError errMsg
+
+                  let res = {
+                     AccountNumber = evt.Data.Recipient.Identification
+                     RoutingNumber = evt.Data.Recipient.RoutingNumber.Value
+                     Ok = false
+                     Reason = "CorruptData"
+                     AckReceipt = AckReceipt ""
+                  }
+
+                  TransferResponse(res, evt)
+               | Contains "Connection"
+               | _ ->
+                  // NOTE:
+                  // Intermittent Error: Reprocess message later
+                  //
+                  // I would use mailbox.Stash() here but it won't
+                  // reference the appropriate message due to the async
+                  // nature of PipeTo "|!>" below.  Instead, just resend
+                  // the message after a delay.  It will be stashed
+                  // if the circuit breaker is open when it's
+                  // reprocessed.
+                  mailbox.Schedule
+                  <| TimeSpan.FromSeconds(15.)
+                  <| mailbox.Self
+                  <| TransferPending evt
+                  |> ignore
+
+                  failwith errMsg // Side Effect: Trip circuit breaker
+      }
+
+      match message with
+      | :? Message as msg ->
+         match msg with
+         | BreakerHalfOpen ->
+            logInfo "Breaker half open - unstash one"
+            mailbox.Unstash()
+            Ignore
+         | BreakerClosed ->
+            logInfo "Breaker closed - unstash all"
+            mailbox.UnstashAll()
+            Ignore
+         | TransferPending evt ->
+            if breaker.IsOpen then
+               logInfo "Domestic transfer breaker Open - stashing message"
+               mailbox.Stash()
+               Ignore
+            else
+               breaker.WithCircuitBreaker(fun () -> transfer evt)
+               |> Async.AwaitTask
+               |!> retype mailbox.Self
+
+               Ignore
+         | TransferResponse(res, evt) ->
+            let accountRef = getAccountRef evt.EntityId
+
+            if res.Ok then
+               let msg =
+                  AccountMessage.StateChange(Command.approve evt res.AckReceipt)
+
+               accountRef <! msg
+
+               mailbox.UnstashAll()
+               Ignore
+            else
+               let errMsg = res.Reason
+
+               match errMsg with
+               | Contains "CorruptData"
+               | Contains "InvalidAction" ->
+                  logError $"Transfer API requires code update: {errMsg}"
+
+                  emailActor
+                  <! EmailActor.ApplicationErrorRequiresSupport errMsg
+
+                  Unhandled
+               | Contains "InvalidAmount"
+               | Contains "InvalidAccountInfo"
+               | Contains "InactiveAccount"
+               | _ ->
+                  let msg =
+                     AccountMessage.StateChange(Command.reject evt errMsg)
+
+                  accountRef <! msg
+                  Ignore
+      | :? Status.Failure as e ->
+         // Only intermittent network issues which we raise exceptions
+         // for to trip the circuit breaker should reach here.
+         logWarning mailbox $"Intermittent network issue {e}"
+         Ignore
+      | LifecycleEvent _ -> Ignore
+      | msg ->
+         logError $"Unknown message {msg}"
+         Unhandled
+
+   props <| actorOf2 handler
+
 let start
    (system: ActorSystem)
-   (breaker: CircuitBreaker)
    (broadcaster: AccountBroadcast)
-   (accountFac: AccountActorFac)
-   (poolRouter: Pool)
+   (getAccountRef: EntityRefGetter<obj>)
    =
-   let handler (mailbox: Actor<Message>) (msg: Message) =
-      let logError = logError mailbox
-      let logInfo = logInfo mailbox
+   let poolRouter = RoundRobinPool(1, DefaultResizer(1, 10))
 
-      match msg with
-      | BreakerHalfOpen ->
-         logInfo "Breaker half open - unstash one"
-         mailbox.Unstash()
-         Ignore
-      | BreakerClosed ->
-         logInfo "Breaker closed - unstash all"
-         mailbox.UnstashAll()
-         Ignore
-      | TransferPending evt ->
-         if breaker.IsOpen then
-            logInfo "Domestic transfer breaker Open - stashing message"
-            mailbox.Stash()
-            Ignore
-         else
-            try
-               breaker.WithSyncCircuitBreaker(fun () ->
-                  match (domesticTransfer evt).Result with
-                  | Ok ackReceipt ->
-                     let msg =
-                        AccountMessage.StateChange(
-                           Command.approve evt ackReceipt
-                        )
+   let breaker =
+      CircuitBreaker(
+         system.Scheduler,
+         maxFailures = 2,
+         callTimeout = TimeSpan.FromSeconds 7,
+         resetTimeout = TimeSpan.FromMinutes 1
+      )
 
-                     accountFac.tell evt.EntityId msg
-
-                     mailbox.UnstashAll()
-
-                     Ignore
-                  | Error errMsg ->
-                     match errMsg with
-                     | Contains "InvalidAmount"
-                     | Contains "InvalidAccountInfo"
-                     | Contains "InactiveAccount" ->
-                        let msg =
-                           AccountMessage.StateChange(
-                              Command.reject evt errMsg
-                           )
-
-                        accountFac.tell evt.EntityId msg
-
-                        Ignore
-                     | Contains "Serialization"
-                     | Contains "InvalidAction" ->
-                        let errMsg = $"Developer error: {errMsg}"
-                        logError errMsg
-
-                        EmailActor.get mailbox.System
-                        <! EmailActor.ApplicationErrorRequiresSupport errMsg
-
-                        Unhandled // Send to dead letters instead of stashing
-                     | Contains "Connection"
-                     | _ ->
-                        // Intermittent network error
-                        mailbox.Stash() // Store message to reprocess later
-                        failwith errMsg // Trip the circuit breaker
-               )
-            with err when true ->
-               logError err.Message
-               Ignore
+   let prop =
+      actorProps breaker getAccountRef (EmailActor.get system) domesticTransfer
 
    let ref =
-      spawn system actorName {
-         (props <| actorOf2 handler) with
+      spawn system ActorMetadata.domesticTransfer.Name {
+         prop with
             Router = Some poolRouter
       }
 

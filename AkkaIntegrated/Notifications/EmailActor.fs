@@ -122,12 +122,7 @@ let private createClient (bearerToken: string) =
 
    client
 
-let start
-   (system: ActorSystem)
-   (breaker: CircuitBreaker)
-   (broadcaster: AccountBroadcast)
-   : IActorRef<obj>
-   =
+let actorProps (breaker: CircuitBreaker) =
    let client =
       EnvironmentConfig.config.EmailBearerToken |> Option.map createClient
 
@@ -163,7 +158,18 @@ let start
          logError $"Unknown msg {msg}"
          unhandled ()
 
-   let ref = spawn system ActorMetadata.email.Name (props <| actorOf2 handler)
+   props <| actorOf2 handler
+
+let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
+   let breaker =
+      CircuitBreaker(
+         system.Scheduler,
+         maxFailures = 2,
+         callTimeout = TimeSpan.FromSeconds 7,
+         resetTimeout = TimeSpan.FromMinutes 1
+      )
+
+   let ref = spawn system ActorMetadata.email.Name <| actorProps breaker
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.broadcastCircuitBreaker {

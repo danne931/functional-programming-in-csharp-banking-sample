@@ -7,23 +7,38 @@ open Akka.Persistence
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
+open FsToolkit.ErrorHandling
 
 open Lib.Types
 open BankTypes
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open Bank.User.Api
 
 let private persist e =
    e |> Event |> box |> Persist :> Effect<_>
 
-let start
+let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
-   (system: ActorSystem)
+   (getOrStartInternalTransferActor:
+      Actor<_> -> IActorRef<BankEvent<TransferPending>>)
+   (getDomesticTransferActor:
+      ActorSystem -> IActorRef<DomesticTransferRecipientActor.Message>)
+   (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
+   (getAccountClosureActor:
+      ActorSystem -> IActorRef<AccountClosureActor.AccountClosureMessage>)
+   (startBillingCycleActor:
+      Actor<_>
+         -> AccountPersistence
+         -> AccountState
+         -> IActorRef<BillingCycleActor.Message>)
+   (userPersistence: UserPersistence)
    =
-   let actorName = ActorMetadata.account.Name
+   let createUser (user: User.User) (evt: BankEvent<CreatedAccount>) = async {
+      let! res = userPersistence.createUser user |> Async.AwaitTask
+      return UserCreationResponse(res, evt)
+   }
 
    let handler (mailbox: Eventsourced<obj>) =
       let logError, logWarning = logError mailbox, logWarning mailbox
@@ -40,14 +55,21 @@ let start
                broadcaster.broadcast (evt, newState) |> ignore
 
                match evt with
+               | CreatedAccount e ->
+                  let (user: User.User) = {
+                     FirstName = e.Data.FirstName
+                     LastName = e.Data.LastName
+                     AccountId = e.EntityId
+                     Email = e.Data.Email
+                  }
+
+                  createUser user e |!> retype mailbox.Self
                | TransferPending e -> mailbox.Self <! DispatchTransfer e
                | TransferDeposited e ->
-                  EmailActor.get system
+                  getEmailActor mailbox.System
                   <! EmailActor.TransferDeposited(e, newState)
-               | CreatedAccount _ ->
-                  EmailActor.get system <! EmailActor.AccountOpen newState
                | AccountClosed _ ->
-                  AccountClosureActor.get system
+                  getAccountClosureActor mailbox.System
                   <! AccountClosureActor.Register newState
                | _ -> ()
 
@@ -55,50 +77,27 @@ let start
             | :? SnapshotOffer as o -> loop <| Some(unbox o.Snapshot)
             | :? AccountMessage as msg ->
                match msg with
-               | InitAccount cmd ->
-                  match cmd.toEvent () with
-                  | Error err ->
-                     logError <| $"Validation error creating account {err}"
-                     unhandled ()
-                  | Ok evt ->
-                     // TODO: Consider creating a user actor & integrating an
-                     //       auth workflow in the future.
-                     //       Create the record & move along for now.
-                     let (user: User.User) = {
-                        FirstName = evt.Data.FirstName
-                        LastName = evt.Data.LastName
-                        AccountId = evt.EntityId
-                        Email = evt.Data.Email
-                     }
-
-                     match createUser(user).Result with
-                     | Ok _ ->
-                        mailbox.Self <! UserCreated evt
-                        ignored ()
-                     | Error e ->
-                        logError $"Error creating user {e}"
-                        unhandled ()
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
                | BillingCycle _ when accountOpt.IsSome ->
-                  ignored <| BillingCycleActor.start mailbox persistence account
+                  ignored <| startBillingCycleActor mailbox persistence account
                | StateChange cmd ->
                   let validation = Account.stateTransition account cmd
 
                   match validation with
                   | Error err ->
-                     let errStr = string err
-                     broadcaster.broadcastError errStr |> ignore
-                     logWarning $"Validation fail %s{errStr}"
+                     let errMsg = string err
+                     broadcaster.broadcastError errMsg |> ignore
+                     logWarning $"Validation fail %s{errMsg}"
 
                      match err with
                      | StateTransitionError e ->
                         match e with
                         | InsufficientBalance _
                         | ExceededDailyDebit _ ->
-                           EmailActor.get system
-                           <! EmailActor.DebitDeclined(errStr, account)
+                           getEmailActor mailbox.System
+                           <! EmailActor.DebitDeclined(errMsg, account)
                         | _ -> ()
                      | _ -> ()
 
@@ -107,34 +106,45 @@ let start
                | DispatchTransfer evt ->
                   match evt.Data.Recipient.AccountEnvironment with
                   | RecipientAccountEnvironment.Internal ->
-                     InternalTransferRecipientActor.getOrStart mailbox <! evt
+                     getOrStartInternalTransferActor mailbox <! evt
                   | RecipientAccountEnvironment.Domestic ->
-                     DomesticTransferRecipientActor.get system
+                     getDomesticTransferActor mailbox.System
                      <! (evt |> DomesticTransferRecipientActor.TransferPending)
                   | _ -> ()
 
                   ignored ()
-               | UserCreated(evt: BankEvent<CreatedAccount>) ->
-                  persist <| CreatedAccount evt
+               | UserCreationResponse(res: Result<int, Err>,
+                                      evt: BankEvent<CreatedAccount>) ->
+                  match res with
+                  | Ok _ ->
+                     getEmailActor mailbox.System
+                     <! EmailActor.AccountOpen account
+
+                     ignored ()
+                  | Error e ->
+                     logError $"Error creating user {e}"
+                     unhandled ()
                | Delete ->
-                  // TODO: Fix passivate shutting down the actor
-                  //       before the DeleteSnapshotsSuccess
-                  //       message arrives causing an unnecessary
-                  //       dead letter.
-                  DeleteSnapshots(SnapshotSelectionCriteria Int64.MaxValue)
-                  <@> DeleteMessages Int64.MaxValue
-                  <@> passivate ()
+                  let newState = {
+                     account with
+                        Status = AccountStatus.ReadyForDelete
+                  }
+
+                  loop (Some newState) <@> DeleteMessages Int64.MaxValue
                | BillingCycleEnd ->
                   broadcaster.broadcastBillingCycleEnd () |> ignore
 
-                  SaveSnapshot account :> Effect<_>
-                  <@> DeleteMessages Int64.MaxValue
+                  SaveSnapshot account <@> DeleteMessages Int64.MaxValue
             // Event replay on actor start
             | :? AccountEvent as e when mailbox.IsRecovering() ->
                loop <| Some(Account.applyEvent account e)
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
-            | :? Akka.Persistence.DeleteMessagesSuccess -> ignored ()
+            | :? Akka.Persistence.DeleteMessagesSuccess ->
+               if account.Status = AccountStatus.ReadyForDelete then
+                  DeleteSnapshots(SnapshotSelectionCriteria Int64.MaxValue)
+               else
+                  ignored ()
             | :? Akka.Persistence.DeleteMessagesFailure as e ->
                logError $"Failure to delete message history %s{e.Cause.Message}"
                unhandled ()
@@ -151,6 +161,14 @@ let start
             | :? SaveSnapshotFailure as e ->
                logError $"SaveSnapshotFailure {e.Metadata}"
                unhandled ()
+            | :? DeleteSnapshotsSuccess ->
+               if account.Status = AccountStatus.ReadyForDelete then
+                  passivate ()
+               else
+                  ignored ()
+            | :? DeleteSnapshotsFailure as e ->
+               logError $"DeleteSnapshotsFailure %s{e.Cause.Message}"
+               unhandled ()
             | msg ->
                logError $"Unknown message {msg}"
                unhandled ()
@@ -158,4 +176,29 @@ let start
 
       loop None
 
-   AkklingExt.entityFactoryFor system actorName <| propsPersist handler
+   propsPersist handler
+
+let get (fac: EntityFac<obj>) (entityId: Guid) =
+   fac.RefFor "account" (string entityId)
+
+let start
+   (persistence: AccountPersistence)
+   (broadcaster: AccountBroadcast)
+   (system: ActorSystem)
+   =
+   let getOrStartInternalTransferActor mailbox =
+      InternalTransferRecipientActor.getOrStart mailbox
+      <| AkklingExt.getEntityRef system "account"
+
+   AkklingExt.entityFactoryFor system ActorMetadata.account.Name
+   <| actorProps
+      persistence
+      broadcaster
+      getOrStartInternalTransferActor
+      DomesticTransferRecipientActor.get
+      EmailActor.get
+      AccountClosureActor.get
+      BillingCycleActor.start
+      {
+         createUser = Bank.User.Api.createUser
+      }

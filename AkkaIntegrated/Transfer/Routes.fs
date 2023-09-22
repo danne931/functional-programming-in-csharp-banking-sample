@@ -8,7 +8,7 @@ open System.Threading.Tasks
 
 open Bank.Transfer.Domain
 open Bank.Account.Api
-open ActorUtil
+open ActorUtil.ActorMetadata
 
 module private Path =
    let Base = "/transfers"

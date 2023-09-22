@@ -22,7 +22,8 @@ type TransferCommand
    member x.Reference = reference
 
    member x.toEvent() : ValidationResult<BankEvent<TransferPending>> = validate {
-      let! _ = Check.Decimal.greaterThan 0m "Debited amount" x.Amount
+      let! _ = amountValidator "Transfer debit amount" x.Amount
+      let! _ = dateNotDefaultValidator "Transfer date" x.Date
 
       return {
          EntityId = x.EntityId

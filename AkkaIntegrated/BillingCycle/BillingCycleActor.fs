@@ -15,14 +15,14 @@ open ActorUtil
 module Api = Bank.BillingCycle.Api
 
 type Message =
-   private
    | SaveBillingStatement
    | AccountTransactionsLoaded of AccountEvent list option
 
-let start
-   (mailbox: Actor<obj>)
+let actorProps
    (persistence: AccountPersistence)
    (account: AccountState)
+   (billingCycleBulkWriteActor: IActorRef<BillingCycleBulkWriteActor.Message>)
+   (emailActor: IActorRef<EmailActor.EmailMessage>)
    =
    let accountId = account.EntityId
 
@@ -43,7 +43,7 @@ let start
          else
             let billing = BillingStatement.create account txnsOpt.Value
 
-            BillingCycleBulkWriteActor.get mailbox.System
+            billingCycleBulkWriteActor
             <! BillingCycleBulkWriteActor.RegisterBillingStatement billing
 
             // Maintenance fee conditionally applied after account transactions
@@ -62,18 +62,34 @@ let start
                let cmd = MaintenanceFeeCommand accountId
                accountRef <! AccountMessage.StateChange cmd
 
-            EmailActor.get ctx.System <! EmailActor.BillingStatement account
+            emailActor <! EmailActor.BillingStatement account
 
          retype ctx.Self <! PoisonPill.Instance
    }
 
-   let aref = spawn mailbox ActorMetadata.billingCycle.Name <| props handler
+   props handler
+
+
+let start
+   (mailbox: Actor<obj>)
+   (persistence: AccountPersistence)
+   (account: AccountState)
+   =
+   let aref =
+      spawn mailbox ActorMetadata.billingCycle.Name
+      <| actorProps
+            persistence
+            account
+            (BillingCycleBulkWriteActor.get mailbox.System)
+            (EmailActor.get mailbox.System)
+
    aref <! SaveBillingStatement
    aref
 
 let scheduleMonthly
    (system: ActorSystem)
    (quartzPersistentActorRef: IActorRef)
+   (getAccountRef: EntityRefGetter<obj>)
    =
    let name = "BillingCycle"
    let group = "Bank"
@@ -103,8 +119,7 @@ let scheduleMonthly
             (fun id ->
                if id.StartsWith("account/") then
                   let id = id.Split("/")[2] |> Guid
-                  let fac = ActorUtil.AccountActorFac system
-                  fac.tell id <| AccountMessage.BillingCycle msg),
+                  getAccountRef id <! AccountMessage.BillingCycle msg),
             system.Materializer()
          )
 

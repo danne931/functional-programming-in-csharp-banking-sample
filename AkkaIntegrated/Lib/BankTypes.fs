@@ -64,27 +64,29 @@ module Envelope =
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
       match o with
-      | CreatedAccount evt -> (wrap evt, get evt)
-      | DepositedCash evt -> (wrap evt, get evt)
-      | DebitedAccount evt -> (wrap evt, get evt)
-      | MaintenanceFeeDebited evt -> (wrap evt, get evt)
-      | MaintenanceFeeSkipped evt -> (wrap evt, get evt)
-      | DailyDebitLimitUpdated evt -> (wrap evt, get evt)
-      | LockedCard evt -> (wrap evt, get evt)
-      | UnlockedCard evt -> (wrap evt, get evt)
-      | InternalTransferRecipient evt -> (wrap evt, get evt)
-      | DomesticTransferRecipient evt -> (wrap evt, get evt)
-      | InternationalTransferRecipient evt -> (wrap evt, get evt)
-      | TransferPending evt -> (wrap evt, get evt)
-      | TransferApproved evt -> (wrap evt, get evt)
-      | TransferRejected evt -> (wrap evt, get evt)
-      | TransferDeposited evt -> (wrap evt, get evt)
-      | AccountClosed evt -> (wrap evt, get evt)
+      | CreatedAccount evt -> wrap evt, get evt
+      | DepositedCash evt -> wrap evt, get evt
+      | DebitedAccount evt -> wrap evt, get evt
+      | MaintenanceFeeDebited evt -> wrap evt, get evt
+      | MaintenanceFeeSkipped evt -> wrap evt, get evt
+      | DailyDebitLimitUpdated evt -> wrap evt, get evt
+      | LockedCard evt -> wrap evt, get evt
+      | UnlockedCard evt -> wrap evt, get evt
+      | InternalTransferRecipient evt -> wrap evt, get evt
+      | DomesticTransferRecipient evt -> wrap evt, get evt
+      | InternationalTransferRecipient evt -> wrap evt, get evt
+      | TransferPending evt -> wrap evt, get evt
+      | TransferApproved evt -> wrap evt, get evt
+      | TransferRejected evt -> wrap evt, get evt
+      | TransferDeposited evt -> wrap evt, get evt
+      | AccountClosed evt -> wrap evt, get evt
 
 type AccountStatus =
+   | ReadyToOpen
    | Active
-   | ActiveWithLockedCard
+   | CardLocked
    | Closed
+   | ReadyForDelete
 
 type AccountState = {
    EntityId: Guid
@@ -108,7 +110,7 @@ type AccountState = {
       FirstName = ""
       LastName = ""
       Currency = Currency.USD
-      Status = AccountStatus.Closed
+      Status = AccountStatus.ReadyToOpen
       Balance = 0m
       AllowedOverdraft = 0m
       DailyDebitLimit = -1m
@@ -123,9 +125,11 @@ type AccountState = {
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
+   member x.CanProcessTransactions =
+      x.Status = AccountStatus.Active || x.Status = AccountStatus.CardLocked // Only card debits disabled
+
 type AccountMessage =
-   | InitAccount of CreateAccountCommand
-   | UserCreated of BankEvent<CreatedAccount>
+   | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
    | Lookup
    | StateChange of Command
    | Event of AccountEvent
@@ -157,4 +161,8 @@ type AccountBroadcast = {
 
 type AccountPersistence = {
    getEvents: Guid -> AccountEvent list option Task
+}
+
+type UserPersistence = {
+   createUser: User.User -> Task<Result<int, Err>>
 }

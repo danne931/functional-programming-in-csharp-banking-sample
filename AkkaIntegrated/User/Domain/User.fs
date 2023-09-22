@@ -24,10 +24,3 @@ let toDto (user: User) : UserDto = {
    Email = string user.Email
    AccountId = user.AccountId
 }
-
-let pgMapper (read: RowReader) : User = {
-   FirstName = read.text "first_name"
-   LastName = read.text "last_name"
-   Email = Email.deserialize <| read.text "email"
-   AccountId = read.uuid "account_id"
-}

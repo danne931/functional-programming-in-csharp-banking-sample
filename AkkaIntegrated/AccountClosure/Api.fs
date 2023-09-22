@@ -4,6 +4,7 @@ open System
 open FsToolkit.ErrorHandling
 
 open Lib.Postgres
+open Lib.Types
 
 // These records are held onto for reporting and legal reasons
 // for 3 months following an account closure.
@@ -16,7 +17,7 @@ let deleteHistoricalRecords (accountIds: Guid list) =
    if accountIds.IsEmpty then
       TaskResult.ok None
    else
-      pgQuery<string>
+      pgQuery<Email>
          "DELETE FROM users WHERE account_id = ANY(@accountIds) RETURNING email"
          (Some [ "@accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
-         (fun read -> read.text "email")
+         (fun read -> read.text "email" |> Email.deserialize)

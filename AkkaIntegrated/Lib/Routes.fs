@@ -17,37 +17,46 @@ let private unwrapOption (opt: 't option) : IResult =
    | None -> NotFound()
    | Some res -> json res
 
-let unwrapTask (future: 'a Task) : Task<IResult> =
-   match future.IsFaulted with
-   | true -> Problem future.Exception.Message
-   | false -> Ok future.Result
-   |> Task.FromResult
+let unwrapTask (future: 'a Task) : Task<IResult> = task {
+   try
+      let! res = future
+      return Ok res
+   with e ->
+      return Problem e.Message
+}
 
-let unwrapTaskOption (future: 'a option Task) : Task<IResult> =
-   match future.IsFaulted with
-   | true -> Problem future.Exception.Message
-   | false -> unwrapOption future.Result
-   |> Task.FromResult
+let unwrapTaskOption (future: 'a option Task) : Task<IResult> = task {
+   try
+      let! res = future
+      return unwrapOption res
+   with e ->
+      return Problem e.Message
+}
 
-let unwrapTaskResult (future: Result<'a, Err> Task) : Task<IResult> =
-   Task.FromResult(
-      match future.IsFaulted with
-      | true -> Problem future.Exception.Message
-      | false ->
-         match future.Result with
+let unwrapTaskResult (future: Result<'a, Err> Task) : Task<IResult> = task {
+   try
+      let! res = future
+
+      return
+         match res with
          | Error e -> badRequest e
          | Ok res -> json res
-   )
+   with e ->
+      return Problem e.Message
+}
 
 let unwrapTaskResultOption
    (future: Result<'a option, Err> Task)
    : Task<IResult>
    =
-   Task.FromResult(
-      match future.IsFaulted with
-      | true -> Problem future.Exception.Message
-      | false ->
-         match future.Result with
-         | Error e -> badRequest e
-         | Ok res -> unwrapOption res
-   )
+   task {
+      try
+         let! res = future
+
+         return
+            match res with
+            | Error e -> badRequest e
+            | Ok res -> unwrapOption res
+      with e ->
+         return Problem e.Message
+   }

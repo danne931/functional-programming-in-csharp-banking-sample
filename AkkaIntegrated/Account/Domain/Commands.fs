@@ -44,13 +44,15 @@ type CreateAccountCommand
    }
 
 type DepositCashCommand
-   (entityId, amount: decimal, origin: string, correlationId) =
+   (entityId, date: DateTime, amount: decimal, origin: string, correlationId) =
    inherit Command(entityId, correlationId)
+   member x.Date = date
    member x.Amount = amount
    member x.Origin = if isNull origin then "ATM" else origin
 
    member x.toEvent() : ValidationResult<BankEvent<DepositedCash>> = validate {
       let! _ = amountValidator "Deposit amount" x.Amount
+      let! _ = transactionDateValidator "Date" x.Date
 
       return {
          EntityId = x.EntityId
@@ -80,6 +82,7 @@ type DebitCommand
 
    member x.toEvent() : ValidationResult<BankEvent<DebitedAccount>> = validate {
       let! _ = amountValidator "Debit amount" x.Amount
+      let! _ = transactionDateValidator "Date" x.Date
 
       return {
          EntityId = x.EntityId

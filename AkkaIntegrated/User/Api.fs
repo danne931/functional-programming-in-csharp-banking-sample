@@ -3,6 +3,7 @@ module Bank.User.Api
 open FsToolkit.ErrorHandling
 
 open Lib.Postgres
+open Lib.Types
 open User
 
 /// <summary>
@@ -10,7 +11,14 @@ open User
 /// Allows user to choose what account to process transactions on.
 /// </summary>
 let getUsers () = taskResultOption {
-   let! users = pgQuery<User> "SELECT * FROM users" None User.pgMapper
+   let! users =
+      pgQuery<User> "SELECT * FROM users" None (fun (read: RowReader) -> {
+         FirstName = read.text "first_name"
+         LastName = read.text "last_name"
+         Email = Email.deserialize <| read.text "email"
+         AccountId = read.uuid "account_id"
+      })
+
    return List.map toDto users
 }
 

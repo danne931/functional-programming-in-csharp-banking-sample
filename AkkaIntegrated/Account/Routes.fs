@@ -6,7 +6,7 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Akka.Actor
 
-open ActorUtil
+open ActorUtil.ActorMetadata
 open Bank.Account.Domain
 open Bank.Account.Api
 
@@ -39,9 +39,8 @@ let startAccountRoutes (app: WebApplication) =
 
    app.MapPost(
       Path.Base,
-      Func<AccountActorFac, CreateAccountCommand, Task<IResult>>
-         (fun fac command ->
-            createAccount fac command |> RouteUtil.unwrapTaskResult)
+      Func<AccountActorFac, CreateAccountCommand, Task<IResult>>(fun fac cmd ->
+         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 

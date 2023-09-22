@@ -16,6 +16,7 @@ module Api = Bank.BillingCycle.Api
 type Message =
    | RegisterBillingStatement of BillingStatement
    | PersistBillingStatements
+   | Lookup
 
 // Configure mailbox so that PersistBillingStatements
 // messages are sent to the front.
@@ -28,6 +29,7 @@ type PriorityMailbox(settings: Settings, config: Config) =
          match msg with
          | PersistBillingStatements -> 0
          | RegisterBillingStatement _ -> 1
+         | Lookup -> 2
       | _ -> 33
 
 type BulkWriteState = {
@@ -35,23 +37,27 @@ type BulkWriteState = {
    IsScheduled: bool
 }
 
-let private schedulePersist (ctx: Actor<Message>) (seconds: int) =
+let private schedulePersist (ctx: Actor<Message>) (seconds: float) =
    ctx.Schedule (TimeSpan.FromSeconds seconds) ctx.Self PersistBillingStatements
    |> ignore
+
+let batchSizeLimit = 1000
+let initState = { Billing = []; IsScheduled = false }
 
 // Collects billing statement records to insert in batches.
 // Billing statements are persisted in a single transaction
 // once the batch size limit is reached or after some duration
 // in seconds from the initial RegisterBillingStatement message.
-let start (system: ActorSystem) =
+let start (system: ActorSystem) (persistence: BillingPersistence) =
    let handler (ctx: Actor<Message>) =
-      let initState = { Billing = []; IsScheduled = false }
-      let batchSizeLimit = 1000
       let schedulePersist = schedulePersist ctx
       let logInfo, logError = logInfo ctx, logError ctx
 
       let rec loop (state: BulkWriteState) =
          function
+         | Lookup ->
+            ctx.Sender() <! state
+            ignored ()
          | RegisterBillingStatement statement ->
             let newState = {
                state with
@@ -64,12 +70,12 @@ let start (system: ActorSystem) =
             elif state.IsScheduled then
                become <| loop newState
             else
-               schedulePersist 5
+               schedulePersist 5.
 
                become <| loop { newState with IsScheduled = true }
          | PersistBillingStatements ->
             if state.Billing.Length > 0 then
-               let res = Api.saveBillingStatements(state.Billing).Result
+               let res = persistence.saveBillingStatements(state.Billing).Result
 
                match res with
                | Ok o ->
@@ -77,7 +83,7 @@ let start (system: ActorSystem) =
                   become <| loop initState
                | Error e ->
                   logError $"Error saving billing statements {e}"
-                  schedulePersist 10
+                  schedulePersist 10.
                   unhandled ()
             else
                become <| loop initState

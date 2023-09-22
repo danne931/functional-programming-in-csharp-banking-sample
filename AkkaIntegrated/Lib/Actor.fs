@@ -20,8 +20,12 @@ let getChildActorRef<'t, 'r>
    | true -> None
    | false -> Some(typed accountRef)
 
+type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
+
 module ActorMetadata =
    type ActorMetadata = { Name: string; Path: ActorPath option }
+
+   type AccountActorFac = EntityFac<obj>
 
    type EmailMarker() =
       class
@@ -68,28 +72,6 @@ module ActorMetadata =
    let deadLettersMonitor = {
       Name = "dead_letters_monitor"
       Path = None
-   }
-
-[<AbstractClass>]
-type ClusteredActorFac(shardRegionName: string, system: ActorSystem) =
-   abstract shardEnvelope: Guid -> _ -> ShardEnvelope
-
-   member x.shardRegionRef() : IActorRef<_> =
-      ClusterSharding.Get(system).ShardRegion(shardRegionName) |> typed
-
-   member x.tell (entityId: Guid) (msg: _) =
-      x.shardRegionRef () <! x.shardEnvelope entityId msg
-
-   member x.ask<'t> (entityId: Guid) (msg: _) : Async<'t> =
-      x.shardRegionRef () <? x.shardEnvelope entityId msg
-
-type AccountActorFac(system: ActorSystem) =
-   inherit ClusteredActorFac("account", system)
-
-   override x.shardEnvelope (entityId: Guid) (msg: _) = {
-      EntityId = string entityId
-      ShardId = "shardid"
-      Message = msg
    }
 
 let readJournal (system: ActorSystem) : SqlReadJournal =
@@ -188,3 +170,11 @@ module AkklingExt =
          ShardRegion = shardRegion
          TypeName = name
       }
+
+   let getEntityRef system shardRegionName (entityId: Guid) : IEntityRef<'t> =
+      let fac = {
+         TypeName = shardRegionName
+         ShardRegion = ClusterSharding.Get(system).ShardRegion(shardRegionName)
+      }
+
+      fac.RefFor shardRegionName <| string entityId

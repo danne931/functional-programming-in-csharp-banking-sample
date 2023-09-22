@@ -1,7 +1,9 @@
 module BillingStatement
 
 open System
+open FsToolkit.ErrorHandling
 
+open Lib.Types
 open BankTypes
 
 type BillingStatement = {
@@ -20,6 +22,10 @@ type BillingStatementDto = {
    Balance: decimal
    Name: string
    AccountId: Guid
+}
+
+type BillingPersistence = {
+   saveBillingStatements: BillingStatement list -> TaskResult<int list, Err>
 }
 
 let create
@@ -43,13 +49,4 @@ let toDto (statement: BillingStatement) : BillingStatementDto = {
    Balance = statement.Balance
    Name = statement.Name
    AccountId = statement.AccountId
-}
-
-let pgMapper (read: RowReader) : BillingStatement = {
-   Transactions = read.fieldValue<AccountEvent list> "transactions"
-   Month = read.int "month"
-   Year = read.int "year"
-   Balance = read.decimal "balance"
-   Name = read.text "name"
-   AccountId = read.uuid "account_id"
 }

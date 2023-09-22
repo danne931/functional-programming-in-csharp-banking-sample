@@ -11,15 +11,11 @@ open Serilog.Formatting.Compact
 open Akka.Logger.Serilog
 open Akka.Actor
 open Akka.Event
-open Akka.Routing
-open Akka.Pattern
 open Akka.Hosting
 open Akka.Remote.Hosting
 open Akka.Cluster.Hosting
 open Akka.Persistence.Hosting
-open Akka.Persistence.Sql
 open Akka.Persistence.Sql.Hosting
-open Akka.Cluster.Sharding
 open Akka.Quartz.Actor
 open Quartz
 open Akkling
@@ -27,6 +23,7 @@ open Akkling
 open BankTypes
 open Bank.Hubs
 open Bank.Account.Api
+open Bank.BillingCycle.Api
 open ActorUtil
 
 let private envConfig = EnvironmentConfig.config
@@ -99,9 +96,9 @@ let startActorModel (builder: WebApplicationBuilder) =
             .AddHocon(akkaConfig, HoconAddMode.Prepend)
             .AddHocon(
                """
-                  billing-cycle-bulk-write-mailbox: {
-                     mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, AkkaIntegrated"
-                  }
+               billing-cycle-bulk-write-mailbox: {
+                  mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, AkkaIntegrated"
+               }
                """,
                HoconAddMode.Prepend
             )
@@ -144,9 +141,6 @@ let startActorModel (builder: WebApplicationBuilder) =
             .WithActors(fun system registry ->
                let broadcast = provider.GetRequiredService<AccountBroadcast>()
 
-               let persistence =
-                  provider.GetRequiredService<AccountPersistence>()
-
                let deadLetterHandler (ctx: Actor<_>) (msg: AllDeadLetters) =
                   logError ctx $"Dead letters: {msg}"
                   Ignore
@@ -171,49 +165,41 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                registry.Register<QuartzPersistentActor>(quartzPersistentARef)
 
-               BillingCycleActor.scheduleMonthly system quartzPersistentARef
+               let accountFac =
+                  provider.GetRequiredService<ActorMetadata.AccountActorFac>()
+
+               let getAccountRef = AccountActor.get accountFac
+
+               BillingCycleActor.scheduleMonthly
+                  system
+                  quartzPersistentARef
+                  getAccountRef
 
                registry.Register<ActorMetadata.BillingCycleBulkWriteMarker>(
-                  BillingCycleBulkWriteActor.start system |> untyped
+                  BillingCycleBulkWriteActor.start system {
+                     saveBillingStatements = saveBillingStatements
+                  }
+                  |> untyped
+               )
+
+               registry.Register<ActorMetadata.EmailMarker>(
+                  EmailActor.start system broadcast |> untyped
                )
 
                registry.Register<ActorMetadata.AccountClosureMarker>(
-                  AccountClosureActor.start system quartzPersistentARef
+                  AccountClosureActor.start
+                     system
+                     quartzPersistentARef
+                     getAccountRef
                   |> untyped
                )
 
                AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
 
-               registry.Register<ActorMetadata.EmailMarker>(
-                  EmailActor.start system
-                  <| CircuitBreaker(
-                     system.Scheduler,
-                     maxFailures = 2,
-                     callTimeout = TimeSpan.FromSeconds 7,
-                     resetTimeout = TimeSpan.FromMinutes 1
-                  )
-                  <| broadcast
-                  |> untyped
-               )
-
-               AccountActor.start persistence broadcast system |> ignore
-
-               let fac = provider.GetRequiredService<AccountActorFac>()
-
-               let domesticTransferRouter =
-                  RoundRobinPool(1, DefaultResizer(1, 10))
-
                registry.Register<ActorMetadata.DomesticTransferMarker>(
                   DomesticTransferRecipientActor.start system
-                  <| CircuitBreaker(
-                     system.Scheduler,
-                     maxFailures = 2,
-                     callTimeout = TimeSpan.FromSeconds 7,
-                     resetTimeout = TimeSpan.FromMinutes 1
-                  )
                   <| provider.GetRequiredService<AccountBroadcast>()
-                  <| fac
-                  <| domesticTransferRouter
+                  <| getAccountRef
                   |> untyped
                )
 
@@ -273,9 +259,11 @@ let injectDependencies (builder: WebApplicationBuilder) =
       { getEvents = getAccountEvents system })
    |> ignore
 
-   builder.Services.AddSingleton<AccountActorFac>(fun provider ->
+   builder.Services.AddSingleton<ActorMetadata.AccountActorFac>(fun provider ->
       let system = provider.GetRequiredService<ActorSystem>()
-      ActorUtil.AccountActorFac system)
+      let broadcast = provider.GetRequiredService<AccountBroadcast>()
+      let persistence = provider.GetRequiredService<AccountPersistence>()
+      AccountActor.start persistence broadcast system)
    |> ignore
 
    ()

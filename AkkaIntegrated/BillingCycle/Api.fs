@@ -1,13 +1,19 @@
 module Bank.BillingCycle.Api
 
 open Lib.Postgres
+open BankTypes
 open BillingStatement
 
 let getBillingStatement () =
-   pgQuery<BillingStatement>
-      "SELECT * FROM billingstatements"
-      None
-      BillingStatement.pgMapper
+   pgQuery<BillingStatement> "SELECT * FROM billingstatements" None
+   <| fun (read: RowReader) -> {
+      Transactions = read.fieldValue<AccountEvent list> "transactions"
+      Month = read.int "month"
+      Year = read.int "year"
+      Balance = read.decimal "balance"
+      Name = read.text "name"
+      AccountId = read.uuid "account_id"
+   }
 
 let private billingStatementToSqlParams (statement: BillingStatement) =
    let dto = toDto statement

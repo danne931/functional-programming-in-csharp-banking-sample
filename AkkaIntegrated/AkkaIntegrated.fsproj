@@ -12,6 +12,7 @@
     <Compile Include="Lib/Types.fs" />
     <Compile Include="Lib/Postgres.fs" />
     <Compile Include="Lib/Actor.fs" />
+    <Compile Include="User/Domain/User.fs" />
     <Compile Include="Transfer/Domain/Events.fs" />
     <Compile Include="Transfer/Domain/Commands.fs" />
     <Compile Include="Account/Domain/Events.fs" />
@@ -28,7 +29,6 @@
     <Compile Include="BillingCycle/BillingCycleActor.fs" />
     <Compile Include="Transfer/InternalTransferRecipientActor.fs" />
     <Compile Include="Transfer/DomesticTransferRecipientActor.fs" />
-    <Compile Include="User/Domain/User.fs" />
     <Compile Include="User/Api.fs" />
     <Compile Include="AccountClosure/Api.fs" />
     <Compile Include="AccountClosure/Actor.fs" />
@@ -51,7 +51,7 @@
     <PackageReference Include="Akka.Persistence.Hosting" Version="1.5.12" />
     <PackageReference Include="Akka.Persistence.Sql" Version="1.5.12" />
     <PackageReference Include="Akka.Persistence.Sql.Hosting" Version="1.5.12" />
-    <PackageReference Include="Akka.Quartz.Actor" Version="1.5.1" />
+    <PackageReference Include="Akka.Quartz.Actor" Version="1.5.12" />
     <PackageReference Include="Akka.Remote.Hosting" Version="1.5.12" />
     <PackageReference Include="Akkling" Version="0.13.0" />
     <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />

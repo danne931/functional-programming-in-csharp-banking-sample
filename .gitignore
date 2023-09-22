@@ -1,4 +1,5 @@
 **/*bin
 **/*obj
 AkkaIntegrated/logs.json
+AkkaIntegrated/ddata-*
 .fake

@@ -7,19 +7,12 @@ open Akkling
 open Akka.Actor
 open Akka.Streams
 open Akka.Persistence
-open ActorUtil
 open FsToolkit.ErrorHandling
 open Validus
 
 open Lib.Types
 open BankTypes
-open Bank.Account.Domain
-
-let createAccount (fac: AccountActorFac) (cmd: CreateAccountCommand) = taskResult {
-   let! _ = cmd.toEvent () |> Result.mapError ValidationError
-   fac.tell cmd.EntityId <| AccountMessage.InitAccount cmd
-   return cmd.EntityId
-}
+open ActorUtil.ActorMetadata
 
 let processCommand
    (fac: AccountActorFac)
@@ -28,7 +21,8 @@ let processCommand
    =
    taskResult {
       let! _ = Result.mapError ValidationError validation
-      fac.tell command.EntityId <| AccountMessage.StateChange command
+      let ref = AccountActor.get fac command.EntityId
+      ref <! AccountMessage.StateChange command
       return validation
    }
 
@@ -69,9 +63,11 @@ let getAccount
    (accountId: Guid)
    : AccountState option Task
    =
-   fac.ask accountId AccountMessage.Lookup |> Async.toTask
+   let ref = AccountActor.get fac accountId
+   ref <? AccountMessage.Lookup |> Async.toTask
 
 let diagnosticDelete (fac: AccountActorFac) accountId = task {
-   fac.tell accountId AccountMessage.Delete
+   let ref = AccountActor.get fac accountId
+   ref <! AccountMessage.Delete
    return accountId
 }

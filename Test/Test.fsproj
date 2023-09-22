@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net7.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Util.fs" />
+    <Compile Include="Stub.fs" />
+    <Compile Include="AccountClosureActor.fs" />
+    <Compile Include="DomesticTransferActor.fs" />
+    <Compile Include="InternalTransferActor.fs" />
+    <Compile Include="AccountDomain.fs" />
+    <Compile Include="AccountActor.fs" />
+    <Compile Include="BillingCycleBulkWriteActor.fs" />
+    <Compile Include="BillingCycleActor.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Akkling.TestKit" Version="0.13.0" />
+    <PackageReference Include="Expecto" Version="10.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AkkaIntegrated\AkkaIntegrated.fsproj" />
+  </ItemGroup>
+
+</Project>

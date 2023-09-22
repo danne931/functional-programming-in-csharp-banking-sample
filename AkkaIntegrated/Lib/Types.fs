@@ -32,9 +32,10 @@ type Envelope = {
 }
 
 type StateTransitionError =
+   | AccountNotReadyToActivate
+   | AccountTransactionProcessingDisabled
    | AccountNotActive
    | AccountCardLocked
-   | AccountCardAlreadyUnlocked
    | InsufficientBalance of decimal
    | ExceededDailyDebit of decimal
    | RecipientRegistrationRequired
@@ -47,9 +48,9 @@ type Err =
 
    override x.ToString() =
       match x with
-      | DatabaseError e -> e.Message
-      | ValidationError e -> string <| ValidationErrors.toList e
-      | StateTransitionError e -> string e
+      | DatabaseError e -> $"DatabaseError: %s{e.Message}"
+      | ValidationError e -> $"ValidationError: {ValidationErrors.toList e}"
+      | StateTransitionError e -> $"StateTransitionError: {e}"
 
 type Currency =
    | USD
