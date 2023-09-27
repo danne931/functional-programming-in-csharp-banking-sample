@@ -21,12 +21,52 @@ open Quartz
 open Akkling
 
 open BankTypes
+open Lib.Types
 open Bank.Hubs
 open Bank.Account.Api
+open Bank.Account.Domain
 open Bank.BillingCycle.Api
 open ActorUtil
 
 let private envConfig = EnvironmentConfig.config
+
+// Create accounts for local development
+let private seed (sys: ActorSystem) = task {
+   let commands = [
+      CreateAccountCommand(
+         entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"),
+         firstName = "Jelly",
+         lastName = "Fish",
+         balance = 1300,
+         email = "jellyfish@gmail.com",
+         currency = Currency.USD,
+         correlationId = Guid.NewGuid()
+      )
+
+      CreateAccountCommand(
+         entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"),
+         firstName = "Star",
+         lastName = "Fish",
+         balance = 1000,
+         email = "starfish@gmail.com",
+         currency = Currency.USD,
+         correlationId = Guid.NewGuid()
+      )
+   ]
+
+   for command in commands do
+      let ref = AkklingExt.getEntityRef sys "account" command.EntityId
+      let! (acct: AccountState option) = ref <? AccountMessage.Lookup
+
+      if acct.IsNone then
+         sys.Log.Log(
+            Akka.Event.LogLevel.InfoLevel,
+            null,
+            $"Account doesn't exist.  Will create for {command.Email}"
+         )
+
+         ref <! AccountMessage.StateChange command
+}
 
 let startLogger (builder: WebApplicationBuilder) =
    // NOTE: Initial logger logs errors during during start up.
@@ -204,6 +244,9 @@ let startActorModel (builder: WebApplicationBuilder) =
                )
 
                ())
+#if DEBUG
+            .AddStartup(StartupTask(fun sys reg -> seed sys))
+#endif
          |> ignore
 
          ())
