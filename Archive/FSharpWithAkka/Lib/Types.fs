@@ -13,13 +13,12 @@ type Command(entityId: Guid, correlationId: Guid) =
       else
          correlationId
 
-type BankEvent<'E> =
-   {
-      EntityId: Guid
-      Timestamp: DateTime
-      Data: 'E
-      CorrelationId: Guid
-   }
+type BankEvent<'E> = {
+   EntityId: Guid
+   Timestamp: DateTime
+   Data: 'E
+   CorrelationId: Guid
+} with
 
    member x.EventName = typedefof<'E>.Name
 

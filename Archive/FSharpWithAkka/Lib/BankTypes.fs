@@ -98,21 +98,20 @@ type AccountStatus =
    | ActiveWithLockedCard
    | Closed
 
-type AccountState =
-   {
-      EntityId: Guid
-      FirstName: string
-      LastName: string
-      Currency: Currency
-      Status: AccountStatus
-      Balance: decimal
-      AllowedOverdraft: decimal
-      DailyDebitLimit: decimal
-      DailyDebitAccrued: decimal
-      LastDebitDate: DateTime option
-      TransferRecipients: Map<string, TransferRecipient>
-      MaintenanceFeeCriteria: MaintenanceFeeCriteria
-   }
+type AccountState = {
+   EntityId: Guid
+   FirstName: string
+   LastName: string
+   Currency: Currency
+   Status: AccountStatus
+   Balance: decimal
+   AllowedOverdraft: decimal
+   DailyDebitLimit: decimal
+   DailyDebitAccrued: decimal
+   LastDebitDate: DateTime option
+   TransferRecipients: Map<string, TransferRecipient>
+   MaintenanceFeeCriteria: MaintenanceFeeCriteria
+} with
 
    member x.FullName = $"{x.FirstName} {x.LastName}"
 

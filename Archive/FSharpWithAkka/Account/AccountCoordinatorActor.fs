@@ -55,10 +55,7 @@ let start
 
          Ignore
 
-   spawn
-      system
-      actorName
-      {
-         (props <| actorOf2 handler) with
-            Router = Some FromConfig.Instance
-      }
+   spawn system actorName {
+      (props <| actorOf2 handler) with
+         Router = Some FromConfig.Instance
+   }

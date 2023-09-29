@@ -122,22 +122,18 @@ let start
                Ignore
 
    let ref =
-      spawn
-         system
-         actorName
-         {
-            (props <| actorOf2 handler) with
-               Router = Some FromConfig.Instance
-         }
+      spawn system actorName {
+         (props <| actorOf2 handler) with
+            Router = Some FromConfig.Instance
+      }
 
    breaker.OnHalfOpen(fun () ->
       printfn "%s: BreakerHalfOpen" actorName
 
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.HalfOpen
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.HalfOpen
+      }
       |> ignore
 
       ref <! BreakerHalfOpen)
@@ -150,11 +146,10 @@ let start
    breaker.OnClose(fun () ->
       printfn "%s: BreakerClosed - broadcast" actorName
 
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.Closed
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.Closed
+      }
       |> ignore
 
       (retype ref) <! Broadcast BreakerClosed)
@@ -163,11 +158,10 @@ let start
    breaker.OnOpen(fun () ->
       printfn "%s: BreakerOpen" actorName
 
-      broadcaster.broadcastCircuitBreaker
-         {
-            Service = Service.DomesticTransfer
-            Status = CircuitBreakerStatus.Open
-         }
+      broadcaster.broadcastCircuitBreaker {
+         Service = Service.DomesticTransfer
+         Status = CircuitBreakerStatus.Open
+      }
       |> ignore)
    |> ignore
 
