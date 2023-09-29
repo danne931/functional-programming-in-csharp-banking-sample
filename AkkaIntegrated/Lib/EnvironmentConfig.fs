@@ -3,6 +3,7 @@ module EnvironmentConfig
 
 open Microsoft.AspNetCore.Builder
 open FsConfig
+open System.Net
 
 let builder = WebApplication.CreateBuilder()
 
@@ -38,6 +39,8 @@ type BankConfig = {
    EmailServiceUri: string
    EmailBearerToken: string option
    SupportEmail: string option
+   MockThirdPartyBankHost: IPAddress option
+   MockThirdPartyBankPort: int
 }
 
 let private errorMessage missing =
@@ -60,6 +63,28 @@ let config =
          |> List.fold
             (fun acc (key, isNone) -> if isNone then key :: acc else acc)
             []
+
+      let ip =
+         try
+            // Referencing container by name to resolve IP for
+            // mock third party bank server.
+            Dns.GetHostAddresses("mock-third-party-bank")[0]
+         with _ ->
+#if !DEBUG
+            failwith
+               """
+               IP for mock third party bank doesn't exist.
+               Misconfigured container name.
+               """
+#else
+            printfn "Configuring localhost for domestic transfer."
+            IPAddress.Loopback
+#endif
+
+      let o = {
+         o with
+            MockThirdPartyBankHost = Some ip
+      }
 
       if not missing.IsEmpty then
          let errMsg = errorMessage missing

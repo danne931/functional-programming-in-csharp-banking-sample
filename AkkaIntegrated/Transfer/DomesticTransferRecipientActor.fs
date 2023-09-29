@@ -4,7 +4,6 @@ module DomesticTransferRecipientActor
 open System
 open System.Text
 open System.Text.Json
-open System.Net
 open Akkling
 open Akka.Hosting
 open Akka.Actor
@@ -44,8 +43,8 @@ let domesticTransfer
 
       let! response =
          TCP.request
-            IPAddress.Loopback
-            5001
+            EnvironmentConfig.config.MockThirdPartyBankHost.Value
+            EnvironmentConfig.config.MockThirdPartyBankPort
             Encoding.UTF8
             (JsonSerializer.SerializeToUtf8Bytes msg)
 
@@ -187,7 +186,7 @@ let start
          system.Scheduler,
          maxFailures = 2,
          callTimeout = TimeSpan.FromSeconds 7,
-         resetTimeout = TimeSpan.FromMinutes 1
+         resetTimeout = TimeSpan.FromSeconds 30
       )
 
    let prop =

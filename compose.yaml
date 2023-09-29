@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - postgres
+    ports:
+      - 3000:5006
+    environment:
+      - MockThirdPartyBankPort=5007
+      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
+      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+  mock-third-party-bank:
+    build:
+      context: ./MockThirdPartyBankTransferReceiver
+    expose:
+      - 5007
+    environment:
+      - TCP_BIND_PORT=5007
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=akkabank
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - 5432:5432
+    volumes:
+      # Scripts in /docker-entrypoint-initdb.d are run at startup.
+      # Copy SQL seed scripts from host to container.
+      - ./AkkaIntegrated/Migrations:/docker-entrypoint-initdb.d
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 5008:8080

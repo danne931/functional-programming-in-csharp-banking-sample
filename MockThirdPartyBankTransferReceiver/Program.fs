@@ -95,7 +95,14 @@ let tcpMessageHandler connection (ctx: Actor<obj>) =
 
    loop ()
 
-let endpoint = IPEndPoint(IPAddress.Loopback, 5001)
+let port, ip =
+   try
+      int <| Environment.GetEnvironmentVariable "TCP_BIND_PORT",
+      Dns.GetHostAddresses(Dns.GetHostName())[0]
+   with _ ->
+      5007, IPAddress.Loopback
+
+let endpoint = IPEndPoint(ip, port)
 
 let tcpConnectionListener ctx =
    IO.Tcp(ctx) <! TcpMessage.Bind(untyped ctx.Self, endpoint, 100)
@@ -104,6 +111,7 @@ let tcpConnectionListener ctx =
       let! (msg: obj) = ctx.Receive()
 
       match msg with
+      | Bound endpoint -> printfn $"<Bound> \nEndpoint {endpoint}"
       | Connected(remote, _) ->
          let conn = ctx.Sender()
 

@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Akka" Version="1.5.8" />
+    <PackageReference Include="Akka" Version="1.5.13" />
     <PackageReference Include="Akkling" Version="0.13.0" />
   </ItemGroup>
 
