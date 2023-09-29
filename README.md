@@ -38,6 +38,7 @@ web page to test the use cases against an account.
 ## Running with Docker
 1. docker-compose -f compose.yaml up
 2. navigate to localhost:3000
+3. if you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
 
 ## Running without Docker
 1. Dependencies: .NET 7, PostgreSQL & the psql command-line interface
