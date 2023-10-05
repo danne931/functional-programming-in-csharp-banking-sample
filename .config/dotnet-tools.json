@@ -13,6 +13,12 @@
       "commands": [
         "fantomas"
       ]
+    },
+    "pbm": {
+      "version": "1.3.2",
+      "commands": [
+        "pbm"
+      ]
     }
   }
 }

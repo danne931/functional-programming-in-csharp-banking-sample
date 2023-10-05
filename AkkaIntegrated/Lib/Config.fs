@@ -17,6 +17,9 @@ open Akka.Cluster.Hosting
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akka.Quartz.Actor
+open Petabridge.Cmd.Host
+open Petabridge.Cmd.Cluster
+open Petabridge.Cmd.Cluster.Sharding
 open Quartz
 open Akkling
 
@@ -171,6 +174,11 @@ let startActorModel (builder: WebApplicationBuilder) =
             //       & sharding HOCON config.  May have to forgo Akkling typed
             //       actor ref if done this way.
             //.WithShardRegion("account", )
+            .AddPetabridgeCmd(fun cmd ->
+               cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
+
+               cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
+               |> ignore)
             .ConfigureLoggers(fun builder ->
                builder.LogLevel <- LogLevel.InfoLevel
                //builder.LogConfigOnStart <- true
