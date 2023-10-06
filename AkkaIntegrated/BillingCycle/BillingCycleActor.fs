@@ -117,9 +117,15 @@ let scheduleMonthly
          .CurrentPersistenceIds()
          .RunForeach(
             (fun id ->
-               if id.StartsWith("account/") then
-                  let id = id.Split("/")[2] |> Guid
-                  getAccountRef id <! AccountMessage.BillingCycle msg),
+               let accountIdOpt =
+                  try
+                     Some <| Guid id
+                  with _ ->
+                     None
+
+               if accountIdOpt.IsSome then
+                  getAccountRef accountIdOpt.Value
+                  <! AccountMessage.BillingCycle msg),
             system.Materializer()
          )
 

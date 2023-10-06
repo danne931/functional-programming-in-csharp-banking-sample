@@ -6,7 +6,6 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Akka.Actor
 
-open ActorUtil.ActorMetadata
 open Bank.Account.Domain
 open Bank.Account.Api
 
@@ -25,8 +24,8 @@ module private Path =
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.Account,
-      Func<AccountActorFac, Guid, Task<IResult>>(fun fac id ->
-         getAccount fac id |> RouteUtil.unwrapTaskOption)
+      Func<ActorSystem, Guid, Task<IResult>>(fun system id ->
+         getAccount system id |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
@@ -39,59 +38,58 @@ let startAccountRoutes (app: WebApplication) =
 
    app.MapPost(
       Path.Base,
-      Func<AccountActorFac, CreateAccountCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, CreateAccountCommand, Task<IResult>>(fun system cmd ->
+         cmd.toEvent ()
+         |> processCommand system cmd
+         |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapDelete(
       Path.AccountEvents,
-      Func<AccountActorFac, Guid, Task<IResult>>(fun fac id ->
-         diagnosticDelete fac id |> RouteUtil.unwrapTask)
+      Func<ActorSystem, Guid, Task<IResult>>(fun system id ->
+         diagnosticDelete system id |> RouteUtil.unwrapTask)
    )
    |> ignore
 
    app.MapPost(
       Path.Deposit,
-      Func<AccountActorFac, DepositCashCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, DepositCashCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.Debit,
-      Func<AccountActorFac, DebitCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, DebitCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.DailyDebitLimit,
-      Func<AccountActorFac, LimitDailyDebitsCommand, Task<IResult>>
-         (fun fac cmd ->
-            cmd.toEvent ()
-            |> processCommand fac cmd
-            |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, LimitDailyDebitsCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.LockCard,
-      Func<AccountActorFac, LockCardCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, LockCardCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.UnlockCard,
-      Func<AccountActorFac, UnlockCardCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, UnlockCardCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.CloseAccount,
-      Func<AccountActorFac, CloseAccountCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, CloseAccountCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

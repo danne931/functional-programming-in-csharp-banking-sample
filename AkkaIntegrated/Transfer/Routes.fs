@@ -5,10 +5,10 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.FSharp.Core
 open System
 open System.Threading.Tasks
+open Akka.Actor
 
 open Bank.Transfer.Domain
 open Bank.Account.Api
-open ActorUtil.ActorMetadata
 
 module private Path =
    let Base = "/transfers"
@@ -17,27 +17,27 @@ module private Path =
 let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       Path.TransferRecipient,
-      Func<AccountActorFac, RegisterTransferRecipientCommand, Task<IResult>>
-         (fun fac cmd ->
+      Func<ActorSystem, RegisterTransferRecipientCommand, Task<IResult>>
+         (fun sys cmd ->
             match cmd.Recipient.AccountEnvironment with
             | RecipientAccountEnvironment.Internal ->
                TransferRecipientEvent.local cmd
-               |> processCommand fac cmd
+               |> processCommand sys cmd
                |> RouteUtil.unwrapTaskResult
             | RecipientAccountEnvironment.Domestic ->
                TransferRecipientEvent.domestic cmd
-               |> processCommand fac cmd
+               |> processCommand sys cmd
                |> RouteUtil.unwrapTaskResult
             | RecipientAccountEnvironment.International ->
                TransferRecipientEvent.domestic cmd
-               |> processCommand fac cmd
+               |> processCommand sys cmd
                |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       Path.Base,
-      Func<AccountActorFac, TransferCommand, Task<IResult>>(fun fac cmd ->
-         cmd.toEvent () |> processCommand fac cmd |> RouteUtil.unwrapTaskResult)
+      Func<ActorSystem, TransferCommand, Task<IResult>>(fun sys cmd ->
+         cmd.toEvent () |> processCommand sys cmd |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

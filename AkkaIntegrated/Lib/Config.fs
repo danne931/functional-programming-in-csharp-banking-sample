@@ -14,6 +14,7 @@ open Akka.Event
 open Akka.Hosting
 open Akka.Remote.Hosting
 open Akka.Cluster.Hosting
+open Akka.Cluster.Sharding
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akka.Quartz.Actor
@@ -24,52 +25,12 @@ open Quartz
 open Akkling
 
 open BankTypes
-open Lib.Types
 open Bank.Hubs
 open Bank.Account.Api
-open Bank.Account.Domain
 open Bank.BillingCycle.Api
 open ActorUtil
 
 let private envConfig = EnvironmentConfig.config
-
-// Create accounts for local development
-let private seed (sys: ActorSystem) = task {
-   let commands = [
-      CreateAccountCommand(
-         entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"),
-         firstName = "Jelly",
-         lastName = "Fish",
-         balance = 1300,
-         email = "jellyfish@gmail.com",
-         currency = Currency.USD,
-         correlationId = Guid.NewGuid()
-      )
-
-      CreateAccountCommand(
-         entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"),
-         firstName = "Star",
-         lastName = "Fish",
-         balance = 1000,
-         email = "starfish@gmail.com",
-         currency = Currency.USD,
-         correlationId = Guid.NewGuid()
-      )
-   ]
-
-   for command in commands do
-      let ref = AkklingExt.getEntityRef sys "account" command.EntityId
-      let! (acct: AccountState option) = ref <? AccountMessage.Lookup
-
-      if acct.IsNone then
-         sys.Log.Log(
-            Akka.Event.LogLevel.InfoLevel,
-            null,
-            $"Account doesn't exist.  Will create for {command.Email}"
-         )
-
-         ref <! AccountMessage.StateChange command
-}
 
 let startLogger (builder: WebApplicationBuilder) =
    // NOTE: Initial logger logs errors during during start up.
@@ -130,13 +91,10 @@ let startActorModel (builder: WebApplicationBuilder) =
    sdo.SnapshotTable <- sto
    snapshotOpts.DatabaseOptions <- sdo
 
-   let akkaConfig = builder.Configuration.GetSection "akka"
-
    builder.Services.AddAkka(
       envConfig.AkkaSystemName,
       (fun builder provider ->
          builder
-            .AddHocon(akkaConfig, HoconAddMode.Prepend)
             .AddHocon(
                """
                billing-cycle-bulk-write-mailbox: {
@@ -169,11 +127,23 @@ let startActorModel (builder: WebApplicationBuilder) =
                [ typedefof<BankTypes.AccountState> ],
                fun system -> Serialization.AccountSnapshotSerializer(system)
             )
-            // TODO: See if can init Akkling typed clustered account actor
-            //       here and do away with ActorUtil.AkklingExt.entityFactoryFor
-            //       & sharding HOCON config.  May have to forgo Akkling typed
-            //       actor ref if done this way.
-            //.WithShardRegion("account", )
+            .WithShardRegion<ActorMetadata.AccountShardRegionMarker>(
+               "account",
+               (fun _ ->
+                  let props =
+                     AccountActor.initProps
+                     <| provider.GetRequiredService<AccountPersistence>()
+                     <| provider.GetRequiredService<AccountBroadcast>()
+                     <| provider.GetRequiredService<ActorSystem>()
+
+                  props.ToProps()),
+               ActorUtil.MessageExtractor(),
+               ShardOptions(
+                  StateStoreMode = StateStoreMode.DData,
+                  RememberEntities = true,
+                  RememberEntitiesStore = RememberEntitiesStore.Eventsourced
+               )
+            )
             .AddPetabridgeCmd(fun cmd ->
                cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
 
@@ -213,10 +183,7 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                registry.Register<QuartzPersistentActor>(quartzPersistentARef)
 
-               let accountFac =
-                  provider.GetRequiredService<ActorMetadata.AccountActorFac>()
-
-               let getAccountRef = AccountActor.get accountFac
+               let getAccountRef = AccountActor.get system
 
                BillingCycleActor.scheduleMonthly
                   system
@@ -246,14 +213,14 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                registry.Register<ActorMetadata.DomesticTransferMarker>(
                   DomesticTransferRecipientActor.start system
-                  <| provider.GetRequiredService<AccountBroadcast>()
+                  <| broadcast
                   <| getAccountRef
                   |> untyped
                )
 
                ())
 #if DEBUG
-            .AddStartup(StartupTask(fun sys reg -> seed sys))
+            .AddStartup(StartupTask(fun sys _ -> PostgresSeeder.seed sys))
 #endif
          |> ignore
 
@@ -308,13 +275,6 @@ let injectDependencies (builder: WebApplicationBuilder) =
    builder.Services.AddSingleton<AccountPersistence>(fun provider ->
       let system = provider.GetRequiredService<ActorSystem>()
       { getEvents = getAccountEvents system })
-   |> ignore
-
-   builder.Services.AddSingleton<ActorMetadata.AccountActorFac>(fun provider ->
-      let system = provider.GetRequiredService<ActorSystem>()
-      let broadcast = provider.GetRequiredService<AccountBroadcast>()
-      let persistence = provider.GetRequiredService<AccountPersistence>()
-      AccountActor.start persistence broadcast system)
    |> ignore
 
    ()

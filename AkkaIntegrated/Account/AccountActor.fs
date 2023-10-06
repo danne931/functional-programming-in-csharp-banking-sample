@@ -178,20 +178,18 @@ let actorProps
 
    propsPersist handler
 
-let get (fac: EntityFac<obj>) (entityId: Guid) =
-   fac.RefFor "account" (string entityId)
+let get (sys: ActorSystem) (entityId: Guid) =
+   AkklingExt.getEntityRef sys "account" entityId
 
-let start
+let initProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
    (system: ActorSystem)
    =
    let getOrStartInternalTransferActor mailbox =
-      InternalTransferRecipientActor.getOrStart mailbox
-      <| AkklingExt.getEntityRef system "account"
+      InternalTransferRecipientActor.getOrStart mailbox <| get system
 
-   AkklingExt.entityFactoryFor system ActorMetadata.account.Name
-   <| actorProps
+   actorProps
       persistence
       broadcaster
       getOrStartInternalTransferActor

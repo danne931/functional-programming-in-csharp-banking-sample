@@ -38,6 +38,7 @@
     <Compile Include="Account/Routes.fs" />
     <Compile Include="Transfer/Routes.fs" />
     <Compile Include="User/Routes.fs" />
+    <Compile Include="Lib/PostgresSeeder.fs" />
     <Compile Include="Lib/Config.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
