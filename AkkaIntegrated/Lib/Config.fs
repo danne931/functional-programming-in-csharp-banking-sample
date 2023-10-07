@@ -128,7 +128,7 @@ let startActorModel (builder: WebApplicationBuilder) =
                fun system -> Serialization.AccountSnapshotSerializer(system)
             )
             .WithShardRegion<ActorMetadata.AccountShardRegionMarker>(
-               "account",
+               ActorMetadata.accountShardRegion.name,
                (fun _ ->
                   let props =
                      AccountActor.initProps
@@ -137,7 +137,7 @@ let startActorModel (builder: WebApplicationBuilder) =
                      <| provider.GetRequiredService<ActorSystem>()
 
                   props.ToProps()),
-               ActorUtil.MessageExtractor(),
+               ActorMetadata.accountShardRegion.messageExtractor,
                ShardOptions(
                   StateStoreMode = StateStoreMode.DData,
                   RememberEntities = true,
@@ -212,9 +212,10 @@ let startActorModel (builder: WebApplicationBuilder) =
                AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
 
                registry.Register<ActorMetadata.DomesticTransferMarker>(
-                  DomesticTransferRecipientActor.start system
-                  <| broadcast
-                  <| getAccountRef
+                  DomesticTransferRecipientActor.start
+                     system
+                     broadcast
+                     getAccountRef
                   |> untyped
                )
 

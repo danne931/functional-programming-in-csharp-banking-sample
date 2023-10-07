@@ -8,6 +8,8 @@ open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
 
+type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
+
 let getChildActorRef<'t, 'r>
    (actorCtx: Actor<'t>)
    (name: string)
@@ -19,15 +21,24 @@ let getChildActorRef<'t, 'r>
    | true -> None
    | false -> Some(typed accountRef)
 
-type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
+let messageExtractor maxNumberOfShards =
+   HashCodeMessageExtractor.Create(
+      maxNumberOfShards = maxNumberOfShards,
+      entityIdExtractor =
+         (fun msg ->
+            match msg with
+            | :? ShardRegion.StartEntity as e -> e.EntityId
+            | :? ShardEnvelope as e -> e.EntityId
+            | :? Guid as id -> string id
+            | _ -> null),
+      messageExtractor =
+         fun msg ->
+            match msg with
+            | :? ShardEnvelope as e -> e.Message
+            | _ -> msg
+   )
 
 module ActorMetadata =
-   type ActorMetadata = { Name: string; Path: ActorPath option }
-
-   type AccountShardRegionMarker() =
-      class
-      end
-
    type EmailMarker() =
       class
       end
@@ -43,6 +54,23 @@ module ActorMetadata =
    type BillingCycleBulkWriteMarker() =
       class
       end
+
+   type AccountShardRegionMarker() =
+      class
+      end
+
+   type ShardRegion = {
+      name: string
+      messageExtractor: IMessageExtractor
+   }
+
+   let accountShardRegion = {
+      name = "account"
+      // TODO: Figure out ideal max #
+      messageExtractor = messageExtractor 1000
+   }
+
+   type ActorMetadata = { Name: string; Path: ActorPath option }
 
    let account = { Name = "account"; Path = None }
 
@@ -79,68 +107,20 @@ let readJournal (system: ActorSystem) : SqlReadJournal =
    PersistenceQuery
       .Get(system)
       .ReadJournalFor<SqlReadJournal>(SqlReadJournal.Identifier)
-(*
-type private MessageExtractor() =
-   inherit HashCodeMessageExtractor(maxNumberOfShards = 1000)
-
-   override x.EntityId(msg: obj) =
-      match msg with
-      | :? ShardRegion.StartEntity as e ->
-         printfn "entityID: START ENTITY %A" e
-         e.EntityId
-      | :? ShardEnvelope as e ->
-         printfn "entityID: ENVELOPE %A" e.EntityId
-         e.EntityId
-      | _ -> failwith "MessageExtractor.EntityId: Unknown message"
-
-   override x.EntityMessage(msg: obj) = (msg :?> ShardEnvelope).Message
-   override x.ShardId(msg: obj) =
-      let hash = Akka.Util.MurmurHash.StringHash (x.EntityId msg)
-      let r = Math.Abs(hash) % x.MaxNumberOfShards |> string
-      printfn "--Shard id:-- %A" r
-      r
-*)
-(*
-let messageExtractor () =
-   HashCodeMessageExtractor.Create(
-      maxNumberOfShards = 1000,
-      entityIdExtractor = (fun msg -> 
-         match msg with
-         | :? ShardRegion.StartEntity as e ->
-            printfn "entityID: START ENTITY %A" e
-            e.EntityId
-         | :? ShardEnvelope as e ->
-            printfn "entityID: ENVELOPE %A" e.EntityId
-            e.EntityId
-         | _ -> failwith "MessageExtractor.EntityId: Unknown message"),
-      messageExtractor = fun msg -> (msg :?> ShardEnvelope).Message
-   )
-*)
-
-// TODO: Remove
-let private ShardId = "shardid"
-
-type MessageExtractor() =
-   interface IMessageExtractor with
-      member x.EntityId(msg: obj) =
-         match msg with
-         | :? ShardRegion.StartEntity as _ -> ShardId
-         | :? ShardEnvelope as e -> e.EntityId
-         | _ -> null
-
-      member x.ShardId(msg: obj) =
-         match msg with
-         | :? ShardRegion.StartEntity as _ -> ShardId
-         | :? ShardEnvelope as e -> e.ShardId
-         | _ -> null
-
-      member x.EntityMessage(msg: obj) = (msg :?> ShardEnvelope).Message
 
 module AkklingExt =
-   let getEntityRef system shardRegionName (entityId: Guid) : IEntityRef<'t> =
+   let getEntityRef
+      system
+      (shardRegionMeta: ActorMetadata.ShardRegion)
+      (entityId: Guid)
+      : IEntityRef<'t>
+      =
       let fac = {
-         TypeName = shardRegionName
-         ShardRegion = ClusterSharding.Get(system).ShardRegion(shardRegionName)
+         TypeName = shardRegionMeta.name
+         ShardRegion =
+            ClusterSharding.Get(system).ShardRegion(shardRegionMeta.name)
       }
 
-      fac.RefFor ShardId <| string entityId
+      let shardId = shardRegionMeta.messageExtractor.ShardId entityId
+
+      fac.RefFor shardId <| string entityId
