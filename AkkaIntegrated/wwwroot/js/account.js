@@ -51,7 +51,13 @@ const eventsToIgnore = {
 
 const connection = new signalR.HubConnectionBuilder()
   .withUrl('/accountHub')
+  .withAutomaticReconnect()
   .build()
+
+connection.onreconnected(connId => {
+  console.log(`Reconnected ${connId}`)
+  hydrate()
+})
 
 connection.on('ReceiveError', function (err) {
   console.error(`Error: ${err}`)
@@ -86,6 +92,10 @@ connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
 
 connection.on('ReceiveBillingCycleEnd', renderNewBillingCycle)
 
+connection
+    .start()
+    .then(hydrate)
+
 function toggleCircuitBreaker (status, service) {
   const el = selectors.circuitBreaker[service]()
   const isOpen = state.circuitBreaker.isOpen[service]
@@ -104,10 +114,8 @@ function toggleCircuitBreaker (status, service) {
   }
 }
 
-connection
-  .start()
-  .then(() => fetch('/users'))
-  .then(res => {
+function hydrate () {
+  fetch('/users').then(res => {
     if (!res.ok) {
       throw new Error(`Http status: ${res.status}`)
     }
@@ -119,9 +127,10 @@ connection
       return acc
     }, {})
     renderAccountsList(accounts)
-    return accountSelected(accounts[0].accountId)
+    return accountSelected(state.selectedAccountId || accounts[0].accountId)
   })
   .catch(notifyError)
+}
 
 function accountSelectionClicked (e) {
   e.preventDefault()
@@ -189,7 +198,7 @@ function renderAccountsList (accounts) {
     return acc
   }, [])
 
-  selectors.accountsList().prepend(...accountsAsNodes)
+  selectors.accountsList().replaceChildren(...accountsAsNodes)
 }
 
 function highlightSelectedAccount (accountId) {
