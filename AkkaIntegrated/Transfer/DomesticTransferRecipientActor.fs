@@ -59,7 +59,7 @@ type Message =
 
 let actorProps
    (breaker: CircuitBreaker)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
    (requestTransfer: BankEvent<TransferPending> -> TaskResult<Response, string>)
    =
@@ -177,7 +177,7 @@ let actorProps
 let start
    (system: ActorSystem)
    (broadcaster: AccountBroadcast)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    let poolRouter = RoundRobinPool(1, DefaultResizer(1, 10))
 

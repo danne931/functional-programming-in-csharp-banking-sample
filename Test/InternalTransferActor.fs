@@ -37,7 +37,7 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: AccountState option) =
 
 let initInternalTransferActor
    (tck: TestKit.Tck)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    spawn tck ActorMetadata.internalTransfer.Name
    <| InternalTransferRecipientActor.actorProps getAccountRef

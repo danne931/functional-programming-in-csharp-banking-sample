@@ -178,8 +178,8 @@ let actorProps
 
    propsPersist handler
 
-let get (sys: ActorSystem) (entityId: Guid) =
-   AkklingExt.getEntityRef sys ActorMetadata.accountShardRegion entityId
+let get (sys: ActorSystem) (entityId: Guid) : IEntityRef<AccountMessage> =
+   getEntityRef sys ActorMetadata.accountShardRegion entityId
 
 let initProps
    (persistence: AccountPersistence)

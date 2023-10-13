@@ -12,7 +12,7 @@ open Bank.Transfer.Domain
 module Command = TransferResponseToCommand
 
 let actorProps
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    : Props<BankEvent<TransferPending>>
    =
    let handler (ctx: Actor<_>) (evt: BankEvent<TransferPending>) = actor {
@@ -60,7 +60,7 @@ let actorProps
 
    props <| actorOf2 handler
 
-let getOrStart mailbox (getAccountRef: EntityRefGetter<obj>) =
+let getOrStart mailbox (getAccountRef: EntityRefGetter<AccountMessage>) =
    ActorMetadata.internalTransfer.Name
    |> getChildActorRef<_, BankEvent<TransferPending>> mailbox
    |> Option.defaultWith (fun _ ->

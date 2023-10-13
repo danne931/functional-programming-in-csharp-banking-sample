@@ -89,7 +89,7 @@ let start
 let scheduleMonthly
    (system: ActorSystem)
    (quartzPersistentActorRef: IActorRef)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    let name = "BillingCycle"
    let group = "Bank"

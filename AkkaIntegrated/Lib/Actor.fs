@@ -108,19 +108,18 @@ let readJournal (system: ActorSystem) : SqlReadJournal =
       .Get(system)
       .ReadJournalFor<SqlReadJournal>(SqlReadJournal.Identifier)
 
-module AkklingExt =
-   let getEntityRef
-      system
-      (shardRegionMeta: ActorMetadata.ShardRegion)
-      (entityId: Guid)
-      : IEntityRef<'t>
-      =
-      let fac = {
-         TypeName = shardRegionMeta.name
-         ShardRegion =
-            ClusterSharding.Get(system).ShardRegion(shardRegionMeta.name)
-      }
+let getEntityRef
+   system
+   (shardRegionMeta: ActorMetadata.ShardRegion)
+   (entityId: Guid)
+   : IEntityRef<'t>
+   =
+   let fac = {
+      TypeName = shardRegionMeta.name
+      ShardRegion =
+         ClusterSharding.Get(system).ShardRegion(shardRegionMeta.name)
+   }
 
-      let shardId = shardRegionMeta.messageExtractor.ShardId entityId
+   let shardId = shardRegionMeta.messageExtractor.ShardId entityId
 
-      fac.RefFor shardId <| string entityId
+   fac.RefFor shardId <| string entityId

@@ -61,7 +61,7 @@ let initState = List.empty<AccountState>
 
 let actorProps
    (quartzPersistentActorRef: IActorRef)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    (emailRef: IActorRef<EmailActor.EmailMessage>)
    (deleteHistoricalRecords: Guid list -> TaskResultOption<Email list, Err>)
    =
@@ -148,7 +148,7 @@ let actorProps
 let start
    (system: ActorSystem)
    (quartzPersistentActorRef: IActorRef)
-   (getAccountRef: EntityRefGetter<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    spawn system ActorMetadata.accountClosure.Name
    <| actorProps

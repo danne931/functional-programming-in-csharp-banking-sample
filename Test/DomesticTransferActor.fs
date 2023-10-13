@@ -107,7 +107,7 @@ let initCircuitBreaker (tck: TestKit.Tck) =
 let initDomesticTransferActor
    (tck: TestKit.Tck)
    (breaker: CircuitBreaker)
-   (getAccountActor: EntityRefGetter<obj>)
+   (getAccountActor: EntityRefGetter<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
    (transferRequest:
       BankEvent<TransferPending>
