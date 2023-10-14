@@ -18,6 +18,7 @@ open Akka.Cluster.Sharding
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akka.Quartz.Actor
+open Akka.HealthCheck.Hosting.Web
 open Petabridge.Cmd.Host
 open Petabridge.Cmd.Cluster
 open Petabridge.Cmd.Cluster.Sharding
@@ -149,6 +150,7 @@ let startActorModel (builder: WebApplicationBuilder) =
 
                cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
                |> ignore)
+            .WithWebHealthCheck(provider)
             .ConfigureLoggers(fun builder ->
                builder.LogLevel <- LogLevel.InfoLevel
                //builder.LogConfigOnStart <- true

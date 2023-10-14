@@ -43,17 +43,18 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Akka" Version="1.5.12" />
-    <PackageReference Include="Akka.Cluster" Version="1.5.12" />
-    <PackageReference Include="Akka.Cluster.Hosting" Version="1.5.12" />
-    <PackageReference Include="Akka.DependencyInjection" Version="1.5.12" />
-    <PackageReference Include="Akka.Hosting" Version="1.5.12" />
-    <PackageReference Include="Akka.Logger.Serilog" Version="1.5.7" />
-    <PackageReference Include="Akka.Persistence.Hosting" Version="1.5.12" />
-    <PackageReference Include="Akka.Persistence.Sql" Version="1.5.12" />
-    <PackageReference Include="Akka.Persistence.Sql.Hosting" Version="1.5.12" />
-    <PackageReference Include="Akka.Quartz.Actor" Version="1.5.12" />
-    <PackageReference Include="Akka.Remote.Hosting" Version="1.5.12" />
+    <PackageReference Include="Akka" Version="1.5.13" />
+    <PackageReference Include="Akka.Cluster" Version="1.5.13" />
+    <PackageReference Include="Akka.Cluster.Hosting" Version="1.5.13" />
+    <PackageReference Include="Akka.DependencyInjection" Version="1.5.13" />
+    <PackageReference Include="Akka.HealthCheck.Hosting.Web" Version="1.5.12" />
+    <PackageReference Include="Akka.Hosting" Version="1.5.13" />
+    <PackageReference Include="Akka.Logger.Serilog" Version="1.5.12.1" />
+    <PackageReference Include="Akka.Persistence.Hosting" Version="1.5.13" />
+    <PackageReference Include="Akka.Persistence.Sql" Version="1.5.13" />
+    <PackageReference Include="Akka.Persistence.Sql.Hosting" Version="1.5.13" />
+    <PackageReference Include="Akka.Quartz.Actor" Version="1.5.13" />
+    <PackageReference Include="Akka.Remote.Hosting" Version="1.5.13" />
     <PackageReference Include="Akkling" Version="0.13.0" />
     <PackageReference Include="Akkling.Cluster.Sharding" Version="0.13.0" />
     <PackageReference Include="Akkling.Persistence" Version="0.13.0" />
