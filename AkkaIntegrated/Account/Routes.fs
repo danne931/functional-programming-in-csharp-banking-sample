@@ -45,13 +45,6 @@ let startAccountRoutes (app: WebApplication) =
    )
    |> ignore
 
-   app.MapDelete(
-      Path.AccountEvents,
-      Func<ActorSystem, Guid, Task<IResult>>(fun system id ->
-         diagnosticDelete system id |> RouteUtil.unwrapTask)
-   )
-   |> ignore
-
    app.MapPost(
       Path.Deposit,
       Func<ActorSystem, DepositCashCommand, Task<IResult>>(fun sys cmd ->

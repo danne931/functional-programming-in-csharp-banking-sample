@@ -54,9 +54,3 @@ let getAccountEvents
 let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
    let ref = AccountActor.get sys accountId
    ref <? AccountMessage.Lookup |> Async.toTask
-
-let diagnosticDelete (sys: ActorSystem) accountId = task {
-   let ref = AccountActor.get sys accountId
-   ref <! AccountMessage.Delete
-   return accountId
-}
