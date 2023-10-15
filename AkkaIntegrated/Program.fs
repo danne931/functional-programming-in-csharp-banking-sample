@@ -1,9 +1,16 @@
+open System
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.DependencyInjection
+open Serilog
+open Akka.Hosting
 open Akka.HealthCheck.Hosting
 open Akka.HealthCheck.Hosting.Web
-open Serilog
+open Akka.Event
+open Akka.Logger.Serilog
+open Petabridge.Cmd.Host
+open Petabridge.Cmd.Cluster
+open Petabridge.Cmd.Cluster.Sharding
 
 open Bank.User.Routes
 open Bank.Account.Routes
@@ -21,8 +28,23 @@ Config.startSignalR builder
 Config.startQuartz builder
 
 Config.startActorModel builder
+<| fun (builder: AkkaConfigurationBuilder) (provider: IServiceProvider) ->
+   builder
+      .ConfigureLoggers(fun builder ->
+         builder.LogLevel <- LogLevel.InfoLevel
+         builder.LogConfigOnStart <- false
+         builder.AddLogger<SerilogLogger>() |> ignore
+
+         builder.LogMessageFormatter <- typeof<SerilogLogMessageFormatter>)
+      .AddPetabridgeCmd(fun cmd ->
+         cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
+
+         cmd.RegisterCommandPalette(ClusterShardingCommands.Instance) |> ignore)
+      .WithWebHealthCheck(provider)
+   |> ignore
 
 Config.injectDependencies builder
+
 
 builder.Services.AddEndpointsApiExplorer().AddSwaggerGen() |> ignore
 builder.Services.WithAkkaHealthCheck(HealthCheckType.All) |> ignore

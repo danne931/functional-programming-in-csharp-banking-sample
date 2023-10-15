@@ -8,7 +8,6 @@ open Microsoft.Extensions.DependencyInjection
 open Serilog
 open Serilog.Sinks.SystemConsole
 open Serilog.Formatting.Compact
-open Akka.Logger.Serilog
 open Akka.Actor
 open Akka.Event
 open Akka.Hosting
@@ -18,10 +17,6 @@ open Akka.Cluster.Sharding
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akka.Quartz.Actor
-open Akka.HealthCheck.Hosting.Web
-open Petabridge.Cmd.Host
-open Petabridge.Cmd.Cluster
-open Petabridge.Cmd.Cluster.Sharding
 open Quartz
 open Akkling
 
@@ -61,7 +56,10 @@ let startSignalR (builder: WebApplicationBuilder) =
          Serialization.withInjectedOptions opts.PayloadSerializerOptions)
    |> ignore
 
-let startActorModel (builder: WebApplicationBuilder) =
+let startActorModel
+   (builder: WebApplicationBuilder)
+   (configureInstrumentation: AkkaConfigurationBuilder -> IServiceProvider -> _)
+   =
    let connString = envConfig.ConnectionStrings.PostgresAdoFormat
    let dbProvider = envConfig.AkkaPersistence.DbProvider
 
@@ -95,6 +93,8 @@ let startActorModel (builder: WebApplicationBuilder) =
    builder.Services.AddAkka(
       envConfig.AkkaSystemName,
       (fun builder provider ->
+         configureInstrumentation builder provider
+
          builder
             .AddHocon(
                """
@@ -143,19 +143,6 @@ let startActorModel (builder: WebApplicationBuilder) =
                   RememberEntitiesStore = RememberEntitiesStore.Eventsourced
                )
             )
-            .AddPetabridgeCmd(fun cmd ->
-               cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
-
-               cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
-               |> ignore)
-            .WithWebHealthCheck(provider)
-            .ConfigureLoggers(fun builder ->
-               builder.LogLevel <- LogLevel.InfoLevel
-               //builder.LogConfigOnStart <- true
-               builder.AddLogger<SerilogLogger>() |> ignore
-
-               builder.LogMessageFormatter <-
-                  typeof<SerilogLogMessageFormatter>)
             .WithActors(fun system registry ->
                let broadcast = provider.GetRequiredService<AccountBroadcast>()
 
