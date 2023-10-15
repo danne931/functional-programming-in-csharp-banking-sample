@@ -1,8 +1,10 @@
 [<RequireQualifiedAccess>]
 module Serialization
 
+open System
 open System.Text.Json
 open System.Text.Json.Serialization
+open System.Runtime.Serialization
 open Akka.Serialization
 open Akka.Actor
 
@@ -50,32 +52,49 @@ type AkkaPersistenceEventAdapter() =
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
 
-type AccountEventSerializer(system: ExtendedActorSystem) =
-   inherit Serializer(system)
+type AkkaSerializer(system: ExtendedActorSystem) =
+   inherit SerializerWithStringManifest(system)
 
    override x.Identifier = 931
-   override x.IncludeManifest = false
 
-   override x.ToBinary(o: obj) =
-      match unbox o with
-      | AccountMessage.Event e ->
-         JsonSerializer.SerializeToUtf8Bytes(e, jsonOptions)
-      | _ -> failwith "Attempt to serialize unknown object"
-
-   override x.FromBinary(bytes: byte[], _) : obj =
-      JsonSerializer.Deserialize(bytes, typeof<AccountEvent>, jsonOptions)
-
-type AccountSnapshotSerializer(system: ExtendedActorSystem) =
-   inherit Serializer(system)
-
-   override x.Identifier = 932
-   override x.IncludeManifest = false
+   override x.Manifest(o: obj) =
+      match o with
+      | :? AccountState -> "AccountState"
+      | :? AccountMessage as msg ->
+         match msg with
+         | AccountMessage.Event _ -> "AccountEvent"
+         | _ -> raise <| NotImplementedException()
+      | _ -> raise <| NotImplementedException()
 
    override x.ToBinary(o: obj) =
       match o with
       | :? AccountState as account ->
          JsonSerializer.SerializeToUtf8Bytes(account, jsonOptions)
-      | _ -> failwith "Attempt to serialize unknown object"
+      | :? AccountMessage as msg ->
+         match msg with
+         | AccountMessage.Event e ->
+            JsonSerializer.SerializeToUtf8Bytes(e, jsonOptions)
+         | _ -> raise <| NotImplementedException()
+      | _ -> raise <| NotImplementedException()
 
-   override x.FromBinary(bytes: byte[], _) : obj =
-      JsonSerializer.Deserialize(bytes, typeof<AccountState>, jsonOptions)
+   (*
+      NOTE:
+      https://getakka.net/articles/serialization/serialization.html
+
+      It's recommended to throw SerializationException in FromBinary(Byte[], String)
+      if the manifest is unknown.  This makes it possible to introduce new message
+      types and send them to nodes that don't know about them. This is typically
+      needed when performing rolling upgrades, i.e. running a cluster with mixed
+      versions for while. SerializationException is treated as a transient problem
+      in the TCP based remoting layer.  The problem will be logged and message is
+      dropped.  Other exceptions will tear down the TCP connection because it can
+      be an indication of corrupt bytes from the underlying transport.
+   *)
+   override x.FromBinary(bytes: byte[], manifest: string) : obj =
+      let deserializeToType =
+         match manifest with
+         | "AccountState" -> typeof<AccountState>
+         | "AccountEvent" -> typeof<AccountEvent>
+         | _ -> raise <| SerializationException()
+
+      JsonSerializer.Deserialize(bytes, deserializeToType, jsonOptions)

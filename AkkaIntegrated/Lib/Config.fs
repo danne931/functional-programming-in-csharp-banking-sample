@@ -119,14 +119,12 @@ let startActorModel (builder: WebApplicationBuilder) =
                   Akka.Serialization.NewtonSoftJsonSerializer(system)
             )
             .WithCustomSerializer(
-               "accountevent",
-               [ typedefof<BankTypes.AccountMessage> ],
-               fun system -> Serialization.AccountEventSerializer(system)
-            )
-            .WithCustomSerializer(
-               "accountsnapshot",
-               [ typedefof<BankTypes.AccountState> ],
-               fun system -> Serialization.AccountSnapshotSerializer(system)
+               "akka",
+               [
+                  typedefof<BankTypes.AccountMessage>
+                  typedefof<BankTypes.AccountState>
+               ],
+               fun system -> Serialization.AkkaSerializer(system)
             )
             .WithShardRegion<ActorMetadata.AccountShardRegionMarker>(
                ActorMetadata.accountShardRegion.name,
