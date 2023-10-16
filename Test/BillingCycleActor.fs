@@ -1,24 +1,18 @@
 module BillingCycleActorTests
 
-open System.Threading.Tasks
 open Expecto
 open Akkling
+open Akka.Actor
 open Akkling.TestKit
+open Akkling.Cluster.Sharding
 
 module BCActor = BillingCycleActor
 module BCBWActor = BillingCycleBulkWriteActor
 
 open Util
 open BankTypes
+open ActorUtil
 open Bank.Account.Domain
-
-let accountPersistence: AccountPersistence = {
-   getEvents = fun _ -> Stub.transactions |> Some |> Task.FromResult
-}
-
-let accountPersistenceNoTransactions: AccountPersistence = {
-   getEvents = fun _ -> None |> Task.FromResult
-}
 
 let accountStub = {
    AccountState.empty with
@@ -34,21 +28,49 @@ let accountStubSkipMaintenanceFee = {
       }
 }
 
+let initMockAccountActor
+   (tck: TestKit.Tck)
+   (txnsOpt: AccountEvent list option)
+   =
+   let handler (ctx: Actor<_>) =
+      function
+      | ShardEnvelope as envelope ->
+         match envelope.Message with
+         | :? AccountMessage as msg ->
+            match msg with
+            | AccountMessage.LookupEvents ->
+               ctx.Sender() <! txnsOpt
+               ignored ()
+            | AccountMessage.BillingCycleEnd ->
+               tck.TestActor.Tell msg
+               ignored ()
+            | AccountMessage.StateChange command ->
+               match command with
+               | :? MaintenanceFeeCommand
+               | :? SkipMaintenanceFeeCommand as cmd ->
+                  tck.TestActor.Tell cmd
+                  ignored ()
+               | msg -> unhandled msg
+            | msg -> unhandled msg
+         | msg -> unhandled msg
+
+   spawnAnonymous tck <| props (actorOf2 handler)
+
 let init
    (tck: TestKit.Tck)
-   (persistence: AccountPersistence)
    (accountStub: AccountState)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    let emailProbe = tck.CreateTestProbe()
    let billingBulkProbe = tck.CreateTestProbe()
 
    let billingProps =
       BCActor.actorProps
-         persistence
          accountStub
          (typed billingBulkProbe
          :> IActorRef<BillingCycleBulkWriteActor.Message>)
          (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
+         getAccountRef
 
    // Using ChildActorOf so messages intended for BillingCycleActor
    // parent (AccountActor) can be observed from tests on tck.
@@ -66,8 +88,10 @@ let tests =
           found for a billing cycle"
       <| None
       <| fun tck ->
+         let mockAccountRef = initMockAccountActor tck None
+
          let billingCycleActor, emailProbe, billingBulkProbe =
-            init tck accountPersistenceNoTransactions accountStub
+            init tck accountStub <| getAccountEntityRef mockAccountRef
 
          monitor tck billingCycleActor
 
@@ -82,10 +106,10 @@ let tests =
           parent Account Actor when account transactions for a billing cycle found."
       <| None
       <| fun tck ->
-         let billingCycleActor, emailProbe, billingBulkProbe =
-            init tck accountPersistence accountStub
+         let mockAccountRef = initMockAccountActor tck <| Some Stub.transactions
 
-         monitor tck billingCycleActor
+         let billingCycleActor, emailProbe, billingBulkProbe =
+            init tck accountStub <| getAccountEntityRef mockAccountRef
 
          billingCycleActor <! BCActor.Message.SaveBillingStatement
 
@@ -113,16 +137,7 @@ let tests =
                  message. Received message: {msg}"
 
          expectMsg tck AccountMessage.BillingCycleEnd |> ignore
-
-         match tck.ExpectMsg<AccountMessage>() with
-         | StateChange command ->
-            let isSameType = typeof<MaintenanceFeeCommand> = command.GetType()
-
-            Expect.isTrue
-               isSameType
-               "Parent of billing cycle actor (account actor)
-                should receive a MaintenanceFeeCommand"
-         | msg -> Expect.isTrue false $"Received incorrect message {msg}"
+         tck.ExpectMsg<MaintenanceFeeCommand>() |> ignore
 
          match emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
          | EmailActor.BillingStatement account ->
@@ -138,32 +153,19 @@ let tests =
                $"EmailActor expects BillingStatement message.
                  Received message: {msg}"
 
-         expectTerminated tck billingCycleActor |> ignore
-
       akkaTest
          "BillingCycleActor should skip sending a MaintenanceFeeCommand when
           maintenance fee criteria met."
       <| None
       <| fun tck ->
-         let billingCycleActor, _, _ =
-            init tck accountPersistence accountStubSkipMaintenanceFee
+         let mockAccountRef = initMockAccountActor tck <| Some Stub.transactions
 
-         monitor tck billingCycleActor
+         let billingCycleActor, _, _ =
+            init tck accountStubSkipMaintenanceFee
+            <| getAccountEntityRef mockAccountRef
 
          billingCycleActor <! BCActor.Message.SaveBillingStatement
 
          expectMsg tck AccountMessage.BillingCycleEnd |> ignore
-
-         match tck.ExpectMsg<AccountMessage>() with
-         | StateChange command ->
-            let isSameType =
-               typeof<SkipMaintenanceFeeCommand> = command.GetType()
-
-            Expect.isTrue
-               isSameType
-               "Parent of billing cycle actor (account actor)
-                should receive a SkipMaintenanceFeeCommand"
-         | msg -> Expect.isTrue false $"Received incorrect message {msg}"
-
-         expectTerminated tck billingCycleActor |> ignore
+         tck.ExpectMsg<SkipMaintenanceFeeCommand>() |> ignore
    ]

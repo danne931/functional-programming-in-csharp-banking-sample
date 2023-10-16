@@ -50,11 +50,7 @@ let init (tck: TestKit.Tck) =
       (typed accountClosureProbe
       :> IActorRef<AccountClosureActor.AccountClosureMessage>)
 
-   let startBillingCycleActor
-      (_: Actor<_>)
-      (_: AccountPersistence)
-      (_: AccountState)
-      =
+   let startBillingCycleActor (_: Actor<_>) (_: AccountState) =
       (typed billingCycleProbe :> IActorRef<BillingCycleActor.Message>)
 
    let accountActor =

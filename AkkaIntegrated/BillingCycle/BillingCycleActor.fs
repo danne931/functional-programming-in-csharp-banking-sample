@@ -14,30 +14,24 @@ open ActorUtil
 
 module Api = Bank.BillingCycle.Api
 
-type Message =
-   | SaveBillingStatement
-   | AccountTransactionsLoaded of AccountEvent list option
+type Message = | SaveBillingStatement
 
 let actorProps
-   (persistence: AccountPersistence)
    (account: AccountState)
    (billingCycleBulkWriteActor: IActorRef<BillingCycleBulkWriteActor.Message>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    let accountId = account.EntityId
 
-   let getTransactions () = async {
-      let! txnsOpt = persistence.getEvents accountId |> Async.AwaitTask
-      return AccountTransactionsLoaded txnsOpt
-   }
-
    let handler (ctx: Actor<Message>) = actor {
       let! msg = ctx.Receive()
-      let accountRef = ctx.Parent()
+      let accountRef = getAccountRef accountId
 
       match msg with
-      | SaveBillingStatement -> getTransactions () |!> ctx.Self
-      | AccountTransactionsLoaded txnsOpt ->
+      | SaveBillingStatement ->
+         let! (txnsOpt: AccountEvent list option) = accountRef <? LookupEvents
+
          if txnsOpt.IsNone then
             logWarning ctx "No transactions found for billing cycle."
          else
@@ -72,16 +66,16 @@ let actorProps
 
 let start
    (mailbox: Actor<obj>)
-   (persistence: AccountPersistence)
    (account: AccountState)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    let aref =
       spawn mailbox ActorMetadata.billingCycle.Name
       <| actorProps
-            persistence
             account
             (BillingCycleBulkWriteActor.get mailbox.System)
             (EmailActor.get mailbox.System)
+            getAccountRef
 
    aref <! SaveBillingStatement
    aref

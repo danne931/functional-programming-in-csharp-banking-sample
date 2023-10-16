@@ -131,6 +131,7 @@ type AccountState = {
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
    | Lookup
+   | LookupEvents
    | StateChange of Command
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>

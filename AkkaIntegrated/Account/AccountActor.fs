@@ -29,15 +29,17 @@ let actorProps
    (getAccountClosureActor:
       ActorSystem -> IActorRef<AccountClosureActor.AccountClosureMessage>)
    (startBillingCycleActor:
-      Actor<_>
-         -> AccountPersistence
-         -> AccountState
-         -> IActorRef<BillingCycleActor.Message>)
+      Actor<_> -> AccountState -> IActorRef<BillingCycleActor.Message>)
    (userPersistence: UserPersistence)
    =
    let createUser (user: User.User) (evt: BankEvent<CreatedAccount>) = async {
       let! res = userPersistence.createUser user |> Async.AwaitTask
       return UserCreationResponse(res, evt)
+   }
+
+   let getTransactions (accountOpt: AccountState option) = asyncOption {
+      let! account = accountOpt
+      return! persistence.getEvents account.EntityId |> Async.AwaitTask
    }
 
    let handler (mailbox: Eventsourced<obj>) =
@@ -80,8 +82,11 @@ let actorProps
                | Lookup ->
                   mailbox.Sender() <! accountOpt
                   ignored ()
+               | LookupEvents ->
+                  mailbox.Sender() <!| getTransactions accountOpt
+                  ignored ()
                | BillingCycle _ when accountOpt.IsSome ->
-                  ignored <| startBillingCycleActor mailbox persistence account
+                  ignored <| startBillingCycleActor mailbox account
                | StateChange cmd ->
                   let validation = Account.stateTransition account cmd
 
@@ -189,6 +194,9 @@ let initProps
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
 
+   let startBillingCycleActor mailbox account =
+      BillingCycleActor.start mailbox account <| get system
+
    actorProps
       persistence
       broadcaster
@@ -196,7 +204,7 @@ let initProps
       DomesticTransferRecipientActor.get
       EmailActor.get
       AccountClosureActor.get
-      BillingCycleActor.start
+      startBillingCycleActor
       {
          createUser = Bank.User.Api.createUser
       }
