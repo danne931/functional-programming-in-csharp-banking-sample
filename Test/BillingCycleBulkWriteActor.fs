@@ -1,8 +1,6 @@
 module BillingCycleBulkWriteActorTests
 
-open System
 open System.Threading
-open System.Threading.Tasks
 open Expecto
 open Akkling
 open FsToolkit.ErrorHandling
@@ -17,7 +15,7 @@ let config () =
    Configuration.parse
       """
       billing-cycle-bulk-write-mailbox: {
-         mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, AkkaIntegrated"
+         mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, BillingCycle.App"
       }
       """
 

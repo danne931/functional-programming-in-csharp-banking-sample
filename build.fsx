@@ -12,32 +12,28 @@ System.Environment.GetCommandLineArgs()
 open Fake.Core
 open Fake.Core.TargetOperators
 open Fake.IO
+open Globbing.Operators
 
-let cwd = "./AkkaIntegrated"
+let appEntryDir = "./Web"
 let testDir = "./Test"
 
-Target.create "CleanTest" (fun _ ->
-   let dirs = [ $"{testDir}/bin/"; $"{testDir}/obj/" ]
-   Trace.trace $"Cleaning directories: {dirs}"
-   Shell.cleanDirs dirs)
-
-Target.create "CleanApp" (fun _ ->
-   let dirs = [ $"{cwd}/bin/"; $"{cwd}/obj/" ]
+Target.create "Clean" (fun _ ->
+   let dirs = !! "**/bin/" ++ "**/obj/"
    Trace.trace $"Cleaning directories: {dirs}"
    Shell.cleanDirs dirs
-   Shell.rm $"{cwd}/logs.json")
+   Shell.rm $"{appEntryDir}/logs.json")
 
 Target.create "BuildApp" (fun _ ->
-   Shell.Exec("dotnet", "build", dir = cwd) |> ignore)
+   Shell.Exec("dotnet", "build", dir = appEntryDir) |> ignore)
 
 Target.create "RunApp" (fun _ ->
-   Shell.Exec("dotnet", "watch", dir = cwd) |> ignore)
+   Shell.Exec("dotnet", "watch", dir = appEntryDir) |> ignore)
 
 // no-spinner option fixes intermittent hanging of Expecto
 Target.create "Test" (fun _ ->
    Shell.Exec("dotnet", "run --no-spinner", dir = testDir) |> ignore)
 
-"CleanApp" ==> "BuildApp"
+"Clean" ==> "BuildApp"
 
 // start build
 Target.runOrDefaultWithArguments "RunApp"

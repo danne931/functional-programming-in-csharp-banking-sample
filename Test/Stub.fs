@@ -4,10 +4,10 @@ module Stub
 open System
 open System.Threading.Tasks
 
-open BankTypes
 open Lib.Types
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open BillingStatement
 
 let entityId = Guid.NewGuid()
 let correlationId = Guid.NewGuid()
@@ -168,76 +168,157 @@ let accountStateAfterCreate = {
       }
 }
 
-let event = {|
+let internalTransferRecipient = {
+   LastName = "Fish"
+   FirstName = "Small"
+   Identification = Guid.NewGuid().ToString()
+   AccountEnvironment = RecipientAccountEnvironment.Internal
+   IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
+   RoutingNumber = None
+   Currency = USD
+}
+
+let domesticTransferRecipient = {
+   LastName = "Fish"
+   FirstName = "Big"
+   Identification = Guid.NewGuid().ToString()
+   AccountEnvironment = RecipientAccountEnvironment.Domestic
+   IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
+   RoutingNumber = Some "123459991"
+   Currency = USD
+}
+
+let asBankEvent (evtData: 't) : BankEvent<'t> = {
+   EntityId = entityId
+   CorrelationId = correlationId
+   Timestamp = DateTime.UtcNow
+   Data = evtData
+}
+
+type EventIndex = {
+   createdAccount: BankEvent<CreatedAccount>
+   depositedCash: BankEvent<DepositedCash>
+   debitedAccount: BankEvent<DebitedAccount>
+   maintenanceFeeDebited: BankEvent<MaintenanceFeeDebited>
+   internalTransferPending: BankEvent<TransferPending>
+   domesticTransferPending: BankEvent<TransferPending>
+   transferRejected: BankEvent<TransferRejected>
+   transferDeposited: BankEvent<TransferDeposited>
+}
+
+let event: EventIndex = {
    createdAccount =
-      CreatedAccount {
-         EntityId = entityId
-         CorrelationId = correlationId
-         Timestamp = DateTime.UtcNow
-         Data = {
-            Email = Email.deserialize "jellyfish@gmail.com"
-            FirstName = "Jelly"
-            LastName = "Fish"
-            Balance = 100m
-            Currency = Currency.THB
-         }
+      asBankEvent {
+         Email = Email.deserialize "jellyfish@gmail.com"
+         FirstName = "Jelly"
+         LastName = "Fish"
+         Balance = 100m
+         Currency = Currency.THB
       }
    depositedCash =
-      DepositedCash {
-         EntityId = entityId
-         CorrelationId = correlationId
-         Timestamp = DateTime.UtcNow
-         Data = {
-            DepositedAmount = 150m
-            Origin = "ATM"
-         }
+      asBankEvent {
+         DepositedAmount = 150m
+         Origin = "ATM"
       }
-   internalTransferPending = {
-      EntityId = entityId
-      CorrelationId = correlationId
-      Timestamp = DateTime.UtcNow
-      Data = {
+   debitedAccount =
+      asBankEvent {
+         DebitedAmount = 150m
+         Origin = "Spotify"
+         Date = DateTime.UtcNow
+         Reference = None
+      }
+   maintenanceFeeDebited =
+      asBankEvent {
+         DebitedAmount = MaintenanceFee.RecurringDebitAmount
+      }
+   internalTransferPending =
+      asBankEvent {
          Date = DateTime.UtcNow
          Reference = None
          DebitedAmount = 20m
-         Recipient = {
-            LastName = "Fish"
-            FirstName = "Small"
-            Identification = Guid.NewGuid().ToString()
-            AccountEnvironment = RecipientAccountEnvironment.Internal
-            IdentificationStrategy =
-               RecipientAccountIdentificationStrategy.AccountId
-            RoutingNumber = None
-            Currency = USD
-         }
+         Recipient = internalTransferRecipient
       }
-   }
-   domesticTransferPending = {
-      EntityId = entityId
-      CorrelationId = correlationId
-      Timestamp = DateTime.UtcNow
-      Data = {
+   domesticTransferPending =
+      asBankEvent {
          Date = DateTime.UtcNow
          Reference = None
          DebitedAmount = 20m
-         Recipient = {
-            LastName = "Fish"
-            FirstName = "Big"
-            Identification = Guid.NewGuid().ToString()
-            AccountEnvironment = RecipientAccountEnvironment.Domestic
-            IdentificationStrategy =
-               RecipientAccountIdentificationStrategy.AccountId
-            RoutingNumber = Some "123459991"
-            Currency = USD
-         }
+         Recipient = domesticTransferRecipient
       }
+   transferRejected =
+      asBankEvent {
+         Date = DateTime.UtcNow
+         DebitedAmount = 20m
+         Reason = ""
+         Recipient = domesticTransferRecipient
+      }
+   transferDeposited = asBankEvent ({ DepositedAmount = 100m; Origin = "" })
+}
+
+let accountEvents = [
+   AccountEnvelope.wrap event.createdAccount
+   AccountEnvelope.wrap event.depositedCash
+   AccountEnvelope.wrap event.debitedAccount
+   AccountEnvelope.wrap event.maintenanceFeeDebited
+   AccountEnvelope.wrap event.internalTransferPending
+   AccountEnvelope.wrap event.transferRejected
+   AccountEnvelope.wrap event.transferDeposited
+]
+
+let billingTransactions: BillingTransaction list = [
+   {
+      EventId = Guid.NewGuid()
+      Name = "CreatedAccount"
+      Amount = 100m
+      Date = DateTime.UtcNow
+      Info = ""
    }
-|}
+   {
+      EventId = Guid.NewGuid()
+      Name = "DepositedCash"
+      Amount = 150m
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+   {
+      EventId = Guid.NewGuid()
+      Name = "DebitedAccount"
+      Amount = -150m
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+   {
+      EventId = Guid.NewGuid()
+      Name = "MaintenanceFeeDebited"
+      Amount = -MaintenanceFee.RecurringDebitAmount
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+   {
+      EventId = Guid.NewGuid()
+      Name = "TransferPending"
+      Amount = -20m
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+   {
+      EventId = Guid.NewGuid()
+      Name = "TransferRejected"
+      Amount = 20m
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+   {
+      EventId = Guid.NewGuid()
+      Name = "TransferDeposited"
+      Amount = 100m
+      Date = DateTime.UtcNow
+      Info = ""
+   }
+]
 
-let transactions = [ event.createdAccount; event.depositedCash ]
-
-let billingStatement: BillingStatement.BillingStatement = {
-   Transactions = transactions
+let billingStatement: BillingStatement = {
+   Transactions = billingTransactions
    Month = 3
    Year = 2023
    Balance = 250m

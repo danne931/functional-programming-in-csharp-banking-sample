@@ -19,12 +19,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Akkling.TestKit" Version="0.13.0" />
-    <PackageReference Include="Expecto" Version="10.1.0" />
+    <PackageReference Include="Akkling.TestKit" />
+    <PackageReference Include="Expecto" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AkkaIntegrated\AkkaIntegrated.fsproj" />
+    <ProjectReference Include="..\Transfer.App\Transfer.App.fsproj" />
+    <ProjectReference Include="..\BillingCycle.App\BillingCycle.App.fsproj" />
+    <ProjectReference Include="..\Account.App\Account.App.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Events.fs" />
+    <Compile Include="Commands.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="Account.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Validus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lib/Lib.fsproj" />
+    <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
+    <ProjectReference Include="../Transfer.Domain/Transfer.Domain.fsproj" />
+  </ItemGroup>
+</Project>

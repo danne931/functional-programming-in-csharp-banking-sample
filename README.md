@@ -36,7 +36,7 @@ web page to test the use cases against an account.
 ![bank-internal-transfer](https://github.com/danne931/akka-dotnet-bank/assets/4181901/fd71e49f-f08b-4af1-9a64-3bac96490d98)
 
 ## Running with Docker
-1. docker-compose -f compose.yaml up
+1. docker compose up
 2. navigate to localhost:3000
 3. if you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
 

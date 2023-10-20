@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Environment.fs" />
+    <Compile Include="ActivePatterns.fs" />
+    <Compile Include="Time.fs" />
+    <Compile Include="Validators.fs" />
+    <Compile Include="TCP.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="Postgres.fs" />
+    <Compile Include="Actor.fs" />
+    <Compile Include="Serialization.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Akka.Cluster" />
+    <PackageReference Include="Akka.Persistence.Sql" />
+    <PackageReference Include="Akkling" />
+    <PackageReference Include="Akkling.Cluster.Sharding" />
+    <PackageReference Include="FsConfig" />
+    <PackageReference Include="FSharp.SystemTextJson" />
+    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
+    <PackageReference Include="Npgsql.FSharp" />
+    <PackageReference Include="Validus" />
+  </ItemGroup>
+</Project>

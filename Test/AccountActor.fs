@@ -1,17 +1,16 @@
 module AccountActorTests
 
-open System
 open System.Threading.Tasks
 open Expecto
 open Akkling
 open Akka.Actor
-open FsToolkit.ErrorHandling
 
 open Util
-open BankTypes
 open Lib.Types
 open ActorUtil
+open Bank.Account.Domain
 open Bank.Transfer.Domain
+open User
 
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
@@ -22,7 +21,7 @@ let config =
       """
 
 let accountPersistence: AccountPersistence = {
-   getEvents = fun _ -> Stub.transactions |> Some |> Task.FromResult
+   getEvents = fun _ -> Stub.accountEvents |> Some |> Task.FromResult
 }
 
 let userPersistence: UserPersistence = {

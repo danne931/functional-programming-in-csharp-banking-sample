@@ -2,16 +2,16 @@ module AccountClosureActorTests
 
 open System
 open Expecto
+open Akka.Actor
 open Akkling
 open Akkling.Cluster.Sharding
-open Akka.Actor
 open Akka.Quartz.Actor.Commands
 open FsToolkit.ErrorHandling
 
 open Util
-open BankTypes
 open Lib.Types
 open ActorUtil
+open Bank.Account.Domain
 
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
@@ -22,9 +22,9 @@ let config =
       """
 
 let initMockAccountActor (tck: TestKit.Tck) =
-   let handler (ctx: Actor<_>) =
-      function
-      | ShardEnvelope as envelope ->
+   let handler (ctx: Actor<_>) (msg: obj) =
+      match msg with
+      | :? ShardEnvelope as envelope ->
          match envelope.Message with
          | :? AccountMessage as msg ->
             match msg with
@@ -33,6 +33,7 @@ let initMockAccountActor (tck: TestKit.Tck) =
                ignored ()
             | msg -> unhandled msg
          | msg -> unhandled msg
+      | msg -> unhandled msg
 
    spawn tck "account-mock" <| props (actorOf2 handler)
 

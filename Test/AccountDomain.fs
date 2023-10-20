@@ -3,8 +3,8 @@ module AccountDomainTests
 open System
 open Expecto
 
-open BankTypes
 open Lib.Types
+open Bank.Account.Domain
 
 let update = Account.stateTransition
 

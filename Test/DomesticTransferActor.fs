@@ -11,14 +11,14 @@ open FsToolkit.ErrorHandling
 
 open Util
 open ActorUtil
-open BankTypes
 open Lib.Types
+open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 let initMockAccountActor (tck: TestKit.Tck) =
-   let handler (ctx: Actor<_>) =
-      function
-      | ShardEnvelope as envelope ->
+   let handler (ctx: Actor<_>) (msg: obj) =
+      match msg with
+      | :? ShardEnvelope as envelope ->
          match envelope.Message with
          | :? AccountMessage as msg ->
             match msg with
@@ -31,6 +31,7 @@ let initMockAccountActor (tck: TestKit.Tck) =
                | msg -> unhandled msg
             | msg -> unhandled msg
          | msg -> unhandled msg
+      | msg -> unhandled msg
 
    spawnAnonymous tck <| props (actorOf2 handler)
 

@@ -10,7 +10,6 @@ module BCActor = BillingCycleActor
 module BCBWActor = BillingCycleBulkWriteActor
 
 open Util
-open BankTypes
 open ActorUtil
 open Bank.Account.Domain
 
@@ -32,9 +31,9 @@ let initMockAccountActor
    (tck: TestKit.Tck)
    (txnsOpt: AccountEvent list option)
    =
-   let handler (ctx: Actor<_>) =
-      function
-      | ShardEnvelope as envelope ->
+   let handler (ctx: Actor<_>) (msg: obj) =
+      match msg with
+      | :? ShardEnvelope as envelope ->
          match envelope.Message with
          | :? AccountMessage as msg ->
             match msg with
@@ -53,6 +52,7 @@ let initMockAccountActor
                | msg -> unhandled msg
             | msg -> unhandled msg
          | msg -> unhandled msg
+      | msg -> unhandled msg
 
    spawnAnonymous tck <| props (actorOf2 handler)
 
@@ -106,7 +106,8 @@ let tests =
           parent Account Actor when account transactions for a billing cycle found."
       <| None
       <| fun tck ->
-         let mockAccountRef = initMockAccountActor tck <| Some Stub.transactions
+         let mockAccountRef =
+            initMockAccountActor tck <| Some Stub.accountEvents
 
          let billingCycleActor, emailProbe, billingBulkProbe =
             init tck accountStub <| getAccountEntityRef mockAccountRef
@@ -116,8 +117,8 @@ let tests =
          match billingBulkProbe.ExpectMsg<BCBWActor.Message>() with
          | BCBWActor.RegisterBillingStatement statement ->
             Expect.sequenceEqual
-               statement.Transactions
-               Stub.transactions
+               (statement.Transactions |> List.map (fun k -> k.Name))
+               (Stub.billingTransactions |> List.map (fun k -> k.Name))
                "RegisterBillingStatements msg should send transactions equivalent
                 to those associated with the account events"
 
@@ -158,7 +159,8 @@ let tests =
           maintenance fee criteria met."
       <| None
       <| fun tck ->
-         let mockAccountRef = initMockAccountActor tck <| Some Stub.transactions
+         let mockAccountRef =
+            initMockAccountActor tck <| Some Stub.accountEvents
 
          let billingCycleActor, _, _ =
             init tck accountStubSkipMaintenanceFee
