@@ -1,7 +1,7 @@
 # Banking with Akka.NET
 
 ## Intro
-This project [(see AkkaIntegrated directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/AkkaIntegrated) utilizes event sourcing and the actor model via Akka.NET to build typical banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is utilized for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
+This project utilizes event sourcing and the actor model via Akka.NET to build typical banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is utilized for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
 
 ## Use Cases
 1. Deposit
@@ -19,7 +19,7 @@ This project [(see AkkaIntegrated directory)](https://github.com/danne931/akka-d
 ![bank-9-1](https://github.com/danne931/akka-dotnet-bank/assets/4181901/b9d0a710-7ef6-43f2-8ac7-4580746f8853)
 
 ## UI
-I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/AkkaIntegrated/wwwroot/js/account.js)
+I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/Web/wwwroot/js/account.js)
 web page to test the use cases against an account.
 
 [SignalR](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) is used to provide real-time feedback from actors to the UI:
@@ -43,7 +43,7 @@ web page to test the use cases against an account.
 ## Running without Docker
 1. Dependencies: .NET 7, PostgreSQL & the psql command-line interface
 2. Create a database (Server=localhost;Database=akkabank;Uid=postgres;Pwd=password)
-3. Seed the database: psql postgres < AkkaIntegrated/Migrations/*.sql
+3. Seed the database: psql postgres < Infrastructure/Migrations/*.sql
 4. sh build.sh (builds & launches the app in watch mode)
 5. navigate to MockThirdPartyBankTransferReceiver and dotnet run if testing domestic transfers
 
@@ -59,4 +59,4 @@ and [domain logic](https://github.com/la-yumba/functional-csharp-code-2/blob/mas
 additional business use cases as well as integration with more tech such as [EventStoreDB](https://www.eventstore.com/eventstoredb) and the
 de facto library for functional programming in C#, [language-ext](https://github.com/louthy/language-ext).
 
-The second iteration of this project [(see FSharpWithAkka directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/Archive/FSharpWithAkka) is close to a one-to-one representation of the CSharpWithLanguageExt directory, with all use cases rewritten in F# and **Paul Louth**'s echo-process actor library replaced with Akka.  I saw that [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference) and [computation expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions) made writing programs with typed functional programming more second nature than with C# so I decided to continue with it for the third iteration (AkkaIntegrated directory) and beyond.
+The second iteration of this project [(see FSharpWithAkka directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/Archive/FSharpWithAkka) is close to a one-to-one representation of the CSharpWithLanguageExt directory, with all use cases rewritten in F# and **Paul Louth**'s echo-process actor library replaced with Akka.  I saw that [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference) and [computation expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions) made writing programs with typed functional programming more second nature than with C# so I decided to continue with it for the third iteration.
