@@ -168,33 +168,6 @@ let accountStateAfterCreate = {
       }
 }
 
-let internalTransferRecipient = {
-   LastName = "Fish"
-   FirstName = "Small"
-   Identification = Guid.NewGuid().ToString()
-   AccountEnvironment = RecipientAccountEnvironment.Internal
-   IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-   RoutingNumber = None
-   Currency = USD
-}
-
-let domesticTransferRecipient = {
-   LastName = "Fish"
-   FirstName = "Big"
-   Identification = Guid.NewGuid().ToString()
-   AccountEnvironment = RecipientAccountEnvironment.Domestic
-   IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-   RoutingNumber = Some "123459991"
-   Currency = USD
-}
-
-let asBankEvent (evtData: 't) : BankEvent<'t> = {
-   EntityId = entityId
-   CorrelationId = correlationId
-   Timestamp = DateTime.UtcNow
-   Data = evtData
-}
-
 type EventIndex = {
    createdAccount: BankEvent<CreatedAccount>
    depositedCash: BankEvent<DepositedCash>
@@ -207,53 +180,30 @@ type EventIndex = {
 }
 
 let event: EventIndex = {
-   createdAccount =
-      asBankEvent {
-         Email = Email.deserialize "jellyfish@gmail.com"
-         FirstName = "Jelly"
-         LastName = "Fish"
-         Balance = 100m
-         Currency = Currency.THB
-      }
+   createdAccount = Result.toValueOption(command.createAccount.toEvent ()).Value
    depositedCash =
-      asBankEvent {
-         DepositedAmount = 150m
-         Origin = "ATM"
-      }
-   debitedAccount =
-      asBankEvent {
-         DebitedAmount = 150m
-         Origin = "Spotify"
-         Date = DateTime.UtcNow
-         Reference = None
-      }
+      Result.toValueOption(command.depositCash(150m).toEvent ()).Value
+   debitedAccount = Result.toValueOption(command.debit(150m).toEvent ()).Value
    maintenanceFeeDebited =
-      asBankEvent {
-         DebitedAmount = MaintenanceFee.RecurringDebitAmount
-      }
+      Result.toValueOption(command.maintenanceFee.toEvent ()).Value
    internalTransferPending =
-      asBankEvent {
-         Date = DateTime.UtcNow
-         Reference = None
-         DebitedAmount = 20m
-         Recipient = internalTransferRecipient
-      }
+      Result.toValueOption(command.internalTransfer(20m).toEvent ()).Value
    domesticTransferPending =
-      asBankEvent {
-         Date = DateTime.UtcNow
-         Reference = None
-         DebitedAmount = 20m
-         Recipient = domesticTransferRecipient
-      }
+      Result.toValueOption(command.domesticTransfer(20m).toEvent ()).Value
    transferRejected =
-      asBankEvent {
-         Date = DateTime.UtcNow
-         DebitedAmount = 20m
-         Reason = ""
-         Recipient = domesticTransferRecipient
-      }
-   transferDeposited = asBankEvent ({ DepositedAmount = 100m; Origin = "" })
+      Result.toValueOption(command.rejectTransfer(20m).toEvent ()).Value
+   transferDeposited =
+      Result.toValueOption(command.depositTransfer(100m).toEvent ()).Value
 }
+
+let commands: Command list = [
+   command.createAccount
+   command.depositCash event.depositedCash.Data.DepositedAmount
+   command.debit event.debitedAccount.Data.DebitedAmount
+   command.maintenanceFee
+   command.internalTransfer event.internalTransferPending.Data.DebitedAmount
+   command.rejectTransfer event.transferRejected.Data.DebitedAmount
+]
 
 let accountEvents = [
    AccountEnvelope.wrap event.createdAccount
@@ -262,56 +212,48 @@ let accountEvents = [
    AccountEnvelope.wrap event.maintenanceFeeDebited
    AccountEnvelope.wrap event.internalTransferPending
    AccountEnvelope.wrap event.transferRejected
-   AccountEnvelope.wrap event.transferDeposited
 ]
 
 let billingTransactions: BillingTransaction list = [
    {
-      EventId = Guid.NewGuid()
-      Name = "CreatedAccount"
-      Amount = 100m
+      EventId = event.createdAccount.EntityId
+      Name = event.createdAccount.EventName
+      Amount = event.createdAccount.Data.Balance
       Date = DateTime.UtcNow
       Info = ""
    }
    {
-      EventId = Guid.NewGuid()
-      Name = "DepositedCash"
-      Amount = 150m
+      EventId = event.depositedCash.EntityId
+      Name = event.depositedCash.EventName
+      Amount = event.depositedCash.Data.DepositedAmount
       Date = DateTime.UtcNow
       Info = ""
    }
    {
-      EventId = Guid.NewGuid()
-      Name = "DebitedAccount"
-      Amount = -150m
+      EventId = event.debitedAccount.EntityId
+      Name = event.debitedAccount.EventName
+      Amount = -event.debitedAccount.Data.DebitedAmount
       Date = DateTime.UtcNow
       Info = ""
    }
    {
-      EventId = Guid.NewGuid()
-      Name = "MaintenanceFeeDebited"
-      Amount = -MaintenanceFee.RecurringDebitAmount
+      EventId = event.maintenanceFeeDebited.EntityId
+      Name = event.maintenanceFeeDebited.EventName
+      Amount = -event.maintenanceFeeDebited.Data.DebitedAmount
       Date = DateTime.UtcNow
       Info = ""
    }
    {
-      EventId = Guid.NewGuid()
-      Name = "TransferPending"
-      Amount = -20m
+      EventId = event.internalTransferPending.EntityId
+      Name = event.internalTransferPending.EventName
+      Amount = -event.internalTransferPending.Data.DebitedAmount
       Date = DateTime.UtcNow
       Info = ""
    }
    {
-      EventId = Guid.NewGuid()
-      Name = "TransferRejected"
-      Amount = 20m
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = Guid.NewGuid()
-      Name = "TransferDeposited"
-      Amount = 100m
+      EventId = event.transferRejected.EntityId
+      Name = event.transferRejected.EventName
+      Amount = event.transferRejected.Data.DebitedAmount
       Date = DateTime.UtcNow
       Info = ""
    }

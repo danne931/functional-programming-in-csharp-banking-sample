@@ -12,6 +12,8 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open User
 
+module BCBWActor = BillingCycleBulkWriteActor
+
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
 let config =
@@ -24,16 +26,20 @@ let accountPersistence: AccountPersistence = {
    getEvents = fun _ -> Stub.accountEvents |> Some |> Task.FromResult
 }
 
+let accountPersistenceNoEvents: AccountPersistence = {
+   getEvents = fun _ -> None |> Task.FromResult
+}
+
 let userPersistence: UserPersistence = {
    createUser = fun _ -> 1 |> Ok |> Task.FromResult
 }
 
-let init (tck: TestKit.Tck) =
+let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let internalTransferProbe = tck.CreateTestProbe()
    let domesticTransferProbe = tck.CreateTestProbe()
    let emailProbe = tck.CreateTestProbe()
    let accountClosureProbe = tck.CreateTestProbe()
-   let billingCycleProbe = tck.CreateTestProbe()
+   let billingBulkProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
       (typed internalTransferProbe :> IActorRef<BankEvent<TransferPending>>)
@@ -49,8 +55,8 @@ let init (tck: TestKit.Tck) =
       (typed accountClosureProbe
       :> IActorRef<AccountClosureActor.AccountClosureMessage>)
 
-   let startBillingCycleActor (_: Actor<_>) (_: AccountState) =
-      (typed billingCycleProbe :> IActorRef<BillingCycleActor.Message>)
+   let getBillingCycleBulkWriteActor (_: ActorSystem) =
+      (typed billingBulkProbe :> IActorRef<BillingCycleBulkWriteActor.Message>)
 
    let accountActor =
       spawn tck ActorMetadata.account.Name
@@ -61,7 +67,7 @@ let init (tck: TestKit.Tck) =
             getDomesticTransferActor
             getEmailActor
             getAccountClosureActor
-            startBillingCycleActor
+            getBillingCycleBulkWriteActor
             userPersistence
 
    {|
@@ -70,7 +76,7 @@ let init (tck: TestKit.Tck) =
       domesticTransferProbe = domesticTransferProbe
       emailProbe = emailProbe
       accountClosureProbe = accountClosureProbe
-      billingCycleProbe = billingCycleProbe
+      billingBulkProbe = billingBulkProbe
    |}
 
 [<Tests>]
@@ -80,9 +86,9 @@ let tests =
          "Init account should save the account, create a user, & send a welcome email"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -109,10 +115,10 @@ let tests =
       akkaTest "Close account should interact with the AccountClosureActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
          o.accountActor <! StateChange Stub.command.closeAccount
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -146,14 +152,14 @@ let tests =
          "A failed debit due to insufficient balance should notify the EmailActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
 
          let debit =
             Stub.command.debit <| Stub.accountStateAfterCreate.Balance + 1m
 
          o.accountActor <! StateChange debit
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -186,10 +192,10 @@ let tests =
          "A failed debit due to exceeding daily debit allowance should notify the EmailActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
          o.accountActor <! StateChange(Stub.command.limitDailyDebits 100m)
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -207,7 +213,7 @@ let tests =
          let debit2 = Stub.command.debit 33m
          o.accountActor <! StateChange debit1
          o.accountActor <! StateChange debit2
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
@@ -234,12 +240,12 @@ let tests =
          "An internal transfer should message the InternalTransferRecipientActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
          let transfer = Stub.command.internalTransfer 33m
          o.accountActor <! StateChange Stub.command.registerInternalRecipient
          o.accountActor <! StateChange transfer
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -257,12 +263,12 @@ let tests =
          "A domestic transfer should message the DomesticTransferRecipientActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
          let transfer = Stub.command.domesticTransfer 31m
          o.accountActor <! StateChange Stub.command.registerDomesticRecipient
          o.accountActor <! StateChange transfer
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -288,11 +294,11 @@ let tests =
       akkaTest "Receiving a transfer deposit should notify the EmailActor"
       <| Some config
       <| fun tck ->
-         let o = init tck
+         let o = init tck accountPersistence
          o.accountActor <! StateChange Stub.command.createAccount
          let deposit = Stub.command.depositTransfer 101m
          o.accountActor <! StateChange deposit
-         o.accountActor <! Lookup
+         o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -316,4 +322,121 @@ let tests =
             Expect.isTrue
                false
                $"Expected TransferDeposited EmailMessage. Received {msg}"
+
+      akkaTest
+         "If no account transactions found for a billing cycle then no
+          interaction with billing cycle and no change in account state."
+      <| Some config
+      <| fun tck ->
+         let o = init tck accountPersistenceNoEvents
+
+         o.accountActor <! StateChange Stub.command.createAccount
+         o.accountActor <! AccountMessage.Lookup
+         let initialState = tck.ExpectMsg<Option<AccountState>>()
+
+         o.accountActor <! AccountMessage.BillingCycle(BillingCycleCommand())
+
+         o.billingBulkProbe.ExpectNoMsg()
+
+         o.accountActor <! AccountMessage.Lookup
+
+         let stateAfterBillingCycle = tck.ExpectMsg<Option<AccountState>>()
+
+         Expect.equal
+            initialState
+            stateAfterBillingCycle
+            "Account state should remain unchanged"
+
+      akkaTest
+         "AccountActor interacts with BillingCycleBulkWriteActor & EmailActor
+          when account transactions for a billing cycle found."
+      <| Some config
+      <| fun tck ->
+         let o = init tck accountPersistence
+
+         for command in Stub.commands do
+            o.accountActor <! StateChange command
+         // Drop balance below maintenance fee threshold
+         o.accountActor <! StateChange(Stub.command.debit 1500m)
+
+         o.accountActor <! AccountMessage.Lookup
+         let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
+
+         o.accountActor <! BillingCycle(BillingCycleCommand())
+
+         match o.billingBulkProbe.ExpectMsg<BCBWActor.Message>() with
+         | BCBWActor.RegisterBillingStatement statement ->
+            Expect.sequenceEqual
+               (statement.Transactions |> List.map (fun k -> k.Name))
+               (Stub.billingTransactions |> List.map (fun k -> k.Name))
+               "RegisterBillingStatements msg should send transactions equivalent
+                to those associated with the account events"
+
+
+            Expect.equal
+               statement.Balance
+               initAccount.Balance
+               "Billing statement balance should = account balance"
+
+            Expect.equal
+               statement.AccountId
+               initAccount.EntityId
+               "Billing statement AccountId should = account EntityId"
+         | msg ->
+            Expect.isTrue
+               false
+               $"BillingCycleBulkWriteActor expects RegisterBillingStatement
+                 message. Received message: {msg}"
+
+         // account create email
+         o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
+
+         match o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
+         | EmailActor.BillingStatement account ->
+            Expect.equal
+               account
+               initAccount
+               "EmailActor BillingStatement message should contain
+                an account record equivalent to the current account state"
+         | msg ->
+            Expect.isTrue
+               false
+               $"EmailActor expects BillingStatement message.
+                 Received message: {msg}"
+
+         o.accountActor <! AccountMessage.Lookup
+
+         let accountAfterBillingCycle =
+            tck.ExpectMsg<Option<AccountState>>().Value
+
+         Expect.equal
+            accountAfterBillingCycle.Balance
+            (initAccount.Balance - MaintenanceFee.RecurringDebitAmount)
+            "Account balance after billing cycle should be decremented by
+             maintenance fee"
+
+      akkaTest
+         "Maintenance fee should be skipped when maintenance fee criteria met."
+      <| Some config
+      <| fun tck ->
+         let o = init tck accountPersistence
+
+         for command in Stub.commands do
+            o.accountActor <! StateChange command
+
+         o.accountActor <! AccountMessage.Lookup
+         let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
+
+         o.accountActor <! BillingCycle(BillingCycleCommand())
+
+         o.accountActor <! AccountMessage.Lookup
+
+         let accountAfterBillingCycle =
+            tck.ExpectMsg<Option<AccountState>>().Value
+
+         Expect.equal
+            accountAfterBillingCycle.Balance
+            initAccount.Balance
+            "Account balance after billing cycle should not change since
+             the maintenance fee balance threshold is met."
    ]

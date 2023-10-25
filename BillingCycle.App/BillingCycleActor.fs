@@ -11,84 +11,6 @@ open Akkling
 open Bank.Account.Domain
 open ActorUtil
 
-type Message = | SaveBillingStatement
-
-let actorProps
-   (account: AccountState)
-   (billingCycleBulkWriteActor: IActorRef<BillingCycleBulkWriteActor.Message>)
-   (emailActor: IActorRef<EmailActor.EmailMessage>)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   =
-   let accountId = account.EntityId
-
-   let handler (ctx: Actor<Message>) = actor {
-      let! msg = ctx.Receive()
-      let accountRef = getAccountRef accountId
-
-      match msg with
-      | SaveBillingStatement ->
-         let! (eventsOpt: AccountEvent list option) = accountRef <? LookupEvents
-
-         if eventsOpt.IsNone then
-            logWarning ctx "No transactions found for billing cycle."
-         else
-            let txns =
-               List.choose
-                  Account.accountEventToBillingTransaction
-                  eventsOpt.Value
-
-            let billing =
-               BillingStatement.create
-                  {|
-                     AccountId = account.EntityId
-                     Name = account.Name
-                     Balance = account.Balance
-                  |}
-                  txns
-
-            billingCycleBulkWriteActor
-            <! BillingCycleBulkWriteActor.RegisterBillingStatement billing
-
-            // Maintenance fee conditionally applied after account transactions
-            // have been consolidated. If applied, it will be the first transaction
-            // of the new billing cycle.
-            accountRef <! AccountMessage.BillingCycleEnd
-
-            let criteria = account.MaintenanceFeeCriteria
-
-            if
-               criteria.QualifyingDepositFound || criteria.DailyBalanceThreshold
-            then
-               let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
-               accountRef <! AccountMessage.StateChange cmd
-            else
-               let cmd = MaintenanceFeeCommand accountId
-               accountRef <! AccountMessage.StateChange cmd
-
-            emailActor <! EmailActor.BillingStatement account
-
-         retype ctx.Self <! PoisonPill.Instance
-   }
-
-   props handler
-
-
-let start
-   (mailbox: Actor<obj>)
-   (account: AccountState)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   =
-   let aref =
-      spawn mailbox ActorMetadata.billingCycle.Name
-      <| actorProps
-            account
-            (BillingCycleBulkWriteActor.get mailbox.System)
-            (EmailActor.get mailbox.System)
-            getAccountRef
-
-   aref <! SaveBillingStatement
-   aref
-
 let scheduleMonthly
    (system: ActorSystem)
    (quartzPersistentActorRef: IActorRef)
@@ -120,15 +42,10 @@ let scheduleMonthly
          .CurrentPersistenceIds()
          .RunForeach(
             (fun id ->
-               let accountIdOpt =
-                  try
-                     Some <| Guid id
-                  with _ ->
-                     None
-
-               if accountIdOpt.IsSome then
-                  getAccountRef accountIdOpt.Value
-                  <! AccountMessage.BillingCycle msg),
+               try
+                  getAccountRef <| Guid id <! AccountMessage.BillingCycle msg
+               with _ ->
+                  ()),
             system.Materializer()
          )
 

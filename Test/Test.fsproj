@@ -14,7 +14,6 @@
     <Compile Include="AccountDomain.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="BillingCycleBulkWriteActor.fs" />
-    <Compile Include="BillingCycleActor.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
