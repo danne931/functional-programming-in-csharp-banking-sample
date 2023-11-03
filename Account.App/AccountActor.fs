@@ -172,8 +172,7 @@ let actorProps
                   <! EmailActor.BillingStatement account
             | BillingCycleEnd ->
                broadcaster.broadcastBillingCycleEnd () |> ignore
-
-               return SaveSnapshot account <@> DeleteMessages Int64.MaxValue
+               return SaveSnapshot account
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)
@@ -194,7 +193,12 @@ let actorProps
             | PersistFailed(exn, _, _) ->
                broadcaster.broadcastError exn.Message |> ignore
                failwith $"Persistence failed: %s{exn.Message}"
-         | :? SaveSnapshotSuccess -> return ignored ()
+         | :? SaveSnapshotSuccess as res ->
+            let sequenceNr = res.Metadata.SequenceNr
+
+            return
+               DeleteSnapshots(SnapshotSelectionCriteria(sequenceNr - 1L))
+               <@> DeleteMessages sequenceNr
          | :? SaveSnapshotFailure as e ->
             logError $"SaveSnapshotFailure {e.Metadata}"
             return unhandled ()
