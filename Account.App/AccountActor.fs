@@ -125,6 +125,13 @@ let actorProps
                }
 
                return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
+            | BillingCycle _ when
+               accountOpt.IsSome && not accountOpt.Value.CanProcessTransactions
+               ->
+               logWarning
+                  "Account not able to process txns. Ignore billing cycle."
+
+               return ignored ()
             | BillingCycle _ when accountOpt.IsSome ->
                let! (eventsOpt: AccountEvent list option) =
                   getTransactions account
