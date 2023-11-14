@@ -2,7 +2,6 @@
 module Env
 
 open Microsoft.AspNetCore.Builder
-open System
 open System.Net
 open FsConfig
 

@@ -3,7 +3,6 @@ module DomesticTransferActorTests
 open System
 open System.Threading.Tasks
 open Akka.Actor
-open Akka.Pattern
 open Akkling
 open Akkling.Cluster.Sharding
 open Expecto
@@ -24,8 +23,10 @@ let initMockAccountActor (tck: TestKit.Tck) =
             match msg with
             | AccountMessage.StateChange msg ->
                match msg with
-               | :? RejectTransferCommand
-               | :? ApproveTransferCommand as cmd ->
+               | RejectTransfer cmd ->
+                  tck.TestActor.Tell cmd
+                  ignored ()
+               | ApproveTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
                | msg -> unhandled msg
@@ -83,7 +84,7 @@ let mockTransferRequestSerializationIssue (_: BankEvent<TransferPending>) =
 
 let initCircuitBreaker (tck: TestKit.Tck) =
    let breaker =
-      CircuitBreaker(
+      Akka.Pattern.CircuitBreaker(
          tck.Sys.Scheduler,
          maxFailures = 2,
          callTimeout = TimeSpan.FromSeconds 1,
@@ -107,7 +108,7 @@ let initCircuitBreaker (tck: TestKit.Tck) =
 
 let initDomesticTransferActor
    (tck: TestKit.Tck)
-   (breaker: CircuitBreaker)
+   (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountActor: EntityRefGetter<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
    (transferRequest:

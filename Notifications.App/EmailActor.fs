@@ -3,7 +3,6 @@ module EmailActor
 
 open Akka.Actor
 open Akka.Hosting
-open Akka.Pattern
 open Akkling
 open System
 open System.Net.Http
@@ -120,7 +119,7 @@ let private createClient (bearerToken: string) =
 
    client
 
-let actorProps (breaker: CircuitBreaker) =
+let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
    let client = Env.config.EmailBearerToken |> Option.map createClient
 
    let handler (ctx: Actor<_>) (msg: obj) =
@@ -159,7 +158,7 @@ let actorProps (breaker: CircuitBreaker) =
 
 let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
    let breaker =
-      CircuitBreaker(
+      Akka.Pattern.CircuitBreaker(
          system.Scheduler,
          maxFailures = 2,
          callTimeout = TimeSpan.FromSeconds 7,
@@ -169,7 +168,7 @@ let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
    let ref = spawn system ActorMetadata.email.Name <| actorProps breaker
 
    breaker.OnHalfOpen(fun () ->
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.Email
          Status = CircuitBreakerStatus.HalfOpen
       }
@@ -177,7 +176,7 @@ let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
    |> ignore
 
    breaker.OnClose(fun () ->
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.Email
          Status = CircuitBreakerStatus.Closed
       }
@@ -191,7 +190,7 @@ let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
          "Email circuit breaker open"
       )
 
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.Email
          Status = CircuitBreakerStatus.Open
       }

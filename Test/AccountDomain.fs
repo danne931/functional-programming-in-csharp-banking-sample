@@ -13,7 +13,9 @@ let tests =
    testList "Account Domain State Transitions" [
       test "DepositCashCommand with invalid amount" {
          for amount in [ 0m; -1m ] do
-            let command = Stub.command.depositCash amount
+            let command =
+               AccountCommand.DepositCash <| Stub.command.depositCash amount
+
             let res = update Stub.accountState command
             let err = Expect.wantError res "should be Result.Error"
 
@@ -26,7 +28,10 @@ let tests =
       test "DepositCashCommand with valid amount" {
          for amount in [ 0.5m; 100m ] do
             let command = Stub.command.depositCash amount
-            let res = update Stub.accountState command
+
+            let res =
+               update Stub.accountState (AccountCommand.DepositCash command)
+
             let _, account = Expect.wantOk res "should be Result.Ok"
 
             Expect.equal
@@ -47,7 +52,7 @@ let tests =
          let command =
             Stub.command.depositCash <| MaintenanceFee.QualifyingDeposit - 1m
 
-         let res = update initState command
+         let res = update initState (AccountCommand.DepositCash command)
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isFalse
@@ -55,7 +60,7 @@ let tests =
             "Deposit amount < qualifying amount should not skip maintenance fee"
 
          let command = Stub.command.depositCash MaintenanceFee.QualifyingDeposit
-         let res = update initState command
+         let res = update initState (AccountCommand.DepositCash command)
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isTrue
@@ -76,7 +81,7 @@ let tests =
             Stub.command.depositTransfer
             <| MaintenanceFee.QualifyingDeposit - 10m
 
-         let res = update initState command
+         let res = update initState <| AccountCommand.DepositTransfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isFalse
@@ -86,7 +91,7 @@ let tests =
          let command =
             Stub.command.depositTransfer MaintenanceFee.QualifyingDeposit
 
-         let res = update initState command
+         let res = update initState (AccountCommand.DepositTransfer command)
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isTrue
@@ -95,7 +100,8 @@ let tests =
       }
 
       test "ApproveTransferCommand" {
-         let res = update Stub.accountState Stub.command.approveTransfer
+         let cmd = AccountCommand.ApproveTransfer Stub.command.approveTransfer
+         let res = update Stub.accountState cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -106,7 +112,10 @@ let tests =
 
       test "RejectTransferCommand updates balance" {
          let command = Stub.command.rejectTransfer 101m
-         let res = update Stub.accountState command
+
+         let res =
+            update Stub.accountState <| AccountCommand.RejectTransfer command
+
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -126,12 +135,16 @@ let tests =
          }
 
          let command = Stub.command.registerInternalRecipient
-         let res = update initState command
+
+         let res =
+            update initState <| AccountCommand.RegisterTransferRecipient command
+
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          let amount = 101m
 
-         let res = update account <| Stub.command.internalTransfer amount
+         let command = Stub.command.internalTransfer amount
+         let res = update account <| AccountCommand.Transfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -139,7 +152,8 @@ let tests =
             false
             "the transfer should invalidate the daily balance threshold"
 
-         let res = update account <| Stub.command.rejectTransfer amount
+         let command = Stub.command.rejectTransfer amount
+         let res = update account <| AccountCommand.RejectTransfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -160,11 +174,14 @@ let tests =
          }
 
          let command = Stub.command.registerInternalRecipient
-         let res = update initState command
+
+         let res =
+            update initState <| AccountCommand.RegisterTransferRecipient command
+
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          let command = Stub.command.internalTransfer 90m
-         let res = update account command
+         let res = update account <| AccountCommand.Transfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isTrue
@@ -172,7 +189,7 @@ let tests =
             "Balance is still above threshold."
 
          let command = Stub.command.internalTransfer 11m
-         let res = update account command
+         let res = update account <| AccountCommand.Transfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isFalse
@@ -191,7 +208,7 @@ let tests =
          }
 
          let command = Stub.command.debit 90m
-         let res = update initState command
+         let res = update initState <| AccountCommand.Debit command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isTrue
@@ -199,7 +216,7 @@ let tests =
             "Balance is still above threshold."
 
          let command = Stub.command.debit 11m
-         let res = update account command
+         let res = update account <| AccountCommand.Debit command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isFalse
@@ -210,7 +227,7 @@ let tests =
       test "DebitCommand with invalid amount" {
          for amount in [ 0m; -1m ] do
             let command = Stub.command.debit amount
-            let res = update Stub.accountState command
+            let res = update Stub.accountState <| AccountCommand.Debit command
             let err = Expect.wantError res "should be Result.Error"
 
             Expect.stringContains
@@ -222,7 +239,7 @@ let tests =
       test "DebitCommand with valid amount" {
          for amount in [ 25.5m; 100m ] do
             let command = Stub.command.debit amount
-            let res = update Stub.accountState command
+            let res = update Stub.accountState <| AccountCommand.Debit command
             let _, account = Expect.wantOk res "should be Result.Ok"
 
             Expect.equal
@@ -238,7 +255,7 @@ let tests =
          }
 
          let command = Stub.command.debit 9.31m
-         let res = update state command
+         let res = update state <| AccountCommand.Debit command
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -254,7 +271,7 @@ let tests =
          }
 
          let command = Stub.command.debit 300m
-         let res = update state command
+         let res = update state <| AccountCommand.Debit command
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -273,7 +290,8 @@ let tests =
             List.fold
                (fun acc amount ->
                   let account, total = acc
-                  let res = update account <| Stub.command.debit amount
+                  let cmd = Stub.command.debit amount
+                  let res = update account <| AccountCommand.Debit cmd
 
                   let _, newState = Expect.wantOk res "should be Result.Ok"
 
@@ -291,7 +309,7 @@ let tests =
          let command =
             Stub.command.debitWithDate 10m <| DateTime.UtcNow.AddDays(-1)
 
-         let res = update newState command
+         let res = update newState <| AccountCommand.Debit command
          let _, newState = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -309,7 +327,7 @@ let tests =
          }
 
          let command = Stub.command.limitDailyDebits 100m
-         let res = update state command
+         let res = update state <| AccountCommand.LimitDailyDebits command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -318,7 +336,7 @@ let tests =
             "Daily debit limit should be set"
 
          let command = Stub.command.debit 99m
-         let res = update account command
+         let res = update account <| AccountCommand.Debit command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -327,7 +345,7 @@ let tests =
             "Daily debit should be accrued if under daily limit"
 
          let command = Stub.command.debit 2m
-         let res = update account command
+         let res = update account <| AccountCommand.Debit command
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -349,7 +367,7 @@ let tests =
          }
 
          let command = Stub.command.maintenanceFee
-         let res = update initState command
+         let res = update initState <| AccountCommand.MaintenanceFee command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -372,7 +390,8 @@ let tests =
                }
          }
 
-         let res = update state Stub.command.maintenanceFee
+         let cmd = AccountCommand.MaintenanceFee Stub.command.maintenanceFee
+         let res = update state cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -395,7 +414,7 @@ let tests =
          }
 
          let command = Stub.command.skipMaintenanceFee
-         let res = update initState command
+         let res = update initState <| AccountCommand.SkipMaintenanceFee command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -418,7 +437,8 @@ let tests =
                }
          }
 
-         let res = update state Stub.command.skipMaintenanceFee
+         let cmd = Stub.command.skipMaintenanceFee
+         let res = update state <| AccountCommand.SkipMaintenanceFee cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -434,18 +454,21 @@ let tests =
                Status = AccountStatus.Closed
          }
 
-         let (commands: Command list) = [
-            Stub.command.depositCash 10m
-            Stub.command.internalTransfer 33m
-            Stub.command.domesticTransfer 31m
-            Stub.command.limitDailyDebits 101m
-            Stub.command.registerInternalRecipient
-            Stub.command.registerDomesticRecipient
-            Stub.command.depositTransfer 931m
-            Stub.command.lockCard
-            Stub.command.unlockCard
-            Stub.command.maintenanceFee
-            Stub.command.skipMaintenanceFee
+         let (commands: AccountCommand list) = [
+            AccountCommand.DepositCash <| Stub.command.depositCash 10m
+            AccountCommand.Transfer <| Stub.command.internalTransfer 33m
+            AccountCommand.Transfer <| Stub.command.domesticTransfer 31m
+            AccountCommand.LimitDailyDebits
+            <| Stub.command.limitDailyDebits 101m
+            AccountCommand.RegisterTransferRecipient
+            <| Stub.command.registerInternalRecipient
+            AccountCommand.RegisterTransferRecipient
+            <| Stub.command.registerDomesticRecipient
+            AccountCommand.DepositTransfer <| Stub.command.depositTransfer 931m
+            AccountCommand.LockCard Stub.command.lockCard
+            AccountCommand.UnlockCard Stub.command.unlockCard
+            AccountCommand.MaintenanceFee Stub.command.maintenanceFee
+            AccountCommand.SkipMaintenanceFee Stub.command.skipMaintenanceFee
          ]
 
          for command in commands do
@@ -457,7 +480,8 @@ let tests =
                "AccountTransactionProcessingDisabled"
                "should be an AccountTransactionProcessingDisabled StateTransition error"
 
-         let res = update state <| Stub.command.debit 13m
+         let cmd = Stub.command.debit 13m
+         let res = update state <| AccountCommand.Debit cmd
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -465,7 +489,10 @@ let tests =
             "AccountNotActive"
             "debit should result in an AccountNotActive StateTransition error"
 
-         let res = update state Stub.command.createAccount
+         let res =
+            update state
+            <| AccountCommand.CreateAccount Stub.command.createAccount
+
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -473,7 +500,10 @@ let tests =
             "AccountNotReadyToActivate"
             "createshould be an AccountNotReadyToActivate StateTransition error"
 
-         let res = update state Stub.command.closeAccount
+         let res =
+            update state
+            <| AccountCommand.CloseAccount Stub.command.closeAccount
+
          Expect.wantOk res "should be Result.Ok" |> ignore
       }
 
@@ -483,16 +513,19 @@ let tests =
                Status = AccountStatus.CardLocked
          }
 
-         let (commands: Command list) = [
-            Stub.command.depositCash 10m
-            Stub.command.limitDailyDebits 101m
-            Stub.command.registerInternalRecipient
-            Stub.command.registerDomesticRecipient
-            Stub.command.depositTransfer 931m
-            Stub.command.lockCard
-            Stub.command.unlockCard
-            Stub.command.maintenanceFee
-            Stub.command.skipMaintenanceFee
+         let (commands: AccountCommand list) = [
+            AccountCommand.DepositCash <| Stub.command.depositCash 10m
+            AccountCommand.LimitDailyDebits
+            <| Stub.command.limitDailyDebits 101m
+            AccountCommand.RegisterTransferRecipient
+               Stub.command.registerInternalRecipient
+            AccountCommand.RegisterTransferRecipient
+               Stub.command.registerDomesticRecipient
+            AccountCommand.DepositTransfer <| Stub.command.depositTransfer 931m
+            AccountCommand.LockCard Stub.command.lockCard
+            AccountCommand.UnlockCard Stub.command.unlockCard
+            AccountCommand.MaintenanceFee Stub.command.maintenanceFee
+            AccountCommand.SkipMaintenanceFee Stub.command.skipMaintenanceFee
          ]
 
          for command in commands do
@@ -511,16 +544,17 @@ let tests =
                   ]
          }
 
-         let (commands: Command list) = [
-            Stub.command.internalTransfer 33m
-            Stub.command.domesticTransfer 31m
+         let (commands: AccountCommand list) = [
+            AccountCommand.Transfer <| Stub.command.internalTransfer 33m
+            AccountCommand.Transfer <| Stub.command.domesticTransfer 31m
          ]
 
          for command in commands do
             let res = update state command
             Expect.wantOk res "should be Result.Ok" |> ignore
 
-         let res = update state <| Stub.command.debit 13m
+         let cmd = Stub.command.debit 13m
+         let res = update state <| AccountCommand.Debit cmd
          let err = Expect.wantError res "should be Result.Error"
 
          Expect.stringContains
@@ -528,7 +562,10 @@ let tests =
             "AccountCardLocked"
             "debit should result in an AccountCardLocked StateTransition error"
 
-         let res = update state Stub.command.closeAccount
+         let res =
+            update state
+            <| AccountCommand.CloseAccount Stub.command.closeAccount
+
          Expect.wantOk res "should be Result.Ok" |> ignore
       }
    ]

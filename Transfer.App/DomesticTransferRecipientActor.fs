@@ -7,17 +7,21 @@ open System.Text.Json
 open Akkling
 open Akka.Hosting
 open Akka.Actor
-open Akka.Pattern
 open Akka.Routing
 open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
 open Lib.Types
-open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
+
+module private Msg =
+   let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
+   let reject = AccountMessage.StateChange << AccountCommand.RejectTransfer
+
+let private actorName = ActorUtil.ActorMetadata.domesticTransfer.Name
 
 type Response = {
    AccountNumber: string
@@ -58,8 +62,8 @@ type Message =
    | BreakerClosed
 
 let actorProps
-   (breaker: CircuitBreaker)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (breaker: Akka.Pattern.CircuitBreaker)
+   (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
    (requestTransfer: BankEvent<TransferPending> -> TaskResult<Response, string>)
    =
@@ -134,9 +138,7 @@ let actorProps
             let accountRef = getAccountRef evt.EntityId
 
             if res.Ok then
-               let msg =
-                  AccountMessage.StateChange(Command.approve evt res.AckReceipt)
-
+               let msg = Msg.approve <| Command.approve evt res.AckReceipt
                accountRef <! msg
 
                mailbox.UnstashAll()
@@ -157,9 +159,7 @@ let actorProps
                | Contains "InvalidAccountInfo"
                | Contains "InactiveAccount"
                | _ ->
-                  let msg =
-                     AccountMessage.StateChange(Command.reject evt errMsg)
-
+                  let msg = Msg.reject <| Command.reject evt errMsg
                   accountRef <! msg
                   Ignore
       | :? Status.Failure as e ->
@@ -177,12 +177,12 @@ let actorProps
 let start
    (system: ActorSystem)
    (broadcaster: AccountBroadcast)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
    =
    let poolRouter = RoundRobinPool(1, DefaultResizer(1, 10))
 
    let breaker =
-      CircuitBreaker(
+      Akka.Pattern.CircuitBreaker(
          system.Scheduler,
          maxFailures = 2,
          callTimeout = TimeSpan.FromSeconds 7,
@@ -192,14 +192,10 @@ let start
    let prop =
       actorProps breaker getAccountRef (EmailActor.get system) domesticTransfer
 
-   let ref =
-      spawn system ActorMetadata.domesticTransfer.Name {
-         prop with
-            Router = Some poolRouter
-      }
+   let ref = spawn system actorName { prop with Router = Some poolRouter }
 
    breaker.OnHalfOpen(fun () ->
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.DomesticTransfer
          Status = CircuitBreakerStatus.HalfOpen
       }
@@ -213,7 +209,7 @@ let start
    // Broadcast to ensure all routees are informed.
    // Otherwise, only messages stashed on routee $a will be unstashed.
    breaker.OnClose(fun () ->
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.DomesticTransfer
          Status = CircuitBreakerStatus.Closed
       }
@@ -229,7 +225,7 @@ let start
          "Domestic transfer circuit breaker open"
       )
 
-      broadcaster.broadcastCircuitBreaker {
+      broadcaster.circuitBreaker {
          Service = Service.DomesticTransfer
          Status = CircuitBreakerStatus.Open
       }
@@ -240,4 +236,6 @@ let start
 
 let get (system: ActorSystem) : IActorRef<Message> =
    typed
-   <| ActorRegistry.For(system).Get<ActorMetadata.DomesticTransferMarker>()
+   <| ActorRegistry
+      .For(system)
+      .Get<ActorUtil.ActorMetadata.DomesticTransferMarker>()

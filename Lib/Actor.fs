@@ -103,6 +103,8 @@ module ActorMetadata =
       Path = None
    }
 
+   let signalR = { Name = "signal-r"; Path = None }
+
 let readJournal (system: ActorSystem) : SqlReadJournal =
    PersistenceQuery
       .Get(system)

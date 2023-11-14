@@ -87,7 +87,8 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
@@ -109,15 +110,17 @@ let tests =
          | msg ->
             Expect.isTrue
                false
-               $"Expected AccountOpen EmailMessage.  
-            Received {msg}"
+               $"Expected AccountOpen EmailMessage. Received {msg}"
 
       akkaTest "Close account should interact with the AccountClosureActor"
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
-         o.accountActor <! StateChange Stub.command.closeAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! StateChange cmd
+
+         let cmd = AccountCommand.CloseAccount Stub.command.closeAccount
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
@@ -153,12 +156,15 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
 
          let debit =
             Stub.command.debit <| Stub.accountStateAfterCreate.Balance + 1m
 
-         o.accountActor <! StateChange debit
+         o.accountActor
+         <! AccountMessage.StateChange(AccountCommand.Debit debit)
+
          o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
@@ -193,8 +199,14 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
-         o.accountActor <! StateChange(Stub.command.limitDailyDebits 100m)
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
+
+         let cmd =
+            AccountCommand.LimitDailyDebits
+            <| Stub.command.limitDailyDebits 100m
+
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
@@ -209,10 +221,10 @@ let tests =
             (Some expectedState)
             "Account state should be configured with the daily debit limit"
 
-         let debit1 = Stub.command.debit 98m
-         let debit2 = Stub.command.debit 33m
-         o.accountActor <! StateChange debit1
-         o.accountActor <! StateChange debit2
+         let debit1 = AccountCommand.Debit <| Stub.command.debit 98m
+         let debit2 = AccountCommand.Debit <| Stub.command.debit 33m
+         o.accountActor <! AccountMessage.StateChange debit1
+         o.accountActor <! AccountMessage.StateChange debit2
          o.accountActor <! AccountMessage.Lookup
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -241,10 +253,18 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
+
+         let cmd =
+            AccountCommand.RegisterTransferRecipient
+               Stub.command.registerInternalRecipient
+
+         o.accountActor <! AccountMessage.StateChange cmd
+
          let transfer = Stub.command.internalTransfer 33m
-         o.accountActor <! StateChange Stub.command.registerInternalRecipient
-         o.accountActor <! StateChange transfer
+         let cmd = AccountCommand.Transfer transfer
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
@@ -264,10 +284,18 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
+
+         let cmd =
+            AccountCommand.RegisterTransferRecipient
+               Stub.command.registerDomesticRecipient
+
+         o.accountActor <! AccountMessage.StateChange cmd
+
          let transfer = Stub.command.domesticTransfer 31m
-         o.accountActor <! StateChange Stub.command.registerDomesticRecipient
-         o.accountActor <! StateChange transfer
+         let cmd = AccountCommand.Transfer transfer
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
 
          let state = tck.ExpectMsg<Option<AccountState>>()
@@ -295,9 +323,14 @@ let tests =
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistence
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
+
          let deposit = Stub.command.depositTransfer 101m
-         o.accountActor <! StateChange deposit
+
+         o.accountActor
+         <! AccountMessage.StateChange(AccountCommand.DepositTransfer deposit)
+
          o.accountActor <! AccountMessage.Lookup
 
          let expectedState = {
@@ -330,11 +363,12 @@ let tests =
       <| fun tck ->
          let o = init tck accountPersistenceNoEvents
 
-         o.accountActor <! StateChange Stub.command.createAccount
+         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
+         o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.Lookup
          let initialState = tck.ExpectMsg<Option<AccountState>>()
 
-         o.accountActor <! AccountMessage.BillingCycle(BillingCycleCommand())
+         o.accountActor <! AccountMessage.BillingCycle
 
          o.billingBulkProbe.ExpectNoMsg()
 
@@ -355,14 +389,16 @@ let tests =
          let o = init tck accountPersistence
 
          for command in Stub.commands do
-            o.accountActor <! StateChange command
+            o.accountActor <! AccountMessage.StateChange command
+
          // Drop balance below maintenance fee threshold
-         o.accountActor <! StateChange(Stub.command.debit 1500m)
+         let cmd = AccountCommand.Debit <| Stub.command.debit 1500m
+         o.accountActor <! AccountMessage.StateChange cmd
 
          o.accountActor <! AccountMessage.Lookup
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
-         o.accountActor <! BillingCycle(BillingCycleCommand())
+         o.accountActor <! AccountMessage.BillingCycle
 
          match o.billingBulkProbe.ExpectMsg<BCBWActor.Message>() with
          | BCBWActor.RegisterBillingStatement statement ->
@@ -422,12 +458,12 @@ let tests =
          let o = init tck accountPersistence
 
          for command in Stub.commands do
-            o.accountActor <! StateChange command
+            o.accountActor <! AccountMessage.StateChange command
 
          o.accountActor <! AccountMessage.Lookup
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
-         o.accountActor <! BillingCycle(BillingCycleCommand())
+         o.accountActor <! AccountMessage.BillingCycle
 
          o.accountActor <! AccountMessage.Lookup
 

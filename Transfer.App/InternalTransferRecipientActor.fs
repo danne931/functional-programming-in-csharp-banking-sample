@@ -11,6 +11,11 @@ open Bank.Transfer.Domain
 
 module Command = TransferResponseToCommand
 
+module private Msg =
+   let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
+   let reject = AccountMessage.StateChange << AccountCommand.RejectTransfer
+   let deposit = AccountMessage.StateChange << AccountCommand.DepositTransfer
+
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    : Props<BankEvent<TransferPending>>
@@ -27,26 +32,22 @@ let actorProps
       | None ->
          logWarning $"Transfer recipient not found {recipientId}"
 
-         let msg =
-            AccountMessage.StateChange <| Command.reject evt "NoRecipientFound"
-
+         let msg = Msg.reject <| Command.reject evt "NoRecipientFound"
          getAccountRef evt.EntityId <! msg
       | Some account ->
          if account.Status = AccountStatus.Closed then
             logWarning $"Transfer recipient account closed"
 
-            let msg =
-               AccountMessage.StateChange <| Command.reject evt "AccountClosed"
-
+            let msg = Msg.reject <| Command.reject evt "AccountClosed"
             getAccountRef evt.EntityId <! msg
          else
-            let msg = AccountMessage.StateChange <| Command.approve evt ""
+            let msg = Msg.approve <| Command.approve evt ""
             getAccountRef evt.EntityId <! msg
 
             let origin = string evt.EntityId
 
             let msg =
-               AccountMessage.StateChange
+               Msg.deposit
                <| DepositTransferCommand(
                   recipientId,
                   evt.Data.DebitedAmount,

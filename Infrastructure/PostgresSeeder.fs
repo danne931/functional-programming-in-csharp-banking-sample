@@ -44,5 +44,5 @@ module PostgresSeeder =
                $"Account doesn't exist.  Will create for {command.Email}"
             )
 
-            ref <! AccountMessage.StateChange command
+            ref <! (StateChange << CreateAccount) command
    }

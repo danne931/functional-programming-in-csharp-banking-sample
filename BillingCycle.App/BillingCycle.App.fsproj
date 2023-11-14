@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Akka.Hosting" />
-    <PackageReference Include="Akka.Quartz.Actor" />
+    <!--<PackageReference Include="Akka.Quartz.Actor" />-->
     <PackageReference Include="Akkling" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
     <PackageReference Include="Quartz" />
@@ -21,5 +21,6 @@
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Akka.Quartz.Actor/src/Akka.Quartz.Actor/Akka.Quartz.Actor.csproj" />
   </ItemGroup>
 </Project>

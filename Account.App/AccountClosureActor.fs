@@ -16,24 +16,13 @@ open ActorUtil
 open Bank.AccountClosure.Api
 open Bank.Account.Domain
 
-// TODO: ScheduleDeleteAll & DeleteAll are commented out until
-//       Quartz deserialization is configured to detect union types.
-//       Using the separately declared types below for messages
-//       passed to Quartz until then.
 type AccountClosureMessage =
    | Register of AccountState
-   //| ScheduleDeleteAll
-   //| DeleteAll of Guid list
+   | ScheduleDeleteAll
+   | DeleteAll of Guid list
    | ReverseClosure of Guid
    | Lookup
    | DeleteHistoricalRecordsResponse of Result<Email list option, Err>
-
-type ScheduleDeleteAll() =
-   class
-   end
-
-type DeleteAll(accountIds: Guid list) =
-   member x.AccountIds = accountIds
 
 let private deletionJob (accountIds: Guid list) =
    let name = "AccountClosureDeletion"
@@ -79,32 +68,6 @@ let actorProps
          return!
             match box msg with
             | :? SnapshotOffer as o -> loop <| unbox o.Snapshot
-            | :? ScheduleDeleteAll ->
-               if accounts.IsEmpty then
-                  logInfo "AccountClosure - no accounts requested closure."
-                  ignored ()
-               else
-                  let accountIds =
-                     accounts
-                     |> List.map (fun acct ->
-                        // Delete event sourcing data immediately.
-                        getAccountRef acct.EntityId <! AccountMessage.Delete
-
-                        emailRef <! EmailActor.AccountClose acct
-
-                        acct.EntityId)
-
-                  // Schedule deletion of historical/legal records for 3 months later.
-                  quartzPersistentActorRef.Tell(
-                     deletionJob accountIds,
-                     ActorRefs.Nobody
-                  )
-
-                  loop initState <@> SaveSnapshot initState
-
-            | :? DeleteAll as o ->
-               deleteHistoricalRecords o.AccountIds |!> retype mailbox.Self
-               ignored ()
             | :? AccountClosureMessage as msg ->
                match msg with
                | Lookup ->
@@ -128,6 +91,32 @@ let actorProps
                      | Some res ->
                         logInfo $"Account closure finished {res}"
                         ignored ()
+               | ScheduleDeleteAll ->
+                  if accounts.IsEmpty then
+                     logInfo "AccountClosure - no accounts requested closure."
+                     ignored ()
+                  else
+                     let accountIds =
+                        accounts
+                        |> List.map (fun acct ->
+                           // Delete event sourcing data immediately.
+                           getAccountRef acct.EntityId <! AccountMessage.Delete
+
+                           emailRef <! EmailActor.AccountClose acct
+
+                           acct.EntityId)
+
+                     // Schedule deletion of historical/legal records for 3 months later.
+                     quartzPersistentActorRef.Tell(
+                        deletionJob accountIds,
+                        ActorRefs.Nobody
+                     )
+
+                     loop initState <@> SaveSnapshot initState
+
+               | DeleteAll accountIds ->
+                  deleteHistoricalRecords accountIds |!> retype mailbox.Self
+                  ignored ()
                | ReverseClosure _ -> ignored () // TODO
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
@@ -176,7 +165,7 @@ let scheduleNightlyCheck (quartzPersistentActorRef: IActorRef) =
          .Build()
 
    let path = ActorMetadata.accountClosure.Path.Value
-   let job = CreatePersistentJob(path, ScheduleDeleteAll(), trigger)
+   let job = CreatePersistentJob(path, ScheduleDeleteAll, trigger)
 
    quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
    ()

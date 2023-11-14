@@ -8,6 +8,8 @@ open System.Runtime.Serialization
 open Akka.Serialization
 open Akka.Actor
 open Akka.Persistence.Journal
+open Akka.Cluster.Sharding
+open Akkling.Cluster.Sharding
 
 open Bank.Account.Domain
 open Lib.Types
@@ -28,6 +30,12 @@ type AkkaPersistenceEventAdapter() =
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
 
+type private AccountShardEnvelope = {
+   EntityId: string
+   ShardId: string
+   Message: AccountMessage
+}
+
 type AkkaSerializer(system: ExtendedActorSystem) =
    inherit SerializerWithStringManifest(system)
 
@@ -35,22 +43,66 @@ type AkkaSerializer(system: ExtendedActorSystem) =
 
    override x.Manifest(o: obj) =
       match o with
+      | :? BillingCycleActor.Message -> "BillingCycleActorMessage"
+      | :? AccountClosureActor.AccountClosureMessage ->
+         "AccountClosureActorMessage"
+      | :? Option<List<AccountEvent>> -> "AccountEventListOption"
       | :? AccountState -> "AccountState"
+      | :? Option<AccountState> -> "AccountStateOption"
+      | :? List<AccountState> -> "AccountStateList"
       | :? AccountMessage as msg ->
          match msg with
          | AccountMessage.Event _ -> "AccountEvent"
+         | _ -> "AccountMessage"
+      | :? SignalRMessage -> "SignalRMessage"
+      | :? ShardEnvelope as e ->
+         match e.Message with
+         | :? AccountMessage -> "AccountShardEnvelope"
          | _ -> raise <| NotImplementedException()
       | _ -> raise <| NotImplementedException()
 
    override x.ToBinary(o: obj) =
       match o with
-      | :? AccountState as account ->
-         JsonSerializer.SerializeToUtf8Bytes(account, Serialization.jsonOptions)
-      | :? AccountMessage as msg ->
-         match msg with
-         | AccountMessage.Event e ->
+      // BillingCycleActor message serialization for Quartz job persistence.
+      | :? BillingCycleActor.Message
+      // AccountClosureActor message serialization for Quartz job persistence.
+      | :? AccountClosureActor.AccountClosureMessage as msg ->
+         JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
+      // Akka ShardRegionProxy defined in Akka.Hosting does not
+      // recognize Akkling ShardEnvelope as Akka ShardingEnvelope
+      // so need to explicitly add it for message extraction.
+      //
+      // This would be unnecessary if I was using Akka.Hosting
+      // IRequiredActor<> to dependency inject the account shard
+      // region proxy.  However, doing so would lose Akkling's typed
+      // actor message benefits when forwarding a message from
+      // Akka ShardRegionProxy.
+      | :? ShardEnvelope as e ->
+         match e.Message with
+         | :? AccountMessage ->
             JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
          | _ -> raise <| NotImplementedException()
+      // AccountMessage.LookupEvents response serialized for message sent
+      // from account cluster nodes to Web node.
+      | :? Option<List<AccountEvent>>
+      // AccountMessage.Lookup response serialized for message sent
+      // from account cluster nodes to Web node.
+      | :? Option<AccountState>
+      // AccountClosureActor persistence snapshot.
+      | :? List<AccountState>
+      // Serialization for message sent from SignalRProxy on account cluster
+      // nodes to SignalRActor on Web node.
+      | :? SignalRMessage
+      // AccountActor persistence snapshot.
+      | :? AccountState as o ->
+         JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
+      | :? AccountMessage as msg ->
+         match msg with
+         // AccountEvent actor message replay
+         | AccountMessage.Event e ->
+            JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
+         | msg ->
+            JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
       | _ -> raise <| NotImplementedException()
 
    (*
@@ -70,14 +122,41 @@ type AkkaSerializer(system: ExtendedActorSystem) =
       let deserializeToType =
          match manifest with
          | "AccountState" -> typeof<AccountState>
+         | "AccountStateOption" -> typeof<AccountState option>
+         | "AccountStateList" -> typeof<AccountState list>
          | "AccountEvent" -> typeof<AccountEvent>
+         | "AccountEventListOption" -> typeof<AccountEvent list option>
+         | "AccountMessage" -> typeof<AccountMessage>
+         | "AccountShardEnvelope" -> typeof<AccountShardEnvelope>
+         | "SignalRMessage" -> typeof<SignalRMessage>
+         | "BillingCycleActorMessage" -> typeof<BillingCycleActor.Message>
+         | "AccountClosureActorMessage" ->
+            typeof<AccountClosureActor.AccountClosureMessage>
          | _ -> raise <| SerializationException()
 
-      JsonSerializer.Deserialize(
-         bytes,
-         deserializeToType,
-         Serialization.jsonOptions
-      )
+      let deserialized =
+         JsonSerializer.Deserialize(
+            bytes,
+            deserializeToType,
+            Serialization.jsonOptions
+         )
+
+      match deserialized with
+      | :? AccountShardEnvelope as e ->
+         // NOTE:
+         // Deserialize as AccountShardEnvelope instead
+         // of ShardEnvelope so envelope.Message
+         // is AccountMessage type rather than JObject.
+         // Return a ShardEnvelope type so the message
+         // gets routed correctly.
+         let envelope: ShardEnvelope = {
+            EntityId = e.EntityId
+            ShardId = e.ShardId
+            Message = e.Message
+         }
+
+         envelope
+      | _ -> deserialized
 
 module EndpointSerializationInfra =
    let start (builder: WebApplicationBuilder) =

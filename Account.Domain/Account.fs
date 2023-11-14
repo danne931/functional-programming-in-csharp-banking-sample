@@ -284,27 +284,23 @@ module private StateTransition =
    let closeAccount (state: AccountState) (cmd: CloseAccountCommand) =
       map AccountClosed state <| cmd.toEvent ()
 
-let stateTransition (state: AccountState) (command: Command) =
-   match box command with
-   | :? CreateAccountCommand as cmd -> StateTransition.create state cmd
-   | :? DepositCashCommand as cmd -> StateTransition.deposit state cmd
-   | :? DebitCommand as cmd -> StateTransition.debit state cmd
-   | :? MaintenanceFeeCommand as cmd -> StateTransition.maintenanceFee state cmd
-   | :? SkipMaintenanceFeeCommand as cmd ->
-      StateTransition.skipMaintenanceFee state cmd
-   | :? LimitDailyDebitsCommand as cmd ->
-      StateTransition.limitDailyDebits state cmd
-   | :? LockCardCommand as cmd -> StateTransition.lockCard state cmd
-   | :? UnlockCardCommand as cmd -> StateTransition.unlockCard state cmd
-   | :? TransferCommand as cmd -> StateTransition.transfer state cmd
-   | :? ApproveTransferCommand as cmd ->
-      StateTransition.approveTransfer state cmd
-   | :? RejectTransferCommand as cmd -> StateTransition.rejectTransfer state cmd
-   | :? DepositTransferCommand as cmd ->
-      StateTransition.depositTransfer state cmd
-   | :? RegisterTransferRecipientCommand as cmd ->
+let stateTransition (state: AccountState) (command: AccountCommand) =
+   match command with
+   | CreateAccount cmd -> StateTransition.create state cmd
+   | DepositCash cmd -> StateTransition.deposit state cmd
+   | Debit cmd -> StateTransition.debit state cmd
+   | MaintenanceFee cmd -> StateTransition.maintenanceFee state cmd
+   | SkipMaintenanceFee cmd -> StateTransition.skipMaintenanceFee state cmd
+   | LimitDailyDebits cmd -> StateTransition.limitDailyDebits state cmd
+   | LockCard cmd -> StateTransition.lockCard state cmd
+   | UnlockCard cmd -> StateTransition.unlockCard state cmd
+   | Transfer cmd -> StateTransition.transfer state cmd
+   | ApproveTransfer cmd -> StateTransition.approveTransfer state cmd
+   | RejectTransfer cmd -> StateTransition.rejectTransfer state cmd
+   | DepositTransfer cmd -> StateTransition.depositTransfer state cmd
+   | RegisterTransferRecipient cmd ->
       StateTransition.registerTransferRecipient state cmd
-   | :? CloseAccountCommand as cmd -> StateTransition.closeAccount state cmd
+   | CloseAccount cmd -> StateTransition.closeAccount state cmd
 
 let accountEventToBillingTransaction
    (evt: AccountEvent)

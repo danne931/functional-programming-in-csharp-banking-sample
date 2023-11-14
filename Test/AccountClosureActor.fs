@@ -98,7 +98,7 @@ let tests =
          let account2 = accountStub ()
          accountClosureActor <! AccountClosureActor.Register account1
          accountClosureActor <! AccountClosureActor.Register account2
-         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll()
+         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll
 
          for account in [ account2; account1 ] do
             TestKit.expectMsg tck AccountMessage.Delete |> ignore
@@ -129,27 +129,30 @@ let tests =
          accountClosureActor <! AccountClosureActor.Register account1
          accountClosureActor <! AccountClosureActor.Register account2
 
-         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll()
+         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll
 
          let msg = quartzSchedulerProbe.ExpectMsg<CreatePersistentJob>()
-
-         let expected =
-            AccountClosureActor.DeleteAll [
-               account2.EntityId
-               account1.EntityId
-            ]
-
-         let actual: AccountClosureActor.DeleteAll = unbox msg.Message
-
-         Expect.equal
-            actual.AccountIds
-            expected.AccountIds
-            "Quartz job should contain DeleteAll message with account IDs
-             of any registered accounts to delete"
 
          Expect.equal
             msg.To
             ActorMetadata.accountClosure.Path.Value
             "Quartz job should contain actor path to AccountClosureActor for
              which it will send the scheduled DeleteAll message"
+
+         let expectedAccountIds = [ account2.EntityId; account1.EntityId ]
+
+         let message: AccountClosureActor.AccountClosureMessage =
+            unbox msg.Message
+
+         match message with
+         | AccountClosureActor.AccountClosureMessage.DeleteAll accountIds ->
+            Expect.equal
+               accountIds
+               expectedAccountIds
+               "Quartz job should contain DeleteAll message with account IDs
+                of any registered accounts to delete"
+         | msg ->
+            Expect.isTrue
+               false
+               $"Expected AccountClosureMessage. Received {msg}"
    ]

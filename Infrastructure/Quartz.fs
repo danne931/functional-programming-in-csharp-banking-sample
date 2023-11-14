@@ -1,12 +1,7 @@
 namespace Bank.Infrastructure
 
-open System
 open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
-open Serilog
-open Serilog.Sinks.SystemConsole
-open Serilog.Formatting.Compact
-open Akka.Quartz.Actor
 open Quartz
 
 module QuartzInfra =
@@ -66,4 +61,13 @@ module QuartzInfra =
                   "quartz.plugin.triggHistory.triggerCompleteMessage",
                   "Trigger {1}.{0} completed firing job {6}.{5} at {4:HH:mm:ss MM/dd/yyyy} with resulting trigger instruction code: {9}"
                )))
+      |> ignore
+
+      builder.Services.AddSingleton<IScheduler>(
+         builder.Services
+            .BuildServiceProvider()
+            .GetRequiredService<ISchedulerFactory>()
+            .GetScheduler()
+            .Result
+      )
       |> ignore

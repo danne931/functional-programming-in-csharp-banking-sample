@@ -196,13 +196,16 @@ let event: EventIndex = {
       Result.toValueOption(command.depositTransfer(100m).toEvent ()).Value
 }
 
-let commands: Command list = [
-   command.createAccount
-   command.depositCash event.depositedCash.Data.DepositedAmount
-   command.debit event.debitedAccount.Data.DebitedAmount
-   command.maintenanceFee
-   command.internalTransfer event.internalTransferPending.Data.DebitedAmount
-   command.rejectTransfer event.transferRejected.Data.DebitedAmount
+let commands: AccountCommand list = [
+   AccountCommand.CreateAccount command.createAccount
+   AccountCommand.DepositCash
+   <| command.depositCash event.depositedCash.Data.DepositedAmount
+   AccountCommand.Debit <| command.debit event.debitedAccount.Data.DebitedAmount
+   AccountCommand.MaintenanceFee command.maintenanceFee
+   AccountCommand.Transfer
+   <| command.internalTransfer event.internalTransferPending.Data.DebitedAmount
+   AccountCommand.RejectTransfer
+   <| command.rejectTransfer event.transferRejected.Data.DebitedAmount
 ]
 
 let accountEvents = [
@@ -269,8 +272,9 @@ let billingStatement: BillingStatement = {
 }
 
 let accountBroadcast: AccountBroadcast = {
-   broadcast = fun (evt, accountState) -> Task.FromResult()
-   broadcastError = fun msg -> Task.FromResult()
-   broadcastCircuitBreaker = fun msg -> Task.FromResult()
-   broadcastBillingCycleEnd = fun () -> Task.FromResult()
+   accountEventPersisted = fun (evt, accountState) -> ()
+   accountEventValidationFail = fun msg -> ()
+   accountEventPersistenceFail = fun msg -> ()
+   circuitBreaker = fun msg -> ()
+   endBillingCycle = fun () -> ()
 }

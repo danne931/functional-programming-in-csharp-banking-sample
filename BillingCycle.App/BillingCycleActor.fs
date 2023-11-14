@@ -11,6 +11,8 @@ open Akkling
 open Bank.Account.Domain
 open ActorUtil
 
+type Message = | BillingCycle
+
 let scheduleMonthly
    (system: ActorSystem)
    (quartzPersistentActorRef: IActorRef)
@@ -35,7 +37,7 @@ let scheduleMonthly
 #endif
          .Build()
 
-   let publisherHandler (msg: BillingCycleCommand) =
+   let publisherHandler (msg: Message) =
       ignored
       <| ActorUtil
          .readJournal(system)
@@ -43,7 +45,7 @@ let scheduleMonthly
          .RunForeach(
             (fun id ->
                try
-                  getAccountRef <| Guid id <! AccountMessage.BillingCycle msg
+                  getAccountRef <| Guid id <! AccountMessage.BillingCycle
                with _ ->
                   ()),
             system.Materializer()
@@ -53,7 +55,7 @@ let scheduleMonthly
       spawn system $"{name}Publisher" <| props (actorOf publisherHandler)
 
    let job =
-      CreatePersistentJob(publisherAref.Path, BillingCycleCommand(), trigger)
+      CreatePersistentJob(publisherAref.Path, Message.BillingCycle, trigger)
 
    quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
    ()

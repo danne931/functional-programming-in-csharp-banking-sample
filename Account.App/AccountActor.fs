@@ -2,8 +2,10 @@
 module AccountActor
 
 open System
+open System.Threading.Tasks
 open Akka.Actor
 open Akka.Persistence
+open Akka.Streams
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
@@ -51,9 +53,9 @@ let actorProps
 
          match box msg with
          | Persisted mailbox e ->
-            let (Event evt) = unbox e
+            let (AccountMessage.Event evt) = unbox e
             let newState = Account.applyEvent account evt
-            broadcaster.broadcast (evt, newState) |> ignore
+            broadcaster.accountEventPersisted (evt, newState) |> ignore
 
             match evt with
             | CreatedAccount e ->
@@ -89,7 +91,7 @@ let actorProps
                match validation with
                | Error err ->
                   let errMsg = string err
-                  broadcaster.broadcastError errMsg |> ignore
+                  broadcaster.accountEventValidationFail errMsg |> ignore
                   logWarning $"Validation fail %s{errMsg}"
 
                   match err with
@@ -125,14 +127,14 @@ let actorProps
                }
 
                return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
-            | BillingCycle _ when
+            | BillingCycle when
                accountOpt.IsSome && not accountOpt.Value.CanProcessTransactions
                ->
                logWarning
                   "Account not able to process txns. Ignore billing cycle."
 
                return ignored ()
-            | BillingCycle _ when accountOpt.IsSome ->
+            | BillingCycle when accountOpt.IsSome ->
                let! (eventsOpt: AccountEvent list option) =
                   getTransactions account
 
@@ -169,16 +171,22 @@ let actorProps
                      criteria.QualifyingDepositFound
                      || criteria.DailyBalanceThreshold
                   then
-                     let cmd = SkipMaintenanceFeeCommand(accountId, criteria)
-                     mailbox.Self <! AccountMessage.StateChange cmd
+                     let msg =
+                        SkipMaintenanceFeeCommand(accountId, criteria)
+                        |> (StateChange << SkipMaintenanceFee)
+
+                     mailbox.Self <! msg
                   else
-                     let cmd = MaintenanceFeeCommand accountId
-                     mailbox.Self <! AccountMessage.StateChange cmd
+                     let msg =
+                        MaintenanceFeeCommand accountId
+                        |> (StateChange << MaintenanceFee)
+
+                     mailbox.Self <! msg
 
                   getEmailActor mailbox.System
                   <! EmailActor.BillingStatement account
-            | BillingCycleEnd ->
-               broadcaster.broadcastBillingCycleEnd () |> ignore
+            | AccountMessage.BillingCycleEnd ->
+               broadcaster.endBillingCycle () |> ignore
                return SaveSnapshot account
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
@@ -198,7 +206,7 @@ let actorProps
                failwith $"Persistence replay failed: %s{exn.Message}"
             | PersistRejected(exn, _, _)
             | PersistFailed(exn, _, _) ->
-               broadcaster.broadcastError exn.Message |> ignore
+               broadcaster.accountEventPersistenceFail exn.Message |> ignore
                failwith $"Persistence failed: %s{exn.Message}"
          | :? SaveSnapshotSuccess as res ->
             let sequenceNr = res.Metadata.SequenceNr
@@ -227,16 +235,31 @@ let actorProps
 let get (sys: ActorSystem) (entityId: Guid) : IEntityRef<AccountMessage> =
    getEntityRef sys ActorMetadata.accountShardRegion entityId
 
-let initProps
-   (persistence: AccountPersistence)
-   (broadcaster: AccountBroadcast)
-   (system: ActorSystem)
+let private getAccountEvents
+   (actorSystem: ActorSystem)
+   (id: Guid)
+   : AccountEvent list option Task
    =
+   task {
+      let! evts =
+         ActorUtil
+            .readJournal(actorSystem)
+            .CurrentEventsByPersistenceId(string id, 0, System.Int64.MaxValue)
+            .RunAggregate(
+               [],
+               (fun acc envelope -> unbox envelope.Event :: acc),
+               actorSystem.Materializer()
+            )
+
+      return if evts.IsEmpty then None else evts |> List.rev |> Some
+   }
+
+let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
 
    actorProps
-      persistence
+      { getEvents = getAccountEvents system }
       broadcaster
       getOrStartInternalTransferActor
       DomesticTransferRecipientActor.get

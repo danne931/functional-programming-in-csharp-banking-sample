@@ -24,9 +24,13 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: AccountState option) =
                ignored ()
             | AccountMessage.StateChange msg ->
                match msg with
-               | :? DepositTransferCommand
-               | :? RejectTransferCommand
-               | :? ApproveTransferCommand as cmd ->
+               | DepositTransfer cmd ->
+                  tck.TestActor.Tell cmd
+                  ignored ()
+               | RejectTransfer cmd ->
+                  tck.TestActor.Tell cmd
+                  ignored ()
+               | ApproveTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
                | msg -> unhandled msg

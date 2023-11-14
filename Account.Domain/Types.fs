@@ -7,6 +7,22 @@ open Lib.Types
 open Bank.Transfer.Domain
 open MaintenanceFee
 
+type AccountCommand =
+   | CreateAccount of CreateAccountCommand
+   | DepositCash of DepositCashCommand
+   | Debit of DebitCommand
+   | MaintenanceFee of MaintenanceFeeCommand
+   | SkipMaintenanceFee of SkipMaintenanceFeeCommand
+   | LimitDailyDebits of LimitDailyDebitsCommand
+   | LockCard of LockCardCommand
+   | UnlockCard of UnlockCardCommand
+   | Transfer of TransferCommand
+   | ApproveTransfer of ApproveTransferCommand
+   | RejectTransfer of RejectTransferCommand
+   | DepositTransfer of DepositTransferCommand
+   | RegisterTransferRecipient of RegisterTransferRecipientCommand
+   | CloseAccount of CloseAccountCommand
+
 type AccountEvent =
    | CreatedAccount of BankEvent<CreatedAccount>
    | DepositedCash of BankEvent<DepositedCash>
@@ -132,20 +148,28 @@ type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
    | Lookup
    | LookupEvents
-   | StateChange of Command
+   | StateChange of AccountCommand
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>
-   | BillingCycle of BillingCycleCommand
    | Delete
+   | BillingCycle
    | BillingCycleEnd
 
-type AccountBroadcast = {
-   broadcast: AccountEvent * AccountState -> Task
-   broadcastError: string -> Task
-   broadcastCircuitBreaker: CircuitBreakerMessage -> Task
-   broadcastBillingCycleEnd: unit -> Task
-}
+type SignalRMessage =
+   | AccountEventPersisted of AccountEvent * AccountState
+   | AccountEventValidationFail of string
+   | AccountEventPersistenceFail of string
+   | CircuitBreaker of CircuitBreakerMessage
+   | EndBillingCycle
 
 type AccountPersistence = {
    getEvents: Guid -> AccountEvent list option Task
+}
+
+type AccountBroadcast = {
+   accountEventPersisted: AccountEvent * AccountState -> unit
+   accountEventValidationFail: string -> unit
+   accountEventPersistenceFail: string -> unit
+   circuitBreaker: CircuitBreakerMessage -> unit
+   endBillingCycle: unit -> unit
 }

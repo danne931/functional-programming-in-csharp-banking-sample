@@ -21,7 +21,7 @@
     <PackageVersion Include="Akkling.Persistence" Version="0.13.0" />
     <PackageVersion Include="FsConfig" Version="4.0.0" />
     <PackageVersion Include="FSharp.Control.TaskSeq" Version="0.3.0" />
-    <PackageVersion Include="FSharp.SystemTextJson" Version="1.1.23" />
+    <PackageVersion Include="FSharp.SystemTextJson" Version="1.2.42" />
     <PackageVersion Include="FsToolkit.ErrorHandling.TaskResult" Version="4.9.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
     <PackageVersion Include="Npgsql.FSharp" Version="5.7.0" />
