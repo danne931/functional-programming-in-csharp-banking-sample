@@ -40,10 +40,7 @@ builder.Services.AddAkka(
    Env.config.AkkaSystemName,
    (fun builder provider ->
       let builder =
-         AkkaInfra.withClustering
-            builder
-            [| "account-role"; "signal-r-role" |]
-            None
+         AkkaInfra.withClustering builder [| "account-role"; "signal-r-role" |]
 
       builder
          .AddHocon(

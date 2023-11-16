@@ -4,6 +4,10 @@ open Akka.Hosting
 open Akka.Remote.Hosting
 open Akka.Cluster.Hosting
 open Akka.Persistence.Sql.Hosting
+open Akka.Management
+open Akka.Management.Cluster.Bootstrap
+open Akka.Discovery.Config.Hosting
+open System.Net
 
 module AkkaInfra =
    let getJournalOpts () =
@@ -40,15 +44,44 @@ module AkkaInfra =
    let withClustering
       (builder: AkkaConfigurationBuilder)
       (roles: string array)
-      (port: int option)
       =
-      let port = Option.defaultValue 0 port
+      let remote = Env.config.AkkaRemoting
 
-      builder
-         .WithRemoting(Env.config.AkkaRemoteHost, port)
-         .WithClustering(
-            ClusterOptions(
-               SeedNodes = List.toArray Env.config.AkkaClusterSeedNodes,
-               Roles = roles
+      match Env.config.ClusterStartupMethod with
+      | Env.DiscoveryConfig conf ->
+         let managementPort = 8558
+         let serviceName = "akka-management"
+
+         builder
+            .WithAkkaManagement(fun (setup: AkkaManagementSetup) ->
+               setup.Http.HostName <- remote.Host
+               setup.Http.Port <- managementPort
+               setup.Http.BindHostName <- "0.0.0.0"
+               setup.Http.BindPort <- managementPort)
+            .WithClusterBootstrap(fun opts ->
+               opts.ContactPointDiscovery.ServiceName <- serviceName
+               opts.ContactPointDiscovery.RequiredContactPointsNr <- 2)
+            .WithConfigDiscovery(fun opts ->
+               let service = Service()
+               service.Name <- serviceName
+
+               service.Endpoints <-
+                  conf.EndpointNames
+                  |> List.map (fun hostName -> $"{hostName}:{managementPort}")
+                  |> List.toArray
+
+               let li = System.Collections.Generic.List<Service>()
+               li.Add(service)
+               opts.Services <- li)
+            .WithRemoting(remote.Host, remote.Port)
+            .WithClustering(ClusterOptions(Roles = roles))
+      | Env.SeedNode conf ->
+         // Manual seed node approach for local dev without Docker
+         builder
+            .WithRemoting(remote.Host, remote.Port)
+            .WithClustering(
+               ClusterOptions(
+                  SeedNodes = List.toArray conf.SeedNodes,
+                  Roles = roles
+               )
             )
-         )

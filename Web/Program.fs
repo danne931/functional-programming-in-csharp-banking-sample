@@ -34,7 +34,6 @@ builder.Services.AddAkka(
 
       let builder =
          AkkaInfra.withClustering builder [| "web"; "signal-r-role" |]
-         <| Some Env.config.AkkaRemotePort
 
       builder
          .WithCustomSerializer(

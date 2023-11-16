@@ -1,16 +1,30 @@
 services:
-  app:
-    build: .
+  web:
+    image: web:latest
+    hostname: web
+    ports:
+      - 3000:3000
+    expose:
+      - 8081
+    depends_on:
+      - account.1
+      - account.2
+  account.1:
+    image: account:latest
+    hostname: account.1
+    expose:
+      - 8082
     depends_on:
       - postgres
-    ports:
-      - 3000:5006
-    environment:
-      - MockThirdPartyBankPort=5007
-      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
-      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+  account.2:
+    image: account:latest
+    hostname: account.2
+    expose:
+      - 8082
+    depends_on:
+      - postgres
   mock-third-party-bank:
-    build: ./MockThirdPartyBankTransferReceiver.Web
+    image: mock-third-party-bank-transfer-receiver:latest
     expose:
       - 5007
     environment:

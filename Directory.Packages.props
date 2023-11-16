@@ -11,6 +11,7 @@
     <PackageVersion Include="Akka.HealthCheck.Hosting.Web" Version="1.5.12" />
     <PackageVersion Include="Akka.Hosting" Version="1.5.13" />
     <PackageVersion Include="Akka.Logger.Serilog" Version="1.5.12.1" />
+    <PackageVersion Include="Akka.Management" Version="1.5.7" />
     <PackageVersion Include="Akka.Persistence.Hosting" Version="1.5.13" />
     <PackageVersion Include="Akka.Persistence.Sql" Version="1.5.13" />
     <PackageVersion Include="Akka.Persistence.Sql.Hosting" Version="1.5.13" />
@@ -19,7 +20,7 @@
     <PackageVersion Include="Akkling" Version="0.13.0" />
     <PackageVersion Include="Akkling.Cluster.Sharding" Version="0.13.0" />
     <PackageVersion Include="Akkling.Persistence" Version="0.13.0" />
-    <PackageVersion Include="FsConfig" Version="4.0.0" />
+    <PackageVersion Include="FsConfig" Version="4.1.0" />
     <PackageVersion Include="FSharp.Control.TaskSeq" Version="0.3.0" />
     <PackageVersion Include="FSharp.SystemTextJson" Version="1.2.42" />
     <PackageVersion Include="FsToolkit.ErrorHandling.TaskResult" Version="4.9.0" />

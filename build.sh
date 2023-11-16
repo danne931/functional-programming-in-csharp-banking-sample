@@ -2,5 +2,4 @@
 
 set -euo pipefail
 
-dotnet tool restore
 dotnet fsi build.fsx $@
