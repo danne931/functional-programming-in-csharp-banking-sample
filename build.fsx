@@ -19,6 +19,10 @@ let projects = !! "**/*Web.fsproj" ++ "**/*.Service.fsproj"
 let appEntryDir = "./Web"
 let testDir = "./Test"
 
+let publishProject project =
+   Trace.trace $"Publishing project {project}..."
+   Shell.Exec("dotnet", $"publish {project}") |> ignore
+
 let dockerImageNameFromProject (fsproj: string) =
    match IO.Path.GetFileNameWithoutExtension fsproj with
    | "Web" -> Some "web"
@@ -28,34 +32,39 @@ let dockerImageNameFromProject (fsproj: string) =
       Some "mock-third-party-bank-transfer-receiver"
    | _ -> None
 
+let buildImage fsprojPath =
+   let imageNameOpt = dockerImageNameFromProject fsprojPath
+
+   match imageNameOpt with
+   | None ->
+      failwithf "Docker image name not specified for project %s" fsprojPath
+   | Some imageName ->
+      Trace.trace $"Building docker image {imageName}"
+      let dirName = IO.Path.GetDirectoryName fsprojPath
+
+      Shell.Exec("docker", $"build -t {imageName}:latest {dirName}") |> ignore
+
 Target.create "Clean" (fun _ ->
    let dirs = !! "**/bin/" ++ "**/obj/"
    Trace.trace $"Cleaning directories: {dirs}"
    Shell.cleanDirs dirs
    Shell.rm $"{appEntryDir}/logs.json")
 
-Target.create "Publish" (fun _ ->
-   let publishProject project =
-      Trace.trace $"Publishing project {project}..."
-      Shell.Exec("dotnet", $"publish {project}") |> ignore
+Target.create "Publish" (fun o ->
+   let paths = o.Context.Arguments
 
-   projects |> Seq.iter publishProject)
+   if paths.IsEmpty then
+      Seq.iter publishProject projects
+   else
+      List.iter publishProject paths)
 
-Target.create "BuildDockerImages" (fun _ ->
-   let buildImage fsprojPath =
-      let imageNameOpt = dockerImageNameFromProject fsprojPath
+Target.create "BuildDockerImages" (fun o ->
+   let paths = o.Context.Arguments
 
-      match imageNameOpt with
-      | None ->
-         failwithf "Docker image name not specified for project %s" fsprojPath
-      | Some imageName ->
-         Trace.trace $"Building docker image {imageName}"
-         let dirName = IO.Path.GetDirectoryName fsprojPath
-
-         Shell.Exec("docker", $"build -t {imageName}:latest {dirName}")
-         |> ignore
-
-   projects |> Seq.iter buildImage)
+   if paths.IsEmpty then
+      Seq.iter buildImage projects
+   else
+      List.iter buildImage paths)
 
 Target.create "BuildApp" (fun _ ->
    Shell.Exec("dotnet", "build", dir = appEntryDir) |> ignore)
