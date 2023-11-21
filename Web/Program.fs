@@ -22,7 +22,11 @@ let builder = Env.builder
 
 LogInfra.start builder
 
-EndpointSerializationInfra.start builder
+// Endpoint serialization
+builder.Services.ConfigureHttpJsonOptions(fun opts ->
+   Serialization.withInjectedOptions opts.SerializerOptions
+   ())
+|> ignore
 
 SignalRInfra.start builder
 
@@ -33,11 +37,14 @@ builder.Services.AddAkka(
          provider.GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
 
       let builder =
-         AkkaInfra.withClustering builder [| "web"; "signal-r-role" |]
+         AkkaInfra.withClustering builder [|
+            ClusterMetadata.roles.web
+            ClusterMetadata.roles.signalR
+         |]
 
       builder
          .WithCustomSerializer(
-            "akka",
+            BankSerializer.Name,
             [
                typedefof<AccountMessage>
                typedefof<AccountState>
@@ -53,14 +60,14 @@ builder.Services.AddAkka(
                //       a message from Akka ShardRegionProxy.
                typedefof<Akkling.Cluster.Sharding.ShardEnvelope>
             ],
-            fun system -> AkkaSerializer(system)
+            fun system -> BankSerializer(system)
          )
-         .WithShardRegionProxy<ActorMetadata.AccountShardRegionMarker>(
-            ActorMetadata.accountShardRegion.name,
-            "account-role",
-            ActorMetadata.accountShardRegion.messageExtractor
+         .WithShardRegionProxy<ActorMetadata.AccountMarker>(
+            ClusterMetadata.accountShardRegion.name,
+            ClusterMetadata.roles.account,
+            ClusterMetadata.accountShardRegion.messageExtractor
          )
-         .WithDistributedPubSub("signal-r-role")
+         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system _ ->
             SignalRActor.start system signalRHub |> ignore)
          .ConfigureLoggers(fun builder ->

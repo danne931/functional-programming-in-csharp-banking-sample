@@ -19,7 +19,7 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: AccountState option) =
          match envelope.Message with
          | :? AccountMessage as msg ->
             match msg with
-            | AccountMessage.Lookup ->
+            | AccountMessage.GetAccount ->
                ctx.Sender() <! accountOpt
                ignored ()
             | AccountMessage.StateChange msg ->

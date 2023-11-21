@@ -16,6 +16,7 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Bank.User.Api
+open BillingStatement
 open User
 
 let private persist e =
@@ -29,10 +30,8 @@ let actorProps
    (getDomesticTransferActor:
       ActorSystem -> IActorRef<DomesticTransferRecipientActor.Message>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
-   (getAccountClosureActor:
-      ActorSystem -> IActorRef<AccountClosureActor.AccountClosureMessage>)
-   (getBillingCycleBulkWriteActor:
-      ActorSystem -> IActorRef<BillingCycleBulkWriteActor.Message>)
+   (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
+   (getBillingCycleBulkWriteActor: ActorSystem -> IActorRef<BillingMessage>)
    (userPersistence: UserPersistence)
    =
    let createUser (user: User) (evt: BankEvent<CreatedAccount>) = async {
@@ -73,15 +72,15 @@ let actorProps
                <! EmailActor.TransferDeposited(e, newState)
             | AccountClosed _ ->
                getAccountClosureActor mailbox.System
-               <! AccountClosureActor.Register newState
+               <! AccountClosureMessage.Register newState
             | _ -> ()
 
             return! loop <| Some newState
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? AccountMessage as msg ->
             match msg with
-            | Lookup -> mailbox.Sender() <! accountOpt
-            | LookupEvents ->
+            | GetAccount -> mailbox.Sender() <! accountOpt
+            | GetEvents ->
                match accountOpt with
                | None -> mailbox.Sender() <! None
                | Some account -> mailbox.Sender() <!| getTransactions account
@@ -158,7 +157,7 @@ let actorProps
                         txns
 
                   getBillingCycleBulkWriteActor mailbox.System
-                  <! BillingCycleBulkWriteActor.RegisterBillingStatement billing
+                  <! RegisterBillingStatement billing
 
                   // Maintenance fee conditionally applied after account transactions
                   // have been consolidated. If applied, it will be the first transaction
@@ -233,7 +232,7 @@ let actorProps
    propsPersist handler
 
 let get (sys: ActorSystem) (entityId: Guid) : IEntityRef<AccountMessage> =
-   getEntityRef sys ActorMetadata.accountShardRegion entityId
+   getEntityRef sys ClusterMetadata.accountShardRegion entityId
 
 let private getAccountEvents
    (actorSystem: ActorSystem)

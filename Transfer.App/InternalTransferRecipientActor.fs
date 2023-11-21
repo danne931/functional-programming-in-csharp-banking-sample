@@ -26,7 +26,7 @@ let actorProps
       let recipientId = Guid recipient.Identification
 
       let! (accountOpt: AccountState option) =
-         getAccountRef recipientId <? Lookup
+         getAccountRef recipientId <? AccountMessage.GetAccount
 
       match accountOpt with
       | None ->

@@ -5,11 +5,9 @@
 
   <ItemGroup>
     <Compile Include="Routes.fs" />
-    <Compile Include="PostgresSeeder.fs" />
     <Compile Include="Logging.fs" />
     <Compile Include="Serialization.fs" />
     <Compile Include="SignalR.fs" />
-    <Compile Include="Quartz.fs" />
     <Compile Include="Akka.fs" />
   </ItemGroup>
 
@@ -18,17 +16,14 @@
     <PackageReference Include="Akka.Logger.Serilog" />
     <PackageReference Include="Akka.Management" />
     <PackageReference Include="Akka.Persistence.Sql.Hosting" />
-    <PackageReference Include="Quartz" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" />
-    <PackageReference Include="Quartz.Extensions.Hosting" />
-    <PackageReference Include="Quartz.Plugins" />
-    <PackageReference Include="Quartz.Serialization.Json" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Formatting.Compact" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../BillingCycle.App//BillingCycle.App.fsproj" />
-    <ProjectReference Include="../Account.App/Account.App.fsproj" />
+    <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
+    <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
+    <ProjectReference Include="../Scheduler.App/Scheduler.App.fsproj" />
   </ItemGroup>
 </Project>

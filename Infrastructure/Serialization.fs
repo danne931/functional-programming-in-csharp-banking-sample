@@ -1,8 +1,6 @@
 namespace Bank.Infrastructure
 
 open System
-open Microsoft.AspNetCore.Builder
-open Microsoft.Extensions.DependencyInjection
 open System.Text.Json
 open System.Runtime.Serialization
 open Akka.Serialization
@@ -12,6 +10,7 @@ open Akka.Cluster.Sharding
 open Akkling.Cluster.Sharding
 
 open Bank.Account.Domain
+open BillingStatement
 open Lib.Types
 
 type AkkaPersistenceEventAdapter() =
@@ -36,16 +35,17 @@ type private AccountShardEnvelope = {
    Message: AccountMessage
 }
 
-type AkkaSerializer(system: ExtendedActorSystem) =
+type BankSerializer(system: ExtendedActorSystem) =
    inherit SerializerWithStringManifest(system)
+
+   static member Name = "bank-serializer"
 
    override x.Identifier = 931
 
    override x.Manifest(o: obj) =
       match o with
-      | :? BillingCycleActor.Message -> "BillingCycleActorMessage"
-      | :? AccountClosureActor.AccountClosureMessage ->
-         "AccountClosureActorMessage"
+      | :? SchedulingActor.Message -> "SchedulingActorMessage"
+      | :? AccountClosureMessage -> "AccountClosureActorMessage"
       | :? Option<List<AccountEvent>> -> "AccountEventListOption"
       | :? AccountState -> "AccountState"
       | :? Option<AccountState> -> "AccountStateOption"
@@ -55,6 +55,8 @@ type AkkaSerializer(system: ExtendedActorSystem) =
          | AccountMessage.Event _ -> "AccountEvent"
          | _ -> "AccountMessage"
       | :? SignalRMessage -> "SignalRMessage"
+      | :? BillingMessage -> "BillingCycleBulkWriteActorMessage"
+      | :? EmailActor.EmailMessage -> "EmailActorMessage"
       | :? ShardEnvelope as e ->
          match e.Message with
          | :? AccountMessage -> "AccountShardEnvelope"
@@ -63,10 +65,19 @@ type AkkaSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
-      // BillingCycleActor message serialization for Quartz job persistence.
-      | :? BillingCycleActor.Message
-      // AccountClosureActor message serialization for Quartz job persistence.
-      | :? AccountClosureActor.AccountClosureMessage as msg ->
+      // SchedulingActor message serialization for Quartz job persistence.
+      | :? SchedulingActor.Message
+      // Message serialization for messages from sharded account nodes to
+      // Email cluster singleton.
+      | :? EmailActor.EmailMessage
+      // Message serialization for messages from sharded account nodes to
+      // BillingCycleBulkWrite cluster singleton.
+      // Also for messages from SchedulingActor to Billing Cycle Proxy
+      | :? BillingMessage
+      // Serialization for messages from sharded account nodes to
+      // AccountClosureActor cluster singleton. Also for messages
+      // from SchedulingActor to Account Closure Proxy
+      | :? AccountClosureMessage as msg ->
          JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
       // Akka ShardRegionProxy defined in Akka.Hosting does not
       // recognize Akkling ShardEnvelope as Akka ShardingEnvelope
@@ -82,10 +93,10 @@ type AkkaSerializer(system: ExtendedActorSystem) =
          | :? AccountMessage ->
             JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
          | _ -> raise <| NotImplementedException()
-      // AccountMessage.LookupEvents response serialized for message sent
+      // AccountMessage.GetEvents response serialized for message sent
       // from account cluster nodes to Web node.
       | :? Option<List<AccountEvent>>
-      // AccountMessage.Lookup response serialized for message sent
+      // AccountMessage.GetAccount response serialized for message sent
       // from account cluster nodes to Web node.
       | :? Option<AccountState>
       // AccountClosureActor persistence snapshot.
@@ -129,9 +140,10 @@ type AkkaSerializer(system: ExtendedActorSystem) =
          | "AccountMessage" -> typeof<AccountMessage>
          | "AccountShardEnvelope" -> typeof<AccountShardEnvelope>
          | "SignalRMessage" -> typeof<SignalRMessage>
-         | "BillingCycleActorMessage" -> typeof<BillingCycleActor.Message>
-         | "AccountClosureActorMessage" ->
-            typeof<AccountClosureActor.AccountClosureMessage>
+         | "BillingCycleBulkWriteActorMessage" -> typeof<BillingMessage>
+         | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
+         | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
+         | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | _ -> raise <| SerializationException()
 
       let deserialized =
@@ -157,10 +169,3 @@ type AkkaSerializer(system: ExtendedActorSystem) =
 
          envelope
       | _ -> deserialized
-
-module EndpointSerializationInfra =
-   let start (builder: WebApplicationBuilder) =
-      builder.Services.ConfigureHttpJsonOptions(fun opts ->
-         Serialization.withInjectedOptions opts.SerializerOptions
-         ())
-      |> ignore

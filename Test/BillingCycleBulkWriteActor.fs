@@ -1,13 +1,14 @@
 module BillingCycleBulkWriteActorTests
 
+open System
 open System.Threading
 open Expecto
 open Akkling
 open FsToolkit.ErrorHandling
 
 module ATK = Akkling.TestKit
-module TActor = BillingCycleBulkWriteActor
 
+open Bank.Account.Domain
 open BillingStatement
 open Util
 
@@ -23,10 +24,20 @@ let billingPersistence: BillingPersistence = {
    saveBillingStatements = fun statements -> TaskResult.ok [ statements.Length ]
 }
 
-let stateAfter2Registrations: TActor.BulkWriteState = {
+let stateAfter2Registrations: BillingCycleBulkWriteActor.BulkWriteState = {
    IsScheduled = true
    Billing = [ Stub.billingStatement; Stub.billingStatement ]
 }
+
+let init (tck: TestKit.Tck) =
+   let accountAref = tck.CreateTestProbe() |> typed :> IActorRef<AccountMessage>
+
+   let props =
+      BillingCycleBulkWriteActor.actorProps
+      <| getAccountEntityRef accountAref
+      <| billingPersistence
+
+   spawn tck "mock-billing" props
 
 [<Tests>]
 let tests =
@@ -35,37 +46,37 @@ let tests =
          "RegisterBillingStatement message should accumulate billing statements in actor state"
       <| Some(config ())
       <| fun tck ->
-         let ref = TActor.start tck.Sys billingPersistence
-         let msg = TActor.RegisterBillingStatement Stub.billingStatement
+         let ref = init tck
+         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
          ref <! msg
          ref <! msg
-         ref <! TActor.Lookup
+         ref <! BillingMessage.GetWriteReadyStatements
          ATK.expectMsg tck stateAfter2Registrations |> ignore
 
       akkaTest "Actor state is reset after PersistBillingStatements message"
       <| Some(config ())
       <| fun tck ->
-         let ref = TActor.start tck.Sys billingPersistence
-         let msg = TActor.RegisterBillingStatement Stub.billingStatement
+         let ref = init tck
+         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
          ref <! msg
          ref <! msg
          Thread.Sleep(100)
-         ref <! TActor.PersistBillingStatements
-         ref <! TActor.Lookup
-         ATK.expectMsg tck TActor.initState |> ignore
+         ref <! BillingMessage.PersistBillingStatements
+         ref <! BillingMessage.GetWriteReadyStatements
+         ATK.expectMsg tck BillingCycleBulkWriteActor.initState |> ignore
 
       akkaTest "Actor state is reset after batch size reached"
       <| Some(config ())
       <| fun tck ->
-         let ref = TActor.start tck.Sys billingPersistence
-         let msg = TActor.RegisterBillingStatement Stub.billingStatement
-         let maxMinus1 = TActor.batchSizeLimit - 1
+         let ref = init tck
+         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
+         let maxMinus1 = BillingCycleBulkWriteActor.batchSizeLimit - 1
 
          for _ in [ 1..maxMinus1 ] do
             ref <! msg
 
-         ref <! TActor.Lookup
-         let res = tck.ExpectMsg<TActor.BulkWriteState>()
+         ref <! BillingMessage.GetWriteReadyStatements
+         let res = tck.ExpectMsg<BillingCycleBulkWriteActor.BulkWriteState>()
 
          Expect.equal
             res.Billing.Length
@@ -77,6 +88,6 @@ let tests =
          // to its initial state.
          ref <! msg
 
-         ref <! TActor.Lookup
-         ATK.expectMsg tck TActor.initState |> ignore
+         ref <! BillingMessage.GetWriteReadyStatements
+         ATK.expectMsg tck BillingCycleBulkWriteActor.initState |> ignore
    ]

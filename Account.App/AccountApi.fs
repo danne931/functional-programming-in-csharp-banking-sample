@@ -30,8 +30,8 @@ let getAccountEvents
    : AccountEvent list option Task
    =
    let ref = AccountActor.get sys accountId
-   ref <? AccountMessage.LookupEvents |> Async.toTask
+   ref <? AccountMessage.GetEvents |> Async.toTask
 
 let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
    let ref = AccountActor.get sys accountId
-   ref <? AccountMessage.Lookup |> Async.toTask
+   ref <? AccountMessage.GetAccount |> Async.toTask

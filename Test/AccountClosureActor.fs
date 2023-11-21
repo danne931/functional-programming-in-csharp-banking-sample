@@ -51,7 +51,7 @@ let init (tck: TestKit.Tck) =
    let accountClosureActor =
       spawn tck ActorMetadata.accountClosure.Name
       <| AccountClosureActor.actorProps
-            quartzSchedulerProbe
+            (typed quartzSchedulerProbe :> IActorRef<SchedulingActor.Message>)
             getAccountRef
             (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
             mockDeleteHistoricalRecords
@@ -72,14 +72,14 @@ let tests =
          let accountClosureActor, emailProbe, quartzSchedulerProbe = init tck
          let initState = AccountClosureActor.initState
 
-         accountClosureActor <! AccountClosureActor.Lookup
+         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
          TestKit.expectMsg tck initState |> ignore
 
          let account1 = accountStub ()
          let account2 = accountStub ()
-         accountClosureActor <! AccountClosureActor.Register account1
-         accountClosureActor <! AccountClosureActor.Register account2
-         accountClosureActor <! AccountClosureActor.Lookup
+         accountClosureActor <! AccountClosureMessage.Register account1
+         accountClosureActor <! AccountClosureMessage.Register account2
+         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
          TestKit.expectMsg tck [ account2; account1 ] |> ignore
 
          emailProbe.ExpectNoMsg()
@@ -96,9 +96,9 @@ let tests =
 
          let account1 = accountStub ()
          let account2 = accountStub ()
-         accountClosureActor <! AccountClosureActor.Register account1
-         accountClosureActor <! AccountClosureActor.Register account2
-         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll
+         accountClosureActor <! AccountClosureMessage.Register account1
+         accountClosureActor <! AccountClosureMessage.Register account2
+         accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
 
          for account in [ account2; account1 ] do
             TestKit.expectMsg tck AccountMessage.Delete |> ignore
@@ -114,7 +114,7 @@ let tests =
                Expect.isTrue false "EmailActor expects an AccountClose message"
 
          // State should be reset
-         accountClosureActor <! AccountClosureActor.Lookup
+         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
          TestKit.expectMsg tck initState |> ignore
 
       akkaTest
@@ -126,26 +126,17 @@ let tests =
 
          let account1 = accountStub ()
          let account2 = accountStub ()
-         accountClosureActor <! AccountClosureActor.Register account1
-         accountClosureActor <! AccountClosureActor.Register account2
+         accountClosureActor <! AccountClosureMessage.Register account1
+         accountClosureActor <! AccountClosureMessage.Register account2
 
-         accountClosureActor <! AccountClosureActor.ScheduleDeleteAll
+         accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
 
-         let msg = quartzSchedulerProbe.ExpectMsg<CreatePersistentJob>()
-
-         Expect.equal
-            msg.To
-            ActorMetadata.accountClosure.Path.Value
-            "Quartz job should contain actor path to AccountClosureActor for
-             which it will send the scheduled DeleteAll message"
+         let msg = quartzSchedulerProbe.ExpectMsg<SchedulingActor.Message>()
 
          let expectedAccountIds = [ account2.EntityId; account1.EntityId ]
 
-         let message: AccountClosureActor.AccountClosureMessage =
-            unbox msg.Message
-
-         match message with
-         | AccountClosureActor.AccountClosureMessage.DeleteAll accountIds ->
+         match msg with
+         | SchedulingActor.DeleteAccountsJobSchedule accountIds ->
             Expect.equal
                accountIds
                expectedAccountIds

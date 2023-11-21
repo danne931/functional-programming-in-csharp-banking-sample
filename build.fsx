@@ -23,6 +23,7 @@ let dockerImageNameFromProject (fsproj: string) =
    match IO.Path.GetFileNameWithoutExtension fsproj with
    | "Web" -> Some "web"
    | "Account.Service" -> Some "account"
+   | "Scheduler.Service" -> Some "scheduler"
    | "MockThirdPartyBankTransferReceiver.Web" ->
       Some "mock-third-party-bank-transfer-receiver"
    | _ -> None

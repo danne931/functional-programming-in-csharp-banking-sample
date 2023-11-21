@@ -1,30 +1,28 @@
 open Microsoft.Extensions.DependencyInjection
+open System.Threading.Tasks
 open Akka.Actor
 open Akka.Event
 open Akka.Hosting
 open Akka.Cluster.Hosting
 open Akka.Cluster.Sharding
+open Akka.Cluster.Routing
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
-open Akka.Quartz.Actor
-open Quartz
 open Akkling
 open Petabridge.Cmd.Host
 open Petabridge.Cmd.Cluster
 open Petabridge.Cmd.Cluster.Sharding
 
 open Bank.Account.Domain
-open Bank.BillingCycle.Api
 open Bank.Infrastructure
 open ActorUtil
+open BillingStatement
 
 let builder = Env.builder
 
 builder.Services.AddSingleton<AccountBroadcast>(fun provider ->
    SignalRProxy.init <| provider.GetRequiredService<ActorSystem>())
 |> ignore
-
-QuartzInfra.start builder
 
 let journalOpts = AkkaInfra.getJournalOpts ()
 
@@ -40,7 +38,10 @@ builder.Services.AddAkka(
    Env.config.AkkaSystemName,
    (fun builder provider ->
       let builder =
-         AkkaInfra.withClustering builder [| "account-role"; "signal-r-role" |]
+         AkkaInfra.withClustering builder [|
+            ClusterMetadata.roles.account
+            ClusterMetadata.roles.signalR
+         |]
 
       builder
          .AddHocon(
@@ -58,24 +59,31 @@ builder.Services.AddAkka(
          )
          .WithJournalAndSnapshot(journalOpts, snapshotOpts)
          .WithCustomSerializer(
-            "akka",
+            BankSerializer.Name,
             [
                typedefof<AccountMessage>
                typedefof<AccountState>
                typedefof<SignalRMessage>
+               typedefof<BillingMessage>
+               typedefof<AccountClosureMessage>
+               typedefof<EmailActor.EmailMessage>
                // TODO:
                // Temporary until Akka.Quartz.Actor supports specifying
                // custom serializers for more precise types.
                // If fixed, will be able to replace typedefof<obj> with,
-               // for instance, typedefof<BillingCycleActor.Message> for
+               // for instance, typedefof<BillingMessage> for
                // messages serialized for Quartz jobs.
                // https://github.com/akkadotnet/Akka.Quartz.Actor/issues/215
                typedefof<obj>
             ],
-            fun system -> AkkaSerializer(system)
+            fun system -> BankSerializer(system)
          )
-         .WithShardRegion<ActorMetadata.AccountShardRegionMarker>(
-            ActorMetadata.accountShardRegion.name,
+         .WithSingletonProxy<ActorMetadata.SchedulingMarker>(
+            ActorMetadata.scheduling.Name,
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.scheduling)
+         )
+         .WithShardRegion<ActorMetadata.AccountMarker>(
+            ClusterMetadata.accountShardRegion.name,
             (fun _ ->
                let props =
                   AccountActor.initProps
@@ -83,69 +91,69 @@ builder.Services.AddAkka(
                   <| provider.GetRequiredService<ActorSystem>()
 
                props.ToProps()),
-            ActorMetadata.accountShardRegion.messageExtractor,
+            ClusterMetadata.accountShardRegion.messageExtractor,
             ShardOptions(
-               Role = "account-role",
+               Role = ClusterMetadata.roles.account,
                StateStoreMode = StateStoreMode.DData,
                RememberEntities = true,
                RememberEntitiesStore = RememberEntitiesStore.Eventsourced
             )
          )
-         .WithDistributedPubSub("signal-r-role")
+         .WithSingleton<ActorMetadata.EmailMarker>(
+            ActorMetadata.email.Name,
+            (fun system _ resolver ->
+               let broadcast = resolver.GetService<AccountBroadcast>()
+               let typedProps = EmailActor.initProps system broadcast
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingleton<ActorMetadata.BillingCycleBulkWriteMarker>(
+            ActorMetadata.billingCycleBulkWrite.Name,
+            (fun system _ _ ->
+               let getAccountRef = AccountActor.get system
+
+               let typedProps =
+                  BillingCycleBulkWriteActor.initProps getAccountRef
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingleton<ActorMetadata.AccountClosureMarker>(
+            ActorMetadata.accountClosure.Name,
+            (fun system registry _ ->
+               let typedProps =
+                  AccountClosureActor.initProps system
+                  <| SchedulingActor.get registry
+                  <| AccountActor.get system
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         // TODO: Do more than just printing dead letter messages.
+         .WithSingleton<ActorMetadata.AuditorMarker>(
+            ActorMetadata.auditor.Name,
+            (fun system _ _ ->
+               let handler (ctx: Actor<_>) =
+                  EventStreaming.subscribe ctx.Self system.EventStream
+                  |> ignore
+
+                  logInfo ctx "Auditor subscribed to system event stream"
+
+                  let rec loop () = actor {
+                     let! (msg: AllDeadLetters) = ctx.Receive()
+                     logError ctx $"Dead letter: {msg}"
+                     return! loop ()
+                  }
+
+                  loop ()
+
+               (props handler).ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system registry ->
             let broadcast = provider.GetRequiredService<AccountBroadcast>()
-
-            let deadLetterHandler (ctx: Actor<_>) (msg: AllDeadLetters) =
-               logError ctx $"Dead letters: {msg}"
-               Ignore
-
-            let deadLetterRef =
-               spawn
-                  system
-                  ActorMetadata.deadLettersMonitor.Name
-                  (props (actorOf2 deadLetterHandler))
-
-            EventStreaming.subscribe deadLetterRef system.EventStream
-            |> ignore
-
-            let scheduler = provider.GetRequiredService<IScheduler>()
-
-            let quartzPersistentARef =
-               system.ActorOf(
-                  Akka.Actor.Props.Create(fun () ->
-                     QuartzPersistentActor scheduler),
-                  "QuartzScheduler"
-               )
-
-            registry.Register<QuartzPersistentActor>(quartzPersistentARef)
-
             let getAccountRef = AccountActor.get system
-
-            BillingCycleActor.scheduleMonthly
-               system
-               quartzPersistentARef
-               getAccountRef
-
-            registry.Register<ActorMetadata.BillingCycleBulkWriteMarker>(
-               BillingCycleBulkWriteActor.start system {
-                  saveBillingStatements = saveBillingStatements
-               }
-               |> untyped
-            )
-
-            registry.Register<ActorMetadata.EmailMarker>(
-               EmailActor.start system broadcast |> untyped
-            )
-
-            registry.Register<ActorMetadata.AccountClosureMarker>(
-               AccountClosureActor.start
-                  system
-                  quartzPersistentARef
-                  getAccountRef
-               |> untyped
-            )
-
-            AccountClosureActor.scheduleNightlyCheck quartzPersistentARef
 
             registry.Register<ActorMetadata.DomesticTransferMarker>(
                DomesticTransferRecipientActor.start
@@ -161,9 +169,13 @@ builder.Services.AddAkka(
 
             cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
             |> ignore)
-#if DEBUG
-         .AddStartup(StartupTask(fun sys _ -> PostgresSeeder.seed sys))
-#endif
+         .AddStartup(
+            StartupTask(fun system _ ->
+               if Env.isDev then
+                  PostgresSeeder.seed system
+               else
+                  Task.FromResult())
+         )
       |> ignore
 
       ())

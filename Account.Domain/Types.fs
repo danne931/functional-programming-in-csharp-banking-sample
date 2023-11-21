@@ -146,8 +146,8 @@ type AccountState = {
 
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
-   | Lookup
-   | LookupEvents
+   | GetAccount
+   | GetEvents
    | StateChange of AccountCommand
    | Event of AccountEvent
    | DispatchTransfer of BankEvent<TransferPending>
@@ -173,3 +173,11 @@ type AccountBroadcast = {
    circuitBreaker: CircuitBreakerMessage -> unit
    endBillingCycle: unit -> unit
 }
+
+type AccountClosureMessage =
+   | Register of AccountState
+   | ScheduleDeleteAll
+   | DeleteAll of Guid list
+   | ReverseClosure of Guid
+   | GetRegisteredAccounts
+   | DeleteHistoricalRecordsResponse of Result<Email list option, Err>

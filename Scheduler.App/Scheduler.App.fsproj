@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="AccountClosureTriggers.fs" />
+    <Compile Include="BillingCycleTriggers.fs" />
+    <Compile Include="SchedulingActor.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Akka.Cluster.Hosting" />
+    <!--<PackageReference Include="Akka.Quartz.Actor" />-->
+    <PackageReference Include="Quartz" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lib/Lib.fsproj" />
+    <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
+    <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Akka.Quartz.Actor/src/Akka.Quartz.Actor/Akka.Quartz.Actor.csproj" />
+  </ItemGroup>
+</Project>

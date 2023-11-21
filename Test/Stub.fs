@@ -2,7 +2,6 @@
 module Stub
 
 open System
-open System.Threading.Tasks
 
 open Lib.Types
 open Bank.Account.Domain

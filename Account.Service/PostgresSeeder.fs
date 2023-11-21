@@ -35,7 +35,7 @@ module PostgresSeeder =
 
       for command in commands do
          let ref = AccountActor.get sys command.EntityId
-         let! (acct: AccountState option) = ref <? AccountMessage.Lookup
+         let! (acct: AccountState option) = ref <? AccountMessage.GetAccount
 
          if acct.IsNone then
             sys.Log.Log(

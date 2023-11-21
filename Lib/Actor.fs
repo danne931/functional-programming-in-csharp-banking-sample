@@ -38,7 +38,30 @@ let messageExtractor maxNumberOfShards =
             | _ -> msg
    )
 
+module ClusterMetadata =
+   type ShardRegion = {
+      name: string
+      messageExtractor: IMessageExtractor
+   }
+
+   let roles = {|
+      web = "web-role"
+      account = "account-role"
+      signalR = "signal-r-role"
+      scheduling = "scheduling-role"
+   |}
+
+   let accountShardRegion = {
+      name = "account"
+      // TODO: Figure out ideal max #
+      messageExtractor = messageExtractor 1000
+   }
+
 module ActorMetadata =
+   type AuditorMarker() =
+      class
+      end
+
    type EmailMarker() =
       class
       end
@@ -55,55 +78,77 @@ module ActorMetadata =
       class
       end
 
-   type AccountShardRegionMarker() =
+   type AccountMarker() =
       class
       end
 
-   type ShardRegion = {
-      name: string
-      messageExtractor: IMessageExtractor
+   type SchedulingMarker() =
+      class
+      end
+
+   type ActorMetadata = {
+      Name: string
+      Path: ActorPath option
+      ProxyPath: ActorPath option
    }
 
-   let accountShardRegion = {
-      name = "account"
-      // TODO: Figure out ideal max #
-      messageExtractor = messageExtractor 1000
+   let private path route =
+      ActorPath.Parse $"akka://bank/user/{route}"
+
+   let account = {
+      Name = "account"
+      Path = Some <| path "account/account"
+      ProxyPath = Some <| path "account-proxy"
    }
-
-   type ActorMetadata = { Name: string; Path: ActorPath option }
-
-   let account = { Name = "account"; Path = None }
 
    let accountClosure = {
       Name = "account_closure"
-      Path = Some(ActorPath.Parse "akka://bank/user/account_closure")
+      Path = Some <| path "account_closure/account_closure"
+      ProxyPath = Some <| path "account_closure-proxy"
    }
 
    let internalTransfer = {
       Name = "internal_transfer_recipient"
       Path = None
+      ProxyPath = None
    }
 
    let domesticTransfer = {
       Name = "domestic_transfer_recipient"
-      Path = None
+      Path =
+         Some <| path "domestic_transfer_recipient/domestic_transfer_recipient"
+      ProxyPath = Some <| path "domestic_transfer_recipient-proxy"
    }
-
-   let billingCycle = { Name = "billing_cycle"; Path = None }
 
    let billingCycleBulkWrite = {
       Name = "billing_cycle_bulk_write"
-      Path = None
+      Path = Some <| path "billing_cycle_bulk_write/billing_cycle_bulk_write"
+      ProxyPath = Some <| path "billing_cycle_bulk_write-proxy"
    }
 
-   let email = { Name = "email"; Path = None }
-
-   let deadLettersMonitor = {
-      Name = "dead_letters_monitor"
+   let email = {
+      Name = "email"
       Path = None
+      ProxyPath = None
    }
 
-   let signalR = { Name = "signal-r"; Path = None }
+   let auditor = {
+      Name = "auditor"
+      Path = None
+      ProxyPath = None
+   }
+
+   let signalR = {
+      Name = "signal-r"
+      Path = None
+      ProxyPath = None
+   }
+
+   let scheduling = {
+      Name = "scheduling"
+      Path = None
+      ProxyPath = None
+   }
 
 let readJournal (system: ActorSystem) : SqlReadJournal =
    PersistenceQuery
@@ -112,7 +157,7 @@ let readJournal (system: ActorSystem) : SqlReadJournal =
 
 let getEntityRef
    system
-   (shardRegionMeta: ActorMetadata.ShardRegion)
+   (shardRegionMeta: ClusterMetadata.ShardRegion)
    (entityId: Guid)
    : IEntityRef<'t>
    =

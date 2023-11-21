@@ -23,6 +23,15 @@ services:
       - 8082
     depends_on:
       - postgres
+  scheduler:
+    image: scheduler:latest
+    hostname: scheduler
+    expose:
+      - 8083
+    depends_on:
+      - postgres
+      - account.1
+      - account.2
   mock-third-party-bank:
     image: mock-third-party-bank-transfer-receiver:latest
     expose:

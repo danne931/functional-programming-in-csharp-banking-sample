@@ -11,8 +11,7 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open User
-
-module BCBWActor = BillingCycleBulkWriteActor
+open BillingStatement
 
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
@@ -42,21 +41,20 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let billingBulkProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
-      (typed internalTransferProbe :> IActorRef<BankEvent<TransferPending>>)
+      typed internalTransferProbe :> IActorRef<BankEvent<TransferPending>>
 
    let getDomesticTransferActor (_: ActorSystem) =
-      (typed domesticTransferProbe
-      :> IActorRef<DomesticTransferRecipientActor.Message>)
+      typed domesticTransferProbe
+      :> IActorRef<DomesticTransferRecipientActor.Message>
 
    let getEmailActor (_: ActorSystem) =
       (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
 
    let getAccountClosureActor (_: ActorSystem) =
-      (typed accountClosureProbe
-      :> IActorRef<AccountClosureActor.AccountClosureMessage>)
+      typed accountClosureProbe :> IActorRef<AccountClosureMessage>
 
    let getBillingCycleBulkWriteActor (_: ActorSystem) =
-      (typed billingBulkProbe :> IActorRef<BillingCycleBulkWriteActor.Message>)
+      typed billingBulkProbe :> IActorRef<BillingMessage>
 
    let accountActor =
       spawn tck ActorMetadata.account.Name
@@ -89,7 +87,7 @@ let tests =
          let o = init tck accountPersistence
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -121,7 +119,7 @@ let tests =
 
          let cmd = AccountCommand.CloseAccount Stub.command.closeAccount
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -135,12 +133,10 @@ let tests =
             (Some expectedState)
             "Account state should be closed"
 
-         let msg =
-            o.accountClosureProbe.ExpectMsg<AccountClosureActor.AccountClosureMessage>
-               ()
+         let msg = o.accountClosureProbe.ExpectMsg<AccountClosureMessage>()
 
          match msg with
-         | AccountClosureActor.AccountClosureMessage.Register account ->
+         | AccountClosureMessage.Register account ->
             Expect.equal
                account
                expectedState
@@ -165,7 +161,7 @@ let tests =
          o.accountActor
          <! AccountMessage.StateChange(AccountCommand.Debit debit)
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -207,7 +203,7 @@ let tests =
             <| Stub.command.limitDailyDebits 100m
 
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -225,7 +221,7 @@ let tests =
          let debit2 = AccountCommand.Debit <| Stub.command.debit 33m
          o.accountActor <! AccountMessage.StateChange debit1
          o.accountActor <! AccountMessage.StateChange debit2
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
@@ -265,7 +261,7 @@ let tests =
          let transfer = Stub.command.internalTransfer 33m
          let cmd = AccountCommand.Transfer transfer
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -296,7 +292,7 @@ let tests =
          let transfer = Stub.command.domesticTransfer 31m
          let cmd = AccountCommand.Transfer transfer
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let state = tck.ExpectMsg<Option<AccountState>>()
 
@@ -331,7 +327,7 @@ let tests =
          o.accountActor
          <! AccountMessage.StateChange(AccountCommand.DepositTransfer deposit)
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let expectedState = {
             Stub.accountStateAfterCreate with
@@ -365,14 +361,14 @@ let tests =
 
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
          let initialState = tck.ExpectMsg<Option<AccountState>>()
 
          o.accountActor <! AccountMessage.BillingCycle
 
          o.billingBulkProbe.ExpectNoMsg()
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let stateAfterBillingCycle = tck.ExpectMsg<Option<AccountState>>()
 
@@ -395,13 +391,13 @@ let tests =
          let cmd = AccountCommand.Debit <| Stub.command.debit 1500m
          o.accountActor <! AccountMessage.StateChange cmd
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         match o.billingBulkProbe.ExpectMsg<BCBWActor.Message>() with
-         | BCBWActor.RegisterBillingStatement statement ->
+         match o.billingBulkProbe.ExpectMsg<BillingMessage>() with
+         | BillingMessage.RegisterBillingStatement statement ->
             Expect.sequenceEqual
                (statement.Transactions |> List.map (fun k -> k.Name))
                (Stub.billingTransactions |> List.map (fun k -> k.Name))
@@ -440,7 +436,7 @@ let tests =
                $"EmailActor expects BillingStatement message.
                  Received message: {msg}"
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let accountAfterBillingCycle =
             tck.ExpectMsg<Option<AccountState>>().Value
@@ -460,12 +456,12 @@ let tests =
          for command in Stub.commands do
             o.accountActor <! AccountMessage.StateChange command
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         o.accountActor <! AccountMessage.Lookup
+         o.accountActor <! AccountMessage.GetAccount
 
          let accountAfterBillingCycle =
             tck.ExpectMsg<Option<AccountState>>().Value

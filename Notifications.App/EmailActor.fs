@@ -156,7 +156,7 @@ let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
 
    props <| actorOf2 handler
 
-let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
+let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
    let breaker =
       Akka.Pattern.CircuitBreaker(
          system.Scheduler,
@@ -164,8 +164,6 @@ let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
          callTimeout = TimeSpan.FromSeconds 7,
          resetTimeout = TimeSpan.FromMinutes 1
       )
-
-   let ref = spawn system ActorMetadata.email.Name <| actorProps breaker
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.circuitBreaker {
@@ -197,7 +195,7 @@ let start (system: ActorSystem) (broadcaster: AccountBroadcast) =
       |> ignore)
    |> ignore
 
-   ref
+   actorProps breaker
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()

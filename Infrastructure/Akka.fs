@@ -7,7 +7,6 @@ open Akka.Persistence.Sql.Hosting
 open Akka.Management
 open Akka.Management.Cluster.Bootstrap
 open Akka.Discovery.Config.Hosting
-open System.Net
 
 module AkkaInfra =
    let getJournalOpts () =

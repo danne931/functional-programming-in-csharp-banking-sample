@@ -14,22 +14,20 @@
   <ItemGroup>
     <PackageReference Include="Akka.Cluster.Hosting" />
     <PackageReference Include="Akka.Hosting" />
-    <!--<PackageReference Include="Akka.Quartz.Actor" />-->
     <PackageReference Include="Akkling" />
     <PackageReference Include="Akkling.Cluster.Sharding" />
     <PackageReference Include="Akkling.Persistence" />
     <PackageReference Include="FSharp.Control.TaskSeq" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
-    <PackageReference Include="Quartz" />
     <PackageReference Include="Validus" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Scheduler.Service/Scheduler.Service.fsproj" />
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../Transfer.App/Transfer.App.fsproj" />
     <ProjectReference Include="../BillingCycle.App/BillingCycle.App.fsproj" />
     <ProjectReference Include="../User.App/User.App.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
-    <ProjectReference Include="../Akka.Quartz.Actor/src/Akka.Quartz.Actor/Akka.Quartz.Actor.csproj" />
   </ItemGroup>
 </Project>

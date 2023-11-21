@@ -5,10 +5,8 @@ open System
 open Akka.Hosting
 open Akka.Actor
 open Akka.Persistence
-open Akka.Quartz.Actor.Commands
 open Akkling
 open Akkling.Persistence
-open Quartz
 open FsToolkit.ErrorHandling
 
 open Lib.Types
@@ -16,40 +14,10 @@ open ActorUtil
 open Bank.AccountClosure.Api
 open Bank.Account.Domain
 
-type AccountClosureMessage =
-   | Register of AccountState
-   | ScheduleDeleteAll
-   | DeleteAll of Guid list
-   | ReverseClosure of Guid
-   | Lookup
-   | DeleteHistoricalRecordsResponse of Result<Email list option, Err>
-
-let private deletionJob (accountIds: Guid list) =
-   let name = "AccountClosureDeletion"
-   let group = "Bank"
-
-   let trigger =
-      TriggerBuilder
-         .Create()
-         .ForJob($"{name}Job", group)
-         .WithIdentity($"{name}Trigger", group)
-         .WithDescription(
-            "Delete remaining user data 3 months after requested account closure"
-         )
-#if DEBUG
-         .StartNow()
-#else
-         .StartAt(DateTimeOffset(DateTime.Now).AddDays(90))
-#endif
-         .Build()
-
-   let path = ActorMetadata.accountClosure.Path.Value
-   CreatePersistentJob(path, DeleteAll accountIds, trigger)
-
 let initState = List.empty<AccountState>
 
 let actorProps
-   (quartzPersistentActorRef: IActorRef)
+   (schedulingActorRef: IActorRef<SchedulingActor.Message>)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (emailRef: IActorRef<EmailActor.EmailMessage>)
    (deleteHistoricalRecords: Guid list -> TaskResultOption<Email list, Err>)
@@ -70,11 +38,18 @@ let actorProps
             | :? SnapshotOffer as o -> loop <| unbox o.Snapshot
             | :? AccountClosureMessage as msg ->
                match msg with
-               | Lookup ->
+               | GetRegisteredAccounts ->
                   mailbox.Sender() <! accounts
                   ignored ()
                | Register account ->
                   let newState = account :: accounts
+
+                  logInfo
+                     $"""
+                     Account scheduled for deletion - {account.EntityId}.
+                     Total scheduled: {newState.Length}.
+                     """
+
                   loop newState <@> SaveSnapshot newState
                | DeleteHistoricalRecordsResponse res ->
                   match res with
@@ -106,14 +81,13 @@ let actorProps
 
                            acct.EntityId)
 
+                     logInfo
+                        $"Scheduling deletion of billing records for accounts: {accountIds}"
                      // Schedule deletion of historical/legal records for 3 months later.
-                     quartzPersistentActorRef.Tell(
-                        deletionJob accountIds,
-                        ActorRefs.Nobody
-                     )
+                     schedulingActorRef
+                     <! SchedulingActor.DeleteAccountsJobSchedule accountIds
 
                      loop initState <@> SaveSnapshot initState
-
                | DeleteAll accountIds ->
                   deleteHistoricalRecords accountIds |!> retype mailbox.Self
                   ignored ()
@@ -134,41 +108,16 @@ let actorProps
 
    propsPersist handler
 
-let start
+let initProps
    (system: ActorSystem)
-   (quartzPersistentActorRef: IActorRef)
+   (schedulingActorRef: IActorRef<SchedulingActor.Message>)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    =
-   spawn system ActorMetadata.accountClosure.Name
-   <| actorProps
-         quartzPersistentActorRef
-         getAccountRef
-         (EmailActor.get system)
-         deleteHistoricalRecords
-
-let scheduleNightlyCheck (quartzPersistentActorRef: IActorRef) =
-   let name = "AccountClosureNightlyCheck"
-   let group = "Bank"
-
-   let trigger =
-      TriggerBuilder
-         .Create()
-         .ForJob($"{name}Job", group)
-         .WithIdentity($"{name}Trigger", group)
-         .WithDescription("Nightly check for requested account closures")
-#if DEBUG
-         .WithSimpleSchedule(fun s ->
-            s.WithIntervalInMinutes(3).RepeatForever() |> ignore)
-#else
-         .WithCronSchedule("0 30 10 ? * * *") // Every night at 10:30PM
-#endif
-         .Build()
-
-   let path = ActorMetadata.accountClosure.Path.Value
-   let job = CreatePersistentJob(path, ScheduleDeleteAll, trigger)
-
-   quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
-   ()
+   actorProps
+      schedulingActorRef
+      getAccountRef
+      (EmailActor.get system)
+      deleteHistoricalRecords
 
 let get (system: ActorSystem) : IActorRef<AccountClosureMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.AccountClosureMarker>()
