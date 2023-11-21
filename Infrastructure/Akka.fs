@@ -3,6 +3,7 @@ namespace Bank.Infrastructure
 open Akka.Hosting
 open Akka.Remote.Hosting
 open Akka.Cluster.Hosting
+open Akka.Cluster.Hosting.SBR
 open Akka.Persistence.Sql.Hosting
 open Akka.Management
 open Akka.Management.Cluster.Bootstrap
@@ -46,6 +47,12 @@ module AkkaInfra =
       =
       let remote = Env.config.AkkaRemoting
 
+      let clusterOpts =
+         ClusterOptions(
+            Roles = roles,
+            SplitBrainResolver = KeepMajorityOption()
+         )
+
       match Env.config.ClusterStartupMethod with
       | Env.DiscoveryConfig conf ->
          let managementPort = 8558
@@ -73,14 +80,11 @@ module AkkaInfra =
                li.Add(service)
                opts.Services <- li)
             .WithRemoting(remote.Host, remote.Port)
-            .WithClustering(ClusterOptions(Roles = roles))
+            .WithClustering(clusterOpts)
       | Env.SeedNode conf ->
          // Manual seed node approach for local dev without Docker
+         clusterOpts.SeedNodes <- List.toArray conf.SeedNodes
+
          builder
             .WithRemoting(remote.Host, remote.Port)
-            .WithClustering(
-               ClusterOptions(
-                  SeedNodes = List.toArray conf.SeedNodes,
-                  Roles = roles
-               )
-            )
+            .WithClustering(clusterOpts)
