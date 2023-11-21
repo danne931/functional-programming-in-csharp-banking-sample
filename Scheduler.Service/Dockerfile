@@ -6,6 +6,11 @@ COPY ./bin/Debug/net7.0/publish /home/app
 
 WORKDIR /home/app
 
+# Enable access to Petabridge.Cmd (pbm) to issue Akka system
+# commands from CLI.
+RUN dotnet new tool-manifest
+RUN dotnet tool install pbm
+
 ENV ASPNETCORE_ENVIRONMENT="Development"
 ENV MockThirdPartyBank__Port="5007"
 ENV ConnectionStrings__Postgres="postgres://postgres:password@postgres/akkabank"

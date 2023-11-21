@@ -31,6 +31,8 @@ type ClusterSeedNodeStartup = { SeedNodes: string list }
 
 type AkkaRemoting = { Host: string; Port: int }
 
+type PetabridgeCmdRemoting = { Port: int }
+
 type MockThirdPartyBank = { Host: IPAddress; Port: int }
 
 type ClusterStartupMethod =
@@ -46,6 +48,7 @@ type private BankConfigInput = {
    AkkaPersistence: AkkaPersistence
    AkkaSystemName: string
    AkkaRemoting: {| Host: string option; Port: int |}
+   PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: string
    ClusterDiscoveryStartup: ClusterDiscoveryStartup option
    ClusterSeedNodeStartup: ClusterSeedNodeStartup option
@@ -62,6 +65,7 @@ type BankConfig = {
    AkkaPersistence: AkkaPersistence
    AkkaSystemName: string
    AkkaRemoting: AkkaRemoting
+   PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: ClusterStartupMethod
    Quartz: Quartz
    SerilogOutputFile: string
@@ -140,6 +144,7 @@ let config =
                |> Option.defaultValue (Dns.GetHostName().ToLower())
             Port = input.AkkaRemoting.Port
          }
+         PetabridgeCmdRemoting = input.PetabridgeCmdRemoting
          Quartz = input.Quartz
          SerilogOutputFile = input.SerilogOutputFile
          EmailServiceUri = input.EmailServiceUri

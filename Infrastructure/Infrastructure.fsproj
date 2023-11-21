@@ -16,6 +16,8 @@
     <PackageReference Include="Akka.Logger.Serilog" />
     <PackageReference Include="Akka.Management" />
     <PackageReference Include="Akka.Persistence.Sql.Hosting" />
+    <PackageReference Include="Petabridge.Cmd.Cluster" />
+    <PackageReference Include="Petabridge.Cmd.Cluster.Sharding" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Formatting.Compact" />
   </ItemGroup>

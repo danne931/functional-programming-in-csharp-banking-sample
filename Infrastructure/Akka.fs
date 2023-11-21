@@ -8,6 +8,9 @@ open Akka.Persistence.Sql.Hosting
 open Akka.Management
 open Akka.Management.Cluster.Bootstrap
 open Akka.Discovery.Config.Hosting
+open Petabridge.Cmd.Host
+open Petabridge.Cmd.Cluster
+open Petabridge.Cmd.Cluster.Sharding
 
 module AkkaInfra =
    let getJournalOpts () =
@@ -42,8 +45,8 @@ module AkkaInfra =
       snapshotOpts
 
    let withClustering
-      (builder: AkkaConfigurationBuilder)
       (roles: string array)
+      (builder: AkkaConfigurationBuilder)
       =
       let remote = Env.config.AkkaRemoting
 
@@ -88,3 +91,22 @@ module AkkaInfra =
          builder
             .WithRemoting(remote.Host, remote.Port)
             .WithClustering(clusterOpts)
+
+   let withPetabridgeCmd (builder: AkkaConfigurationBuilder) =
+      let hocon =
+         sprintf
+            """
+            petabridge.cmd: {
+               host: "0.0.0.0"
+               port: %i
+            }
+            """
+            Env.config.PetabridgeCmdRemoting.Port
+
+      builder
+         .AddHocon(hocon, HoconAddMode.Prepend)
+         .AddPetabridgeCmd(fun cmd ->
+            cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
+
+            cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
+            |> ignore)

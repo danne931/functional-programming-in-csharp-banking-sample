@@ -36,13 +36,14 @@ builder.Services.AddAkka(
       let signalRHub =
          provider.GetRequiredService<IHubContext<AccountHub, IAccountClient>>()
 
-      let builder =
-         AkkaInfra.withClustering builder [|
+      let initConfig =
+         AkkaInfra.withClustering [|
             ClusterMetadata.roles.web
             ClusterMetadata.roles.signalR
          |]
+         << AkkaInfra.withPetabridgeCmd
 
-      builder
+      (initConfig builder)
          .WithCustomSerializer(
             BankSerializer.Name,
             [

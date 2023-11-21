@@ -4,34 +4,49 @@ services:
     hostname: web
     ports:
       - 3000:3000
+      - 9110:9110
     expose:
       - 8081
     depends_on:
       - account.1
       - account.2
+    environment:
+      - PetabridgeCmdRemoting__Port=9110
   account.1:
     image: account:latest
     hostname: account.1
+    ports:
+      - 9111:9111
     expose:
       - 8082
     depends_on:
       - postgres
+    environment:
+      - PetabridgeCmdRemoting__Port=9111
   account.2:
     image: account:latest
     hostname: account.2
+    ports:
+      - 9112:9112
     expose:
       - 8082
     depends_on:
       - postgres
+    environment:
+      - PetabridgeCmdRemoting__Port=9112
   scheduler:
     image: scheduler:latest
     hostname: scheduler
+    ports:
+      - 9113:9113
     expose:
       - 8083
     depends_on:
       - postgres
       - account.1
       - account.2
+    environment:
+      - PetabridgeCmdRemoting__Port=9113
   mock-third-party-bank:
     image: mock-third-party-bank-transfer-receiver:latest
     expose:

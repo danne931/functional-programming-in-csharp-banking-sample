@@ -9,9 +9,6 @@ open Akka.Cluster.Routing
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akkling
-open Petabridge.Cmd.Host
-open Petabridge.Cmd.Cluster
-open Petabridge.Cmd.Cluster.Sharding
 
 open Bank.Account.Domain
 open Bank.Infrastructure
@@ -37,13 +34,14 @@ let snapshotOpts = AkkaInfra.getSnapshotOpts ()
 builder.Services.AddAkka(
    Env.config.AkkaSystemName,
    (fun builder provider ->
-      let builder =
-         AkkaInfra.withClustering builder [|
+      let initConfig =
+         AkkaInfra.withClustering [|
             ClusterMetadata.roles.account
             ClusterMetadata.roles.signalR
          |]
+         << AkkaInfra.withPetabridgeCmd
 
-      builder
+      (initConfig builder)
          .AddHocon(
             """
             billing-cycle-bulk-write-mailbox: {
@@ -164,11 +162,6 @@ builder.Services.AddAkka(
             )
 
             ())
-         .AddPetabridgeCmd(fun cmd ->
-            cmd.RegisterCommandPalette(ClusterCommands.Instance) |> ignore
-
-            cmd.RegisterCommandPalette(ClusterShardingCommands.Instance)
-            |> ignore)
          .AddStartup(
             StartupTask(fun system _ ->
                if Env.isDev then

@@ -73,13 +73,12 @@ builder.Services.AddSingleton<IScheduler>(
 
 builder.Services.AddAkka(
    Env.config.AkkaSystemName,
-   (fun builder provider ->
-      let builder =
-         AkkaInfra.withClustering builder [|
-            ClusterMetadata.roles.scheduling
-         |]
+   (fun builder _ ->
+      let initConfig =
+         AkkaInfra.withClustering [| ClusterMetadata.roles.scheduling |]
+         << AkkaInfra.withPetabridgeCmd
 
-      builder
+      (initConfig builder)
          .WithCustomSerializer(
             BankSerializer.Name,
             [
