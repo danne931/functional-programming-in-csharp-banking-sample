@@ -184,9 +184,7 @@ let actorProps
 
                   getEmailActor mailbox.System
                   <! EmailActor.BillingStatement account
-            | AccountMessage.BillingCycleEnd ->
-               broadcaster.endBillingCycle () |> ignore
-               return SaveSnapshot account
+            | AccountMessage.BillingCycleEnd -> return SaveSnapshot account
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)

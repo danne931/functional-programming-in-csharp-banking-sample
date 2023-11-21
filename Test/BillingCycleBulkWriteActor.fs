@@ -36,6 +36,7 @@ let init (tck: TestKit.Tck) =
       BillingCycleBulkWriteActor.actorProps
       <| getAccountEntityRef accountAref
       <| billingPersistence
+      <| Stub.accountBroadcast
 
    spawn tck "mock-billing" props
 

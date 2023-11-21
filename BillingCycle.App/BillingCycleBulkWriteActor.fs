@@ -76,6 +76,7 @@ let initState = { Billing = []; IsScheduled = false }
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (persistence: BillingPersistence)
+   (broadcaster: AccountBroadcast)
    =
    let handler (ctx: Actor<BillingMessage>) =
       let schedulePersist = schedulePersist ctx
@@ -117,6 +118,7 @@ let actorProps
                become <| loop initState
          | BillingCycleFanout ->
             logInfo "Start billing cycle"
+            broadcaster.endBillingCycle () |> ignore
 
             fanOutBillingCycleMessage ctx.System getAccountRef
             |> Async.AwaitTask
@@ -137,7 +139,13 @@ let get (system: ActorSystem) : IActorRef<BillingMessage> =
    typed
    <| ActorRegistry.For(system).Get<ActorMetadata.BillingCycleBulkWriteMarker>()
 
-let initProps (getAccountRef: EntityRefGetter<AccountMessage>) =
-   actorProps getAccountRef {
-      saveBillingStatements = saveBillingStatements
-   }
+let initProps
+   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (broadcaster: AccountBroadcast)
+   =
+   actorProps
+      getAccountRef
+      {
+         saveBillingStatements = saveBillingStatements
+      }
+      broadcaster

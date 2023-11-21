@@ -107,11 +107,11 @@ builder.Services.AddAkka(
          )
          .WithSingleton<ActorMetadata.BillingCycleBulkWriteMarker>(
             ActorMetadata.billingCycleBulkWrite.Name,
-            (fun system _ _ ->
-               let getAccountRef = AccountActor.get system
-
+            (fun system _ resolver ->
                let typedProps =
-                  BillingCycleBulkWriteActor.initProps getAccountRef
+                  BillingCycleBulkWriteActor.initProps
+                  <| AccountActor.get system
+                  <| resolver.GetService<AccountBroadcast>()
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
