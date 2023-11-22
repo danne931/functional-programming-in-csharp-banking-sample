@@ -176,7 +176,7 @@ let actorProps
 
 let start
    (system: ActorSystem)
-   (broadcaster: AccountBroadcast)
+   (broadcaster: SignalRBroadcast)
    (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
    =
    let poolRouter = RoundRobinPool(1, DefaultResizer(1, 10))
@@ -196,7 +196,7 @@ let start
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.circuitBreaker {
-         Service = Service.DomesticTransfer
+         Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.HalfOpen
       }
       |> ignore
@@ -210,7 +210,7 @@ let start
    // Otherwise, only messages stashed on routee $a will be unstashed.
    breaker.OnClose(fun () ->
       broadcaster.circuitBreaker {
-         Service = Service.DomesticTransfer
+         Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.Closed
       }
       |> ignore
@@ -226,7 +226,7 @@ let start
       )
 
       broadcaster.circuitBreaker {
-         Service = Service.DomesticTransfer
+         Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.Open
       }
       |> ignore)

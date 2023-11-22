@@ -7,7 +7,7 @@ open Akka.Cluster.Tools.PublishSubscribe
 open Bank.Account.Domain
 open ActorUtil
 
-let init (system: ActorSystem) : AccountBroadcast =
+let init (system: ActorSystem) : SignalRBroadcast =
    let mediator = DistributedPubSub.Get(system).Mediator
    let path = $"/user/{ActorMetadata.signalR.Name}"
 

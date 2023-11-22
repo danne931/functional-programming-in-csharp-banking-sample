@@ -1,4 +1,4 @@
-module BillingCycleBulkWriteActorTests
+module BillingCycleActorTests
 
 open System
 open System.Threading
@@ -15,8 +15,8 @@ open Util
 let config () =
    Configuration.parse
       """
-      billing-cycle-bulk-write-mailbox: {
-         mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, BillingCycle.App"
+      billing-cycle-mailbox: {
+         mailbox-type: "BillingCycleActor+PriorityMailbox, BillingCycle.App"
       }
       """
 
@@ -24,7 +24,7 @@ let billingPersistence: BillingPersistence = {
    saveBillingStatements = fun statements -> TaskResult.ok [ statements.Length ]
 }
 
-let stateAfter2Registrations: BillingCycleBulkWriteActor.BulkWriteState = {
+let stateAfter2Registrations: BillingCycleActor.BulkWriteState = {
    IsScheduled = true
    Billing = [ Stub.billingStatement; Stub.billingStatement ]
 }
@@ -33,7 +33,7 @@ let init (tck: TestKit.Tck) =
    let accountAref = tck.CreateTestProbe() |> typed :> IActorRef<AccountMessage>
 
    let props =
-      BillingCycleBulkWriteActor.actorProps
+      BillingCycleActor.actorProps
       <| getAccountEntityRef accountAref
       <| billingPersistence
       <| Stub.accountBroadcast
@@ -42,7 +42,7 @@ let init (tck: TestKit.Tck) =
 
 [<Tests>]
 let tests =
-   testList "Billing Cycle Bulk Write Actor" [
+   testList "Billing Cycle Actor" [
       akkaTest
          "RegisterBillingStatement message should accumulate billing statements in actor state"
       <| Some(config ())
@@ -64,20 +64,20 @@ let tests =
          Thread.Sleep(100)
          ref <! BillingMessage.PersistBillingStatements
          ref <! BillingMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingCycleBulkWriteActor.initState |> ignore
+         ATK.expectMsg tck BillingCycleActor.initState |> ignore
 
       akkaTest "Actor state is reset after batch size reached"
       <| Some(config ())
       <| fun tck ->
          let ref = init tck
          let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
-         let maxMinus1 = BillingCycleBulkWriteActor.batchSizeLimit - 1
+         let maxMinus1 = BillingCycleActor.batchSizeLimit - 1
 
          for _ in [ 1..maxMinus1 ] do
             ref <! msg
 
          ref <! BillingMessage.GetWriteReadyStatements
-         let res = tck.ExpectMsg<BillingCycleBulkWriteActor.BulkWriteState>()
+         let res = tck.ExpectMsg<BillingCycleActor.BulkWriteState>()
 
          Expect.equal
             res.Billing.Length
@@ -90,5 +90,5 @@ let tests =
          ref <! msg
 
          ref <! BillingMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingCycleBulkWriteActor.initState |> ignore
+         ATK.expectMsg tck BillingCycleActor.initState |> ignore
    ]

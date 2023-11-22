@@ -17,7 +17,7 @@ open BillingStatement
 
 let builder = Env.builder
 
-builder.Services.AddSingleton<AccountBroadcast>(fun provider ->
+builder.Services.AddSingleton<SignalRBroadcast>(fun provider ->
    SignalRProxy.init <| provider.GetRequiredService<ActorSystem>())
 |> ignore
 
@@ -44,8 +44,8 @@ builder.Services.AddAkka(
       (initConfig builder)
          .AddHocon(
             """
-            billing-cycle-bulk-write-mailbox: {
-               mailbox-type: "BillingCycleBulkWriteActor+PriorityMailbox, BillingCycle.App"
+            billing-cycle-mailbox: {
+               mailbox-type: "BillingCycleActor+PriorityMailbox, BillingCycle.App"
             }
             """,
             HoconAddMode.Prepend
@@ -85,7 +85,7 @@ builder.Services.AddAkka(
             (fun _ ->
                let props =
                   AccountActor.initProps
-                  <| provider.GetRequiredService<AccountBroadcast>()
+                  <| provider.GetRequiredService<SignalRBroadcast>()
                   <| provider.GetRequiredService<ActorSystem>()
 
                props.ToProps()),
@@ -100,18 +100,18 @@ builder.Services.AddAkka(
          .WithSingleton<ActorMetadata.EmailMarker>(
             ActorMetadata.email.Name,
             (fun system _ resolver ->
-               let broadcast = resolver.GetService<AccountBroadcast>()
+               let broadcast = resolver.GetService<SignalRBroadcast>()
                let typedProps = EmailActor.initProps system broadcast
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
-         .WithSingleton<ActorMetadata.BillingCycleBulkWriteMarker>(
-            ActorMetadata.billingCycleBulkWrite.Name,
+         .WithSingleton<ActorMetadata.BillingCycleMarker>(
+            ActorMetadata.billingCycle.Name,
             (fun system _ resolver ->
                let typedProps =
-                  BillingCycleBulkWriteActor.initProps
+                  BillingCycleActor.initProps
                   <| AccountActor.get system
-                  <| resolver.GetService<AccountBroadcast>()
+                  <| resolver.GetService<SignalRBroadcast>()
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -150,7 +150,7 @@ builder.Services.AddAkka(
          )
          .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system registry ->
-            let broadcast = provider.GetRequiredService<AccountBroadcast>()
+            let broadcast = provider.GetRequiredService<SignalRBroadcast>()
             let getAccountRef = AccountActor.get system
 
             registry.Register<ActorMetadata.DomesticTransferMarker>(

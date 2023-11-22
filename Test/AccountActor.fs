@@ -38,7 +38,7 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let domesticTransferProbe = tck.CreateTestProbe()
    let emailProbe = tck.CreateTestProbe()
    let accountClosureProbe = tck.CreateTestProbe()
-   let billingBulkProbe = tck.CreateTestProbe()
+   let billingProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
       typed internalTransferProbe :> IActorRef<BankEvent<TransferPending>>
@@ -53,8 +53,8 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let getAccountClosureActor (_: ActorSystem) =
       typed accountClosureProbe :> IActorRef<AccountClosureMessage>
 
-   let getBillingCycleBulkWriteActor (_: ActorSystem) =
-      typed billingBulkProbe :> IActorRef<BillingMessage>
+   let getBillingCycleActor (_: ActorSystem) =
+      typed billingProbe :> IActorRef<BillingMessage>
 
    let accountActor =
       spawn tck ActorMetadata.account.Name
@@ -65,7 +65,7 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
             getDomesticTransferActor
             getEmailActor
             getAccountClosureActor
-            getBillingCycleBulkWriteActor
+            getBillingCycleActor
             userPersistence
 
    {|
@@ -74,7 +74,7 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
       domesticTransferProbe = domesticTransferProbe
       emailProbe = emailProbe
       accountClosureProbe = accountClosureProbe
-      billingBulkProbe = billingBulkProbe
+      billingProbe = billingProbe
    |}
 
 [<Tests>]
@@ -366,7 +366,7 @@ let tests =
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         o.billingBulkProbe.ExpectNoMsg()
+         o.billingProbe.ExpectNoMsg()
 
          o.accountActor <! AccountMessage.GetAccount
 
@@ -378,7 +378,7 @@ let tests =
             "Account state should remain unchanged"
 
       akkaTest
-         "AccountActor interacts with BillingCycleBulkWriteActor & EmailActor
+         "AccountActor interacts with BillingCycleActor & EmailActor
           when account transactions for a billing cycle found."
       <| Some config
       <| fun tck ->
@@ -396,7 +396,7 @@ let tests =
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         match o.billingBulkProbe.ExpectMsg<BillingMessage>() with
+         match o.billingProbe.ExpectMsg<BillingMessage>() with
          | BillingMessage.RegisterBillingStatement statement ->
             Expect.sequenceEqual
                (statement.Transactions |> List.map (fun k -> k.Name))
@@ -417,7 +417,7 @@ let tests =
          | msg ->
             Expect.isTrue
                false
-               $"BillingCycleBulkWriteActor expects RegisterBillingStatement
+               $"BillingCycleActor expects RegisterBillingStatement
                  message. Received message: {msg}"
 
          // account create email

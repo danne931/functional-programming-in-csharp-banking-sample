@@ -38,7 +38,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          logInfo ctx $"Scheduling monthly billing cycle"
 
          let trigger = BillingCycleTriggers.scheduleMonthly ()
-         let path = ActorMetadata.billingCycleBulkWrite.ProxyPath.Value
+         let path = ActorMetadata.billingCycle.ProxyPath.Value
 
          let job =
             CreatePersistentJob(

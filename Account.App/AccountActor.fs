@@ -24,14 +24,14 @@ let private persist e =
 
 let actorProps
    (persistence: AccountPersistence)
-   (broadcaster: AccountBroadcast)
+   (broadcaster: SignalRBroadcast)
    (getOrStartInternalTransferActor:
       Actor<_> -> IActorRef<BankEvent<TransferPending>>)
    (getDomesticTransferActor:
       ActorSystem -> IActorRef<DomesticTransferRecipientActor.Message>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
-   (getBillingCycleBulkWriteActor: ActorSystem -> IActorRef<BillingMessage>)
+   (getBillingCycleActor: ActorSystem -> IActorRef<BillingMessage>)
    (userPersistence: UserPersistence)
    =
    let createUser (user: User) (evt: BankEvent<CreatedAccount>) = async {
@@ -156,7 +156,7 @@ let actorProps
                         |}
                         txns
 
-                  getBillingCycleBulkWriteActor mailbox.System
+                  getBillingCycleActor mailbox.System
                   <! RegisterBillingStatement billing
 
                   // Maintenance fee conditionally applied after account transactions
@@ -251,7 +251,7 @@ let private getAccountEvents
       return if evts.IsEmpty then None else evts |> List.rev |> Some
    }
 
-let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
+let initProps (broadcaster: SignalRBroadcast) (system: ActorSystem) =
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
 
@@ -262,5 +262,5 @@ let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
       DomesticTransferRecipientActor.get
       EmailActor.get
       AccountClosureActor.get
-      BillingCycleBulkWriteActor.get
+      BillingCycleActor.get
       { createUser = createUser }

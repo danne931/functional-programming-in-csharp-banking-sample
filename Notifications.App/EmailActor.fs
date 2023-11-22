@@ -156,7 +156,7 @@ let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
 
    props <| actorOf2 handler
 
-let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
+let initProps (system: ActorSystem) (broadcaster: SignalRBroadcast) =
    let breaker =
       Akka.Pattern.CircuitBreaker(
          system.Scheduler,
@@ -167,7 +167,7 @@ let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.circuitBreaker {
-         Service = Service.Email
+         Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.HalfOpen
       }
       |> ignore)
@@ -175,7 +175,7 @@ let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
 
    breaker.OnClose(fun () ->
       broadcaster.circuitBreaker {
-         Service = Service.Email
+         Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.Closed
       }
       |> ignore)
@@ -189,7 +189,7 @@ let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
       )
 
       broadcaster.circuitBreaker {
-         Service = Service.Email
+         Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.Open
       }
       |> ignore)

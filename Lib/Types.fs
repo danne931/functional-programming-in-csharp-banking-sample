@@ -87,7 +87,7 @@ type Email = private {
 
    static member empty = { Email = "" }
 
-type Service =
+type CircuitBreakerService =
    | DomesticTransfer
    | Email
 
@@ -97,6 +97,6 @@ type CircuitBreakerStatus =
    | Open
 
 type CircuitBreakerMessage = {
-   Service: Service
+   Service: CircuitBreakerService
    Status: CircuitBreakerStatus
 }

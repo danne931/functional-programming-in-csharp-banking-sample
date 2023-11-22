@@ -270,7 +270,7 @@ let billingStatement: BillingStatement = {
    AccountId = Guid.NewGuid()
 }
 
-let accountBroadcast: AccountBroadcast = {
+let accountBroadcast: SignalRBroadcast = {
    accountEventPersisted = fun (evt, accountState) -> ()
    accountEventValidationFail = fun msg -> ()
    accountEventPersistenceFail = fun msg -> ()

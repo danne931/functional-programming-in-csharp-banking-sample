@@ -74,7 +74,7 @@ module ActorMetadata =
       class
       end
 
-   type BillingCycleBulkWriteMarker() =
+   type BillingCycleMarker() =
       class
       end
 
@@ -120,10 +120,10 @@ module ActorMetadata =
       ProxyPath = Some <| path "domestic_transfer_recipient-proxy"
    }
 
-   let billingCycleBulkWrite = {
-      Name = "billing_cycle_bulk_write"
-      Path = Some <| path "billing_cycle_bulk_write/billing_cycle_bulk_write"
-      ProxyPath = Some <| path "billing_cycle_bulk_write-proxy"
+   let billingCycle = {
+      Name = "billing_cycle"
+      Path = Some <| path "billing_cycle/billing_cycle"
+      ProxyPath = Some <| path "billing_cycle-proxy"
    }
 
    let email = {

@@ -97,8 +97,8 @@ builder.Services.AddAkka(
             ActorMetadata.accountClosure.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
-         .WithSingletonProxy<ActorMetadata.BillingCycleBulkWriteMarker>(
-            ActorMetadata.billingCycleBulkWrite.Name,
+         .WithSingletonProxy<ActorMetadata.BillingCycleMarker>(
+            ActorMetadata.billingCycle.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
          .WithSingleton<QuartzPersistentActor>(

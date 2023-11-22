@@ -166,7 +166,7 @@ type AccountPersistence = {
    getEvents: Guid -> AccountEvent list option Task
 }
 
-type AccountBroadcast = {
+type SignalRBroadcast = {
    accountEventPersisted: AccountEvent * AccountState -> unit
    accountEventValidationFail: string -> unit
    accountEventPersistenceFail: string -> unit

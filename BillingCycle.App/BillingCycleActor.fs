@@ -1,5 +1,5 @@
 [<RequireQualifiedAccess>]
-module BillingCycleBulkWriteActor
+module BillingCycleActor
 
 open System
 open Akka.Actor
@@ -76,7 +76,7 @@ let initState = { Billing = []; IsScheduled = false }
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (persistence: BillingPersistence)
-   (broadcaster: AccountBroadcast)
+   (broadcaster: SignalRBroadcast)
    =
    let handler (ctx: Actor<BillingMessage>) =
       let schedulePersist = schedulePersist ctx
@@ -132,16 +132,15 @@ let actorProps
 
    {
       (props <| actorOf2 handler) with
-         Mailbox = Some "billing-cycle-bulk-write-mailbox"
+         Mailbox = Some "billing-cycle-mailbox"
    }
 
 let get (system: ActorSystem) : IActorRef<BillingMessage> =
-   typed
-   <| ActorRegistry.For(system).Get<ActorMetadata.BillingCycleBulkWriteMarker>()
+   typed <| ActorRegistry.For(system).Get<ActorMetadata.BillingCycleMarker>()
 
 let initProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   (broadcaster: AccountBroadcast)
+   (broadcaster: SignalRBroadcast)
    =
    actorProps
       getAccountRef
