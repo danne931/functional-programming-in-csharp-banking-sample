@@ -157,8 +157,8 @@ type AccountMessage =
 
 type SignalRMessage =
    | AccountEventPersisted of AccountEvent * AccountState
-   | AccountEventValidationFail of string
-   | AccountEventPersistenceFail of string
+   | AccountEventValidationFail of Guid * string
+   | AccountEventPersistenceFail of Guid * string
    | CircuitBreaker of CircuitBreakerMessage
    | EndBillingCycle
 
@@ -167,9 +167,9 @@ type AccountPersistence = {
 }
 
 type SignalRBroadcast = {
-   accountEventPersisted: AccountEvent * AccountState -> unit
-   accountEventValidationFail: string -> unit
-   accountEventPersistenceFail: string -> unit
+   accountEventPersisted: AccountEvent -> AccountState -> unit
+   accountEventValidationFail: Guid -> string -> unit
+   accountEventPersistenceFail: Guid -> string -> unit
    circuitBreaker: CircuitBreakerMessage -> unit
    endBillingCycle: unit -> unit
 }

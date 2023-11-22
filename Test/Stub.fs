@@ -271,9 +271,9 @@ let billingStatement: BillingStatement = {
 }
 
 let accountBroadcast: SignalRBroadcast = {
-   accountEventPersisted = fun (evt, accountState) -> ()
-   accountEventValidationFail = fun msg -> ()
-   accountEventPersistenceFail = fun msg -> ()
+   accountEventPersisted = fun evt accountState -> ()
+   accountEventValidationFail = fun accountId msg -> ()
+   accountEventPersistenceFail = fun accountId msg -> ()
    circuitBreaker = fun msg -> ()
    endBillingCycle = fun () -> ()
 }

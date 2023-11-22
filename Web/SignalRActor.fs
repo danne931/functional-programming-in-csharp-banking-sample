@@ -1,12 +1,12 @@
 [<RequireQualifiedAccess>]
 module SignalRActor
 
+open System
 open Akka.Actor
 open Akka.Cluster.Tools.PublishSubscribe
 open Akkling
 open Microsoft.AspNetCore.SignalR
 
-open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Hubs
@@ -26,12 +26,10 @@ let actorProps (hub: IHubContext<AccountHub, IAccountClient>) =
             .Group(string account.EntityId)
             .ReceiveMessage({| event = evt; newState = account |})
          |> ignore
-      | SignalRMessage.AccountEventValidationFail msg ->
-         // TODO: Change to Clients.Group & validation fail
-         hub.Clients.All.ReceiveError(msg) |> ignore
-      | SignalRMessage.AccountEventPersistenceFail msg ->
-         // TODO: Change to Clients.Group & persistence fail
-         hub.Clients.All.ReceiveError(msg) |> ignore
+      | SignalRMessage.AccountEventValidationFail(accountId: Guid, msg: string) ->
+         hub.Clients.Group(string accountId).ReceiveError(msg) |> ignore
+      | SignalRMessage.AccountEventPersistenceFail(accountId: Guid, msg: string) ->
+         hub.Clients.Group(string accountId).ReceiveError(msg) |> ignore
       | SignalRMessage.CircuitBreaker msg ->
          hub.Clients.All.ReceiveCircuitBreakerMessage(msg) |> ignore
       | SignalRMessage.EndBillingCycle ->

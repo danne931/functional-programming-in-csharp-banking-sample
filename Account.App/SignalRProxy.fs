@@ -13,19 +13,25 @@ let init (system: ActorSystem) : SignalRBroadcast =
 
    {
       accountEventPersisted =
-         fun (event, account) ->
+         fun event account ->
             mediator.Tell(
                Send(path, SignalRMessage.AccountEventPersisted(event, account))
             )
       accountEventValidationFail =
-         fun errMsg ->
+         fun accountId errMsg ->
             mediator.Tell(
-               Send(path, SignalRMessage.AccountEventValidationFail errMsg)
+               Send(
+                  path,
+                  SignalRMessage.AccountEventValidationFail(accountId, errMsg)
+               )
             )
       accountEventPersistenceFail =
-         fun errMsg ->
+         fun accountId errMsg ->
             mediator.Tell(
-               Send(path, SignalRMessage.AccountEventPersistenceFail errMsg)
+               Send(
+                  path,
+                  SignalRMessage.AccountEventPersistenceFail(accountId, errMsg)
+               )
             )
       circuitBreaker =
          fun msg -> mediator.Tell(Send(path, SignalRMessage.CircuitBreaker msg))

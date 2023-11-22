@@ -54,7 +54,7 @@ let actorProps
          | Persisted mailbox e ->
             let (AccountMessage.Event evt) = unbox e
             let newState = Account.applyEvent account evt
-            broadcaster.accountEventPersisted (evt, newState) |> ignore
+            broadcaster.accountEventPersisted evt newState |> ignore
 
             match evt with
             | CreatedAccount e ->
@@ -90,7 +90,10 @@ let actorProps
                match validation with
                | Error err ->
                   let errMsg = string err
-                  broadcaster.accountEventValidationFail errMsg |> ignore
+
+                  broadcaster.accountEventValidationFail account.EntityId errMsg
+                  |> ignore
+
                   logWarning $"Validation fail %s{errMsg}"
 
                   match err with
@@ -203,7 +206,11 @@ let actorProps
                failwith $"Persistence replay failed: %s{exn.Message}"
             | PersistRejected(exn, _, _)
             | PersistFailed(exn, _, _) ->
-               broadcaster.accountEventPersistenceFail exn.Message |> ignore
+               broadcaster.accountEventPersistenceFail
+                  account.EntityId
+                  exn.Message
+               |> ignore
+
                failwith $"Persistence failed: %s{exn.Message}"
          | :? SaveSnapshotSuccess as res ->
             let sequenceNr = res.Metadata.SequenceNr
