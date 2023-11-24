@@ -47,8 +47,8 @@ let domesticTransfer
 
       let! response =
          TCP.request
-            Env.config.MockThirdPartyBank.Host
-            Env.config.MockThirdPartyBank.Port
+            EnvTransfer.config.MockThirdPartyBank.Host
+            EnvTransfer.config.MockThirdPartyBank.Port
             Encoding.UTF8
             (JsonSerializer.SerializeToUtf8Bytes msg)
 

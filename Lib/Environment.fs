@@ -14,11 +14,6 @@ type Connection = {
    PostgresAdoFormat: string
 }
 
-type Quartz = {
-   SchedulerName: string
-   TablePrefix: string
-}
-
 type AkkaPersistence = {
    DbProvider: string
    JournalTableName: string
@@ -33,31 +28,17 @@ type AkkaRemoting = { Host: string; Port: int }
 
 type PetabridgeCmdRemoting = { Port: int }
 
-type MockThirdPartyBank = { Host: IPAddress; Port: int }
-
 type ClusterStartupMethod =
    | SeedNode of ClusterSeedNodeStartup
    | DiscoveryConfig of ClusterDiscoveryStartup
 
-// NOTE:
-// For local development, EmailBearerToken & SupportEmail are set in ~/.microsoft/usersecrets.
-// See https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-7.0&tabs=linux#set-a-secret
-
 type private BankConfigInput = {
    ConnectionStrings: Connection
-   AkkaPersistence: AkkaPersistence
-   AkkaSystemName: string
    AkkaRemoting: {| Host: string option; Port: int |}
    PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: string
    ClusterDiscoveryStartup: ClusterDiscoveryStartup option
    ClusterSeedNodeStartup: ClusterSeedNodeStartup option
-   Quartz: Quartz
-   SerilogOutputFile: string
-   EmailServiceUri: string
-   EmailBearerToken: string option
-   SupportEmail: string option
-   MockThirdPartyBank: {| Host: string option; Port: int |}
 }
 
 type BankConfig = {
@@ -67,63 +48,12 @@ type BankConfig = {
    AkkaRemoting: AkkaRemoting
    PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: ClusterStartupMethod
-   Quartz: Quartz
    SerilogOutputFile: string
-   EmailServiceUri: string
-   EmailBearerToken: string option
-   SupportEmail: string option
-   MockThirdPartyBank: MockThirdPartyBank
 }
-
-let private errorMessage missing =
-   $"""
-   ========================================================
-
-     Missing {missing} configuration setting(s)
-
-   ========================================================
-   """
-
-let private getMockThirdPartyBankHost (host: string option) =
-   match host with
-   | Some ip -> IPAddress.Parse ip
-   | None ->
-      try
-         // Referencing container by name to resolve IP for
-         // mock third party bank server.
-         Dns.GetHostAddresses("mock-third-party-bank")[0]
-      with _ ->
-         if not isDev then
-            failwith
-               """
-               IP for mock third party bank doesn't exist.
-               Misconfigured container name.
-               """
-         else
-            printfn "Configuring localhost for domestic transfer."
-            IPAddress.Loopback
 
 let config =
    match AppConfig(builder.Configuration).Get<BankConfigInput>() with
    | Ok input ->
-      let missing =
-         [
-            "EmailBearerToken", Option.isNone input.EmailBearerToken
-            "SupportEmail", Option.isNone input.SupportEmail
-         ]
-         |> List.fold
-            (fun acc (key, isNone) -> if isNone then key :: acc else acc)
-            []
-
-      if not missing.IsEmpty then
-         let errMsg = errorMessage missing
-
-         if not isDev then
-            // Fail if running app outside local dev environment.
-            failwith errMsg
-         else
-            printfn "%A" errMsg
-
       let clusterStartupMethod =
          match input.ClusterStartupMethod with
          | "Discovery" ->
@@ -135,8 +65,12 @@ let config =
 
       {
          ConnectionStrings = input.ConnectionStrings
-         AkkaPersistence = input.AkkaPersistence
-         AkkaSystemName = input.AkkaSystemName
+         AkkaPersistence = {
+            DbProvider = "PostgreSQL.15"
+            JournalTableName = "akka_event_journal"
+            SnapshotTableName = "akka_snapshots"
+         }
+         AkkaSystemName = "bank"
          ClusterStartupMethod = clusterStartupMethod
          AkkaRemoting = {
             Host =
@@ -145,15 +79,7 @@ let config =
             Port = input.AkkaRemoting.Port
          }
          PetabridgeCmdRemoting = input.PetabridgeCmdRemoting
-         Quartz = input.Quartz
-         SerilogOutputFile = input.SerilogOutputFile
-         EmailServiceUri = input.EmailServiceUri
-         EmailBearerToken = input.EmailBearerToken
-         SupportEmail = input.SupportEmail
-         MockThirdPartyBank = {
-            Host = getMockThirdPartyBankHost input.MockThirdPartyBank.Host
-            Port = input.MockThirdPartyBank.Port
-         }
+         SerilogOutputFile = "logs.json"
       }
    | Error err ->
       match err with

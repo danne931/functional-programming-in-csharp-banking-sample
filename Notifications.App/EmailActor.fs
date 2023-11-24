@@ -87,7 +87,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
      }
    | ApplicationErrorRequiresSupport errMsg -> {
       event = "application-error-requires-support"
-      email = Env.config.SupportEmail |> Option.defaultValue null
+      email = EnvNotifications.config.SupportEmail |> Option.defaultValue null
       data = {| error = errMsg |}
      }
 
@@ -112,7 +112,8 @@ let private sendEmail (client: HttpClient) (data: TrackingEvent) = task {
 }
 
 let private createClient (bearerToken: string) =
-   let client = new HttpClient(BaseAddress = Uri(Env.config.EmailServiceUri))
+   let client =
+      new HttpClient(BaseAddress = Uri(EnvNotifications.config.EmailServiceUri))
 
    client.DefaultRequestHeaders.Authorization <-
       Headers.AuthenticationHeaderValue("Bearer", bearerToken)
@@ -120,7 +121,8 @@ let private createClient (bearerToken: string) =
    client
 
 let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
-   let client = Env.config.EmailBearerToken |> Option.map createClient
+   let client =
+      EnvNotifications.config.EmailBearerToken |> Option.map createClient
 
    let handler (ctx: Actor<_>) (msg: obj) =
       let logWarning, logError = logWarning ctx, logError ctx

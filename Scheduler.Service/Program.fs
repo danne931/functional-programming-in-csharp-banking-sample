@@ -20,7 +20,7 @@ builder.Services.AddQuartzHostedService(fun opts ->
 builder.Services
    .AddOptions<QuartzOptions>()
    .Configure(fun opts ->
-      opts.SchedulerName <- Env.config.Quartz.SchedulerName
+      opts.SchedulerName <- EnvScheduler.config.Quartz.SchedulerName
       opts.Scheduling.OverWriteExistingData <- false
       // Attempts to add a job with a name of a job already
       // scheduled will be ignored.
@@ -30,7 +30,7 @@ builder.Services
       q.UsePersistentStore(fun store ->
          store.SetProperty(
             "quartz.jobStore.tablePrefix",
-            Env.config.Quartz.TablePrefix
+            EnvScheduler.config.Quartz.TablePrefix
          )
 
          store.UsePostgres(Env.config.ConnectionStrings.PostgresAdoFormat)
