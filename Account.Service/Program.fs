@@ -1,6 +1,5 @@
 open Microsoft.Extensions.DependencyInjection
 open System
-open System.Threading.Tasks
 open Akka.Actor
 open Akka.Event
 open Akka.Hosting
@@ -151,6 +150,15 @@ builder.Services.AddAkka(
                (props handler).ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
+         .WithSingleton<ActorMetadata.AccountSeederMarker>(
+            ActorMetadata.accountSeeder.Name,
+            (fun system _ _ ->
+               let typedProps =
+                  AccountSeederActor.actorProps <| AccountActor.get system
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system registry ->
             let routerEnv = EnvTransfer.config.DomesticTransferRouter
@@ -181,11 +189,13 @@ builder.Services.AddAkka(
 
             ())
          .AddStartup(
-            StartupTask(fun system _ ->
+            StartupTask(fun system registry -> task {
                if Env.isDev then
-                  PostgresSeeder.seed system
-               else
-                  Task.FromResult())
+                  do! ActorUtil.waitForClusterUp system
+
+                  AccountSeederActor.get registry
+                  <! AccountSeederMessage.SeedAccounts
+            })
          )
       |> ignore
 

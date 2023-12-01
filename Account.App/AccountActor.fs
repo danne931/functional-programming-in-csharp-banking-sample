@@ -84,6 +84,11 @@ let actorProps
                match accountOpt with
                | None -> mailbox.Sender() <! None
                | Some account -> mailbox.Sender() <!| getTransactions account
+            | StateChange(CreateAccount cmd) when accountOpt.IsSome ->
+               logWarning
+                  $"Account already exists - ignore create account command {cmd.EntityId}"
+
+               return ignored ()
             | StateChange cmd ->
                let validation = Account.stateTransition account cmd
 

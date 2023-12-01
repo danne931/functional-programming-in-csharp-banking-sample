@@ -44,6 +44,7 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.Manifest(o: obj) =
       match o with
+      | :? AccountSeederMessage -> "AccountSeederMessage"
       | :? SchedulingActor.Message -> "SchedulingActorMessage"
       | :? AccountClosureMessage -> "AccountClosureActorMessage"
       | :? Option<List<AccountEvent>> -> "AccountEventListOption"
@@ -65,6 +66,9 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
+      // Message serialization for messages from account nodes to
+      // AccountSeederActor cluster singleton
+      | :? AccountSeederMessage
       // SchedulingActor message serialization for Quartz job persistence.
       | :? SchedulingActor.Message
       // Message serialization for messages from sharded account nodes to
@@ -144,6 +148,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
+         | "AccountSeederMessage" -> typeof<AccountSeederMessage>
          | _ -> raise <| SerializationException()
 
       let deserialized =

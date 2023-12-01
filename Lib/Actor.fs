@@ -1,14 +1,20 @@
 module ActorUtil
 
 open System
+open System.Threading.Tasks
 open Akkling
 open Akkling.Cluster.Sharding
 open Akka.Actor
+open Akka.Cluster
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
 
 type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
+
+module SystemLog =
+   let info (sys: ActorSystem) (msg: string) =
+      sys.Log.Log(Akka.Event.LogLevel.InfoLevel, null, msg)
 
 let getChildActorRef<'t, 'r>
    (actorCtx: Actor<'t>)
@@ -59,6 +65,10 @@ module ClusterMetadata =
 
 module ActorMetadata =
    type AuditorMarker() =
+      class
+      end
+
+   type AccountSeederMarker() =
       class
       end
 
@@ -138,6 +148,12 @@ module ActorMetadata =
       ProxyPath = None
    }
 
+   let accountSeeder = {
+      Name = "account-seeder"
+      Path = None
+      ProxyPath = None
+   }
+
    let signalR = {
       Name = "signal-r"
       Path = None
@@ -170,3 +186,16 @@ let getEntityRef
    let shardId = shardRegionMeta.messageExtractor.ShardId entityId
 
    fac.RefFor shardId <| string entityId
+
+let waitForClusterUp (system: ActorSystem) : Task<unit> =
+   let cluster = Cluster.Get system
+
+   let whileClusterForming () =
+      SystemLog.info
+         system
+         $"Cluster Formation: Is cluster up? --> {cluster.IsUp}"
+
+      not cluster.IsUp
+
+   async.While(whileClusterForming, Async.Sleep(TimeSpan.FromSeconds 2.))
+   |> Async.StartAsTask
