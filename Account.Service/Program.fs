@@ -1,13 +1,14 @@
 open Microsoft.Extensions.DependencyInjection
+open System
 open System.Threading.Tasks
 open Akka.Actor
 open Akka.Event
 open Akka.Hosting
 open Akka.Cluster.Hosting
 open Akka.Cluster.Sharding
-open Akka.Cluster.Routing
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
+open Akka.Routing
 open Akkling
 
 open Bank.Account.Domain
@@ -40,6 +41,8 @@ builder.Services.AddAkka(
             ClusterMetadata.roles.signalR
          |]
          << AkkaInfra.withPetabridgeCmd
+         << AkkaInfra.withHealthCheck
+         << AkkaInfra.withLogging
 
       (initConfig builder)
          .AddHocon(
@@ -150,14 +153,29 @@ builder.Services.AddAkka(
          )
          .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system registry ->
+            let routerEnv = EnvTransfer.config.DomesticTransferRouter
+            let breakerEnv = EnvTransfer.config.DomesticTransferCircuitBreaker
             let broadcast = provider.GetRequiredService<SignalRBroadcast>()
             let getAccountRef = AccountActor.get system
+
+            let resize = DefaultResizer(1, routerEnv.MaxInstancesPerNode)
+            let router = RoundRobinPool(1, resize)
+
+            let breaker =
+               Akka.Pattern.CircuitBreaker(
+                  system.Scheduler,
+                  maxFailures = breakerEnv.MaxFailures,
+                  callTimeout = TimeSpan.FromSeconds breakerEnv.CallTimeout,
+                  resetTimeout = TimeSpan.FromSeconds breakerEnv.ResetTimeout
+               )
 
             registry.Register<ActorMetadata.DomesticTransferMarker>(
                DomesticTransferRecipientActor.start
                   system
                   broadcast
                   getAccountRef
+                  breaker
+                  router
                |> untyped
             )
 

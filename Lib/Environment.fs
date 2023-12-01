@@ -20,7 +20,17 @@ type AkkaPersistence = {
    SnapshotTableName: string
 }
 
-type ClusterDiscoveryStartup = { EndpointNames: string list }
+type ClusterDiscoveryStartup = {
+   EndpointNames: string list
+   Port: int
+}
+
+type ClusterDiscoveryKubernetesStartup = {
+   PodLabelSelector: string
+   PortName: string
+}
+
+type AkkaHealthCheck = { ReadinessPort: int }
 
 type ClusterSeedNodeStartup = { SeedNodes: string list }
 
@@ -31,6 +41,7 @@ type PetabridgeCmdRemoting = { Port: int }
 type ClusterStartupMethod =
    | SeedNode of ClusterSeedNodeStartup
    | DiscoveryConfig of ClusterDiscoveryStartup
+   | DiscoveryKubernetes of ClusterDiscoveryKubernetesStartup
 
 type private BankConfigInput = {
    ConnectionStrings: Connection
@@ -38,7 +49,9 @@ type private BankConfigInput = {
    PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: string
    ClusterDiscoveryStartup: ClusterDiscoveryStartup option
+   ClusterDiscoveryKubernetesStartup: ClusterDiscoveryKubernetesStartup option
    ClusterSeedNodeStartup: ClusterSeedNodeStartup option
+   AkkaHealthCheck: {| ReadinessPort: int option |}
 }
 
 type BankConfig = {
@@ -49,6 +62,7 @@ type BankConfig = {
    PetabridgeCmdRemoting: PetabridgeCmdRemoting
    ClusterStartupMethod: ClusterStartupMethod
    SerilogOutputFile: string
+   AkkaHealthCheck: AkkaHealthCheck
 }
 
 let config =
@@ -59,6 +73,9 @@ let config =
          | "Discovery" ->
             ClusterStartupMethod.DiscoveryConfig
                input.ClusterDiscoveryStartup.Value
+         | "DiscoveryKubernetes" ->
+            ClusterStartupMethod.DiscoveryKubernetes
+               input.ClusterDiscoveryKubernetesStartup.Value
          | "SeedNode" ->
             ClusterStartupMethod.SeedNode input.ClusterSeedNodeStartup.Value
          | _ -> failwith "Unknown cluster startup method"
@@ -80,6 +97,10 @@ let config =
          }
          PetabridgeCmdRemoting = input.PetabridgeCmdRemoting
          SerilogOutputFile = "logs.json"
+         AkkaHealthCheck = {
+            ReadinessPort =
+               input.AkkaHealthCheck.ReadinessPort |> Option.defaultValue 11001
+         }
       }
    | Error err ->
       match err with

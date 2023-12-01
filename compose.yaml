@@ -11,7 +11,15 @@ services:
       - account.1
       - account.2
     environment:
+      - ClusterStartupMethod=Discovery
+      - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
+      - ClusterDiscoveryStartup__Port=8558
       - PetabridgeCmdRemoting__Port=9110
+      - DOTNET_URLS=http://+:3000
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
+      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+      - AkkaRemoting__Port=8081
   account.1:
     image: account:latest
     hostname: account.1
@@ -22,7 +30,16 @@ services:
     depends_on:
       - postgres
     environment:
+      - ClusterStartupMethod=Discovery
+      - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
+      - ClusterDiscoveryStartup__Port=8558
       - PetabridgeCmdRemoting__Port=9111
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MockThirdPartyBank__Port=5007
+      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
+      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+      - EmailServiceUri=https://api.useplunk.com/v1/
+      - AkkaRemoting__Port=8082
   account.2:
     image: account:latest
     hostname: account.2
@@ -33,7 +50,16 @@ services:
     depends_on:
       - postgres
     environment:
+      - ClusterStartupMethod=Discovery
+      - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
+      - ClusterDiscoveryStartup__Port=8558
       - PetabridgeCmdRemoting__Port=9112
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MockThirdPartyBank__Port=5007
+      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
+      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+      - EmailServiceUri=https://api.useplunk.com/v1/
+      - AkkaRemoting__Port=8082
   scheduler:
     image: scheduler:latest
     hostname: scheduler
@@ -46,15 +72,24 @@ services:
       - account.1
       - account.2
     environment:
+      - ClusterStartupMethod=Discovery
+      - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
+      - ClusterDiscoveryStartup__Port=8558
       - PetabridgeCmdRemoting__Port=9113
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
+      - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
+      - AkkaRemoting__Port=8083
+      - Quartz__SchedulerName="Quartz Bank Scheduler"
+      - Quartz__TablePrefix="qrtz_"
   mock-third-party-bank:
-    image: mock-third-party-bank-transfer-receiver:latest
+    image: mock-third-party-bank:latest
     expose:
       - 5007
     environment:
       - TCP_BIND_PORT=5007
   postgres:
-    image: postgres
+    image: postgres:15.5
     restart: always
     environment:
       - POSTGRES_DB=akkabank

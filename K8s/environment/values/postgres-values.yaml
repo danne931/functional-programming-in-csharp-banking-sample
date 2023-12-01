@@ -1,0 +1,14 @@
+global:
+  postgresql:
+    auth:
+      username: "testuser"
+      password: "testpass"
+
+auth:
+  database: "akkabank"
+    #postgresPassword: "secretpassword"
+    #password: "password"
+
+primary:
+  initdb:
+    scriptsConfigMap: "postgres-schemas"

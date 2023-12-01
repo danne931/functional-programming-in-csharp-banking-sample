@@ -107,7 +107,7 @@ let endpoint = IPEndPoint(ip, port)
 let tcpConnectionListener ctx =
    IO.Tcp(ctx) <! TcpMessage.Bind(untyped ctx.Self, endpoint, 100)
 
-   let rec loop (counter: int) = actor {
+   let rec loop () = actor {
       let! (msg: obj) = ctx.Receive()
 
       match msg with
@@ -115,27 +115,19 @@ let tcpConnectionListener ctx =
       | Connected(remote, _) ->
          let conn = ctx.Sender()
 
-         // Simulate intermittent network issues by aborting
-         // the TCP connection twice for every 10 requests.
-         // The circuit breaker will open when configured with
-         // with maxFailures = 2.
-         if counter > 2 && counter < 5 then
-            conn <! TcpMessage.Abort()
-            return! loop (counter + 1)
-         else
-            printfn
-               "<Connected> \nRemote Address: %A\nSender Actor Path: %A"
-               remote
-               conn.Path
+         printfn
+            "<Connected> \nRemote Address: %A\nSender Actor Path: %A"
+            remote
+            conn.Path
 
-            let aref = spawn ctx null (props (tcpMessageHandler conn))
-            conn <! TcpMessage.Register(untyped aref)
+         let aref = spawn ctx null (props (tcpMessageHandler conn))
+         conn <! TcpMessage.Register(untyped aref)
 
-            return! loop (if counter = 10 then 1 else counter + 1)
+         return! loop ()
       | _ -> return Ignore
    }
 
-   loop 1
+   loop ()
 
 let listener =
    spawn actorSystem "tcpConnectionListener" (props tcpConnectionListener)

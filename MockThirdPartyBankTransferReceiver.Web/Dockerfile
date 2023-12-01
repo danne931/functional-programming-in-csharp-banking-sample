@@ -1,4 +1,4 @@
-FROM bitnami/dotnet-sdk
+FROM bitnami/dotnet-sdk:7
 
 RUN mkdir -p /home/app
 

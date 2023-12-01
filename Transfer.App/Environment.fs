@@ -6,14 +6,30 @@ open FsConfig
 
 let builder = Env.builder
 
-type private TransferConfigInput = {
-   MockThirdPartyBank: {| Host: string option; Port: int |}
+type DomesticTransferRouter = { MaxInstancesPerNode: int }
+
+type DomesticTransferCircuitBreaker = {
+   MaxFailures: int
+   CallTimeout: int // seconds
+   ResetTimeout: int // seconds
 }
 
 type MockThirdPartyBank = { Host: IPAddress; Port: int }
 
+type private TransferConfigInput = {
+   MockThirdPartyBank: {| Host: string option; Port: int |}
+   DomesticTransferRouter: {| MaxInstancesPerNode: int option |}
+   DomesticTransferCircuitBreaker: {|
+      MaxFailures: int option
+      CallTimeout: int option
+      ResetTimeout: int option
+   |}
+}
+
 type TransferConfig = {
    MockThirdPartyBank: MockThirdPartyBank
+   DomesticTransferRouter: DomesticTransferRouter
+   DomesticTransferCircuitBreaker: DomesticTransferCircuitBreaker
 }
 
 let private getMockThirdPartyBankHost (host: string option) =
@@ -41,6 +57,26 @@ let config =
       MockThirdPartyBank = {
          Host = getMockThirdPartyBankHost input.MockThirdPartyBank.Host
          Port = input.MockThirdPartyBank.Port
+      }
+      DomesticTransferRouter = {
+         MaxInstancesPerNode =
+            Option.defaultValue
+               10
+               input.DomesticTransferRouter.MaxInstancesPerNode
+      }
+      DomesticTransferCircuitBreaker = {
+         MaxFailures =
+            Option.defaultValue
+               2
+               input.DomesticTransferCircuitBreaker.MaxFailures
+         CallTimeout =
+            Option.defaultValue
+               7
+               input.DomesticTransferCircuitBreaker.CallTimeout
+         ResetTimeout =
+            Option.defaultValue
+               30
+               input.DomesticTransferCircuitBreaker.ResetTimeout
       }
      }
    | Error err ->

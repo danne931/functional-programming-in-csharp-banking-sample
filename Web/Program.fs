@@ -6,8 +6,6 @@ open Akka.Hosting
 open Akka.Cluster.Hosting
 open Akka.HealthCheck.Hosting
 open Akka.HealthCheck.Hosting.Web
-open Akka.Event
-open Akka.Logger.Serilog
 open Serilog
 
 open Bank.Infrastructure
@@ -42,6 +40,8 @@ builder.Services.AddAkka(
             ClusterMetadata.roles.signalR
          |]
          << AkkaInfra.withPetabridgeCmd
+         << AkkaInfra.withHealthCheck
+         << AkkaInfra.withLogging
 
       (initConfig builder)
          .WithCustomSerializer(
@@ -71,13 +71,6 @@ builder.Services.AddAkka(
          .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithActors(fun system _ ->
             SignalRActor.start system signalRHub |> ignore)
-         .ConfigureLoggers(fun builder ->
-            builder.LogLevel <- LogLevel.InfoLevel
-            builder.LogConfigOnStart <- false
-            builder.AddLogger<SerilogLogger>() |> ignore
-
-            builder.LogMessageFormatter <- typeof<SerilogLogMessageFormatter>)
-         .WithWebHealthCheck(provider)
       |> ignore
 
       ())

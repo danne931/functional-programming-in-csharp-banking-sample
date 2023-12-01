@@ -7,7 +7,6 @@ open System.Text.Json
 open Akkling
 open Akka.Hosting
 open Akka.Actor
-open Akka.Routing
 open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
@@ -178,21 +177,13 @@ let start
    (system: ActorSystem)
    (broadcaster: SignalRBroadcast)
    (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
+   (breaker: Akka.Pattern.CircuitBreaker)
+   (router: Akka.Routing.Pool)
    =
-   let poolRouter = RoundRobinPool(1, DefaultResizer(1, 10))
-
-   let breaker =
-      Akka.Pattern.CircuitBreaker(
-         system.Scheduler,
-         maxFailures = 2,
-         callTimeout = TimeSpan.FromSeconds 7,
-         resetTimeout = TimeSpan.FromSeconds 30
-      )
-
    let prop =
       actorProps breaker getAccountRef (EmailActor.get system) domesticTransfer
 
-   let ref = spawn system actorName { prop with Router = Some poolRouter }
+   let ref = spawn system actorName { prop with Router = Some router }
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.circuitBreaker {
@@ -215,7 +206,7 @@ let start
       }
       |> ignore
 
-      retype ref <! Broadcast BreakerClosed)
+      retype ref <! Akka.Routing.Broadcast BreakerClosed)
    |> ignore
 
    breaker.OnOpen(fun () ->
