@@ -143,8 +143,10 @@ module AkkaInfra =
 
    let withHealthCheck (builder: AkkaConfigurationBuilder) =
       builder.WithHealthCheck(fun opts ->
+         opts.AddProviders(HealthCheckType.All) |> ignore
+         opts.Liveness.Transport <- HealthCheckTransport.Tcp
+         opts.Liveness.TcpPort <- Env.config.AkkaHealthCheck.LivenessPort
          opts.Readiness.Transport <- HealthCheckTransport.Tcp
-
          opts.Readiness.TcpPort <- Env.config.AkkaHealthCheck.ReadinessPort)
 
    let withLogging (builder: AkkaConfigurationBuilder) =

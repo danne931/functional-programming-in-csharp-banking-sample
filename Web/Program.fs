@@ -93,6 +93,9 @@ if app.Environment.IsDevelopment() then
 app.MapHub<AccountHub>("/accountHub") |> ignore
 
 // Available at endpoint: /healthz/akka
+// Changing the default ResponseWriter to JsonResponseWriter
+// provides a more verbose response than the default string
+// response of "healthy"/"unhealthy".
 app.MapAkkaHealthCheckRoutes(
    optionConfigure =
       fun _ opt ->

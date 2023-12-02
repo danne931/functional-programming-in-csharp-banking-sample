@@ -30,7 +30,10 @@ type ClusterDiscoveryKubernetesStartup = {
    PortName: string
 }
 
-type AkkaHealthCheck = { ReadinessPort: int }
+type AkkaHealthCheck = {
+   ReadinessPort: int
+   LivenessPort: int
+}
 
 type ClusterSeedNodeStartup = { SeedNodes: string list }
 
@@ -51,7 +54,10 @@ type private BankConfigInput = {
    ClusterDiscoveryStartup: ClusterDiscoveryStartup option
    ClusterDiscoveryKubernetesStartup: ClusterDiscoveryKubernetesStartup option
    ClusterSeedNodeStartup: ClusterSeedNodeStartup option
-   AkkaHealthCheck: {| ReadinessPort: int option |}
+   AkkaHealthCheck: {|
+      ReadinessPort: int option
+      LivenessPort: int option
+   |}
 }
 
 type BankConfig = {
@@ -98,6 +104,8 @@ let config =
          PetabridgeCmdRemoting = input.PetabridgeCmdRemoting
          SerilogOutputFile = "logs.json"
          AkkaHealthCheck = {
+            LivenessPort =
+               input.AkkaHealthCheck.LivenessPort |> Option.defaultValue 11000
             ReadinessPort =
                input.AkkaHealthCheck.ReadinessPort |> Option.defaultValue 11001
          }
