@@ -41,13 +41,13 @@ spec:
       - name: web-cluster
         image: web:latest
         imagePullPolicy: Never
+        readinessProbe:
+          tcpSocket:
+            port: http
         livenessProbe:
           tcpSocket:
             port: 9999
           initialDelaySeconds: 10
-        readinessProbe:
-          tcpSocket: 
-            port: http
         ports:
           - containerPort: 8558
             protocol: TCP
@@ -71,6 +71,6 @@ spec:
         - configMapRef:
             name: bank-env
       initContainers:
-      - name: init-web-cluster
+      - name: wait-for-seed-nodes-in-cluster-formation
         image: busybox:1.28
-        command: ['sh', '-c', "until nslookup account-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for account service; sleep 2; done"]
+        command: ['sh', '-c', "until nc -zv account-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local 9998; do echo waiting for account cluster formation; sleep 3; done"]

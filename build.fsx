@@ -99,15 +99,7 @@ Target.create "BuildDockerImagesForK8s" (fun o ->
    else
       List.iter (buildImage imageBuilders.minikube) paths)
 
-Target.create "ApplyK8sResources" (fun _ ->
-   Shell.Exec("minikube", "kubectl -- create namespace akkabank") |> ignore
-
-   Shell.Exec(
-      "minikube",
-      "kubectl -- config set-context --current --namespace=akkabank"
-   )
-   |> ignore
-
+let applyK8sResources () =
    // ConfigMap of .sql scripts to set up postgres tables
    Shell.Exec(
       "minikube",
@@ -125,9 +117,20 @@ Target.create "ApplyK8sResources" (fun _ ->
       Shell.Exec("minikube", $"kubectl -- apply -f {resource}") |> ignore
 
    let resources = !! "./K8s/**/*.yaml" -- "./K8s/environment/values/*.yaml"
-   Seq.iter applyK8sResource resources)
+   Seq.iter applyK8sResource resources
 
-Target.create "RunK8sApp" (fun _ ->
+Target.create "ApplyK8sResources" (fun _ ->
+   Shell.Exec("minikube", "kubectl -- create namespace akkabank") |> ignore
+
+   Shell.Exec(
+      "minikube",
+      "kubectl -- config set-context --current --namespace=akkabank"
+   )
+   |> ignore
+
+   applyK8sResources ())
+
+let openK8sAppInBrowser () =
    Shell.Exec(
       "minikube",
       "kubectl -- wait --for=condition=ready pod -l app=web-cluster --timeout=120s"
@@ -136,7 +139,23 @@ Target.create "RunK8sApp" (fun _ ->
 
    Shell.Exec("minikube", "kubectl -- get all") |> ignore
    // Start tunnel for service web-cluster-http & open app in browser
-   Shell.Exec("minikube", "service web-cluster-http -n akkabank") |> ignore)
+   Shell.Exec("minikube", "service web-cluster-http -n akkabank") |> ignore
+
+Target.create "RunK8sApp" (fun _ -> openK8sAppInBrowser ())
+
+Target.create "DeleteK8sResources" (fun _ ->
+   Trace.trace "Deleting K8s resouces..."
+   Shell.Exec("helm", "uninstall pg") |> ignore
+   Shell.Exec("minikube", "kubectl -- delete configmap --all") |> ignore
+   Shell.Exec("minikube", "kubectl -- delete statefulset --all") |> ignore
+   Shell.Exec("minikube", "kubectl -- delete replicaset --all") |> ignore
+   Shell.Exec("minikube", "kubectl -- delete service --all") |> ignore
+   Shell.Exec("minikube", "kubectl -- delete deployment --all") |> ignore)
+
+Target.create "RefreshK8sResources" (fun _ ->
+   Trace.trace "Refreshing K8s resouces..."
+   applyK8sResources ()
+   openK8sAppInBrowser ())
 
 Target.create "BuildApp" (fun _ ->
    Shell.Exec("dotnet", "build", dir = appEntryDir) |> ignore)
@@ -152,6 +171,8 @@ Target.create "Test" (fun _ ->
 "Clean" ==> "BuildApp"
 
 "Clean" ==> "Publish" ==> "BuildDockerImages" ==> "RunDockerApp"
+
+"DeleteK8sResources" ==> "RefreshK8sResources"
 
 "Clean"
 ==> "Publish"

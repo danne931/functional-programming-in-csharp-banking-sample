@@ -65,6 +65,6 @@ spec:
         - configMapRef:
             name: bank-env
       initContainers:
-      - name: init-scheduler-cluster
+      - name: wait-for-seed-nodes-in-cluster-formation
         image: busybox:1.28
-        command: ['sh', '-c', "until nslookup account-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for account service; sleep 2; done"]
+        command: ['sh', '-c', "until nc -zv account-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local 9998; do echo waiting for account cluster formation; sleep 3; done"]

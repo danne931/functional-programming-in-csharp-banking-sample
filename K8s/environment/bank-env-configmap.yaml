@@ -11,7 +11,8 @@ data:
   ClusterDiscoveryKubernetesStartup__PodLabelSelector: "cluster=akkabank"
   ClusterDiscoveryKubernetesStartup__PortName: "akka-management"
 
-  AkkaHealthCheck__ReadinessPort: "9999"
+  AkkaHealthCheck__ReadinessPort: "9998"
+  AkkaHealthCheck__LivenessPort: "9999"
   PetabridgeCmdRemoting__Port: "9110"
 
   # TODO: Use K8s secrets for user/password in production config
