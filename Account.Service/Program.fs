@@ -189,10 +189,8 @@ builder.Services.AddAkka(
 
             ())
          .AddStartup(
-            StartupTask(fun system registry -> task {
+            StartupTask(fun _ registry -> task {
                if Env.isDev then
-                  do! ActorUtil.waitForClusterUp system
-
                   AccountSeederActor.get registry
                   <! AccountSeederMessage.SeedAccounts
             })

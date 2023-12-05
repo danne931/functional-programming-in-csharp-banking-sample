@@ -55,6 +55,10 @@ module AkkaInfra =
       =
       let remote = Env.config.AkkaRemoting
 
+      // TODO: Investigate cost/benefit of using Kubernetes lease option for
+      // SplitBrainResolver, Cluster Singleton, & Cluster Sharding
+      // https://github.com/akkadotnet/Akka.Management/tree/dev/src/coordination/kubernetes/Akka.Coordination.KubernetesApi
+      // https://getakka.net/articles/clustering/split-brain-resolver.html#lease-majority
       let clusterOpts =
          ClusterOptions(
             Roles = roles,

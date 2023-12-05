@@ -144,7 +144,7 @@ let openK8sAppInBrowser () =
 Target.create "RunK8sApp" (fun _ -> openK8sAppInBrowser ())
 
 Target.create "DeleteK8sResources" (fun _ ->
-   Trace.trace "Deleting K8s resouces..."
+   Trace.trace "Deleting K8s resources..."
    Shell.Exec("helm", "uninstall pg") |> ignore
    Shell.Exec("minikube", "kubectl -- delete configmap --all") |> ignore
    Shell.Exec("minikube", "kubectl -- delete statefulset --all") |> ignore
@@ -153,22 +153,13 @@ Target.create "DeleteK8sResources" (fun _ ->
    Shell.Exec("minikube", "kubectl -- delete deployment --all") |> ignore)
 
 Target.create "RefreshK8sResources" (fun _ ->
-   Trace.trace "Refreshing K8s resouces..."
+   Trace.trace "Refreshing K8s resources..."
    applyK8sResources ()
    openK8sAppInBrowser ())
-
-Target.create "BuildApp" (fun _ ->
-   Shell.Exec("dotnet", "build", dir = appEntryDir) |> ignore)
-
-Target.create "RunApp" (fun _ ->
-   Shell.Exec("dotnet", "tool restore") |> ignore
-   Shell.Exec("dotnet", "watch", dir = appEntryDir) |> ignore)
 
 // no-spinner option fixes intermittent hanging of Expecto
 Target.create "Test" (fun _ ->
    Shell.Exec("dotnet", "run --no-spinner", dir = testDir) |> ignore)
-
-"Clean" ==> "BuildApp"
 
 "Clean" ==> "Publish" ==> "BuildDockerImages" ==> "RunDockerApp"
 
@@ -181,10 +172,15 @@ Target.create "Test" (fun _ ->
 ==> "ApplyK8sResources"
 ==> "RunK8sApp"
 
-Target.runOrDefaultWithArguments "RunApp"
+Target.runOrDefaultWithArguments "Clean"
 
 // NOTE:
-// Run app: sh build.sh
 // Run app via docker compose: sh build.sh -t RunDockerApp
 // Run app via kubernetes: sh build.sh -t RunK8sApp
+//
+// Selectively rebuild images for docker compose:
+// sh build.sh -t BuildDockerImages ./Web/Web.fsproj ./Scheduler.Service/Scheduler.Service.fsproj
+//
+// Delete running K8s resources and restart app: sh build.sh -t RefreshK8sResources
+//
 // Test: sh build.sh -t Test

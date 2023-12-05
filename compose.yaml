@@ -28,7 +28,8 @@ services:
     expose:
       - 8082
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - ClusterStartupMethod=Discovery
       - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
@@ -48,7 +49,8 @@ services:
     expose:
       - 8082
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - ClusterStartupMethod=Discovery
       - ClusterDiscoveryStartup__EndpointNames=account.1,account.2
@@ -68,7 +70,6 @@ services:
     expose:
       - 8083
     depends_on:
-      - postgres
       - account.1
       - account.2
     environment:
@@ -80,8 +81,8 @@ services:
       - ConnectionStrings__Postgres=postgres://postgres:password@postgres/akkabank
       - ConnectionStrings__PostgresAdoFormat=Server=postgres;Database=akkabank;Uid=postgres;Pwd=password
       - AkkaRemoting__Port=8083
-      - Quartz__SchedulerName="Quartz Bank Scheduler"
-      - Quartz__TablePrefix="qrtz_"
+      - Quartz__SchedulerName=Quartz Bank Scheduler
+      - Quartz__TablePrefix=qrtz_
   mock-third-party-bank:
     image: mock-third-party-bank:latest
     expose:
@@ -89,7 +90,7 @@ services:
     environment:
       - TCP_BIND_PORT=5007
   postgres:
-    image: postgres:15.5
+    image: postgres:16.0
     restart: always
     environment:
       - POSTGRES_DB=akkabank
@@ -101,6 +102,11 @@ services:
       # Scripts in /docker-entrypoint-initdb.d are run at startup.
       # Copy SQL seed scripts from host to container.
       - ./Infrastructure/Migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   adminer:
     image: adminer
     restart: always

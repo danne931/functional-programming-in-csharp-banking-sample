@@ -182,4 +182,7 @@ type AccountClosureMessage =
    | GetRegisteredAccounts
    | DeleteHistoricalRecordsResponse of Result<Email list option, Err>
 
-type AccountSeederMessage = | SeedAccounts
+type AccountSeederMessage =
+   | SeedAccounts
+   | VerifyAccountsCreated
+   | VerifiedAccountsReceived of AccountState list

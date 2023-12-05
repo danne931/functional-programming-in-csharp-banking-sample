@@ -1,11 +1,9 @@
 module ActorUtil
 
 open System
-open System.Threading.Tasks
 open Akkling
 open Akkling.Cluster.Sharding
 open Akka.Actor
-open Akka.Cluster
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
@@ -186,16 +184,3 @@ let getEntityRef
    let shardId = shardRegionMeta.messageExtractor.ShardId entityId
 
    fac.RefFor shardId <| string entityId
-
-let waitForClusterUp (system: ActorSystem) : Task<unit> =
-   let cluster = Cluster.Get system
-
-   let whileClusterForming () =
-      SystemLog.info
-         system
-         $"Cluster Formation: Is cluster up? --> {cluster.IsUp}"
-
-      not cluster.IsUp
-
-   async.While(whileClusterForming, Async.Sleep(TimeSpan.FromSeconds 2.))
-   |> Async.StartAsTask
