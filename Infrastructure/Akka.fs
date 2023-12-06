@@ -106,7 +106,8 @@ module AkkaInfra =
                   opts.ContactPointDiscovery.ContactWithAllContactPoints <-
                      true
 
-                  opts.ContactPointDiscovery.RequiredContactPointsNr <- 3
+                  opts.ContactPointDiscovery.RequiredContactPointsNr <-
+                     conf.RequiredContactPointsNr
 
                   opts.ContactPointDiscovery.StableMargin <-
                      TimeSpan.FromSeconds 5),

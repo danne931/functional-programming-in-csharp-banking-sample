@@ -10,6 +10,7 @@ data:
   ClusterStartupMethod: "DiscoveryKubernetes"
   ClusterDiscoveryKubernetesStartup__PodLabelSelector: "cluster=akkabank"
   ClusterDiscoveryKubernetesStartup__PortName: "akka-management"
+  ClusterDiscoveryKubernetesStartup__RequiredContactPointsNr: "2"
 
   AkkaHealthCheck__ReadinessPort: "9998"
   AkkaHealthCheck__LivenessPort: "9999"

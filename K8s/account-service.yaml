@@ -24,7 +24,7 @@ metadata:
     cluster: akkabank
 spec:
   serviceName: account-service
-  replicas: 3
+  replicas: 4
   selector:
     matchLabels:
       app: account-cluster

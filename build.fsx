@@ -90,7 +90,8 @@ Target.create "RunDockerApp" (fun _ ->
    Shell.Exec("docker", "compose up") |> ignore)
 
 Target.create "StartK8s" (fun _ ->
-   Shell.Exec("minikube", "start --memory 4096") |> ignore)
+   //Shell.Exec("minikube", "start --cpus 4 --memory 8192") |> ignore)
+   Shell.Exec("minikube", "start") |> ignore)
 
 Target.create "BuildDockerImagesForK8s" (fun o ->
    let paths = o.Context.Arguments

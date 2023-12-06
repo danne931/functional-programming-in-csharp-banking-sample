@@ -28,6 +28,7 @@ type ClusterDiscoveryStartup = {
 type ClusterDiscoveryKubernetesStartup = {
    PodLabelSelector: string
    PortName: string
+   RequiredContactPointsNr: int
 }
 
 type AkkaHealthCheck = {
@@ -89,7 +90,7 @@ let config =
       {
          ConnectionStrings = input.ConnectionStrings
          AkkaPersistence = {
-            DbProvider = "PostgreSQL.15"
+            DbProvider = "PostgreSQL.16"
             JournalTableName = "akka_event_journal"
             SnapshotTableName = "akka_snapshots"
          }
