@@ -51,10 +51,11 @@ type PriorityMailbox(settings: Settings, config: Config) =
       | :? BillingMessage as msg ->
          match msg with
          | PersistBillingStatements -> 0
-         | RegisterBillingStatement _ -> 1
-         | GetWriteReadyStatements -> 2
-         | BillingCycleFanout -> 3
-         | BillingCycleFinished -> 4
+         | PersistBillingStatementsResponse _ -> 1
+         | RegisterBillingStatement _ -> 2
+         | GetWriteReadyStatements -> 3
+         | BillingCycleFanout -> 4
+         | BillingCycleFinished -> 5
       | _ -> 33
 
 type BulkWriteState = {
@@ -103,19 +104,26 @@ let actorProps
 
                become <| loop { newState with IsScheduled = true }
          | PersistBillingStatements ->
-            if state.Billing.Length > 0 then
-               let res = persistence.saveBillingStatements(state.Billing).Result
+            let saveStatements () = task {
+               let! res = persistence.saveBillingStatements state.Billing
+               return PersistBillingStatementsResponse res
+            }
 
-               match res with
-               | Ok o ->
-                  logInfo $"Saved billing statements {o}"
-                  become <| loop initState
-               | Error e ->
-                  logError $"Error saving billing statements {e}"
-                  schedulePersist 10.
-                  unhandled ()
+            if state.Billing.Length > 0 then
+               saveStatements () |> Async.AwaitTask |!> ctx.Self
+
+               ignored ()
             else
                become <| loop initState
+         | PersistBillingStatementsResponse res ->
+            match res with
+            | Ok o ->
+               logInfo $"Saved billing statements {o}"
+               become <| loop initState
+            | Error e ->
+               logError $"Error saving billing statements {e}"
+               schedulePersist 10.
+               unhandled ()
          | BillingCycleFanout ->
             logInfo "Start billing cycle"
             broadcaster.endBillingCycle () |> ignore

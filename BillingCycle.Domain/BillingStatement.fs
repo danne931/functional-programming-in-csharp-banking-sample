@@ -66,6 +66,7 @@ let toDto (statement: BillingStatement) : BillingStatementDto = {
 type BillingMessage =
    | RegisterBillingStatement of BillingStatement
    | PersistBillingStatements
+   | PersistBillingStatementsResponse of Result<int list, Err>
    | GetWriteReadyStatements
    | BillingCycleFanout
    | BillingCycleFinished
