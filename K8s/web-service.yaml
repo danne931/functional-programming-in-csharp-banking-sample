@@ -74,3 +74,10 @@ spec:
       - name: wait-for-seed-nodes-in-cluster-formation
         image: busybox:1.28
         command: ['sh', '-c', "until nc -zv account-service.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local 9998; do echo waiting for account cluster formation; sleep 3; done"]
+      # TODO: Use K8s secrets
+      - name: wait-for-users-created
+        image: postgres:16.0
+        command: ['sh', '-c', 'until psql --host pg-postgresql.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local -d akkabank -U testuser -p 5432 -c "select 1 from users"; do echo waiting for user records to be seeded; sleep 3; done']
+        env:
+        - name: PGPASSWORD
+          value: "testpass"

@@ -89,7 +89,8 @@ Target.create "BuildDockerImages" (fun o ->
 Target.create "RunDockerApp" (fun _ ->
    Shell.Exec("docker", "compose up") |> ignore)
 
-Target.create "StartK8s" (fun _ -> Shell.Exec("minikube", "start") |> ignore)
+Target.create "StartK8s" (fun _ ->
+   Shell.Exec("minikube", "start --memory 4096") |> ignore)
 
 Target.create "BuildDockerImagesForK8s" (fun o ->
    let paths = o.Context.Arguments
@@ -131,13 +132,16 @@ Target.create "ApplyK8sResources" (fun _ ->
    applyK8sResources ())
 
 let openK8sAppInBrowser () =
+   Shell.Exec("minikube", "kubectl -- get all") |> ignore
+
    Shell.Exec(
       "minikube",
-      "kubectl -- wait --for=condition=ready pod -l app=web-cluster --timeout=120s"
+      "kubectl -- wait --for=condition=ready pod -l app=web-cluster --timeout=160s"
    )
    |> ignore
 
    Shell.Exec("minikube", "kubectl -- get all") |> ignore
+
    // Start tunnel for service web-cluster-http & open app in browser
    Shell.Exec("minikube", "service web-cluster-http -n akkabank") |> ignore
 

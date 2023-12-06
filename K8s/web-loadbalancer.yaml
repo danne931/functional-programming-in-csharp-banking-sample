@@ -1,7 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  # NOTE: 
+  # NOTE:
+  # These annotations & likely more config necessary
+  # for SignalR to work if web-service nodes > 1.  Keep web-service
+  # node replica count at 1 for now.
   #annotations:
   #  nginx.ingress.kubernetes.io/rewrite-target: /
   #  nginx.ingress.kubernetes.io/affinity: "cookie"
