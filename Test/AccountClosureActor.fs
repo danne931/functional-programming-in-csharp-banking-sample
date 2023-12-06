@@ -58,15 +58,10 @@ let init (tck: TestKit.Tck) =
 
    accountClosureActor, emailProbe, quartzSchedulerProbe
 
-let accountStub () = {
-   Stub.accountState with
-      EntityId = Guid.NewGuid()
-}
-
 [<Tests>]
 let tests =
    testList "Account Closure Actor" [
-      akkaTest "Register should save an account to an actor state list"
+      akkaTest "Register should save an account to actor state"
       <| Some config
       <| fun tck ->
          let accountClosureActor, emailProbe, quartzSchedulerProbe = init tck
@@ -75,12 +70,24 @@ let tests =
          accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
          TestKit.expectMsg tck initState |> ignore
 
-         let account1 = accountStub ()
-         let account2 = accountStub ()
+         let account1 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         }
+
+         let account2 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         }
+
          accountClosureActor <! AccountClosureMessage.Register account1
          accountClosureActor <! AccountClosureMessage.Register account2
          accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
-         TestKit.expectMsg tck [ account2; account1 ] |> ignore
+
+         let expectedState =
+            Map [ account1.EntityId, account1; account2.EntityId, account2 ]
+
+         TestKit.expectMsg tck expectedState |> ignore
 
          emailProbe.ExpectNoMsg()
          quartzSchedulerProbe.ExpectNoMsg()
@@ -94,13 +101,21 @@ let tests =
          let accountClosureActor, emailProbe, _ = init tck
          let initState = AccountClosureActor.initState
 
-         let account1 = accountStub ()
-         let account2 = accountStub ()
+         let account1 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         }
+
+         let account2 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         }
+
          accountClosureActor <! AccountClosureMessage.Register account1
          accountClosureActor <! AccountClosureMessage.Register account2
          accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
 
-         for account in [ account2; account1 ] do
+         for account in [ account1; account2 ] do
             TestKit.expectMsg tck AccountMessage.Delete |> ignore
 
             match emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
@@ -124,8 +139,16 @@ let tests =
       <| fun tck ->
          let accountClosureActor, _, quartzSchedulerProbe = init tck
 
-         let account1 = accountStub ()
-         let account2 = accountStub ()
+         let account1 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         }
+
+         let account2 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         }
+
          accountClosureActor <! AccountClosureMessage.Register account1
          accountClosureActor <! AccountClosureMessage.Register account2
 
@@ -133,7 +156,7 @@ let tests =
 
          let msg = quartzSchedulerProbe.ExpectMsg<SchedulingActor.Message>()
 
-         let expectedAccountIds = [ account2.EntityId; account1.EntityId ]
+         let expectedAccountIds = [ account1.EntityId; account2.EntityId ]
 
          match msg with
          | SchedulingActor.DeleteAccountsJobSchedule accountIds ->
@@ -146,4 +169,38 @@ let tests =
             Expect.isTrue
                false
                $"Expected AccountClosureMessage. Received {msg}"
+
+      akkaTest "ReverseClosure should remove an account from actor state"
+      <| Some config
+      <| fun tck ->
+         let accountClosureActor, emailProbe, quartzSchedulerProbe = init tck
+         let initState = AccountClosureActor.initState
+
+         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
+         TestKit.expectMsg tck initState |> ignore
+
+         let account1 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         }
+
+         let account2 = {
+            Stub.accountState with
+               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         }
+
+         accountClosureActor <! AccountClosureMessage.Register account1
+         accountClosureActor <! AccountClosureMessage.Register account2
+
+         accountClosureActor
+         <! AccountClosureMessage.ReverseClosure account1.EntityId
+
+         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
+
+         let expectedState = Map [ account2.EntityId, account2 ]
+
+         TestKit.expectMsg tck expectedState |> ignore
+
+         emailProbe.ExpectNoMsg()
+         quartzSchedulerProbe.ExpectNoMsg()
    ]

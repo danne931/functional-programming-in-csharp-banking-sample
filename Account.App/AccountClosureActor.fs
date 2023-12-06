@@ -14,7 +14,7 @@ open ActorUtil
 open Bank.AccountClosure.Api
 open Bank.Account.Domain
 
-let initState = List.empty<AccountState>
+let initState: Map<Guid, AccountState> = Map.empty
 
 let actorProps
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
@@ -30,7 +30,7 @@ let actorProps
          return DeleteHistoricalRecordsResponse res
       }
 
-      let rec loop (accounts: AccountState list) = actor {
+      let rec loop (accounts: Map<Guid, AccountState>) = actor {
          let! msg = mailbox.Receive()
 
          return!
@@ -42,7 +42,7 @@ let actorProps
                   mailbox.Sender() <! accounts
                   ignored ()
                | Register account ->
-                  let newState = account :: accounts
+                  let newState = Map.add account.EntityId account accounts
 
                   logInfo
                      $"""
@@ -71,15 +71,13 @@ let actorProps
                      logInfo "AccountClosure - no accounts requested closure."
                      ignored ()
                   else
-                     let accountIds =
-                        accounts
-                        |> List.map (fun acct ->
-                           // Delete event sourcing data immediately.
-                           getAccountRef acct.EntityId <! AccountMessage.Delete
+                     for account in accounts.Values do
+                        // Delete event sourcing data immediately.
+                        getAccountRef account.EntityId <! AccountMessage.Delete
 
-                           emailRef <! EmailActor.AccountClose acct
+                        emailRef <! EmailActor.AccountClose account
 
-                           acct.EntityId)
+                     let accountIds = accounts |> Map.keys |> List.ofSeq
 
                      logInfo
                         $"Scheduling deletion of billing records for accounts: {accountIds}"
@@ -91,7 +89,10 @@ let actorProps
                | DeleteAll accountIds ->
                   deleteHistoricalRecords accountIds |!> retype mailbox.Self
                   ignored ()
-               | ReverseClosure _ -> ignored () // TODO
+               | ReverseClosure accountId ->
+                  logInfo $"Reverse pending account closure for {accountId}"
+                  let newState = Map.remove accountId accounts
+                  loop newState <@> SaveSnapshot newState
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
             | :? PersistentLifecycleEvent as _ -> ignored ()
