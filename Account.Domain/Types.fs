@@ -174,13 +174,26 @@ type SignalRBroadcast = {
    endBillingCycle: unit -> unit
 }
 
+// TODO: ScheduleDeleteAll & DeleteAll are commented out until
+//       Quartz deserialization is configured to detect union types.
+//       Using the separately declared types below for messages
+//       passed to Quartz until then.
+//
+//       Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
 type AccountClosureMessage =
    | Register of AccountState
-   | ScheduleDeleteAll
-   | DeleteAll of Guid list
+   //| ScheduleDeleteAll
+   //| DeleteAll of Guid list
    | ReverseClosure of Guid
    | GetRegisteredAccounts
    | DeleteHistoricalRecordsResponse of Result<Email list option, Err>
+
+type ScheduleDeleteAll() =
+   class
+   end
+
+type DeleteAll(accountIds: Guid list) =
+   member x.AccountIds = accountIds
 
 type AccountSeederMessage =
    | SeedAccounts

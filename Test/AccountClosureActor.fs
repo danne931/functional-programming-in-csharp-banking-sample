@@ -13,6 +13,13 @@ open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 
+// NOTE:
+// Using separately declared types (ScheduleDeleteAll & DeleteAll)
+// rather than their AccountClosureMessage equivalent for messages
+// passed to Quartz until Akka.Quartz.Actor serialization PR merged:
+//
+// Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
 let config =
@@ -113,7 +120,8 @@ let tests =
 
          accountClosureActor <! AccountClosureMessage.Register account1
          accountClosureActor <! AccountClosureMessage.Register account2
-         accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
+         //accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
+         accountClosureActor <! ScheduleDeleteAll()
 
          for account in [ account1; account2 ] do
             TestKit.expectMsg tck AccountMessage.Delete |> ignore
@@ -152,7 +160,8 @@ let tests =
          accountClosureActor <! AccountClosureMessage.Register account1
          accountClosureActor <! AccountClosureMessage.Register account2
 
-         accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
+         //accountClosureActor <! AccountClosureMessage.ScheduleDeleteAll
+         accountClosureActor <! ScheduleDeleteAll()
 
          let msg = quartzSchedulerProbe.ExpectMsg<SchedulingActor.Message>()
 

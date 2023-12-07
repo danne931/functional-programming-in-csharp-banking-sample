@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Akka.Cluster.Hosting" />
-    <!--<PackageReference Include="Akka.Quartz.Actor" />-->
+    <PackageReference Include="Akka.Quartz.Actor" />
     <PackageReference Include="Quartz" />
     <PackageReference Include="Quartz.Extensions.DependencyInjection" />
     <PackageReference Include="Quartz.Extensions.Hosting" />
@@ -22,6 +22,5 @@
     <ProjectReference Include="../Infrastructure/Infrastructure.fsproj" />
     <ProjectReference Include="../Lib/Lib.fsproj" />
     <ProjectReference Include="../Scheduler.App/Scheduler.App.fsproj" />
-    <ProjectReference Include="../Akka.Quartz.Actor/src/Akka.Quartz.Actor/Akka.Quartz.Actor.csproj" />
   </ItemGroup>
 </Project>

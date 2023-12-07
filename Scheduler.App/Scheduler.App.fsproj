@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Akka.Cluster.Hosting" />
-    <!--<PackageReference Include="Akka.Quartz.Actor" />-->
+    <PackageReference Include="Akka.Quartz.Actor" />
     <PackageReference Include="Quartz" />
   </ItemGroup>
 
@@ -20,6 +20,5 @@
     <ProjectReference Include="../Lib/Lib.fsproj" />
     <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
-    <ProjectReference Include="../Akka.Quartz.Actor/src/Akka.Quartz.Actor/Akka.Quartz.Actor.csproj" />
   </ItemGroup>
 </Project>

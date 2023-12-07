@@ -11,6 +11,13 @@ open Bank.Account.Domain
 open BillingStatement
 open ActorUtil
 
+// NOTE:
+// Using separately declared types (ScheduleDeleteAll & DeleteAll)
+// rather than their AccountClosureMessage equivalent for messages
+// passed to Quartz until Akka.Quartz.Actor serialization PR merged:
+//
+// Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+
 type Message =
    | AccountClosureCronJobSchedule
    | BillingCycleCronJobSchedule
@@ -28,7 +35,8 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          let job =
             CreatePersistentJob(
                path,
-               AccountClosureMessage.ScheduleDeleteAll,
+               //AccountClosureMessage.ScheduleDeleteAll,
+               ScheduleDeleteAll(),
                trigger
             )
 
@@ -58,7 +66,8 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          let job =
             CreatePersistentJob(
                path,
-               AccountClosureMessage.DeleteAll accountIds,
+               //AccountClosureMessage.DeleteAll accountIds,
+               DeleteAll accountIds,
                trigger
             )
 

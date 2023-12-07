@@ -149,7 +149,14 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>
-         | _ -> raise <| SerializationException()
+         | _ ->
+            // TODO:
+            // Replace this with commented out SerializationException
+            // when Akka.Quartz.Actor serialization PR merged:
+            //
+            // Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+            typeof<BillingMessage>
+      //raise <| SerializationException()
 
       let deserialized =
          JsonSerializer.Deserialize(
