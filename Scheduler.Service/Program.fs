@@ -6,6 +6,7 @@ open Akkling
 open Quartz
 
 open Bank.Infrastructure
+open BillingStatement
 open ActorUtil
 
 let builder = Env.builder
@@ -83,16 +84,7 @@ builder.Services.AddAkka(
       (initConfig builder)
          .WithCustomSerializer(
             BankSerializer.Name,
-            [
-               // TODO:
-               // Temporary until Akka.Quartz.Actor supports specifying
-               // custom serializers for more precise types.
-               // If fixed, will be able to replace typedefof<obj> with,
-               // for instance, typedefof<BillingMessage> for
-               // messages serialized for Quartz jobs.
-               // https://github.com/akkadotnet/Akka.Quartz.Actor/issues/215
-               typedefof<obj>
-            ],
+            [ typedefof<BillingMessage> ],
             fun system -> BankSerializer(system)
          )
          .WithSingletonProxy<ActorMetadata.AccountClosureMarker>(

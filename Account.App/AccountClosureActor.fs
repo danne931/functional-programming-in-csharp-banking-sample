@@ -77,7 +77,7 @@ let actorProps
                   logInfo
                      $"""
                      Account scheduled for deletion - {account.EntityId}.
-                     Total scheduled: {newState.Length}.
+                     Total scheduled: {newState.Count}.
                      """
 
                   loop newState <@> SaveSnapshot newState

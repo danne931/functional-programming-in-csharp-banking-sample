@@ -3,4 +3,6 @@
 Web/logs.json
 Web/snapshots/*
 Account.Service/ddata-*
+Account.Service/snapshots/*
+Scheduler.Service/snapshots/*
 .fake

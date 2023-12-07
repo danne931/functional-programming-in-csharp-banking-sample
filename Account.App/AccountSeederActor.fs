@@ -118,6 +118,17 @@ let private initState = {
             currency = Currency.USD,
             correlationId = Guid.NewGuid()
          )
+
+         Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"),
+         CreateAccountCommand(
+            entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"),
+            firstName = "Rainbow",
+            lastName = "Trout",
+            balance = 850,
+            email = "rainbowtrout@gmail.com",
+            currency = Currency.USD,
+            correlationId = Guid.NewGuid()
+         )
       ]
 }
 

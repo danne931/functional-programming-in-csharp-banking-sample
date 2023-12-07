@@ -25,11 +25,13 @@ type Message =
 
 let actorProps (quartzPersistentActorRef: IActorRef) =
    let handler (ctx: Actor<Message>) =
+      let logInfo = logInfo ctx
+
       function
       | AccountClosureCronJobSchedule ->
-         logInfo ctx $"Scheduling nightly account closure checker"
+         logInfo $"Scheduling nightly account closure checker"
 
-         let trigger = AccountClosureTriggers.scheduleNightlyCheck ()
+         let trigger = AccountClosureTriggers.scheduleNightlyCheck logInfo
          let path = ActorMetadata.accountClosure.ProxyPath.Value
 
          let job =
@@ -43,9 +45,9 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
          ignored ()
       | BillingCycleCronJobSchedule ->
-         logInfo ctx $"Scheduling monthly billing cycle"
+         logInfo $"Scheduling monthly billing cycle"
 
-         let trigger = BillingCycleTriggers.scheduleMonthly ()
+         let trigger = BillingCycleTriggers.scheduleMonthly logInfo
          let path = ActorMetadata.billingCycle.ProxyPath.Value
 
          let job =
@@ -58,9 +60,9 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
          ignored ()
       | DeleteAccountsJobSchedule accountIds ->
-         logInfo ctx $"Scheduling deletion of accounts {accountIds}"
+         logInfo $"Scheduling deletion of accounts {accountIds}"
 
-         let trigger = AccountClosureTriggers.deleteAccounts ()
+         let trigger = AccountClosureTriggers.deleteAccounts logInfo
          let path = ActorMetadata.accountClosure.ProxyPath.Value
 
          let job =

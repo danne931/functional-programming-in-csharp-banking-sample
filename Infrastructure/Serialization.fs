@@ -51,6 +51,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? AccountState -> "AccountState"
       | :? Option<AccountState> -> "AccountStateOption"
       | :? List<AccountState> -> "AccountStateList"
+      | :? Map<Guid, AccountState> -> "AccountStateMap"
       | :? AccountMessage as msg ->
          match msg with
          | AccountMessage.Event _ -> "AccountEvent"
@@ -104,6 +105,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // from account cluster nodes to Web node.
       | :? Option<AccountState>
       // AccountClosureActor persistence snapshot.
+      | :? Map<Guid, AccountState>
       | :? List<AccountState>
       // Serialization for message sent from SignalRProxy on account cluster
       // nodes to SignalRActor on Web node.
@@ -138,6 +140,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          match manifest with
          | "AccountState" -> typeof<AccountState>
          | "AccountStateOption" -> typeof<AccountState option>
+         | "AccountStateMap" -> typeof<Map<Guid, AccountState>>
          | "AccountStateList" -> typeof<AccountState list>
          | "AccountEvent" -> typeof<AccountEvent>
          | "AccountEventListOption" -> typeof<AccountEvent list option>
