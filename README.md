@@ -1,7 +1,7 @@
 # Banking with Akka.NET
 
 ## Intro
-This project utilizes event sourcing and the actor model via Akka.NET to build typical banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is utilized for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
+This project utilizes the actor model and event sourcing via Akka.NET to build typical banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is used for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
 
 ## Use Cases
 1. Deposit
@@ -16,7 +16,7 @@ This project utilizes event sourcing and the actor model via Akka.NET to build t
 10. Billing statements issued for each billing cycle
 11. Emails sent for account open/close, billing statement, debit declined, & transfer deposited
 
-![bank-9-1](https://github.com/danne931/akka-dotnet-bank/assets/4181901/b9d0a710-7ef6-43f2-8ac7-4580746f8853)
+![bank-dec-6-small](https://github.com/danne931/akka-dotnet-bank/assets/4181901/3e3a3bf1-5e37-424a-9898-fd8b513ac1af)
 
 ## UI
 I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/Web/wwwroot/js/account.js)
@@ -35,17 +35,30 @@ web page to test the use cases against an account.
 ### Transfers to accounts internal to the bank:
 ![bank-internal-transfer](https://github.com/danne931/akka-dotnet-bank/assets/4181901/fd71e49f-f08b-4af1-9a64-3bac96490d98)
 
-## Running with Docker
-1. docker compose up
-2. navigate to localhost:3000
-3. if you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
+## Running with Kubernetes via minikube
+1. Dependencies: .NET 7, [minikube](https://minikube.sigs.k8s.io/docs/start/), [helm](https://helm.sh/)
+2. `sh build.sh -t RunK8sApp`
+3. Browser opens automatically after all K8s resources start up
+4. Enable postgres port forwarding if you want to inspect postgres in a local client: `sh postgres-port-forward-k8s.sh` (Server=postgres;Database=akkabank;Uid=testuser;Pwd=testpass)
+5. View Akka cluster and actor info via [Petabridge.Cmd](https://cmd.petabridge.com/articles/commands/cluster-commands.html):
+   ```
+   > minikube kubectl -- exec --stdin --tty account-cluster-0 -- /bin/bash
+   > dotnet tool run pbm
+   > cluster show
+   > actor hierarchy
+   ```
 
-## Running without Docker
+## Running with Docker
+1. Dependencies: .NET 7
+2. `sh build.sh -t RunDockerApp`
+3. Navigate to localhost:3000
+4. If you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
+
+## Running without Docker or K8s
 1. Dependencies: .NET 7, PostgreSQL & the psql command-line interface
 2. Create a database (Server=localhost;Database=akkabank;Uid=postgres;Pwd=password)
-3. Seed the database: psql postgres < Infrastructure/Migrations/*.sql
-4. sh build.sh (builds & launches the app in watch mode)
-5. navigate to MockThirdPartyBankTransferReceiver and dotnet run if testing domestic transfers
+3. Seed the database: `psql postgres < Infrastructure/Migrations/*.sql`
+4. `cd` into ./Web, ./Account.Service, ./Scheduler.Service, & ./MockThirdPartyBankTransferReceiver & `dotnet run` in each
 
 ## Running tests
 1. sh build.sh -t Test
