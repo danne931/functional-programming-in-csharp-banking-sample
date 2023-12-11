@@ -3,6 +3,7 @@
 const state = {
   accounts: {},
   selectedAccountId: null,
+  selectedEmail: null,
   transferRecipients: {},
   redirectTransferToCreateRecipientView: false,
   validationErrorModalOpen: false,
@@ -68,6 +69,8 @@ connection.on('ReceiveMessage', function ({ newState, event }) {
   event = serverToClientEventMapping(event)
   if (eventsToIgnore[event.name]) return
 
+  state.accounts[newState.email.email] = newState
+
   renderAccountState(newState)
   renderEventIntoListView(event)
 
@@ -92,9 +95,7 @@ connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
 
 connection.on('ReceiveBillingCycleEnd', renderNewBillingCycle)
 
-connection
-    .start()
-    .then(hydrate)
+connection.start().then(hydrate)
 
 function toggleCircuitBreaker (status, service) {
   const el = selectors.circuitBreaker[service]()
@@ -164,25 +165,29 @@ function accountSelected (accountId) {
       }))
     )
     .then(([account, events]) => {
+      state.selectedAccountId = accountId
+      state.selectedEmail = account.email.email
       renderAccountState(account)
       interpolateTransferRecipientSelection(account)
       state.transferRecipients = account.transferRecipients
       renderEventsIntoListView(events.map(serverToClientEventMapping).reverse())
       renderTransactionsLoaderFinish()
+      highlightSelectedAccount(accountId)
     })
 }
 
 function addAccountToConnectionGroup (accountId) {
   const promise = state.selectedAccountId != null
-    ? connection.invoke('RemoveFromConnectionGroup', state.selectedAccountId)
+    ? removeFromConnectionGroup(state.selectedAccountId)
     : Promise.resolve()
 
-  return promise
-    .then(() => connection.invoke('AddToConnectionGroup', accountId))
-    .then(() => {
-      state.selectedAccountId = accountId
-      highlightSelectedAccount(accountId)
-    })
+  return promise.then(() =>
+    connection.invoke('AddToConnectionGroup', accountId)
+  )
+}
+
+function removeFromConnectionGroup (accountId) {
+  return connection.invoke('RemoveFromConnectionGroup', accountId)
 }
 
 function renderAccountsList (accounts) {
@@ -249,6 +254,8 @@ function renderEventIntoListView (evt) {
 }
 
 function renderNewBillingCycle () {
+  if (state.accounts[state.selectedEmail].status === 'Closed') return
+
   renderEventsIntoListView([{
     name: 'BillingCycleStarted',
     timestamp: '-'
