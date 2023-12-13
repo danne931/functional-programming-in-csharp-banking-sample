@@ -12,6 +12,7 @@ open Akkling
 
 open Bank.Account.Domain
 open Bank.Infrastructure
+open Scheduler.Infrastructure
 open ActorUtil
 open BillingStatement
 
@@ -60,22 +61,7 @@ builder.Services.AddAkka(
          .WithJournalAndSnapshot(journalOpts, snapshotOpts)
          .WithCustomSerializer(
             BankSerializer.Name,
-            [
-               typedefof<AccountMessage>
-               typedefof<AccountState>
-               typedefof<SignalRMessage>
-               typedefof<BillingMessage>
-               typedefof<AccountClosureMessage>
-               typedefof<EmailActor.EmailMessage>
-               // TODO:
-               // Temporary until Akka.Quartz.Actor supports specifying
-               // custom serializers for more precise types.
-               // If fixed, will be able to replace typedefof<obj> with,
-               // for instance, typedefof<BillingMessage> for
-               // messages serialized for Quartz jobs.
-               // https://github.com/akkadotnet/Akka.Quartz.Actor/issues/215
-               typedefof<obj>
-            ],
+            [ typedefof<obj> ],
             fun system -> BankSerializer(system)
          )
          .WithSingletonProxy<ActorMetadata.SchedulingMarker>(

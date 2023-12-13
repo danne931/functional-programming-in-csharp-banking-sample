@@ -8,6 +8,7 @@
     <Compile Include="AccountClosureTriggers.fs" />
     <Compile Include="BillingCycleTriggers.fs" />
     <Compile Include="SchedulingActor.fs" />
+    <Compile Include="Serialization.fs" />
   </ItemGroup>
 
   <ItemGroup>

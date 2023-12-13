@@ -12,11 +12,11 @@ open BillingStatement
 open ActorUtil
 
 // NOTE:
-// Using separately declared types (ScheduleDeleteAll & DeleteAll)
-// rather than their AccountClosureMessage equivalent for messages
-// passed to Quartz until Akka.Quartz.Actor serialization PR merged:
-//
-// Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+// Using a QuartzMessageEnvelope type for messages serialized with
+// Akka.Quartz.Actor until serialization PR merged.  Akka.Quartz.Actor
+// is always passing in Object as manifest unless this PR merged:
+// https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+type QuartzMessageEnvelope = { Manifest: string; Message: obj }
 
 type Message =
    | AccountClosureCronJobSchedule
@@ -37,8 +37,10 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          let job =
             CreatePersistentJob(
                path,
-               //AccountClosureMessage.ScheduleDeleteAll,
-               ScheduleDeleteAll(),
+               {
+                  Manifest = "AccountClosureActorMessage"
+                  Message = AccountClosureMessage.ScheduleDeleteAll
+               },
                trigger
             )
 
@@ -53,7 +55,10 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          let job =
             CreatePersistentJob(
                path,
-               BillingMessage.BillingCycleFanout,
+               {
+                  Manifest = "BillingCycleActorMessage"
+                  Message = BillingMessage.BillingCycleFanout
+               },
                trigger
             )
 
@@ -68,8 +73,10 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          let job =
             CreatePersistentJob(
                path,
-               //AccountClosureMessage.DeleteAll accountIds,
-               DeleteAll accountIds,
+               {
+                  Manifest = "AccountClosureActorMessage"
+                  Message = AccountClosureMessage.DeleteAll accountIds
+               },
                trigger
             )
 

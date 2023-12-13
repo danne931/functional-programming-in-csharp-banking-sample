@@ -70,7 +70,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // Message serialization for messages from account nodes to
       // AccountSeederActor cluster singleton
       | :? AccountSeederMessage
-      // SchedulingActor message serialization for Quartz job persistence.
+      // SchedulingActor message for Quartz job persistence.
       | :? SchedulingActor.Message
       // Message serialization for messages from sharded account nodes to
       // Email cluster singleton.
@@ -152,14 +152,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>
-         | _ ->
-            // TODO:
-            // Replace this with commented out SerializationException
-            // when Akka.Quartz.Actor serialization PR merged:
-            //
-            // Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
-            typeof<BillingMessage>
-      //raise <| SerializationException()
+         | _ -> raise <| SerializationException()
 
       let deserialized =
          JsonSerializer.Deserialize(

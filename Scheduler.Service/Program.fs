@@ -6,6 +6,8 @@ open Akkling
 open Quartz
 
 open Bank.Infrastructure
+open Scheduler.Infrastructure
+open Bank.Account.Domain
 open BillingStatement
 open ActorUtil
 
@@ -84,8 +86,17 @@ builder.Services.AddAkka(
       (initConfig builder)
          .WithCustomSerializer(
             BankSerializer.Name,
-            [ typedefof<BillingMessage> ],
+            [
+               typedefof<SchedulingActor.Message>
+               typedefof<BillingMessage>
+               typedefof<AccountClosureMessage>
+            ],
             fun system -> BankSerializer(system)
+         )
+         .WithCustomSerializer(
+            QuartzSerializer.Name,
+            [ typedefof<obj> ],
+            fun system -> QuartzSerializer(system)
          )
          .WithSingletonProxy<ActorMetadata.AccountClosureMarker>(
             ActorMetadata.accountClosure.Name,

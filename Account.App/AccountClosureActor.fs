@@ -14,13 +14,6 @@ open ActorUtil
 open Bank.AccountClosure.Api
 open Bank.Account.Domain
 
-// NOTE:
-// Using separately declared types (ScheduleDeleteAll & DeleteAll)
-// rather than their AccountClosureMessage equivalent for messages
-// passed to Quartz until Akka.Quartz.Actor serialization PR merged:
-//
-// Waiting on PR: https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
-
 let initState: Map<Guid, AccountState> = Map.empty
 
 let actorProps
@@ -43,29 +36,6 @@ let actorProps
          return!
             match box msg with
             | :? SnapshotOffer as o -> loop <| unbox o.Snapshot
-            | :? ScheduleDeleteAll ->
-               if accounts.IsEmpty then
-                  logInfo "AccountClosure - no accounts requested closure."
-                  ignored ()
-               else
-                  for account in accounts.Values do
-                     // Delete event sourcing data immediately.
-                     getAccountRef account.EntityId <! AccountMessage.Delete
-
-                     emailRef <! EmailActor.AccountClose account
-
-                  let accountIds = accounts |> Map.keys |> List.ofSeq
-
-                  logInfo
-                     $"Scheduling deletion of billing records for accounts: {accountIds}"
-                  // Schedule deletion of historical/legal records for 3 months later.
-                  schedulingActorRef
-                  <! SchedulingActor.DeleteAccountsJobSchedule accountIds
-
-                  loop initState <@> SaveSnapshot initState
-            | :? DeleteAll as o ->
-               deleteHistoricalRecords o.AccountIds |!> retype mailbox.Self
-               ignored ()
             | :? AccountClosureMessage as msg ->
                match msg with
                | GetRegisteredAccounts ->
@@ -100,6 +70,29 @@ let actorProps
                   logInfo $"Reverse pending account closure for {accountId}"
                   let newState = Map.remove accountId accounts
                   loop newState <@> SaveSnapshot newState
+               | ScheduleDeleteAll ->
+                  if accounts.IsEmpty then
+                     logInfo "AccountClosure - no accounts requested closure."
+                     ignored ()
+                  else
+                     for account in accounts.Values do
+                        // Delete event sourcing data immediately.
+                        getAccountRef account.EntityId <! AccountMessage.Delete
+
+                        emailRef <! EmailActor.AccountClose account
+
+                     let accountIds = accounts |> Map.keys |> List.ofSeq
+
+                     logInfo
+                        $"Scheduling deletion of billing records for accounts: {accountIds}"
+                     // Schedule deletion of historical/legal records for 3 months later.
+                     schedulingActorRef
+                     <! SchedulingActor.DeleteAccountsJobSchedule accountIds
+
+                     loop initState <@> SaveSnapshot initState
+               | DeleteAll accountIds ->
+                  deleteHistoricalRecords accountIds |!> retype mailbox.Self
+                  ignored ()
             | LifecycleEvent _ -> ignored ()
             | :? Akka.Persistence.RecoveryCompleted -> ignored ()
             | :? PersistentLifecycleEvent as _ -> ignored ()
