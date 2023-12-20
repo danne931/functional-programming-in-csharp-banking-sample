@@ -18,8 +18,8 @@ open BillingStatement
 
 let builder = Env.builder
 
-builder.Services.AddSingleton<SignalRBroadcast>(fun provider ->
-   SignalRProxy.init <| provider.GetRequiredService<ActorSystem>())
+builder.Services.AddSingleton<AccountBroadcast>(fun provider ->
+   AccountBroadcaster.init <| provider.GetRequiredService<ActorSystem>())
 |> ignore
 
 let journalOpts = AkkaInfra.getJournalOpts ()
@@ -64,6 +64,7 @@ builder.Services.AddAkka(
             [ typedefof<obj> ],
             fun system -> BankSerializer(system)
          )
+         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithSingletonProxy<ActorMetadata.SchedulingMarker>(
             ActorMetadata.scheduling.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.scheduling)
@@ -73,7 +74,7 @@ builder.Services.AddAkka(
             (fun _ ->
                let props =
                   AccountActor.initProps
-                  <| provider.GetRequiredService<SignalRBroadcast>()
+                  <| provider.GetRequiredService<AccountBroadcast>()
                   <| provider.GetRequiredService<ActorSystem>()
 
                props.ToProps()),
@@ -88,7 +89,7 @@ builder.Services.AddAkka(
          .WithSingleton<ActorMetadata.EmailMarker>(
             ActorMetadata.email.Name,
             (fun system _ resolver ->
-               let broadcast = resolver.GetService<SignalRBroadcast>()
+               let broadcast = resolver.GetService<AccountBroadcast>()
                let typedProps = EmailActor.initProps system broadcast
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -99,7 +100,7 @@ builder.Services.AddAkka(
                let typedProps =
                   BillingCycleActor.initProps
                   <| AccountActor.get system
-                  <| resolver.GetService<SignalRBroadcast>()
+                  <| resolver.GetService<AccountBroadcast>()
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -145,11 +146,18 @@ builder.Services.AddAkka(
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
-         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
+         .WithSingleton<ActorMetadata.CircuitBreakerMarker>(
+            ActorMetadata.circuitBreaker.Name,
+            (fun _ _ _ ->
+               let typedProps = CircuitBreakerActor.actorProps ()
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithActors(fun system registry ->
             let routerEnv = EnvTransfer.config.DomesticTransferRouter
             let breakerEnv = EnvTransfer.config.DomesticTransferCircuitBreaker
-            let broadcast = provider.GetRequiredService<SignalRBroadcast>()
+            let broadcast = provider.GetRequiredService<AccountBroadcast>()
             let getAccountRef = AccountActor.get system
 
             let resize = DefaultResizer(1, routerEnv.MaxInstancesPerNode)

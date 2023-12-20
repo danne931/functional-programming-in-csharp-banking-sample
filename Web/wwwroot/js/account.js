@@ -115,13 +115,16 @@ function toggleCircuitBreaker (status, service) {
   }
 }
 
+function parseNetworkResponse (res) {
+  if (!res.ok) {
+    throw new Error(`Http status: ${res.status}`)
+  }
+  return res.json()
+}
+
 function hydrate () {
-  fetch('/users').then(res => {
-    if (!res.ok) {
-      throw new Error(`Http status: ${res.status}`)
-    }
-    return res.json()
-  })
+  fetch('/users')
+  .then(parseNetworkResponse)
   .then(accounts => {
     state.accounts = accounts.reduce((acc, val) => {
       acc[val.email] = val
@@ -129,6 +132,12 @@ function hydrate () {
     }, {})
     renderAccountsList(accounts)
     return accountSelected(state.selectedAccountId || accounts[0].accountId)
+  })
+  .then(() => fetch('/diagnostic/circuit-breaker'))
+  .then(parseNetworkResponse)
+  .then(circuitBreakerStatus => {
+    toggleCircuitBreaker(circuitBreakerStatus.domesticTransfer, 'DomesticTransfer')
+    toggleCircuitBreaker(circuitBreakerStatus.email, 'Email')
   })
   .catch(notifyError)
 }

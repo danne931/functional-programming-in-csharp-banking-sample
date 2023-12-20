@@ -3,16 +3,12 @@ module SignalRActor
 
 open System
 open Akka.Actor
-open Akka.Cluster.Tools.PublishSubscribe
 open Akkling
 open Microsoft.AspNetCore.SignalR
 
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Hubs
-
-let registerSelfForPubSub (ctx: Actor<_>) =
-   DistributedPubSub.Get(ctx.System).Mediator.Tell(Put(untyped ctx.Self))
 
 let actorProps (hub: IHubContext<AccountHub, IAccountClient>) =
    let handler (ctx: Actor<_>) = actor {

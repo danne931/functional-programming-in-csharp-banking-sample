@@ -24,7 +24,7 @@ let private persist e =
 
 let actorProps
    (persistence: AccountPersistence)
-   (broadcaster: SignalRBroadcast)
+   (broadcaster: AccountBroadcast)
    (getOrStartInternalTransferActor:
       Actor<_> -> IActorRef<BankEvent<TransferPending>>)
    (getDomesticTransferActor:
@@ -263,7 +263,7 @@ let private getAccountEvents
       return if evts.IsEmpty then None else evts |> List.rev |> Some
    }
 
-let initProps (broadcaster: SignalRBroadcast) (system: ActorSystem) =
+let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
 

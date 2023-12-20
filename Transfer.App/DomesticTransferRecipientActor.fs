@@ -175,7 +175,7 @@ let actorProps
 
 let start
    (system: ActorSystem)
-   (broadcaster: SignalRBroadcast)
+   (broadcaster: AccountBroadcast)
    (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
    (breaker: Akka.Pattern.CircuitBreaker)
    (router: Akka.Routing.Pool)
@@ -189,6 +189,7 @@ let start
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.HalfOpen
+         Timestamp = DateTime.UtcNow
       }
       |> ignore
 
@@ -203,6 +204,7 @@ let start
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.Closed
+         Timestamp = DateTime.UtcNow
       }
       |> ignore
 
@@ -219,6 +221,7 @@ let start
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.DomesticTransfer
          Status = CircuitBreakerStatus.Open
+         Timestamp = DateTime.UtcNow
       }
       |> ignore)
    |> ignore

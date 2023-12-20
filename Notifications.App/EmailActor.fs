@@ -14,7 +14,7 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-// NOTE: May have to throttle requests to email service as number of
+// NOTE: Likely have to throttle and queue requests to email service as number of
 //       TransferDeposited/BillingStatement messages received per second
 //       may be higher than the number of requests per second that
 //       the email service will allow.
@@ -158,7 +158,7 @@ let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
 
    props <| actorOf2 handler
 
-let initProps (system: ActorSystem) (broadcaster: SignalRBroadcast) =
+let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
    let breaker =
       Akka.Pattern.CircuitBreaker(
          system.Scheduler,
@@ -171,6 +171,7 @@ let initProps (system: ActorSystem) (broadcaster: SignalRBroadcast) =
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.HalfOpen
+         Timestamp = DateTime.UtcNow
       }
       |> ignore)
    |> ignore
@@ -179,20 +180,18 @@ let initProps (system: ActorSystem) (broadcaster: SignalRBroadcast) =
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.Closed
+         Timestamp = DateTime.UtcNow
       }
       |> ignore)
    |> ignore
 
    breaker.OnOpen(fun () ->
-      system.Log.Log(
-         Akka.Event.LogLevel.WarningLevel,
-         null,
-         "Email circuit breaker open"
-      )
+      SystemLog.warning system "Email circuit breaker open"
 
       broadcaster.circuitBreaker {
          Service = CircuitBreakerService.Email
          Status = CircuitBreakerStatus.Open
+         Timestamp = DateTime.UtcNow
       }
       |> ignore)
    |> ignore

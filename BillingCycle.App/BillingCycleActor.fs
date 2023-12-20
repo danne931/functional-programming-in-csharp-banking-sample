@@ -77,7 +77,7 @@ let initState = { Billing = []; IsScheduled = false }
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (persistence: BillingPersistence)
-   (broadcaster: SignalRBroadcast)
+   (broadcaster: AccountBroadcast)
    =
    let handler (ctx: Actor<BillingMessage>) =
       let schedulePersist = schedulePersist ctx
@@ -148,7 +148,7 @@ let get (system: ActorSystem) : IActorRef<BillingMessage> =
 
 let initProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   (broadcaster: SignalRBroadcast)
+   (broadcaster: AccountBroadcast)
    =
    actorProps
       getAccountRef

@@ -7,12 +7,22 @@ open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
+open Akka.Cluster.Tools.PublishSubscribe
 
 type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
 
 module SystemLog =
    let info (sys: ActorSystem) (msg: string) =
       sys.Log.Log(Akka.Event.LogLevel.InfoLevel, null, msg)
+
+   let warning (sys: ActorSystem) (msg: string) =
+      sys.Log.Log(Akka.Event.LogLevel.WarningLevel, null, msg)
+
+   let error (sys: ActorSystem) (err: exn) (msg: string) =
+      sys.Log.Log(Akka.Event.LogLevel.ErrorLevel, err, msg)
+
+let registerSelfForPubSub (ctx: Actor<_>) =
+   DistributedPubSub.Get(ctx.System).Mediator.Tell(Put(untyped ctx.Self))
 
 let getChildActorRef<'t, 'r>
    (actorCtx: Actor<'t>)
@@ -62,6 +72,10 @@ module ClusterMetadata =
    }
 
 module ActorMetadata =
+   type CircuitBreakerMarker() =
+      class
+      end
+
    type AuditorMarker() =
       class
       end
@@ -160,6 +174,12 @@ module ActorMetadata =
 
    let scheduling = {
       Name = "scheduling"
+      Path = None
+      ProxyPath = None
+   }
+
+   let circuitBreaker = {
+      Name = "circuit-breaker"
       Path = None
       ProxyPath = None
    }

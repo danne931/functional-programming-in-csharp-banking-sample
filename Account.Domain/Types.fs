@@ -155,22 +155,46 @@ type AccountMessage =
    | BillingCycle
    | BillingCycleEnd
 
+type CircuitBreakerService =
+   | DomesticTransfer
+   | Email
+
+type CircuitBreakerStatus =
+   | Closed
+   | HalfOpen
+   | Open
+
+type CircuitBreakerEvent = {
+   Service: CircuitBreakerService
+   Status: CircuitBreakerStatus
+   Timestamp: DateTime
+}
+
+type CircuitBreakerMessage =
+   | Lookup
+   | CircuitBreaker of CircuitBreakerEvent
+
+type CircuitBreakerActorState = {
+   DomesticTransfer: CircuitBreakerStatus
+   Email: CircuitBreakerStatus
+}
+
 type SignalRMessage =
    | AccountEventPersisted of AccountEvent * AccountState
    | AccountEventValidationFail of Guid * string
    | AccountEventPersistenceFail of Guid * string
-   | CircuitBreaker of CircuitBreakerMessage
+   | CircuitBreaker of CircuitBreakerEvent
    | EndBillingCycle
 
 type AccountPersistence = {
    getEvents: Guid -> AccountEvent list option Task
 }
 
-type SignalRBroadcast = {
+type AccountBroadcast = {
    accountEventPersisted: AccountEvent -> AccountState -> unit
    accountEventValidationFail: Guid -> string -> unit
    accountEventPersistenceFail: Guid -> string -> unit
-   circuitBreaker: CircuitBreakerMessage -> unit
+   circuitBreaker: CircuitBreakerEvent -> unit
    endBillingCycle: unit -> unit
 }
 

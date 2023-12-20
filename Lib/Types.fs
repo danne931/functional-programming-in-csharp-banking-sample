@@ -86,17 +86,3 @@ type Email = private {
    static member deserialize(email: string) : Email = { Email = email }
 
    static member empty = { Email = "" }
-
-type CircuitBreakerService =
-   | DomesticTransfer
-   | Email
-
-type CircuitBreakerStatus =
-   | Closed
-   | HalfOpen
-   | Open
-
-type CircuitBreakerMessage = {
-   Service: CircuitBreakerService
-   Status: CircuitBreakerStatus
-}

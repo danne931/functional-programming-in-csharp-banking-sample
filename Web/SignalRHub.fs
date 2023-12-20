@@ -16,7 +16,7 @@ type IAccountClient =
 
    abstract member ReceiveError: string -> Task
 
-   abstract member ReceiveCircuitBreakerMessage: CircuitBreakerMessage -> Task
+   abstract member ReceiveCircuitBreakerMessage: CircuitBreakerEvent -> Task
 
    abstract member ReceiveBillingCycleEnd: unit -> Task
 

@@ -57,6 +57,9 @@ type BankSerializer(system: ExtendedActorSystem) =
          | AccountMessage.Event _ -> "AccountEvent"
          | _ -> "AccountMessage"
       | :? SignalRMessage -> "SignalRMessage"
+      | :? CircuitBreakerActorState -> "CircuitBreakerActorState"
+      | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
+      | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
       | :? BillingMessage -> "BillingCycleActorMessage"
       | :? EmailActor.EmailMessage -> "EmailActorMessage"
       | :? ShardEnvelope as e ->
@@ -107,8 +110,14 @@ type BankSerializer(system: ExtendedActorSystem) =
       // AccountClosureActor persistence snapshot.
       | :? Map<Guid, AccountState>
       | :? List<AccountState>
-      // Serialization for message sent from SignalRProxy on account cluster
-      // nodes to SignalRActor on Web node.
+      | :? CircuitBreakerActorState
+      // Serialization for messages sent over DistributedPubSub to
+      // CircuitBreakerActor.
+      | :? CircuitBreakerMessage
+      // Serialization for CircuitBreakerActor persistence.
+      | :? CircuitBreakerEvent
+      // Serialization for messages sent over DistributedPubSub to
+      // SignalRActor on Web node.
       | :? SignalRMessage
       // AccountActor persistence snapshot.
       | :? AccountState as o ->
@@ -147,6 +156,9 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountMessage" -> typeof<AccountMessage>
          | "AccountShardEnvelope" -> typeof<AccountShardEnvelope>
          | "SignalRMessage" -> typeof<SignalRMessage>
+         | "CircuitBreakerEvent" -> typeof<CircuitBreakerEvent>
+         | "CircuitBreakerActorMessage" -> typeof<CircuitBreakerMessage>
+         | "CircuitBreakerActorState" -> typeof<CircuitBreakerActorState>
          | "BillingCycleActorMessage" -> typeof<BillingMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>

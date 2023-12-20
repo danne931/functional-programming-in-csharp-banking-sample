@@ -49,6 +49,8 @@ builder.Services.AddAkka(
             [
                typedefof<AccountMessage>
                typedefof<AccountState>
+               typedefof<CircuitBreakerMessage>
+               typedefof<CircuitBreakerActorState>
                // NOTE: Akka ShardRegionProxy defined in Akka.Hosting below
                //       does not recognize Akkling ShardEnvelope as Akka
                //       ShardingEnvelope so need to explicitly add it for
@@ -63,12 +65,16 @@ builder.Services.AddAkka(
             ],
             fun system -> BankSerializer(system)
          )
+         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithShardRegionProxy<ActorMetadata.AccountMarker>(
             ClusterMetadata.accountShardRegion.name,
             ClusterMetadata.roles.account,
             ClusterMetadata.accountShardRegion.messageExtractor
          )
-         .WithDistributedPubSub(ClusterMetadata.roles.signalR)
+         .WithSingletonProxy<ActorMetadata.CircuitBreakerMarker>(
+            ActorMetadata.circuitBreaker.Name,
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithActors(fun system _ ->
             SignalRActor.start system signalRHub |> ignore)
       |> ignore

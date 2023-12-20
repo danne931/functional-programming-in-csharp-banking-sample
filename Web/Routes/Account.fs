@@ -5,6 +5,8 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 open Akka.Actor
+open Akkling
+open FSharp.Control
 
 open Bank.Account.Domain
 open Bank.Account.Api
@@ -20,6 +22,7 @@ module private Path =
    let LockCard = Base + "/lock"
    let UnlockCard = Base + "/unlock"
    let CloseAccount = Base + "/close-account"
+   let CircuitBreaker = Diagnostic + "/circuit-breaker"
 
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
@@ -117,5 +120,17 @@ let startAccountRoutes (app: WebApplication) =
             cmd.EntityId
             (cmd.toEvent ())
          |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore
+
+   app.MapGet(
+      Path.CircuitBreaker,
+      Func<ActorSystem, Task<IResult>>(fun sys ->
+         let ref = CircuitBreakerActor.get sys
+
+         let (lookup: CircuitBreakerActorState Task) =
+            ref <? CircuitBreakerMessage.Lookup |> Async.toTask
+
+         lookup |> RouteUtil.unwrapTask)
    )
    |> ignore
