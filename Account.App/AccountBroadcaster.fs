@@ -9,7 +9,10 @@ open ActorUtil
 
 let init (system: ActorSystem) : AccountBroadcast =
    let mediator = DistributedPubSub.Get(system).Mediator
-   let signalRPath = $"/user/{ActorMetadata.signalR.Name}"
+   let signalRPath = ActorMetadata.signalR.Path.ToStringWithoutAddress()
+
+   let circuitBreakerPath =
+      ActorMetadata.circuitBreaker.SingletonPath.ToStringWithoutAddress()
 
    {
       accountEventPersisted =
@@ -38,9 +41,6 @@ let init (system: ActorSystem) : AccountBroadcast =
             )
       circuitBreaker =
          fun msg ->
-            let circuitBreakerPath =
-               $"/user/{ActorMetadata.circuitBreaker.Name}/{ActorMetadata.circuitBreaker.Name}"
-
             mediator.Tell(
                Send(
                   circuitBreakerPath,

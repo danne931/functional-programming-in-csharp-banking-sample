@@ -32,7 +32,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          logInfo $"Scheduling nightly account closure checker"
 
          let trigger = AccountClosureTriggers.scheduleNightlyCheck logInfo
-         let path = ActorMetadata.accountClosure.ProxyPath.Value
+         let path = ActorMetadata.accountClosure.ProxyPath
 
          let job =
             CreatePersistentJob(
@@ -50,7 +50,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          logInfo $"Scheduling monthly billing cycle"
 
          let trigger = BillingCycleTriggers.scheduleMonthly logInfo
-         let path = ActorMetadata.billingCycle.ProxyPath.Value
+         let path = ActorMetadata.billingCycle.ProxyPath
 
          let job =
             CreatePersistentJob(
@@ -68,7 +68,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          logInfo $"Scheduling deletion of accounts {accountIds}"
 
          let trigger = AccountClosureTriggers.deleteAccounts logInfo
-         let path = ActorMetadata.accountClosure.ProxyPath.Value
+         let path = ActorMetadata.accountClosure.ProxyPath
 
          let job =
             CreatePersistentJob(

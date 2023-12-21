@@ -110,78 +110,69 @@ module ActorMetadata =
 
    type ActorMetadata = {
       Name: string
-      Path: ActorPath option
-      ProxyPath: ActorPath option
-   }
+      Route: string
+   } with
 
-   let private path route =
-      ActorPath.Parse $"akka://bank/user/{route}"
+      member x.Path = ActorPath.Parse $"akka://bank/user/{x.Route}"
 
-   let account = {
-      Name = "account"
-      Path = Some <| path "account/account"
-      ProxyPath = Some <| path "account-proxy"
-   }
+      member x.SingletonPath =
+         ActorPath.Parse $"akka://bank/user/{x.Route}/{x.Route}"
+
+      member x.ProxyPath = ActorPath.Parse $"akka://bank/user/{x.Route}-proxy"
+
+   type ChildEntityActorMetadata = {
+      Name: string
+      RouteBuilder: string -> string
+   } with
+
+      member x.Path(entityId: string) =
+         ActorPath.Parse $"akka://bank/user/{x.RouteBuilder entityId}"
+
+   let account = { Name = "account"; Route = "account" }
 
    let accountClosure = {
-      Name = "account_closure"
-      Path = Some <| path "account_closure/account_closure"
-      ProxyPath = Some <| path "account_closure-proxy"
+      Name = "account-closure"
+      Route = "account-closure"
    }
 
    let internalTransfer = {
-      Name = "internal_transfer_recipient"
-      Path = None
-      ProxyPath = None
+      Name = "internal-transfer-recipient"
+      RouteBuilder =
+         fun accountId -> $"account/{accountId}/internal-transfer-recipient"
    }
 
    let domesticTransfer = {
-      Name = "domestic_transfer_recipient"
-      Path =
-         Some <| path "domestic_transfer_recipient/domestic_transfer_recipient"
-      ProxyPath = Some <| path "domestic_transfer_recipient-proxy"
+      Name = "domestic-transfer-recipient"
+      Route = "domestic-transfer-recipient"
    }
 
    let billingCycle = {
-      Name = "billing_cycle"
-      Path = Some <| path "billing_cycle/billing_cycle"
-      ProxyPath = Some <| path "billing_cycle-proxy"
+      Name = "billing-cycle"
+      Route = "billing-cycle"
    }
 
-   let email = {
-      Name = "email"
-      Path = None
-      ProxyPath = None
-   }
+   let email = { Name = "email"; Route = "email" }
 
-   let auditor = {
-      Name = "auditor"
-      Path = None
-      ProxyPath = None
-   }
+   let auditor = { Name = "auditor"; Route = "auditor" }
 
    let accountSeeder = {
       Name = "account-seeder"
-      Path = None
-      ProxyPath = None
+      Route = "account-seeder"
    }
 
    let signalR = {
       Name = "signal-r"
-      Path = None
-      ProxyPath = None
+      Route = "signal-r"
    }
 
    let scheduling = {
       Name = "scheduling"
-      Path = None
-      ProxyPath = None
+      Route = "scheduling"
    }
 
    let circuitBreaker = {
       Name = "circuit-breaker"
-      Path = None
-      ProxyPath = None
+      Route = "circuit-breaker"
    }
 
 let readJournal (system: ActorSystem) : SqlReadJournal =
