@@ -54,32 +54,11 @@ let actorProps () =
                         loop { state with Email = evt.Status }
                         <@> persistAsync evt
             | Persisted mailbox _ -> ignored ()
-            | LifecycleEvent e ->
-               logWarning mailbox $"lifecycle event - {e}"
-               // 1 - PreStart
-               ignored ()
-            | :? Akkling.Persistence.PersistentLifecycleEvent as e ->
-               logWarning mailbox $"persistent lifecycle event {e}"
-
-               match e with
-               // 2
-               | ReplaySucceed -> ignored ()
-               | ReplayFailed(exn, _) ->
-                  logError mailbox $"Persistence replay failed: %s{exn.Message}"
-                  ignored ()
-               | PersistRejected(exn, _, _)
-               | PersistFailed(exn, _, _) -> ignored ()
-            // 3
-            | :? Akka.Persistence.RecoveryCompleted ->
-               logWarning mailbox "recovery completed"
-               ignored ()
             | msg ->
-               logError
+               PersistentActorEventHandler.handleEvent
+                  PersistentActorEventHandler.init
                   mailbox
-                  $"Unknown message received -
-                  {msg.GetType().FullName}"
-
-               unhandled ()
+                  msg
       }
 
       loop {

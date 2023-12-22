@@ -3,8 +3,10 @@ module ActorUtil
 open System
 open Akkling
 open Akkling.Cluster.Sharding
+open Akkling.Persistence
 open Akka.Actor
 open Akka.Cluster.Sharding
+open Akka.Persistence
 open Akka.Persistence.Query
 open Akka.Persistence.Sql.Query
 open Akka.Cluster.Tools.PublishSubscribe
@@ -58,18 +60,18 @@ module ClusterMetadata =
       messageExtractor: IMessageExtractor
    }
 
+   let accountShardRegion = {
+      name = "account"
+      // TODO: Figure out ideal max #
+      messageExtractor = messageExtractor 1000
+   }
+
    let roles = {|
       web = "web-role"
       account = "account-role"
       signalR = "signal-r-role"
       scheduling = "scheduling-role"
    |}
-
-   let accountShardRegion = {
-      name = "account"
-      // TODO: Figure out ideal max #
-      messageExtractor = messageExtractor 1000
-   }
 
 module ActorMetadata =
    type CircuitBreakerMarker() =
@@ -195,3 +197,125 @@ let getEntityRef
    let shardId = shardRegionMeta.messageExtractor.ShardId entityId
 
    fac.RefFor shardId <| string entityId
+
+module PersistentActorEventHandler =
+   type T = {
+      LifecyclePreStart: Eventsourced<obj> -> Effect<obj>
+      LifecyclePostStop: Eventsourced<obj> -> Effect<obj>
+      LifecyclePreRestart: Eventsourced<obj> -> exn -> obj -> Effect<obj>
+      LifecyclePostRestart: Eventsourced<obj> -> exn -> Effect<obj>
+      RecoveryCompleted: Eventsourced<obj> -> Effect<obj>
+      ReplaySucceed: Eventsourced<obj> -> Effect<obj>
+      // After failure handler invoked, actor is stopped
+      ReplayFailed: Eventsourced<obj> -> exn -> obj -> Effect<obj>
+      // After rejection handler invoked, no automatic actions
+      PersistRejected: Eventsourced<obj> -> exn -> obj -> int64 -> Effect<obj>
+      // After failure handler invoked, actor is stopped
+      PersistFailed: Eventsourced<obj> -> exn -> obj -> int64 -> Effect<obj>
+      DeleteMessagesSuccess: Eventsourced<obj> -> Effect<obj>
+      // After failure handler invoked, no automatic actions
+      DeleteMessagesFailure:
+         Eventsourced<obj> -> DeleteMessagesFailure -> Effect<obj>
+      SaveSnapshotSuccess:
+         Eventsourced<obj> -> SaveSnapshotSuccess -> Effect<obj>
+      SaveSnapshotFailure:
+         Eventsourced<obj> -> SaveSnapshotFailure -> Effect<obj>
+      DeleteSnapshotSuccess: Eventsourced<obj> -> Effect<obj>
+      DeleteSnapshotFailure:
+         Eventsourced<obj> -> DeleteSnapshotFailure -> Effect<obj>
+      DeleteSnapshotsSuccess: Eventsourced<obj> -> Effect<obj>
+      DeleteSnapshotsFailure:
+         Eventsourced<obj> -> DeleteSnapshotsFailure -> Effect<obj>
+   }
+
+   let init = {
+      LifecyclePreStart = fun _ -> ignored ()
+      LifecyclePostStop = fun _ -> ignored ()
+      LifecyclePreRestart = fun _ _ _ -> ignored ()
+      LifecyclePostRestart = fun _ _ -> ignored ()
+      RecoveryCompleted = fun _ -> ignored ()
+      ReplaySucceed = fun _ -> ignored ()
+      ReplayFailed = fun _ _ _ -> ignored ()
+      PersistRejected = fun _ _ _ _ -> ignored ()
+      PersistFailed = fun _ _ _ _ -> ignored ()
+      DeleteMessagesSuccess = fun _ -> ignored ()
+      DeleteMessagesFailure = fun _ _ -> ignored ()
+      SaveSnapshotSuccess = fun _ _ -> ignored ()
+      SaveSnapshotFailure = fun _ _ -> ignored ()
+      DeleteSnapshotSuccess = fun _ -> ignored ()
+      DeleteSnapshotFailure = fun _ _ -> ignored ()
+      DeleteSnapshotsSuccess = fun _ -> ignored ()
+      DeleteSnapshotsFailure = fun _ _ -> ignored ()
+   }
+
+   let handleEvent
+      (handler: T)
+      (mailbox: Eventsourced<obj>)
+      (msg: obj)
+      : Effect<obj>
+      =
+      match msg with
+      | LifecycleEvent e ->
+         match e with
+         | PreStart ->
+            logDebug mailbox "<PreStart>"
+            handler.LifecyclePreStart mailbox
+         | PostStop ->
+            logDebug mailbox "<PostStop>"
+            handler.LifecyclePostStop mailbox
+         | PreRestart(err: exn, msg: obj) ->
+            logDebug mailbox $"<PreRestart>: {err} - {msg}"
+            handler.LifecyclePreRestart mailbox err msg
+         | PostRestart(err: exn) ->
+            logDebug mailbox $"<PostRestart>: {err}"
+            handler.LifecyclePostRestart mailbox err
+      | :? Akkling.Persistence.PersistentLifecycleEvent as evt ->
+         match evt with
+         | ReplaySucceed ->
+            logDebug mailbox "<ReplaySucceed>"
+            handler.ReplaySucceed mailbox
+         | ReplayFailed(err: exn, msg: obj) ->
+            logError mailbox $"<ReplayFailed>: %s{err.Message} - {msg}"
+            handler.ReplayFailed mailbox err msg
+         | PersistRejected(err: exn, evt: obj, sequenceNr: int64) ->
+            logError
+               mailbox
+               $"<PersistRejected>: %s{err.Message} - Sequence #{sequenceNr} - {evt}"
+
+            handler.PersistRejected mailbox err evt sequenceNr
+         | PersistFailed(err: exn, evt: obj, sequenceNr: int64) ->
+            logError
+               mailbox
+               $"<PersistFailed>: %s{err.Message} - Sequence #{sequenceNr} - {evt}"
+
+            handler.PersistFailed mailbox err evt sequenceNr
+      | :? Akka.Persistence.RecoveryCompleted ->
+         logDebug mailbox "<RecoveryCompleted>"
+         handler.RecoveryCompleted mailbox
+      | :? DeleteMessagesSuccess ->
+         logDebug mailbox "<DeleteMessagesSuccess>"
+         handler.DeleteMessagesSuccess mailbox
+      | :? DeleteMessagesFailure as err ->
+         logError mailbox $"<DeleteMessagesFailure>: {err.Cause}"
+         handler.DeleteMessagesFailure mailbox err
+      | :? SaveSnapshotSuccess as res ->
+         logDebug mailbox $"<SaveSnapshotSuccess>: {res.Metadata}"
+         handler.SaveSnapshotSuccess mailbox res
+      | :? SaveSnapshotFailure as err ->
+         logError mailbox $"<SaveSnapshotFailure>: {err.Metadata}"
+         handler.SaveSnapshotFailure mailbox err
+      | :? DeleteSnapshotSuccess ->
+         logDebug mailbox "<DeleteSnapshotSuccess>"
+         handler.DeleteSnapshotSuccess mailbox
+      | :? DeleteSnapshotFailure as err ->
+         logError mailbox $"<DeleteSnapshotFailure>: {err.Cause}"
+         handler.DeleteSnapshotFailure mailbox err
+      | :? DeleteSnapshotsSuccess ->
+         logDebug mailbox "<DeleteSnapshotsSuccess>"
+         handler.DeleteSnapshotsSuccess mailbox
+      | :? DeleteSnapshotsFailure as err ->
+         logError mailbox $"<DeleteSnapshotsFailure>: {err.Cause}"
+         handler.DeleteSnapshotsFailure mailbox err
+      | msg ->
+         logError mailbox $"<UnknownMessage>: %s{msg.GetType().FullName}"
+         unhandled ()

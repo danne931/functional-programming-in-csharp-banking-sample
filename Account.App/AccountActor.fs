@@ -196,45 +196,44 @@ let actorProps
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)
-         | LifecycleEvent _ -> return ignored ()
-         | :? Akka.Persistence.RecoveryCompleted -> return ignored ()
-         | :? Akka.Persistence.DeleteMessagesSuccess ->
-            if account.Status = AccountStatus.ReadyForDelete then
-               return DeleteSnapshots(SnapshotSelectionCriteria Int64.MaxValue)
-         | :? Akka.Persistence.DeleteMessagesFailure as e ->
-            logError $"Failure to delete message history %s{e.Cause.Message}"
-            return unhandled ()
-         | :? PersistentLifecycleEvent as e ->
-            match e with
-            | ReplaySucceed -> return ignored ()
-            | ReplayFailed(exn, _) ->
-               failwith $"Persistence replay failed: %s{exn.Message}"
-            | PersistRejected(exn, _, _)
-            | PersistFailed(exn, _, _) ->
-               broadcaster.accountEventPersistenceFail
-                  account.EntityId
-                  exn.Message
-               |> ignore
-
-               failwith $"Persistence failed: %s{exn.Message}"
-         | :? SaveSnapshotSuccess as res ->
-            let sequenceNr = res.Metadata.SequenceNr
-
-            return
-               DeleteSnapshots(SnapshotSelectionCriteria(sequenceNr - 1L))
-               <@> DeleteMessages sequenceNr
-         | :? SaveSnapshotFailure as e ->
-            logError $"SaveSnapshotFailure {e.Metadata}"
-            return unhandled ()
-         | :? DeleteSnapshotsSuccess ->
-            if account.Status = AccountStatus.ReadyForDelete then
-               return passivate ()
-         | :? DeleteSnapshotsFailure as e ->
-            logError $"DeleteSnapshotsFailure %s{e.Cause.Message}"
-            return unhandled ()
          | msg ->
-            logError $"Unknown message {msg}"
-            return unhandled ()
+            PersistentActorEventHandler.handleEvent
+               {
+                  PersistentActorEventHandler.init with
+                     DeleteMessagesSuccess =
+                        fun _ ->
+                           if account.Status = AccountStatus.ReadyForDelete then
+                              DeleteSnapshots(
+                                 SnapshotSelectionCriteria Int64.MaxValue
+                              )
+                           else
+                              ignored ()
+                     SaveSnapshotSuccess =
+                        fun _ res ->
+                           let sequenceNr = res.Metadata.SequenceNr
+
+                           DeleteSnapshots(
+                              SnapshotSelectionCriteria(sequenceNr - 1L)
+                           )
+                           <@> DeleteMessages sequenceNr
+                     DeleteSnapshotsSuccess =
+                        fun mailbox ->
+                           if account.Status = AccountStatus.ReadyForDelete then
+                              logDebug mailbox "<Passivate>"
+                              passivate ()
+                           else
+                              ignored ()
+                     PersistFailed =
+                        fun _ err evt sequenceNr ->
+                           broadcaster.accountEventPersistenceFail
+                              account.EntityId
+                              err.Message
+                           |> ignore
+
+                           ignored ()
+               }
+               mailbox
+               msg
       }
 
       loop None

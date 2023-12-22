@@ -70,21 +70,17 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
-      // Message serialization for messages from account nodes to
-      // AccountSeederActor cluster singleton
+      // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
       | :? SchedulingActor.Message
-      // Message serialization for messages from sharded account nodes to
-      // Email cluster singleton.
+      // Messages from sharded account nodes to Email cluster singleton.
       | :? EmailActor.EmailMessage
-      // Message serialization for messages from sharded account nodes to
-      // BillingCycle cluster singleton.
+      // Messages from sharded account nodes to BillingCycle cluster singleton.
       // Also for messages from SchedulingActor to Billing Cycle Proxy
       | :? BillingMessage
-      // Serialization for messages from sharded account nodes to
-      // AccountClosureActor cluster singleton. Also for messages
-      // from SchedulingActor to Account Closure Proxy
+      // Messages from sharded account nodes to AccountClosureActor cluster
+      // singleton. Also for messages from SchedulingActor to Account Closure Proxy
       | :? AccountClosureMessage as msg ->
          JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
       // Akka ShardRegionProxy defined in Akka.Hosting does not
@@ -111,13 +107,11 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? Map<Guid, AccountState>
       | :? List<AccountState>
       | :? CircuitBreakerActorState
-      // Serialization for messages sent over DistributedPubSub to
-      // CircuitBreakerActor.
+      // Messages sent over DistributedPubSub to CircuitBreakerActor.
       | :? CircuitBreakerMessage
-      // Serialization for CircuitBreakerActor persistence.
+      // CircuitBreakerActor persistence.
       | :? CircuitBreakerEvent
-      // Serialization for messages sent over DistributedPubSub to
-      // SignalRActor on Web node.
+      // Messages sent over DistributedPubSub to SignalRActor on Web node.
       | :? SignalRMessage
       // AccountActor persistence snapshot.
       | :? AccountState as o ->
