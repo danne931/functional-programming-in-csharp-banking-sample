@@ -57,7 +57,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
                path,
                {
                   Manifest = "BillingCycleActorMessage"
-                  Message = BillingMessage.BillingCycleFanout
+                  Message = BillingCycleMessage.BillingCycleFanout
                },
                trigger
             )

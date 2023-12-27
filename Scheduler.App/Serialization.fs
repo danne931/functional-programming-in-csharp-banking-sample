@@ -18,7 +18,7 @@ open BillingStatement
 
 type private QuartzBillingMessageEnvelope = {
    Manifest: string
-   Message: BillingMessage
+   Message: BillingCycleMessage
 }
 
 type private QuartzAccountClosureMessageEnvelope = {

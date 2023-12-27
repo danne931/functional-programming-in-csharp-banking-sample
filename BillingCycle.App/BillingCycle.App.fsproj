@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <Compile Include="Api.fs" />
+    <Compile Include="BillingStatementActor.fs" />
     <Compile Include="BillingCycleActor.fs" />
   </ItemGroup>
 

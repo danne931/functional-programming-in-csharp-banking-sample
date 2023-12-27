@@ -102,6 +102,10 @@ module ActorMetadata =
       class
       end
 
+   type BillingStatementMarker() =
+      class
+      end
+
    type AccountMarker() =
       class
       end
@@ -151,6 +155,11 @@ module ActorMetadata =
    let billingCycle = {
       Name = "billing-cycle"
       Route = "billing-cycle"
+   }
+
+   let billingStatement = {
+      Name = "billing-statement"
+      Route = "billing-statement"
    }
 
    let email = { Name = "email"; Route = "email" }

@@ -60,7 +60,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? CircuitBreakerActorState -> "CircuitBreakerActorState"
       | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
       | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
-      | :? BillingMessage -> "BillingCycleActorMessage"
+      | :? BillingCycleMessage -> "BillingCycleActorMessage"
       | :? EmailActor.EmailMessage -> "EmailActorMessage"
       | :? ShardEnvelope as e ->
          match e.Message with
@@ -76,9 +76,8 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? SchedulingActor.Message
       // Messages from sharded account nodes to Email cluster singleton.
       | :? EmailActor.EmailMessage
-      // Messages from sharded account nodes to BillingCycle cluster singleton.
-      // Also for messages from SchedulingActor to Billing Cycle Proxy
-      | :? BillingMessage
+      // Messages from SchedulingActor to BillingCycleActor
+      | :? BillingCycleMessage
       // Messages from sharded account nodes to AccountClosureActor cluster
       // singleton. Also for messages from SchedulingActor to Account Closure Proxy
       | :? AccountClosureMessage as msg ->
@@ -153,7 +152,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "CircuitBreakerEvent" -> typeof<CircuitBreakerEvent>
          | "CircuitBreakerActorMessage" -> typeof<CircuitBreakerMessage>
          | "CircuitBreakerActorState" -> typeof<CircuitBreakerActorState>
-         | "BillingCycleActorMessage" -> typeof<BillingMessage>
+         | "BillingCycleActorMessage" -> typeof<BillingCycleMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>

@@ -88,7 +88,7 @@ builder.Services.AddAkka(
             BankSerializer.Name,
             [
                typedefof<SchedulingActor.Message>
-               typedefof<BillingMessage>
+               typedefof<BillingCycleMessage>
                typedefof<AccountClosureMessage>
             ],
             fun system -> BankSerializer(system)

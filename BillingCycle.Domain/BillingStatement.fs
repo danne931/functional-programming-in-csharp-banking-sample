@@ -63,10 +63,12 @@ let toDto (statement: BillingStatement) : BillingStatementDto = {
    AccountId = statement.AccountId
 }
 
-type BillingMessage =
+type BillingCycleMessage =
+   | BillingCycleFanout
+   | BillingCycleFinished
+
+type BillingStatementMessage =
    | RegisterBillingStatement of BillingStatement
    | PersistBillingStatements
    | PersistBillingStatementsResponse of Result<int list, Err>
    | GetWriteReadyStatements
-   | BillingCycleFanout
-   | BillingCycleFinished

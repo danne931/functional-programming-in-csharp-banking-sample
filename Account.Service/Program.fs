@@ -47,8 +47,8 @@ builder.Services.AddAkka(
       (initConfig builder)
          .AddHocon(
             """
-            billing-cycle-mailbox: {
-               mailbox-type: "BillingCycleActor+PriorityMailbox, BillingCycle.App"
+            billing-statement-mailbox: {
+               mailbox-type: "BillingStatementActor+PriorityMailbox, BillingCycle.App"
             }
             """,
             HoconAddMode.Prepend
@@ -179,6 +179,10 @@ builder.Services.AddAkka(
                   breaker
                   router
                |> untyped
+            )
+
+            registry.Register<ActorMetadata.BillingStatementMarker>(
+               BillingStatementActor.start system |> untyped
             )
 
             ())

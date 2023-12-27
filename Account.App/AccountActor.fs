@@ -31,7 +31,7 @@ let actorProps
       ActorSystem -> IActorRef<DomesticTransferRecipientActor.Message>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
-   (getBillingCycleActor: ActorSystem -> IActorRef<BillingMessage>)
+   (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    (userPersistence: UserPersistence)
    =
    let createUser (user: User) (evt: BankEvent<CreatedAccount>) = async {
@@ -164,7 +164,7 @@ let actorProps
                         |}
                         txns
 
-                  getBillingCycleActor mailbox.System
+                  getBillingStatementActor mailbox.System
                   <! RegisterBillingStatement billing
 
                   // Maintenance fee conditionally applied after account transactions
@@ -273,5 +273,5 @@ let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
       DomesticTransferRecipientActor.get
       EmailActor.get
       AccountClosureActor.get
-      BillingCycleActor.get
+      BillingStatementActor.get
       { createUser = createUser }
