@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.fsproj" />
-    <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
+    <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
 </Project>

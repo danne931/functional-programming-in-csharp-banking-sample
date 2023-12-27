@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../BillingCycle.Domain/BillingCycle.Domain.fsproj" />
+    <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../Scheduler.App/Scheduler.App.fsproj" />

@@ -48,7 +48,7 @@ builder.Services.AddAkka(
          .AddHocon(
             """
             billing-statement-mailbox: {
-               mailbox-type: "BillingStatementActor+PriorityMailbox, BillingCycle.App"
+               mailbox-type: "BillingStatementActor+PriorityMailbox, Billing.App"
             }
             """,
             HoconAddMode.Prepend

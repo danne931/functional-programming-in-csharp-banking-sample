@@ -53,8 +53,8 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let getAccountClosureActor (_: ActorSystem) =
       typed accountClosureProbe :> IActorRef<AccountClosureMessage>
 
-   let getBillingCycleActor (_: ActorSystem) =
-      typed billingProbe :> IActorRef<BillingMessage>
+   let getBillingStatementActor (_: ActorSystem) =
+      typed billingProbe :> IActorRef<BillingStatementMessage>
 
    let accountActor =
       spawn tck ActorMetadata.account.Name
@@ -65,7 +65,7 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
             getDomesticTransferActor
             getEmailActor
             getAccountClosureActor
-            getBillingCycleActor
+            getBillingStatementActor
             userPersistence
 
    {|
@@ -354,7 +354,7 @@ let tests =
 
       akkaTest
          "If no account transactions found for a billing cycle then no
-          interaction with billing cycle and no change in account state."
+          interaction with billing statement and no change in account state."
       <| Some config
       <| fun tck ->
          let o = init tck accountPersistenceNoEvents
@@ -378,7 +378,7 @@ let tests =
             "Account state should remain unchanged"
 
       akkaTest
-         "AccountActor interacts with BillingCycleActor & EmailActor
+         "AccountActor interacts with BillingStatementActor & EmailActor
           when account transactions for a billing cycle found."
       <| Some config
       <| fun tck ->
@@ -396,14 +396,13 @@ let tests =
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         match o.billingProbe.ExpectMsg<BillingMessage>() with
-         | BillingMessage.RegisterBillingStatement statement ->
+         match o.billingProbe.ExpectMsg<BillingStatementMessage>() with
+         | BillingStatementMessage.RegisterBillingStatement statement ->
             Expect.sequenceEqual
                (statement.Transactions |> List.map (fun k -> k.Name))
                (Stub.billingTransactions |> List.map (fun k -> k.Name))
                "RegisterBillingStatements msg should send transactions equivalent
                 to those associated with the account events"
-
 
             Expect.equal
                statement.Balance
@@ -417,7 +416,7 @@ let tests =
          | msg ->
             Expect.isTrue
                false
-               $"BillingCycleActor expects RegisterBillingStatement
+               $"BillingStatementActor expects RegisterBillingStatement
                  message. Received message: {msg}"
 
          // account create email

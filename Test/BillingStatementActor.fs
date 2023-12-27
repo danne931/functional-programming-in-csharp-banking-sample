@@ -1,4 +1,4 @@
-module BillingCycleActorTests
+module BillingStatementActorTests
 
 open System
 open System.Threading
@@ -15,8 +15,8 @@ open Util
 let config () =
    Configuration.parse
       """
-      billing-cycle-mailbox: {
-         mailbox-type: "BillingCycleActor+PriorityMailbox, BillingCycle.App"
+      billing-statement-mailbox: {
+         mailbox-type: "BillingStatementActor+PriorityMailbox, Billing.App"
       }
       """
 
@@ -24,60 +24,67 @@ let billingPersistence: BillingPersistence = {
    saveBillingStatements = fun statements -> TaskResult.ok [ statements.Length ]
 }
 
-let stateAfter2Registrations: BillingCycleActor.BulkWriteState = {
+let stateAfter2Registrations: BillingStatementActor.BulkWriteState = {
    IsScheduled = true
    Billing = [ Stub.billingStatement; Stub.billingStatement ]
 }
 
 let init (tck: TestKit.Tck) =
-   let accountAref = tck.CreateTestProbe() |> typed :> IActorRef<AccountMessage>
-
    let props =
-      BillingCycleActor.actorProps
-      <| getAccountEntityRef accountAref
-      <| billingPersistence
-      <| Stub.accountBroadcast
+      BillingStatementActor.actorProps billingPersistence
 
    spawn tck "mock-billing" props
 
 [<Tests>]
 let tests =
-   testList "Billing Cycle Actor" [
+   testList "Billing Statement Actor" [
       akkaTest
          "RegisterBillingStatement message should accumulate billing statements in actor state"
       <| Some(config ())
       <| fun tck ->
          let ref = init tck
-         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
+
+         let msg =
+            BillingStatementMessage.RegisterBillingStatement
+               Stub.billingStatement
+
          ref <! msg
          ref <! msg
-         ref <! BillingMessage.GetWriteReadyStatements
+         ref <! BillingStatementMessage.GetWriteReadyStatements
          ATK.expectMsg tck stateAfter2Registrations |> ignore
 
       akkaTest "Actor state is reset after PersistBillingStatements message"
       <| Some(config ())
       <| fun tck ->
          let ref = init tck
-         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
+
+         let msg =
+            BillingStatementMessage.RegisterBillingStatement
+               Stub.billingStatement
+
          ref <! msg
          ref <! msg
          Thread.Sleep(100)
-         ref <! BillingMessage.PersistBillingStatements
-         ref <! BillingMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingCycleActor.initState |> ignore
+         ref <! BillingStatementMessage.PersistBillingStatements
+         ref <! BillingStatementMessage.GetWriteReadyStatements
+         ATK.expectMsg tck BillingStatementActor.initState |> ignore
 
       akkaTest "Actor state is reset after batch size reached"
       <| Some(config ())
       <| fun tck ->
          let ref = init tck
-         let msg = BillingMessage.RegisterBillingStatement Stub.billingStatement
-         let maxMinus1 = BillingCycleActor.batchSizeLimit - 1
+
+         let msg =
+            BillingStatementMessage.RegisterBillingStatement
+               Stub.billingStatement
+
+         let maxMinus1 = BillingStatementActor.batchSizeLimit - 1
 
          for _ in [ 1..maxMinus1 ] do
             ref <! msg
 
-         ref <! BillingMessage.GetWriteReadyStatements
-         let res = tck.ExpectMsg<BillingCycleActor.BulkWriteState>()
+         ref <! BillingStatementMessage.GetWriteReadyStatements
+         let res = tck.ExpectMsg<BillingStatementActor.BulkWriteState>()
 
          Expect.equal
             res.Billing.Length
@@ -89,6 +96,6 @@ let tests =
          // to its initial state.
          ref <! msg
 
-         ref <! BillingMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingCycleActor.initState |> ignore
+         ref <! BillingStatementMessage.GetWriteReadyStatements
+         ATK.expectMsg tck BillingStatementActor.initState |> ignore
    ]
