@@ -93,16 +93,11 @@ let actorProps
                | DeleteAll accountIds ->
                   deleteHistoricalRecords accountIds |!> retype mailbox.Self
                   ignored ()
-            | LifecycleEvent _ -> ignored ()
-            | :? Akka.Persistence.RecoveryCompleted -> ignored ()
-            | :? PersistentLifecycleEvent as _ -> ignored ()
-            | :? SaveSnapshotSuccess -> ignored ()
-            | :? SaveSnapshotFailure as e ->
-               logError $"SaveSnapshotFailure {e.Cause}"
-               unhandled ()
             | msg ->
-               logError $"Unknown message {msg}"
-               unhandled ()
+               PersistentActorEventHandler.handleEvent
+                  PersistentActorEventHandler.init
+                  mailbox
+                  msg
       }
 
       loop initState
