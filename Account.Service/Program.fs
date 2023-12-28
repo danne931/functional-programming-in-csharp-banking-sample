@@ -98,7 +98,8 @@ builder.Services.AddAkka(
             ActorMetadata.billingCycle.Name,
             (fun system _ resolver ->
                let typedProps =
-                  BillingCycleActor.initProps
+                  BillingCycleActor.actorProps
+                  <| Env.config.BillingCycleFanoutThrottle
                   <| AccountActor.get system
                   <| resolver.GetService<AccountBroadcast>()
 

@@ -5,12 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Types.fs" />
     <Compile Include="Environment.fs" />
     <Compile Include="ActivePatterns.fs" />
     <Compile Include="Time.fs" />
     <Compile Include="Validators.fs" />
     <Compile Include="TCP.fs" />
-    <Compile Include="Types.fs" />
     <Compile Include="Postgres.fs" />
     <Compile Include="Actor.fs" />
     <Compile Include="Serialization.fs" />

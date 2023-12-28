@@ -86,3 +86,9 @@ type Email = private {
    static member deserialize(email: string) : Email = { Email = email }
 
    static member empty = { Email = "" }
+
+type StreamThrottle = {
+   Count: int
+   Burst: int
+   Duration: TimeSpan
+}

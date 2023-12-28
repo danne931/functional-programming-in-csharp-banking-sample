@@ -30,8 +30,7 @@ let stateAfter2Registrations: BillingStatementActor.BulkWriteState = {
 }
 
 let init (tck: TestKit.Tck) =
-   let props =
-      BillingStatementActor.actorProps billingPersistence
+   let props = BillingStatementActor.actorProps billingPersistence
 
    spawn tck "mock-billing" props
 

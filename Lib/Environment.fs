@@ -2,8 +2,10 @@
 module Env
 
 open Microsoft.AspNetCore.Builder
+open System
 open System.Net
 open FsConfig
+open Lib.Types
 
 let builder = WebApplication.CreateBuilder()
 
@@ -59,6 +61,11 @@ type private BankConfigInput = {
       ReadinessPort: int option
       LivenessPort: int option
    |}
+   BillingCycleFanoutThrottle: {|
+      Count: int option
+      Burst: int option
+      Seconds: int option
+   |}
 }
 
 type BankConfig = {
@@ -70,6 +77,7 @@ type BankConfig = {
    ClusterStartupMethod: ClusterStartupMethod
    SerilogOutputFile: string
    AkkaHealthCheck: AkkaHealthCheck
+   BillingCycleFanoutThrottle: StreamThrottle
 }
 
 let config =
@@ -109,6 +117,18 @@ let config =
                input.AkkaHealthCheck.LivenessPort |> Option.defaultValue 11000
             ReadinessPort =
                input.AkkaHealthCheck.ReadinessPort |> Option.defaultValue 11001
+         }
+         BillingCycleFanoutThrottle = {
+            Count =
+               input.BillingCycleFanoutThrottle.Count
+               |> Option.defaultValue 10000
+            Burst =
+               input.BillingCycleFanoutThrottle.Burst
+               |> Option.defaultValue 10000
+            Duration =
+               input.BillingCycleFanoutThrottle.Seconds
+               |> Option.defaultValue 1
+               |> TimeSpan.FromSeconds
          }
       }
    | Error err ->

@@ -4,12 +4,14 @@ module BillingCycleActor
 open System
 open Akka.Actor
 open Akka.Hosting
+open Akka.Streams
 open Akkling.Streams
 open Akkling
 
 open BillingStatement
 open Bank.Account.Domain
 open ActorUtil
+open Lib.Types
 
 let private forwardToAccount
    (getAccountRef: EntityRefGetter<AccountMessage>)
@@ -26,19 +28,27 @@ let private forwardToAccount
 
 let private fanOutBillingCycleMessage
    system
+   (throttle: StreamThrottle)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    task {
+      let source = (readJournal system).CurrentPersistenceIds()
+      let mat = system.Materializer()
+
       do!
-         ActorUtil
-            .readJournal(system)
-            .CurrentPersistenceIds()
-            .RunForeach(forwardToAccount getAccountRef, system.Materializer())
+         source
+         |> Source.throttle
+               ThrottleMode.Shaping
+               throttle.Burst
+               throttle.Count
+               throttle.Duration
+         |> Source.runForEach mat (forwardToAccount getAccountRef)
 
       return BillingCycleFinished
    }
 
 let actorProps
+   (throttle: StreamThrottle)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (broadcaster: AccountBroadcast)
    =
@@ -48,7 +58,8 @@ let actorProps
          logInfo ctx "Start billing cycle"
          broadcaster.endBillingCycle () |> ignore
 
-         fanOutBillingCycleMessage ctx.System getAccountRef |> Async.AwaitTask
+         fanOutBillingCycleMessage ctx.System throttle getAccountRef
+         |> Async.AwaitTask
          |!> retype ctx.Self
          |> ignored
       | BillingCycleFinished ->
@@ -59,9 +70,3 @@ let actorProps
 
 let get (system: ActorSystem) : IActorRef<BillingCycleMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.BillingCycleMarker>()
-
-let initProps
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   (broadcaster: AccountBroadcast)
-   =
-   actorProps getAccountRef broadcaster
