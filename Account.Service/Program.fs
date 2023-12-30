@@ -113,6 +113,7 @@ builder.Services.AddAkka(
                   AccountClosureActor.initProps system
                   <| SchedulingActor.get registry
                   <| AccountActor.get system
+                  <| Env.config.AccountDeleteThrottle
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)

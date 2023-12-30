@@ -204,7 +204,6 @@ type AccountClosureMessage =
    | DeleteAll of Guid list
    | ReverseClosure of Guid
    | GetRegisteredAccounts
-   | DeleteHistoricalRecordsResponse of Result<Email list option, Err>
 
 type AccountSeederMessage =
    | SeedAccounts

@@ -66,6 +66,11 @@ type private BankConfigInput = {
       Burst: int option
       Seconds: int option
    |}
+   AccountDeleteThrottle: {|
+      Count: int option
+      Burst: int option
+      Seconds: int option
+   |}
 }
 
 type BankConfig = {
@@ -78,6 +83,7 @@ type BankConfig = {
    SerilogOutputFile: string
    AkkaHealthCheck: AkkaHealthCheck
    BillingCycleFanoutThrottle: StreamThrottle
+   AccountDeleteThrottle: StreamThrottle
 }
 
 let config =
@@ -127,6 +133,14 @@ let config =
                |> Option.defaultValue 10000
             Duration =
                input.BillingCycleFanoutThrottle.Seconds
+               |> Option.defaultValue 1
+               |> TimeSpan.FromSeconds
+         }
+         AccountDeleteThrottle = {
+            Count = input.AccountDeleteThrottle.Count |> Option.defaultValue 5
+            Burst = input.AccountDeleteThrottle.Burst |> Option.defaultValue 5
+            Duration =
+               input.AccountDeleteThrottle.Seconds
                |> Option.defaultValue 1
                |> TimeSpan.FromSeconds
          }
