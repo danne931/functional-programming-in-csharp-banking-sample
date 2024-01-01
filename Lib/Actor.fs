@@ -74,6 +74,10 @@ module ClusterMetadata =
    |}
 
 module ActorMetadata =
+   type AccountEventConsumerMarker() =
+      class
+      end
+
    type CircuitBreakerMarker() =
       class
       end
@@ -139,6 +143,11 @@ module ActorMetadata =
    let accountClosure = {
       Name = "account-closure"
       Route = "account-closure"
+   }
+
+   let accountEventConsumer = {
+      Name = "account-event-consumer"
+      Route = "account-event-consumer"
    }
 
    let internalTransfer = {

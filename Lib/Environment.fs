@@ -71,6 +71,10 @@ type private BankConfigInput = {
       Burst: int option
       Seconds: int option
    |}
+   AccountEventProjectionChunking: {|
+      Size: int option
+      Seconds: int option
+   |}
 }
 
 type BankConfig = {
@@ -84,6 +88,7 @@ type BankConfig = {
    AkkaHealthCheck: AkkaHealthCheck
    BillingCycleFanoutThrottle: StreamThrottle
    AccountDeleteThrottle: StreamThrottle
+   AccountEventProjectionChunking: StreamChunking
 }
 
 let config =
@@ -142,6 +147,15 @@ let config =
             Duration =
                input.AccountDeleteThrottle.Seconds
                |> Option.defaultValue 1
+               |> TimeSpan.FromSeconds
+         }
+         AccountEventProjectionChunking = {
+            Size =
+               input.AccountEventProjectionChunking.Size
+               |> Option.defaultValue 100
+            Duration =
+               input.AccountEventProjectionChunking.Seconds
+               |> Option.defaultValue 15
                |> TimeSpan.FromSeconds
          }
       }

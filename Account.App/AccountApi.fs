@@ -9,6 +9,7 @@ open FsToolkit.ErrorHandling
 open Validus
 
 open Lib.Types
+open Lib.Postgres
 open Bank.Account.Domain
 
 let processCommand
@@ -35,3 +36,27 @@ let getAccountEvents
 let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
    let ref = AccountActor.get sys accountId
    ref <? AccountMessage.GetAccount |> Async.toTask
+
+let upsertAccounts (accounts: AccountState list) =
+   let sqlParams =
+      accounts
+      |> List.map (fun account ->
+         let dto = account.toDto ()
+
+         [
+            "@id", Sql.uuid dto.Id
+            "@email", Sql.text dto.Email
+            "@firstName", Sql.text dto.FirstName
+            "@lastName", Sql.text dto.LastName
+            "@balance", Sql.money dto.Balance
+         ])
+
+   pgTransaction [
+      "INSERT into accounts \
+         (id, email, first_name, last_name, balance) \
+         VALUES (@id, @email, @firstName, @lastName, @balance) \
+         ON CONFLICT (id) \
+         DO \
+            UPDATE SET balance = @balance;",
+      sqlParams
+   ]

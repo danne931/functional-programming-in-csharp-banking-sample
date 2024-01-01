@@ -24,7 +24,11 @@ type AkkaPersistenceEventAdapter() =
 
       member x.ToJournal(evt: obj) : obj =
          let envelope = envelopeFromJournal evt
-         Tagged(evt, Set.empty<string>.Add(envelope.EventName))
+
+         Tagged(
+            evt,
+            Set.empty<string>.Add("AccountEvent").Add(envelope.EventName)
+         )
 
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
@@ -44,6 +48,7 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.Manifest(o: obj) =
       match o with
+      | :? AccountEventConsumerState -> "AccountEventConsumerState"
       | :? AccountSeederMessage -> "AccountSeederMessage"
       | :? SchedulingActor.Message -> "SchedulingActorMessage"
       | :? AccountClosureMessage -> "AccountClosureActorMessage"
@@ -70,6 +75,8 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
+      // AccountEventConsumerActor projection offset snapshot
+      | :? AccountEventConsumerState
       // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
@@ -140,6 +147,7 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.FromBinary(bytes: byte[], manifest: string) : obj =
       let deserializeToType =
          match manifest with
+         | "AccountEventConsumerState" -> typeof<AccountEventConsumerState>
          | "AccountState" -> typeof<AccountState>
          | "AccountStateOption" -> typeof<AccountState option>
          | "AccountStateMap" -> typeof<Map<Guid, AccountState>>

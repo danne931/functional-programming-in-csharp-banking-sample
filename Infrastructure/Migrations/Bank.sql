@@ -2,6 +2,7 @@ SET timezone = 'America/Los_Angeles';
 
 DROP TABLE IF EXISTS billingstatements;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS accounts;
 
 CREATE TABLE users (
     first_name VARCHAR(50) NOT NULL,
@@ -21,4 +22,13 @@ CREATE TABLE billingstatements (
     year INT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+);
+
+CREATE TABLE accounts (
+    id UUID PRIMARY KEY REFERENCES users (account_id) ON DELETE CASCADE,
+    email VARCHAR(255) UNIQUE,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    balance MONEY NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

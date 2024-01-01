@@ -92,3 +92,5 @@ type StreamThrottle = {
    Burst: int
    Duration: TimeSpan
 }
+
+type StreamChunking = { Size: int; Duration: TimeSpan }

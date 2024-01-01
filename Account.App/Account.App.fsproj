@@ -7,6 +7,7 @@
     <Compile Include="CircuitBreakerActor.fs" />
     <Compile Include="AccountBroadcaster.fs" />
     <Compile Include="AccountClosureApi.fs" />
+    <Compile Include="AccountEventConsumerActor.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="AccountApi.fs" />

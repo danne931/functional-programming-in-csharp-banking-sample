@@ -11,6 +11,7 @@ open Akka.Routing
 open Akkling
 
 open Bank.Account.Domain
+open Bank.Account.Api
 open Bank.Infrastructure
 open Scheduler.Infrastructure
 open ActorUtil
@@ -114,6 +115,18 @@ builder.Services.AddAkka(
                   <| SchedulingActor.get registry
                   <| AccountActor.get system
                   <| Env.config.AccountDeleteThrottle
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingleton<ActorMetadata.AccountEventConsumerMarker>(
+            ActorMetadata.accountEventConsumer.Name,
+            (fun system registry _ ->
+               let typedProps =
+                  AccountEventConsumerActor.actorProps
+                  <| AccountActor.get system
+                  <| Env.config.AccountEventProjectionChunking
+                  <| upsertAccounts
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
