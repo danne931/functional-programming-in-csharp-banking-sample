@@ -12,6 +12,7 @@ open Akkling
 
 open Bank.Account.Domain
 open Bank.Account.Api
+open Bank.BillingCycle.Api
 open Bank.Infrastructure
 open Scheduler.Infrastructure
 open ActorUtil
@@ -46,14 +47,6 @@ builder.Services.AddAkka(
          << AkkaInfra.withLogging
 
       (initConfig builder)
-         .AddHocon(
-            """
-            billing-statement-mailbox: {
-               mailbox-type: "BillingStatementActor+PriorityMailbox, Billing.App"
-            }
-            """,
-            HoconAddMode.Prepend
-         )
          .WithSqlPersistence(
             Env.config.ConnectionStrings.PostgresAdoFormat,
             Env.config.AkkaPersistence.DbProvider,
@@ -197,7 +190,14 @@ builder.Services.AddAkka(
             )
 
             registry.Register<ActorMetadata.BillingStatementMarker>(
-               BillingStatementActor.start system |> untyped
+               BillingStatementActor.start
+                  system
+                  {
+                     saveBillingStatements = saveBillingStatements
+                  }
+                  Env.config.BillingStatementPersistenceChunking
+                  Env.config.BillingStatementPersistenceBackoffRestart
+               |> untyped
             )
 
             ())

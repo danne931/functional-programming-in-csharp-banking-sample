@@ -49,6 +49,50 @@ type ClusterStartupMethod =
    | DiscoveryConfig of ClusterDiscoveryStartup
    | DiscoveryKubernetes of ClusterDiscoveryKubernetesStartup
 
+type StreamThrottleInput = {|
+   Count: int option
+   Burst: int option
+   Seconds: int option
+|}
+
+type StreamChunkingInput = {|
+   Size: int option
+   Seconds: int option
+|}
+
+type StreamBackoffRestartSettingsInput = {|
+   MinBackoffSeconds: int option
+   MaxBackoffSeconds: int option
+   RandomFactor: float option
+   MaxRestarts: int option
+   MaxRestartsWithinSeconds: int option
+|}
+
+let streamBackoffRestartSettingsFromInput
+   (input: StreamBackoffRestartSettingsInput)
+   =
+   let restartSettings =
+      Akka.Streams.RestartSettings.Create(
+         input.MinBackoffSeconds
+         |> Option.defaultValue 3
+         |> TimeSpan.FromSeconds,
+
+         input.MaxBackoffSeconds
+         |> Option.defaultValue 30
+         |> TimeSpan.FromSeconds,
+
+         // Adds 20% "noise" to vary intervals slightly
+         input.RandomFactor |> Option.defaultValue 0.2
+      )
+
+   restartSettings.WithMaxRestarts(
+      input.MaxRestarts |> Option.defaultValue 10,
+
+      input.MaxRestartsWithinSeconds
+      |> Option.defaultValue 20
+      |> TimeSpan.FromSeconds
+   )
+
 type private BankConfigInput = {
    ConnectionStrings: Connection
    AkkaRemoting: {| Host: string option; Port: int |}
@@ -61,20 +105,11 @@ type private BankConfigInput = {
       ReadinessPort: int option
       LivenessPort: int option
    |}
-   BillingCycleFanoutThrottle: {|
-      Count: int option
-      Burst: int option
-      Seconds: int option
-   |}
-   AccountDeleteThrottle: {|
-      Count: int option
-      Burst: int option
-      Seconds: int option
-   |}
-   AccountEventProjectionChunking: {|
-      Size: int option
-      Seconds: int option
-   |}
+   BillingCycleFanoutThrottle: StreamThrottleInput
+   AccountDeleteThrottle: StreamThrottleInput
+   AccountEventProjectionChunking: StreamChunkingInput
+   BillingStatementPersistenceChunking: StreamChunkingInput
+   BillingStatementPersistenceBackoffRestart: StreamBackoffRestartSettingsInput
 }
 
 type BankConfig = {
@@ -89,6 +124,8 @@ type BankConfig = {
    BillingCycleFanoutThrottle: StreamThrottle
    AccountDeleteThrottle: StreamThrottle
    AccountEventProjectionChunking: StreamChunking
+   BillingStatementPersistenceChunking: StreamChunking
+   BillingStatementPersistenceBackoffRestart: Akka.Streams.RestartSettings
 }
 
 let config =
@@ -158,6 +195,18 @@ let config =
                |> Option.defaultValue 15
                |> TimeSpan.FromSeconds
          }
+         BillingStatementPersistenceChunking = {
+            Size =
+               input.BillingStatementPersistenceChunking.Size
+               |> Option.defaultValue 1000
+            Duration =
+               input.BillingStatementPersistenceChunking.Seconds
+               |> Option.defaultValue 3
+               |> TimeSpan.FromSeconds
+         }
+         BillingStatementPersistenceBackoffRestart =
+            streamBackoffRestartSettingsFromInput
+               input.BillingStatementPersistenceBackoffRestart
       }
    | Error err ->
       match err with
