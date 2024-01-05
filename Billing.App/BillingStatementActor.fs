@@ -1,6 +1,7 @@
 [<RequireQualifiedAccess>]
 module BillingStatementActor
 
+open System
 open Akka.Actor
 open Akka.Hosting
 open Akkling
@@ -18,8 +19,15 @@ let get (system: ActorSystem) : IActorRef<BillingStatementMessage> =
    typed
    <| ActorRegistry.For(system).Get<ActorMetadata.BillingStatementMarker>()
 
-type BulkWriteState = { FailedWrites: BillingStatement seq }
-let private initState = { FailedWrites = Seq.empty }
+type BulkWriteState = {
+   FailedWrites: BillingStatement seq
+   IsRetryScheduled: bool
+}
+
+let private initState = {
+   FailedWrites = Seq.empty
+   IsRetryScheduled = false
+}
 
 let actorProps (billingRef: unit -> IActorRef<BillingStatementMessage>) =
    let handler (ctx: Actor<BillingStatementMessage>) =
@@ -29,12 +37,17 @@ let actorProps (billingRef: unit -> IActorRef<BillingStatementMessage>) =
             ctx.Sender() <! state
             ignored ()
          | WriteFail statements ->
+            if not state.IsRetryScheduled then
+               ctx.Schedule (TimeSpan.FromSeconds 5) ctx.Self RetryFailedWrites
+               |> ignore
+
             let newState = {
                FailedWrites = state.FailedWrites |> Seq.append statements
+               IsRetryScheduled = true
             }
 
             become <| loop newState
-         | WriteSuccess ->
+         | RetryFailedWrites ->
             if Seq.isEmpty state.FailedWrites then
                ignored ()
             else
@@ -84,7 +97,7 @@ let start
             match res with
             | Ok o ->
                SystemLog.info system $"Saved billing statements {o}"
-               errorHandler <! WriteSuccess
+               errorHandler <! RetryFailedWrites
                statements
             | Error e ->
                errorHandler <! WriteFail statements
