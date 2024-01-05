@@ -68,7 +68,5 @@ type BillingCycleMessage =
    | BillingCycleFinished
 
 type BillingStatementMessage =
-   | WriteFail of BillingStatement seq
-   | RetryFailedWrites
    | RegisterBillingStatement of BillingStatement
    | GetFailedWrites
