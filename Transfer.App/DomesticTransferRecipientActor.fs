@@ -63,7 +63,7 @@ type Message =
 let actorProps
    (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
-   (emailActor: IActorRef<EmailActor.EmailMessage>)
+   (getEmailActor: unit -> IActorRef<EmailActor.EmailMessage>)
    (requestTransfer: BankEvent<TransferPending> -> TaskResult<Response, string>)
    =
    let handler (mailbox: Actor<obj>) (message: obj) =
@@ -150,7 +150,7 @@ let actorProps
                | Contains "InvalidAction" ->
                   logError $"Transfer API requires code update: {errMsg}"
 
-                  emailActor
+                  getEmailActor ()
                   <! EmailActor.ApplicationErrorRequiresSupport errMsg
 
                   Unhandled
@@ -181,7 +181,11 @@ let start
    (router: Akka.Routing.Pool)
    =
    let prop =
-      actorProps breaker getAccountRef (EmailActor.get system) domesticTransfer
+      actorProps
+         breaker
+         getAccountRef
+         (fun _ -> EmailActor.get system)
+         domesticTransfer
 
    let ref = spawn system actorName { prop with Router = Some router }
 

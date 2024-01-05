@@ -1,7 +1,10 @@
 [<RequireQualifiedAccess>]
 module EnvNotifications
 
+open System
 open FsConfig
+
+open Lib.Types
 
 let builder = Env.builder
 
@@ -9,8 +12,16 @@ let builder = Env.builder
 // For local development, EmailBearerToken & SupportEmail are set in ~/.microsoft/usersecrets.
 // See https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-7.0&tabs=linux#set-a-secret
 
+type NotificationsInput = {
+   EmailThrottle: Env.StreamThrottleInput
+   EmailServiceUri: string
+   EmailBearerToken: string option
+   SupportEmail: string option
+}
+
 type NotificationsConfig = {
    EmailServiceUri: string
+   EmailThrottle: StreamThrottle
    EmailBearerToken: string option
    SupportEmail: string option
 }
@@ -25,7 +36,7 @@ let private errorMessage missing =
    """
 
 let config =
-   match AppConfig(builder.Configuration).Get<NotificationsConfig>() with
+   match AppConfig(builder.Configuration).Get<NotificationsInput>() with
    | Ok input ->
       let missing =
          [
@@ -49,6 +60,14 @@ let config =
          EmailServiceUri = input.EmailServiceUri
          EmailBearerToken = input.EmailBearerToken
          SupportEmail = input.SupportEmail
+         EmailThrottle = {
+            Count = input.EmailThrottle.Count |> Option.defaultValue 150
+            Burst = input.EmailThrottle.Burst |> Option.defaultValue 150
+            Duration =
+               input.EmailThrottle.Seconds
+               |> Option.defaultValue 1
+               |> TimeSpan.FromSeconds
+         }
       }
    | Error err ->
       match err with

@@ -36,7 +36,7 @@ let initState: Map<Guid, AccountState> = Map.empty
 let actorProps
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   (emailRef: IActorRef<EmailActor.EmailMessage>)
+   (getEmailRef: unit -> IActorRef<EmailActor.EmailMessage>)
    (deleteHistoricalRecords: Guid list -> TaskResultOption<Email list, Err>)
    (throttle: StreamThrottle)
    =
@@ -73,7 +73,7 @@ let actorProps
                   do! deleteAccounts accounts
 
                   for account in accounts.Values do
-                     emailRef <! EmailActor.AccountClose account
+                     getEmailRef () <! EmailActor.AccountClose account
 
                   let accountIds = accounts |> Map.keys |> List.ofSeq
 
@@ -119,7 +119,7 @@ let initProps
    actorProps
       schedulingActorRef
       getAccountRef
-      (EmailActor.get system)
+      (fun _ -> EmailActor.get system)
       deleteHistoricalRecords
       throttle
 

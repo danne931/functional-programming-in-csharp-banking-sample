@@ -80,14 +80,6 @@ builder.Services.AddAkka(
                RememberEntitiesStore = RememberEntitiesStore.Eventsourced
             )
          )
-         .WithSingleton<ActorMetadata.EmailMarker>(
-            ActorMetadata.email.Name,
-            (fun system _ resolver ->
-               let broadcast = resolver.GetService<AccountBroadcast>()
-               let typedProps = EmailActor.initProps system broadcast
-               typedProps.ToProps()),
-            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
-         )
          .WithSingleton<ActorMetadata.BillingCycleMarker>(
             ActorMetadata.billingCycle.Name,
             (fun system _ resolver ->
@@ -197,6 +189,14 @@ builder.Services.AddAkka(
                   }
                   Env.config.BillingStatementPersistenceChunking
                   Env.config.BillingStatementPersistenceBackoffRestart
+               |> untyped
+            )
+
+            registry.Register<ActorMetadata.EmailMarker>(
+               EmailActor.start
+                  system
+                  broadcast
+                  EnvNotifications.config.EmailThrottle
                |> untyped
             )
 

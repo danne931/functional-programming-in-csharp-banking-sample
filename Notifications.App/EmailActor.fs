@@ -4,6 +4,8 @@ module EmailActor
 open Akka.Actor
 open Akka.Hosting
 open Akkling
+open Akka.Streams
+open Akkling.Streams
 open System
 open System.Net.Http
 open System.Net.Http.Json
@@ -13,11 +15,6 @@ open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-
-// NOTE: Likely have to throttle and queue requests to email service as number of
-//       TransferDeposited/BillingStatement messages received per second
-//       may be higher than the number of requests per second that
-//       the email service will allow.
 
 type EmailMessage =
    | AccountOpen of AccountState
@@ -197,6 +194,25 @@ let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
    |> ignore
 
    actorProps breaker
+
+let start
+   (system: ActorSystem)
+   (broadcaster: AccountBroadcast)
+   (throttle: StreamThrottle)
+   : IActorRef<EmailMessage>
+   =
+   let emailRef =
+      spawn system ActorMetadata.email.Name <| initProps system broadcaster
+
+   Source.actorRef OverflowStrategy.Fail 1000
+   |> Source.throttle
+         ThrottleMode.Shaping
+         throttle.Burst
+         throttle.Count
+         throttle.Duration
+   |> Source.mapMatValue (fun _ -> emailRef)
+   |> Source.toMat Sink.ignore Keep.left
+   |> Graph.run (system.Materializer())
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()
