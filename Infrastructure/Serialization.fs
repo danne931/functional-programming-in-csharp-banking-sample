@@ -66,7 +66,6 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
       | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
       | :? BillingCycleMessage -> "BillingCycleActorMessage"
-      | :? EmailActor.EmailMessage -> "EmailActorMessage"
       | :? ShardEnvelope as e ->
          match e.Message with
          | :? AccountMessage -> "AccountShardEnvelope"
@@ -81,8 +80,6 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
       | :? SchedulingActor.Message
-      // Messages from sharded account nodes to Email cluster singleton.
-      | :? EmailActor.EmailMessage
       // Messages from SchedulingActor to BillingCycleActor
       | :? BillingCycleMessage
       // Messages from sharded account nodes to AccountClosureActor cluster
@@ -162,7 +159,6 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "CircuitBreakerActorState" -> typeof<CircuitBreakerActorState>
          | "BillingCycleActorMessage" -> typeof<BillingCycleMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
-         | "EmailActorMessage" -> typeof<EmailActor.EmailMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>
          | _ -> raise <| SerializationException()
