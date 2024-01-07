@@ -15,9 +15,7 @@ open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open Bank.User.Api
 open BillingStatement
-open User
 
 let private persist e =
    e |> Event |> box |> Persist :> Effect<_>
@@ -32,19 +30,13 @@ let actorProps
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
-   (userPersistence: UserPersistence)
    =
-   let createUser (user: User) (evt: BankEvent<CreatedAccount>) = async {
-      let! res = userPersistence.createUser user |> Async.AwaitTask
-      return UserCreationResponse(res, evt)
-   }
-
    let getTransactions (account: AccountState) = async {
       return! persistence.getEvents account.EntityId |> Async.AwaitTask
    }
 
    let handler (mailbox: Eventsourced<obj>) =
-      let logError, logWarning = logError mailbox, logWarning mailbox
+      let logWarning = logWarning mailbox
 
       let rec loop (accountOpt: AccountState option) = actor {
          let! msg = mailbox.Receive()
@@ -57,15 +49,6 @@ let actorProps
             broadcaster.accountEventPersisted evt newState |> ignore
 
             match evt with
-            | CreatedAccount e ->
-               let (user: User) = {
-                  FirstName = e.Data.FirstName
-                  LastName = e.Data.LastName
-                  AccountId = e.EntityId
-                  Email = e.Data.Email
-               }
-
-               createUser user e |!> retype mailbox.Self
             | TransferPending e -> mailbox.Self <! DispatchTransfer e
             | TransferDeposited e ->
                getEmailActor mailbox.System
@@ -120,13 +103,6 @@ let actorProps
                   getDomesticTransferActor mailbox.System
                   <! (evt |> DomesticTransferRecipientActor.TransferPending)
                | _ -> ()
-            | UserCreationResponse(res: Result<int, Err>, _) ->
-               match res with
-               | Ok _ ->
-                  getEmailActor mailbox.System <! EmailActor.AccountOpen account
-               | Error e ->
-                  logError $"Error creating user {e}"
-                  return unhandled ()
             | Delete ->
                let newState = {
                   account with
@@ -274,4 +250,3 @@ let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
       EmailActor.get
       AccountClosureActor.get
       BillingStatementActor.get
-      { createUser = createUser }

@@ -104,14 +104,6 @@ type AccountStatus =
    | Closed
    | ReadyForDelete
 
-type AccountStateDto = {
-   Id: Guid
-   FirstName: string
-   LastName: string
-   Balance: decimal
-   Email: string
-}
-
 type AccountState = {
    EntityId: Guid
    Email: Email
@@ -151,14 +143,6 @@ type AccountState = {
 
    member x.CanProcessTransactions =
       x.Status = AccountStatus.Active || x.Status = AccountStatus.CardLocked // Only card debits disabled
-
-   member x.toDto() : AccountStateDto = {
-      Id = x.EntityId
-      FirstName = x.FirstName
-      LastName = x.LastName
-      Email = string x.Email
-      Balance = x.Balance
-   }
 
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>

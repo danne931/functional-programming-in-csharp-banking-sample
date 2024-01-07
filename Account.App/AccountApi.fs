@@ -40,23 +40,65 @@ let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
 let upsertAccounts (accounts: AccountState list) =
    let sqlParams =
       accounts
-      |> List.map (fun account ->
-         let dto = account.toDto ()
-
-         [
-            "@id", Sql.uuid dto.Id
-            "@email", Sql.text dto.Email
-            "@firstName", Sql.text dto.FirstName
-            "@lastName", Sql.text dto.LastName
-            "@balance", Sql.money dto.Balance
-         ])
+      |> List.map (fun account -> [
+         "@id", Sql.uuid account.EntityId
+         "@email", Sql.text <| string account.Email
+         "@firstName", Sql.text account.FirstName
+         "@lastName", Sql.text account.LastName
+         "@balance", Sql.money account.Balance
+         "@currency", Sql.string <| string account.Currency
+         "@status", Sql.string <| string account.Status
+         "@dailyDebitLimit", Sql.decimal <| account.DailyDebitLimit
+         "@dailyDebitAccrued", Sql.decimal <| account.DailyDebitAccrued
+         "@lastDebitDate", Sql.dateOrNone account.LastDebitDate
+         "@transferRecipients",
+         Sql.jsonb <| Serialization.serialize account.TransferRecipients
+         "@maintenanceFeeQualifyingDepositFound",
+         Sql.bool account.MaintenanceFeeCriteria.QualifyingDepositFound
+         "@maintenanceFeeDailyBalanceThreshold",
+         Sql.bool account.MaintenanceFeeCriteria.DailyBalanceThreshold
+      ])
 
    pgTransaction [
-      "INSERT into accounts \
-         (id, email, first_name, last_name, balance) \
-         VALUES (@id, @email, @firstName, @lastName, @balance) \
-         ON CONFLICT (id) \
-         DO \
-            UPDATE SET balance = @balance;",
+      """
+      INSERT into accounts
+         (id,
+          email,
+          first_name,
+          last_name,
+          balance,
+          currency,
+          status,
+          daily_debit_limit,
+          daily_debit_accrued,
+          last_debit_date,
+          transfer_recipients,
+          maintenance_fee_qualifying_deposit_found,
+          maintenance_fee_daily_balance_threshold)
+      VALUES
+         (@id,
+          @email,
+          @firstName,
+          @lastName,
+          @balance,
+          @currency,
+          @status,
+          @dailyDebitLimit,
+          @dailyDebitAccrued,
+          @lastDebitDate,
+          @transferRecipients,
+          @maintenanceFeeQualifyingDepositFound,
+          @maintenanceFeeDailyBalanceThreshold)
+      ON CONFLICT (id)
+      DO UPDATE SET
+         balance = @balance,
+         status = @status,
+         daily_debit_limit = @dailyDebitLimit,
+         daily_debit_accrued = @dailyDebitAccrued,
+         last_debit_date = @lastDebitDate,
+         transfer_recipients = @transferRecipients,
+         maintenance_fee_qualifying_deposit_found = @maintenanceFeeQualifyingDepositFound,
+         maintenance_fee_daily_balance_threshold = @maintenanceFeeDailyBalanceThreshold;
+      """,
       sqlParams
    ]
