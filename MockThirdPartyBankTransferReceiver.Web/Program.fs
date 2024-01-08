@@ -19,27 +19,27 @@ type Request = {
 }
 
 type Response = {
-   AccountNumber: string
-   RoutingNumber: string
-   Ok: bool
-   Reason: string
-   AckReceipt: string
+   accountNumber: string
+   routingNumber: string
+   ok: bool
+   reason: string
+   ackReceipt: string
 }
 
 let parseRequest (req: Request) =
    let res = {
-      AccountNumber = req.AccountNumber
-      RoutingNumber = req.RoutingNumber
-      Ok = true
-      Reason = ""
-      AckReceipt = ""
+      accountNumber = req.AccountNumber
+      routingNumber = req.RoutingNumber
+      ok = true
+      reason = ""
+      ackReceipt = ""
    }
 
    if req.Action <> "TransferRequest" then
       {
          res with
-            Ok = false
-            Reason = "InvalidAction"
+            ok = false
+            reason = "InvalidAction"
       }
    elif
       String.IsNullOrEmpty req.AccountNumber
@@ -47,19 +47,19 @@ let parseRequest (req: Request) =
    then
       {
          res with
-            Ok = false
-            Reason = "InvalidAccountInfo"
+            ok = false
+            reason = "InvalidAccountInfo"
       }
    elif req.Amount <= 0m then
       {
          res with
-            Ok = false
-            Reason = "InvalidAmount"
+            ok = false
+            reason = "InvalidAmount"
       }
    else
       {
          res with
-            AckReceipt = Guid.NewGuid() |> string
+            ackReceipt = Guid.NewGuid() |> string
       }
 
 let actorSystem =

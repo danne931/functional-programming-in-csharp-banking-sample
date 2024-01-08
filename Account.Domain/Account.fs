@@ -198,7 +198,7 @@ module private StateTransition =
          transitionErr AccountCardLocked
       elif state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif state.Balance - cmd.Amount < state.AllowedOverdraft then
+      elif state.Balance - cmd.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
          state.DailyDebitLimit <> -1m
@@ -212,7 +212,7 @@ module private StateTransition =
    let maintenanceFee (state: AccountState) (cmd: MaintenanceFeeCommand) =
       if not state.CanProcessTransactions then
          transitionErr AccountTransactionProcessingDisabled
-      elif state.Balance - cmd.Amount < state.AllowedOverdraft then
+      elif state.Balance - cmd.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       else
          map MaintenanceFeeDebited state <| cmd.toEvent ()
@@ -229,7 +229,7 @@ module private StateTransition =
    let transfer (state: AccountState) (cmd: TransferCommand) =
       if not state.CanProcessTransactions then
          transitionErr AccountTransactionProcessingDisabled
-      elif state.Balance - cmd.Amount < state.AllowedOverdraft then
+      elif state.Balance - cmd.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
          not

@@ -112,7 +112,6 @@ type AccountState = {
    Currency: Currency
    Status: AccountStatus
    Balance: decimal
-   AllowedOverdraft: decimal
    DailyDebitLimit: decimal
    DailyDebitAccrued: decimal
    LastDebitDate: DateTime option
@@ -128,7 +127,6 @@ type AccountState = {
       Currency = Currency.USD
       Status = AccountStatus.ReadyToOpen
       Balance = 0m
-      AllowedOverdraft = 0m
       DailyDebitLimit = -1m
       DailyDebitAccrued = 0m
       LastDebitDate = None

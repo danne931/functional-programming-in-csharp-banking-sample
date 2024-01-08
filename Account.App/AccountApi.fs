@@ -11,6 +11,7 @@ open Validus
 open Lib.Types
 open Lib.Postgres
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 
 let processCommand
    (system: ActorSystem)
@@ -36,6 +37,36 @@ let getAccountEvents
 let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
    let ref = AccountActor.get sys accountId
    ref <? AccountMessage.GetAccount |> Async.toTask
+
+let getAccounts () =
+   pgQuery<AccountState> "SELECT * FROM accounts" None
+   <| fun (read: RowReader) -> {
+      EntityId = read.uuid "id"
+      Email = read.text "email" |> Email.deserialize
+      FirstName = read.text "first_name"
+      LastName = read.text "last_name"
+      Currency =
+         read.text "currency"
+         |> sprintf "\"%s\""
+         |> Serialization.deserializeUnsafe<Currency>
+      Status =
+         read.text "status"
+         |> sprintf "\"%s\""
+         |> Serialization.deserializeUnsafe<AccountStatus>
+      Balance = read.decimal "balance"
+      DailyDebitLimit = read.decimal "daily_debit_limit"
+      DailyDebitAccrued = read.decimal "daily_debit_accrued"
+      LastDebitDate = read.dateTimeOrNone "last_debit_date"
+      TransferRecipients =
+         read.string "transfer_recipients"
+         |> Serialization.deserializeUnsafe<Map<string, TransferRecipient>>
+      MaintenanceFeeCriteria = {
+         QualifyingDepositFound =
+            read.bool "maintenance_fee_qualifying_deposit_found"
+         DailyBalanceThreshold =
+            read.bool "maintenance_fee_daily_balance_threshold"
+      }
+   }
 
 let upsertAccounts (accounts: AccountState list) =
    let sqlParams =

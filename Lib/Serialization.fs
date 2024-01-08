@@ -21,8 +21,11 @@ let withInjectedOptions opts =
 let serialize (data: _) : string =
    JsonSerializer.Serialize(data, jsonOptions)
 
+let deserializeUnsafe<'t> (data: string) : 't =
+   JsonSerializer.Deserialize<'t>(data, jsonOptions)
+
 let deserialize<'t> (data: string) : Result<'t, string> =
    try
-      JsonSerializer.Deserialize<'t>(data) |> Ok
+      deserializeUnsafe<'t> data |> Ok
    with err ->
       $"Deserialization error: {err.Message}" |> Error

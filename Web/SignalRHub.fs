@@ -4,7 +4,6 @@ open Microsoft.AspNetCore.SignalR
 open System.Threading.Tasks
 
 open Bank.Account.Domain
-open Lib.Types
 
 type IAccountClient =
    abstract member ReceiveMessage:

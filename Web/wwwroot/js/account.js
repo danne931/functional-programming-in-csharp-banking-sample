@@ -123,15 +123,21 @@ function parseNetworkResponse (res) {
 }
 
 function hydrate () {
-  fetch('/users')
+  fetch('/accounts')
   .then(parseNetworkResponse)
   .then(accounts => {
     state.accounts = accounts.reduce((acc, val) => {
-      acc[val.email] = val
+      acc[val.email.email] = val
       return acc
     }, {})
+
     renderAccountsList(accounts)
-    return accountSelected(state.selectedAccountId || accounts[0].accountId)
+
+    // Render account state from AccountState read model
+    const selectedEmail = state.selectedEmail || accounts[0].email.email
+    renderAccountState(state.accounts[selectedEmail])
+
+    return accountSelected(state.selectedAccountId || accounts[0].entityId)
   })
   .then(() => fetch('/diagnostic/circuit-breaker'))
   .then(parseNetworkResponse)
@@ -176,7 +182,10 @@ function accountSelected (accountId) {
     .then(([account, events]) => {
       state.selectedAccountId = accountId
       state.selectedEmail = account.email.email
+
+      // Replace read model AccountState with event sourced AccountState
       renderAccountState(account)
+
       interpolateTransferRecipientSelection(account)
       state.transferRecipients = account.transferRecipients
       renderEventsIntoListView(events.map(serverToClientEventMapping).reverse())
@@ -204,9 +213,9 @@ function renderAccountsList (accounts) {
     const li = document.createElement('li')
     const a = document.createElement('a')
     a.setAttribute('href', '')
-    a.setAttribute('value', account.accountId)
+    a.setAttribute('value', account.entityId)
     a.setAttribute('onclick', 'accountSelectionClicked(event)')
-    a.textContent = `${account.firstName} ${account.lastName} - ${account.email}`
+    a.textContent = `${account.firstName} ${account.lastName} - ${account.email.email}`
     li.append(a)
     acc.push(li)
     return acc
@@ -527,7 +536,7 @@ selectors.form.transferRecipient().addEventListener('submit', e => {
       return openValidationErrorModal('An account with that email does not exist.')
     }
 
-    data.recipient.identification = account.accountId
+    data.recipient.identification = account.entityId
   } else if (data.recipient.accountEnvironment === 'Domestic') {
     data.recipient.identification = formData.get('transfer-recipient-account-number')
     data.recipient.routingNumber = formData.get('transfer-recipient-routing-number')
