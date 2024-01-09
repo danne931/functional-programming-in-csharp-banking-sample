@@ -3,7 +3,9 @@ module MaintenanceFee
 type MaintenanceFeeCriteria = {
    QualifyingDepositFound: bool
    DailyBalanceThreshold: bool
-}
+} with
+
+   member x.CanSkipFee = x.QualifyingDepositFound || x.DailyBalanceThreshold
 
 let DailyBalanceThreshold = 1500m
 let QualifyingDeposit = 250m

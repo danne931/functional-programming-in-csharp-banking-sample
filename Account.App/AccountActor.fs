@@ -76,6 +76,7 @@ let actorProps
                let validation = Account.stateTransition account cmd
 
                match validation with
+               | Ok(event, _) -> return! persist event
                | Error err ->
                   let errMsg = string err
 
@@ -93,8 +94,6 @@ let actorProps
                         <! EmailActor.DebitDeclined(errMsg, account)
                      | _ -> ()
                   | _ -> ()
-
-               | Ok(event, _) -> return persist event
             | DispatchTransfer evt ->
                match evt.Data.Recipient.AccountEnvironment with
                | RecipientAccountEnvironment.Internal ->
@@ -111,13 +110,8 @@ let actorProps
 
                return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
             | BillingCycle when
-               accountOpt.IsSome && not accountOpt.Value.CanProcessTransactions
+               accountOpt.IsSome && account.CanProcessTransactions
                ->
-               logWarning
-                  "Account not able to process txns. Ignore billing cycle."
-
-               return ignored ()
-            | BillingCycle when accountOpt.IsSome ->
                let! (eventsOpt: AccountEvent list option) =
                   getTransactions account
 
@@ -150,10 +144,7 @@ let actorProps
 
                   let criteria = account.MaintenanceFeeCriteria
 
-                  if
-                     criteria.QualifyingDepositFound
-                     || criteria.DailyBalanceThreshold
-                  then
+                  if criteria.CanSkipFee then
                      let msg =
                         SkipMaintenanceFeeCommand(accountId, criteria)
                         |> (StateChange << SkipMaintenanceFee)
@@ -168,6 +159,11 @@ let actorProps
 
                   getEmailActor mailbox.System
                   <! EmailActor.BillingStatement account
+            | BillingCycle ->
+               logWarning
+                  "Account not able to process txns. Ignore billing cycle."
+
+               return ignored ()
             | AccountMessage.BillingCycleEnd -> return SaveSnapshot account
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->

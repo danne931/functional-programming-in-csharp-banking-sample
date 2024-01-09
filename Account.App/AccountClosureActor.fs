@@ -61,11 +61,14 @@ let actorProps
                   Total scheduled: {newState.Count}.
                   """
 
-               return! loop newState <@> SaveSnapshot newState
+               return!
+                  match newState.Count % 10 with
+                  | 0 -> loop newState <@> SaveSnapshot newState
+                  | _ -> loop newState
             | ReverseClosure accountId ->
                logInfo $"Reverse pending account closure for {accountId}"
                let newState = Map.remove accountId accounts
-               return! loop newState <@> SaveSnapshot newState
+               return! loop newState
             | ScheduleDeleteAll ->
                if accounts.IsEmpty then
                   logInfo "AccountClosure - no accounts requested closure."
