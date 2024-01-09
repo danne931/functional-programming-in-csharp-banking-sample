@@ -82,6 +82,10 @@ module ActorMetadata =
       class
       end
 
+   type AccountLoadTestMarker() =
+      class
+      end
+
    type AuditorMarker() =
       class
       end
@@ -178,6 +182,11 @@ module ActorMetadata =
    let accountSeeder = {
       Name = "account-seeder"
       Route = "account-seeder"
+   }
+
+   let accountLoadTest = {
+      Name = "account-load-test"
+      Route = "account-load-test"
    }
 
    let signalR = {

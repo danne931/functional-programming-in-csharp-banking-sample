@@ -10,6 +10,9 @@ open Lib.Types
 let builder = WebApplication.CreateBuilder()
 
 let isDev = builder.Environment.EnvironmentName = "Development"
+let isStaging = builder.Environment.EnvironmentName = "Staging"
+let isProd = builder.Environment.EnvironmentName = "Production"
+let allowLiveLoadTest = isDev || isStaging
 
 type Connection = {
    Postgres: string

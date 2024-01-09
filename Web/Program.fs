@@ -75,6 +75,15 @@ builder.Services.AddAkka(
             ActorMetadata.circuitBreaker.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
+         .WithSingleton<ActorMetadata.AccountLoadTestMarker>(
+            ActorMetadata.accountLoadTest.Name,
+            (fun system _ _ ->
+               let typedProps =
+                  AccountLoadTestActor.actorProps <| AccountActor.get system
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.web)
+         )
          .WithActors(fun system _ ->
             SignalRActor.start system signalRHub |> ignore)
       |> ignore

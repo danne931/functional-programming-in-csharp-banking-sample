@@ -1,11 +1,13 @@
 [<RequireQualifiedAccess>]
 module AccountBroadcaster
 
+open System
 open Akka.Actor
 open Akka.Cluster.Tools.PublishSubscribe
 
 open Bank.Account.Domain
 open ActorUtil
+open AccountLoadTestTypes
 
 let init (system: ActorSystem) : AccountBroadcast =
    let mediator = DistributedPubSub.Get(system).Mediator
@@ -13,6 +15,9 @@ let init (system: ActorSystem) : AccountBroadcast =
 
    let circuitBreakerPath =
       ActorMetadata.circuitBreaker.SingletonPath.ToStringWithoutAddress()
+
+   let loadTestPath =
+      ActorMetadata.accountLoadTest.SingletonPath.ToStringWithoutAddress()
 
    {
       accountEventPersisted =
@@ -23,6 +28,18 @@ let init (system: ActorSystem) : AccountBroadcast =
                   SignalRMessage.AccountEventPersisted(event, account)
                )
             )
+
+            if Env.allowLiveLoadTest then
+               mediator.Tell(
+                  Send(
+                     loadTestPath,
+                     AccountLoadTestMessage.AccountEventPersisted {
+                        AccountId = account.EntityId
+                        Event = event
+                        AccountBalance = account.Balance
+                     }
+                  )
+               )
       accountEventValidationFail =
          fun accountId errMsg ->
             mediator.Tell(

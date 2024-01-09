@@ -49,6 +49,8 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.Manifest(o: obj) =
       match o with
       | :? AccountEventConsumerState -> "AccountEventConsumerState"
+      | :? AccountLoadTestTypes.AccountLoadTestMessage ->
+         "AccountLoadTestMessage"
       | :? AccountSeederMessage -> "AccountSeederMessage"
       | :? SchedulingActor.Message -> "SchedulingActorMessage"
       | :? AccountClosureMessage -> "AccountClosureActorMessage"
@@ -74,6 +76,9 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
+      // AccountEventPersisted messages sent over DistributedPubSub
+      // from Account nodes to AccountLoadTestActor on Web node.
+      | :? AccountLoadTestTypes.AccountLoadTestMessage
       // AccountEventConsumerActor projection offset snapshot
       | :? AccountEventConsumerState
       // Messages from account nodes to AccountSeederActor cluster singleton
@@ -144,6 +149,8 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.FromBinary(bytes: byte[], manifest: string) : obj =
       let deserializeToType =
          match manifest with
+         | "AccountLoadTestMessage" ->
+            typeof<AccountLoadTestTypes.AccountLoadTestMessage>
          | "AccountEventConsumerState" -> typeof<AccountEventConsumerState>
          | "AccountState" -> typeof<AccountState>
          | "AccountStateOption" -> typeof<AccountState option>

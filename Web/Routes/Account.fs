@@ -4,18 +4,23 @@ open System
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
+open type Microsoft.AspNetCore.Http.Results
 open Akka.Actor
 open Akkling
 open FSharp.Control
 
 open Bank.Account.Domain
 open Bank.Account.Api
+open AccountLoadTestTypes
 
 module private Path =
    let Base = "/accounts"
    let Account = Base + "/{id}"
    let Diagnostic = "/diagnostic"
    let AccountEvents = Diagnostic + "/events/{id}"
+   let LoadTest = Diagnostic + "/load-test"
+   let LoadTestProgress = LoadTest + "/progress"
+   let LoadTestTeardown = LoadTest + "/teardown"
    let Deposit = Base + "/deposit"
    let Debit = Base + "/debit"
    let DailyDebitLimit = Base + "/daily-debit-limit"
@@ -138,5 +143,47 @@ let startAccountRoutes (app: WebApplication) =
             ref <? CircuitBreakerMessage.Lookup |> Async.toTask
 
          lookup |> RouteUtil.unwrapTask)
+   )
+   |> ignore
+
+   app.MapGet(
+      Path.LoadTest,
+      Func<ActorSystem, Task<IResult>>(fun sys -> task {
+         if Env.allowLiveLoadTest then
+            let ref = AccountLoadTestActor.get sys
+            ref <! AccountLoadTestMessage.StartLoadTest
+            return Ok()
+         else
+            return Unauthorized()
+      })
+   )
+   |> ignore
+
+   app.MapGet(
+      Path.LoadTestProgress,
+      Func<ActorSystem, Task<IResult>>(fun sys -> task {
+         if Env.allowLiveLoadTest then
+            let ref = AccountLoadTestActor.get sys
+
+            let! (progress: AccountLoadTestActor.AccountLoadTestStateMessage) =
+               ref <? AccountLoadTestMessage.Lookup |> Async.toTask
+
+            return Ok progress
+         else
+            return Unauthorized()
+      })
+   )
+   |> ignore
+
+   app.MapGet(
+      Path.LoadTestTeardown,
+      Func<ActorSystem, Task<IResult>>(fun sys -> task {
+         if Env.allowLiveLoadTest then
+            let ref = AccountLoadTestActor.get sys
+            ref <! AccountLoadTestMessage.Teardown
+            return Ok()
+         else
+            return Unauthorized()
+      })
    )
    |> ignore

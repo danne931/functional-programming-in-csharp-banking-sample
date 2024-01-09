@@ -213,3 +213,23 @@ type AccountEventConsumerState = {
 }
 
 type AccountEventConsumerMessage = SaveOffset of Akka.Persistence.Query.Sequence
+
+module AccountLoadTestTypes =
+   type ProgressCheck = {
+      RemainingAccountTests: int
+      NumberOfProgressChecks: int
+   }
+
+   type LoadTestEventPersisted = {
+      AccountId: Guid
+      AccountBalance: decimal
+      Event: AccountEvent
+   }
+
+   type AccountLoadTestMessage =
+      | StartLoadTest
+      | CheckProgress of ProgressCheck
+      | Finish
+      | Teardown
+      | Lookup
+      | AccountEventPersisted of LoadTestEventPersisted
