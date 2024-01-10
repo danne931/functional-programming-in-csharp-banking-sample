@@ -6,6 +6,8 @@ open System.Threading.Tasks
 open Akka.Hosting
 open Akka.Actor
 open Akka.Persistence
+open Akka.Streams
+open Akka.Streams.Dsl
 open Akkling
 open Akkling.Persistence
 open Akkling.Streams
@@ -14,24 +16,26 @@ open FsToolkit.ErrorHandling
 open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
+open Lib.BulkWriteStreamFlow
 
 type BulkAccountUpsert = AccountState list -> Result<List<int>, Err> Task
 
-let startProjection
-   (mailbox: Eventsourced<obj>)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   (chunking: StreamChunking)
-   (upsertAccounts: BulkAccountUpsert)
-   (state: AccountEventConsumerState)
+let initFailedWritesSource
+   (system: ActorSystem)
+   : Source<Guid, Akka.NotUsed> * IActorRef<Guid>
    =
-   logInfo
-      mailbox
-      $"Start AccountEvent projection at offset {state.Offset.Value}."
+   let failedWritesSource = Source.actorRef OverflowStrategy.DropHead 1000
+   let preMat = failedWritesSource.PreMaterialize system
 
-   let source =
-      (readJournal mailbox.System).EventsByTag("AccountEvent", state.Offset)
+   preMat.Last(), preMat.Head()
 
-   source
+let initReadJournalSource
+   (mailbox: Eventsourced<obj>)
+   (state: AccountEventConsumerState)
+   (chunking: StreamChunking)
+   : Source<Guid, Akka.NotUsed>
+   =
+   (readJournal mailbox.System).EventsByTag("AccountEvent", state.Offset)
    |> Source.groupedWithin chunking.Size chunking.Duration
    |> Source.collect (fun evtSeq ->
       let setOfAccountIds =
@@ -46,27 +50,69 @@ let startProjection
       | _ -> ()
 
       setOfAccountIds)
-   |> Source.asyncMapUnordered 10 (fun accountId -> async {
-      let! (accountOpt: AccountState option) =
-         getAccountRef accountId <? GetAccount
 
-      return accountOpt
-   })
-   |> Source.choose id
-   |> Source.groupedWithin chunking.Size (TimeSpan.FromSeconds 6)
-   |> Source.taskMap 1 (List.ofSeq >> upsertAccounts)
-   |> Source.map (fun result ->
-      printfn "output: %A" result
-      result)
-   |> Source.runWith (mailbox.System.Materializer()) Sink.ignore
+let startProjection
+   (mailbox: Eventsourced<obj>)
+   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (chunking: StreamChunking)
+   (restartSettings: Akka.Streams.RestartSettings)
+   (upsertAccounts: BulkAccountUpsert)
+   (state: AccountEventConsumerState)
+   =
+   logInfo
+      mailbox
+      $"Start AccountEvent projection at offset {state.Offset.Value}."
+
+   let system = mailbox.System
+
+   let readJournalSource = initReadJournalSource mailbox state chunking
+
+   let failedWritesSource, failedWritesRef = initFailedWritesSource system
+
+   let chunking = {
+      chunking with
+         Duration = TimeSpan.FromSeconds 6
+   }
+
+   let bulkWriteFlow, _ =
+      initBulkWriteFlow<AccountState> system restartSettings chunking {
+         persist =
+            fun (accounts: AccountState seq) ->
+               accounts |> List.ofSeq |> upsertAccounts
+         // Feed failed upserts back into the stream
+         onRetry =
+            fun (accounts: AccountState seq) ->
+               for account in accounts do
+                  failedWritesRef <! account.EntityId
+         onPersistOk =
+            fun _ response ->
+               SystemLog.info system $"Saved account read models {response}"
+      }
+
+   let flow =
+      Flow.id
+      |> Flow.asyncMapUnordered 10 (fun accountId -> async {
+         let! (accountOpt: AccountState option) =
+            getAccountRef accountId <? GetAccount
+
+         return accountOpt
+      })
+      |> Flow.choose id
+      |> Flow.via bulkWriteFlow
+
+   readJournalSource
+   |> Source.merge failedWritesSource
+   |> Source.via flow
+   |> Source.runWith (system.Materializer()) Sink.ignore
 
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (chunking: StreamChunking)
+   (restartSettings: Akka.Streams.RestartSettings)
    (upsertAccounts: BulkAccountUpsert)
    =
    let handler (mailbox: Eventsourced<obj>) =
-      let logInfo, logError = logInfo mailbox, logError mailbox
+      let logInfo = logInfo mailbox
 
       let rec loop (state: AccountEventConsumerState) = actor {
          let! msg = mailbox.Receive()
@@ -93,6 +139,7 @@ let actorProps
                                  mailbox
                                  getAccountRef
                                  chunking
+                                 restartSettings
                                  upsertAccounts
                                  state
                               |> ignored

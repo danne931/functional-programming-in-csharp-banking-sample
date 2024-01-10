@@ -111,6 +111,7 @@ builder.Services.AddAkka(
                   AccountEventConsumerActor.actorProps
                   <| AccountActor.get system
                   <| Env.config.AccountEventProjectionChunking
+                  <| Env.config.AccountEventReadModelPersistenceBackoffRestart
                   <| upsertAccounts
 
                typedProps.ToProps()),
