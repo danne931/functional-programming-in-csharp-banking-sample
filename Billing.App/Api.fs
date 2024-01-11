@@ -26,7 +26,6 @@ let private billingStatementToSqlParams (statement: BillingStatement) =
       "@accountId", Sql.uuid dto.AccountId
    ]
 
-
 let saveBillingStatements (statements: BillingStatement list) =
    let sqlParams = List.map billingStatementToSqlParams statements
 

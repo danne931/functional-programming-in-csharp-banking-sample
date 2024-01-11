@@ -13,20 +13,22 @@ open ActorUtil
 open Lib.Types
 open Lib.BulkWriteStreamFlow
 
-let get (system: ActorSystem) : IActorRef<BillingStatementMessage> =
-   typed
-   <| ActorRegistry.For(system).Get<ActorMetadata.BillingStatementMarker>()
-
+// NOTE:
+// --BillingStatementActor--
 // Collects billing statement records to insert in batches.
 // Billing statements are persisted in a single transaction
 // once the batch size limit is reached or after some duration
 // in seconds from the initial BillingStatement message.
-let start
+
+let get (system: ActorSystem) : IActorRef<BillingStatementMessage> =
+   typed
+   <| ActorRegistry.For(system).Get<ActorMetadata.BillingStatementMarker>()
+
+let initQueueSource
    (system: ActorSystem)
    (persistence: BillingPersistence)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
-   : IActorRef<BillingStatementMessage>
    =
    let bulkWriteFlow, bulkWriteRef =
       initBulkWriteFlow<BillingStatement> system restartSettings chunking {
@@ -44,20 +46,82 @@ let start
       }
 
    let flow =
-      Flow.id<BillingStatementMessage, IActorRef<BillingStatementMessage>>
+      Flow.id<obj, IActorRef<BillingStatementMessage>>
       // Filter for statements to be batched in the next stage.
       |> Flow.choose (fun msg ->
          match msg with
-         | BillingStatementMessage.RegisterBillingStatement statement ->
-            Some statement
-         // Forward message to internal bulk write
-         // actor without including message in next flow stage.
-         | BillingStatementMessage.GetFailedWrites ->
-            bulkWriteRef <<! BulkWriteMessage.GetFailedWrites
-            None)
+         | :? BillingStatementMessage as msg ->
+            match msg with
+            | BillingStatementMessage.RegisterBillingStatement statement ->
+               Some statement
+            // Forward message to internal bulk write
+            // actor without including message in next flow stage.
+            | BillingStatementMessage.GetFailedWrites ->
+               bulkWriteRef <<! BulkWriteMessage.GetFailedWrites
+               None
+         | _ -> None)
       |> Flow.via bulkWriteFlow
 
-   Source.actorRef OverflowStrategy.Fail 1000
-   |> Source.via flow
-   |> Source.toMat Sink.ignore Keep.left
-   |> Graph.run (system.Materializer())
+   Source.queue OverflowStrategy.Backpressure 1000 |> Source.via flow
+
+let actorProps
+   (system: ActorSystem)
+   (persistence: BillingPersistence)
+   (chunking: StreamChunking)
+   (restartSettings: Akka.Streams.RestartSettings)
+   =
+   let rec init (ctx: Actor<obj>) = actor {
+      let! msg = ctx.Receive()
+
+      match msg with
+      | LifecycleEvent e ->
+         match e with
+         | PreStart ->
+            logInfo ctx "Prestart - Init BillingStatementActor Queue Source"
+
+            let queue =
+               initQueueSource system persistence chunking restartSettings
+               |> Source.toMat Sink.ignore Keep.left
+               |> Graph.run (system.Materializer())
+
+            return! processing ctx queue
+         | _ -> return ignored ()
+      | msg ->
+         logError ctx $"Unknown msg {msg}"
+         return unhandled ()
+   }
+
+   and processing (ctx: Actor<obj>) (queue: ISourceQueueWithComplete<obj>) = actor {
+      let! msg = ctx.Receive()
+
+      match msg with
+      | :? BillingStatementMessage as msg ->
+         let! result = queueOffer<obj> queue msg
+
+         return
+            match result with
+            | Ok effect -> effect
+            | Error errMsg -> failwith errMsg
+      | LifecycleEvent e ->
+         match e with
+         | PostStop ->
+            queue.Complete()
+            return! init ctx
+         | _ -> return ignored ()
+      | msg ->
+         logError ctx $"Unknown msg {msg}"
+         return unhandled ()
+   }
+
+   props init
+
+let start
+   (system: ActorSystem)
+   (persistence: BillingPersistence)
+   (chunking: StreamChunking)
+   (restartSettings: Akka.Streams.RestartSettings)
+   : IActorRef<BillingStatementMessage>
+   =
+   spawn system ActorMetadata.billingStatement.Name
+   <| actorProps system persistence chunking restartSettings
+   |> retype
