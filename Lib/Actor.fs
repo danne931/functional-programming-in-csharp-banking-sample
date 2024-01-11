@@ -1,9 +1,12 @@
 module ActorUtil
 
 open System
+open System.Threading.Tasks
 open Akkling
 open Akkling.Cluster.Sharding
 open Akkling.Persistence
+open Akka.Streams
+open Akkling.Streams
 open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence
@@ -346,3 +349,21 @@ module PersistentActorEventHandler =
       | msg ->
          logError mailbox $"<UnknownMessage>: %s{msg.GetType().FullName}"
          unhandled ()
+
+let queueOffer<'t>
+   (queue: ISourceQueueWithComplete<'t>)
+   (msg: 't)
+   : Result<Effect<'t>, string> Task
+   =
+   task {
+      let! result = queue.AsyncOffer msg
+
+      return
+         match result with
+         | :? QueueOfferResult.Dropped -> Error "Message dropped"
+         | :? QueueOfferResult.Failure as f ->
+            Error $"Failed with exception: {f.Cause}"
+         | :? QueueOfferResult.QueueClosed -> Error "Queue closed"
+         | :? QueueOfferResult.Enqueued -> Ok <| ignored ()
+         | _ -> Ok <| unhandled ()
+   }

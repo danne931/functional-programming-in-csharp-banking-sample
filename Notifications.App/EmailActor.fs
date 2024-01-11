@@ -9,6 +9,7 @@ open Akkling.Streams
 open System
 open System.Net.Http
 open System.Net.Http.Json
+open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
 open Lib.Types
@@ -23,6 +24,8 @@ type EmailMessage =
    | DebitDeclined of string * AccountState
    | TransferDeposited of BankEvent<TransferDeposited> * AccountState
    | ApplicationErrorRequiresSupport of string
+
+type private QueueItem = QueueItem of EmailMessage
 
 type private TrackingEvent = {
    event: string
@@ -117,15 +120,59 @@ let private createClient (bearerToken: string) =
 
    client
 
-let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
+let initQueueSource (throttle: StreamThrottle) =
+   Source.queue OverflowStrategy.Backpressure 1000
+   |> Source.throttle
+         ThrottleMode.Shaping
+         throttle.Burst
+         throttle.Count
+         throttle.Duration
+
+let actorProps
+   (system: ActorSystem)
+   (breaker: Akka.Pattern.CircuitBreaker)
+   (throttle: StreamThrottle)
+   =
    let client =
       EnvNotifications.config.EmailBearerToken |> Option.map createClient
 
-   let handler (ctx: Actor<_>) (msg: obj) =
+   let rec init (ctx: Actor<obj>) = actor {
+      let! msg = ctx.Receive()
+
+      match msg with
+      | LifecycleEvent e ->
+         match e with
+         | PreStart ->
+            logInfo ctx "Prestart - Initialize EmailActor Queue Source"
+
+            let queue =
+               initQueueSource throttle
+               |> Source.toMat
+                     (Sink.forEach (fun msg -> ctx.Self <! msg))
+                     Keep.left
+               |> Graph.run (system.Materializer())
+
+            return! processing ctx queue
+         | _ -> return ignored ()
+      | msg ->
+         logError ctx $"Unknown msg {msg}"
+         return unhandled ()
+   }
+
+   and processing (ctx: Actor<obj>) (queue: ISourceQueueWithComplete<obj>) = actor {
       let logWarning, logError = logWarning ctx, logError ctx
+      let! msg = ctx.Receive()
 
       match msg with
       | :? EmailMessage as msg ->
+         let! result = queueOffer<obj> queue <| QueueItem msg
+
+         return
+            match result with
+            | Ok effect -> effect
+            | Error errMsg -> failwith errMsg
+      | :? QueueItem as msg ->
+         let (QueueItem msg) = msg
          let emailData = emailPropsFromMessage msg
 
          if client.IsNone then
@@ -140,22 +187,30 @@ let actorProps (breaker: Akka.Pattern.CircuitBreaker) =
                sendEmail client.Value emailData)
             |> Async.AwaitTask
             |!> retype ctx.Self
-
-         ignored ()
-      | LifecycleEvent _ -> ignored ()
+      | LifecycleEvent e ->
+         match e with
+         | PostStop ->
+            queue.Complete()
+            return! init ctx
+         | _ -> return ignored ()
       | :? HttpResponseMessage ->
          // Successful request to email service -> ignore
-         ignored ()
+         return ignored ()
       | :? Status.Failure ->
          // Failed request to email service -> dead letters
-         unhandled ()
+         return unhandled ()
       | msg ->
          logError $"Unknown msg {msg}"
-         unhandled ()
+         return unhandled ()
+   }
 
-   props <| actorOf2 handler
+   props init
 
-let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
+let initProps
+   (system: ActorSystem)
+   (broadcaster: AccountBroadcast)
+   (throttle: StreamThrottle)
+   =
    let breaker =
       Akka.Pattern.CircuitBreaker(
          system.Scheduler,
@@ -193,7 +248,7 @@ let initProps (system: ActorSystem) (broadcaster: AccountBroadcast) =
       |> ignore)
    |> ignore
 
-   actorProps breaker
+   actorProps system breaker throttle
 
 let start
    (system: ActorSystem)
@@ -201,18 +256,9 @@ let start
    (throttle: StreamThrottle)
    : IActorRef<EmailMessage>
    =
-   let emailRef =
-      spawn system ActorMetadata.email.Name <| initProps system broadcaster
-
-   Source.actorRef OverflowStrategy.Fail 1000
-   |> Source.throttle
-         ThrottleMode.Shaping
-         throttle.Burst
-         throttle.Count
-         throttle.Duration
-   |> Source.mapMatValue (fun _ -> emailRef)
-   |> Source.toMat Sink.ignore Keep.left
-   |> Graph.run (system.Materializer())
+   spawn system ActorMetadata.email.Name
+   <| initProps system broadcaster throttle
+   |> retype
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()
