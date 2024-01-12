@@ -175,10 +175,10 @@ let config =
          BillingCycleFanoutThrottle = {
             Count =
                input.BillingCycleFanoutThrottle.Count
-               |> Option.defaultValue 10000
+               |> Option.defaultValue 5000
             Burst =
                input.BillingCycleFanoutThrottle.Burst
-               |> Option.defaultValue 10000
+               |> Option.defaultValue 5000
             Duration =
                input.BillingCycleFanoutThrottle.Seconds
                |> Option.defaultValue 1
@@ -195,10 +195,10 @@ let config =
          AccountEventProjectionChunking = {
             Size =
                input.AccountEventProjectionChunking.Size
-               |> Option.defaultValue 100
+               |> Option.defaultValue 5000
             Duration =
                input.AccountEventProjectionChunking.Seconds
-               |> Option.defaultValue 15
+               |> Option.defaultValue 5
                |> TimeSpan.FromSeconds
          }
          AccountEventReadModelPersistenceBackoffRestart =
@@ -207,10 +207,10 @@ let config =
          BillingStatementPersistenceChunking = {
             Size =
                input.BillingStatementPersistenceChunking.Size
-               |> Option.defaultValue 1000
+               |> Option.defaultValue 5000
             Duration =
                input.BillingStatementPersistenceChunking.Seconds
-               |> Option.defaultValue 3
+               |> Option.defaultValue 1
                |> TimeSpan.FromSeconds
          }
          BillingStatementPersistenceBackoffRestart =

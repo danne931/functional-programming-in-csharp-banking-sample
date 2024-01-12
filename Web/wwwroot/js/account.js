@@ -167,19 +167,14 @@ function accountSelectionClicked (e) {
 
 function accountSelected (accountId) {
   return addAccountToConnectionGroup(accountId)
-    .then(() => Promise.all([
-      fetch(`/accounts/${accountId}`),
-      fetch(`/diagnostic/events/${accountId}`)
-    ]))
-    .then(responses =>
-      Promise.all(responses.map(res => {
-        if (!res.ok) {
-          throw new Error(`Http status: ${res.status}`)
-        }
-        return res.json()
-      }))
-    )
-    .then(([account, events]) => {
+    .then(() => fetch(`/accounts/${accountId}`))
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Http status: ${res.status}`)
+      }
+      return res.json()
+    })
+    .then(account => {
       state.selectedAccountId = accountId
       state.selectedEmail = account.email.email
 
@@ -188,7 +183,7 @@ function accountSelected (accountId) {
 
       interpolateTransferRecipientSelection(account)
       state.transferRecipients = account.transferRecipients
-      renderEventsIntoListView(events.map(serverToClientEventMapping).reverse())
+      renderEventsIntoListView(account.events.map(serverToClientEventMapping))
       renderTransactionsLoaderFinish()
       highlightSelectedAccount(accountId)
     })

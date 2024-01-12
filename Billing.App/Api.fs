@@ -1,5 +1,7 @@
 module Bank.BillingCycle.Api
 
+open System
+
 open Lib.Postgres
 open BillingStatement
 
@@ -12,26 +14,100 @@ let getBillingStatement () =
       Balance = read.decimal "balance"
       Name = read.text "name"
       AccountId = read.uuid "account_id"
+      LastPersistedEventSequenceNumber =
+         read.int64 "last_persisted_event_sequence_number"
+      AccountSnapshot = read.bytea "account_snapshot"
    }
 
-let private billingStatementToSqlParams (statement: BillingStatement) =
-   let dto = toDto statement
+let private billingStatementSqlParams (bill: BillingStatement) = [
+   "@transactions", Sql.jsonb <| Serialization.serialize bill.Transactions
+   "@month", Sql.int bill.Month
+   "@year", Sql.int bill.Year
+   "@balance", Sql.money bill.Balance
+   "@name", Sql.text bill.Name
+   "@accountId", Sql.uuid bill.AccountId
+   "@lastPersistedEventSequenceNumber",
+   Sql.int64 bill.LastPersistedEventSequenceNumber
+   "@accountSnapshot", Sql.bytea bill.AccountSnapshot
+]
 
-   [
-      "@transactions", Sql.jsonb dto.Transactions
-      "@month", Sql.int dto.Month
-      "@year", Sql.int dto.Year
-      "@balance", Sql.money dto.Balance
-      "@name", Sql.text dto.Name
-      "@accountId", Sql.uuid dto.AccountId
-   ]
+let private eventJournalSqlParams (bill: BillingStatement) = [
+   "@persistenceId", Sql.text <| string bill.AccountId
+   "@sequenceNumber", Sql.int64 bill.LastPersistedEventSequenceNumber
+]
+
+let private snapshotStoreSqlParams (bill: BillingStatement) = [
+   "@persistenceId", Sql.text <| string bill.AccountId
+   "@sequenceNumber", Sql.int64 bill.LastPersistedEventSequenceNumber
+   "@created", Sql.int64 <| DateTime.UtcNow.ToFileTimeUtc()
+   "@snapshot", Sql.bytea bill.AccountSnapshot
+   "@serializerId", Sql.int 931
+   "@manifest", Sql.string "AccountState"
+]
 
 let saveBillingStatements (statements: BillingStatement list) =
-   let sqlParams = List.map billingStatementToSqlParams statements
+   let sqlParams =
+      statements
+      |> List.fold
+         (fun acc bill -> {|
+            Billing = billingStatementSqlParams bill :: acc.Billing
+            EventJournal = eventJournalSqlParams bill :: acc.EventJournal
+            SnapshotStore = snapshotStoreSqlParams bill :: acc.SnapshotStore
+         |})
+         {|
+            Billing = []
+            EventJournal = []
+            SnapshotStore = []
+         |}
 
    pgTransaction [
-      "INSERT into billingstatements \
-         (transactions, month, year, balance, name, account_id) \
-         VALUES (@transactions, @month, @year, @balance, @name, @accountId)",
-      sqlParams
+      """
+      INSERT into billingstatements
+         (transactions,
+          month,
+          year,
+          balance,
+          name,
+          account_id,
+          last_persisted_event_sequence_number,
+          account_snapshot)
+      VALUES
+         (@transactions,
+          @month,
+          @year,
+          @balance,
+          @name,
+          @accountId,
+          @lastPersistedEventSequenceNumber,
+          @accountSnapshot)
+      """,
+      sqlParams.Billing
+
+      """
+      UPDATE akka_event_journal
+      SET
+         deleted = true
+      WHERE
+         persistence_id = @persistenceId AND
+         sequence_number <= @sequenceNumber
+      """,
+      sqlParams.EventJournal
+
+      """
+      INSERT into akka_snapshots
+         (persistence_id,
+          sequence_number,
+          created,
+          snapshot,
+          serializer_id,
+          manifest)
+      VALUES
+         (@persistenceId,
+          @sequenceNumber,
+          @created,
+          @snapshot,
+          @serializerId,
+          @manifest)
+      """,
+      sqlParams.SnapshotStore
    ]

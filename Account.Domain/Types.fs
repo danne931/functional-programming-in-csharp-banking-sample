@@ -1,7 +1,6 @@
 namespace Bank.Account.Domain
 
 open System
-open System.Threading.Tasks
 
 open Lib.Types
 open Bank.Transfer.Domain
@@ -117,6 +116,7 @@ type AccountState = {
    LastDebitDate: DateTime option
    TransferRecipients: Map<string, TransferRecipient>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
+   Events: AccountEvent list
 } with
 
    static member empty = {
@@ -135,6 +135,7 @@ type AccountState = {
          QualifyingDepositFound = false
          DailyBalanceThreshold = false
       }
+      Events = []
    }
 
    member x.Name = $"{x.FirstName} {x.LastName}"
@@ -151,7 +152,6 @@ type AccountMessage =
    | DispatchTransfer of BankEvent<TransferPending>
    | Delete
    | BillingCycle
-   | BillingCycleEnd
 
 type CircuitBreakerService =
    | DomesticTransfer
@@ -185,7 +185,7 @@ type SignalRMessage =
    | EndBillingCycle
 
 type AccountPersistence = {
-   getEvents: Guid -> AccountEvent list option Task
+   getEvents: Guid -> AccountEvent list Async
 }
 
 type AccountBroadcast = {

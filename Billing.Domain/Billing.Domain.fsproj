@@ -4,7 +4,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="MaintenanceFee.fs" />
     <Compile Include="BillingStatement.fs" />
   </ItemGroup>
 
@@ -14,5 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.fsproj" />
+    <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
 </Project>

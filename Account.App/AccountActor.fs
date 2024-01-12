@@ -31,10 +31,6 @@ let actorProps
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    =
-   let getTransactions (account: AccountState) = async {
-      return! persistence.getEvents account.EntityId |> Async.AwaitTask
-   }
-
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning = logWarning mailbox
 
@@ -65,8 +61,9 @@ let actorProps
             | GetAccount -> mailbox.Sender() <! accountOpt
             | GetEvents ->
                match accountOpt with
-               | None -> mailbox.Sender() <! None
-               | Some account -> mailbox.Sender() <!| getTransactions account
+               | None -> mailbox.Sender() <! []
+               | Some account ->
+                  mailbox.Sender() <!| persistence.getEvents account.EntityId
             | StateChange(CreateAccount cmd) when accountOpt.IsSome ->
                logWarning
                   $"Account already exists - ignore create account command {cmd.EntityId}"
@@ -112,59 +109,41 @@ let actorProps
             | BillingCycle when
                accountOpt.IsSome && account.CanProcessTransactions
                ->
-               let! (eventsOpt: AccountEvent list option) =
-                  getTransactions account
+               let billing =
+                  BillingStatement.billingStatement account
+                  <| mailbox.LastSequenceNr()
 
+               getBillingStatementActor mailbox.System
+               <! RegisterBillingStatement billing
+
+               // Maintenance fee conditionally applied after account transactions
+               // have been consolidated. If applied, it will be the first transaction
+               // of the new billing cycle.
+               let criteria = account.MaintenanceFeeCriteria
                let accountId = account.EntityId
 
-               if eventsOpt.IsNone then
-                  logWarning "No transactions found for billing cycle."
+               if criteria.CanSkipFee then
+                  let msg =
+                     SkipMaintenanceFeeCommand(accountId, criteria)
+                     |> (StateChange << SkipMaintenanceFee)
+
+                  mailbox.Self <! msg
                else
-                  let txns =
-                     List.choose
-                        Account.accountEventToBillingTransaction
-                        eventsOpt.Value
+                  let msg =
+                     MaintenanceFeeCommand accountId
+                     |> (StateChange << MaintenanceFee)
 
-                  let billing =
-                     BillingStatement.create
-                        {|
-                           AccountId = accountId
-                           Name = account.Name
-                           Balance = account.Balance
-                        |}
-                        txns
+                  mailbox.Self <! msg
 
-                  getBillingStatementActor mailbox.System
-                  <! RegisterBillingStatement billing
+               getEmailActor mailbox.System
+               <! EmailActor.BillingStatement account
 
-                  // Maintenance fee conditionally applied after account transactions
-                  // have been consolidated. If applied, it will be the first transaction
-                  // of the new billing cycle.
-                  mailbox.Self <! AccountMessage.BillingCycleEnd
-
-                  let criteria = account.MaintenanceFeeCriteria
-
-                  if criteria.CanSkipFee then
-                     let msg =
-                        SkipMaintenanceFeeCommand(accountId, criteria)
-                        |> (StateChange << SkipMaintenanceFee)
-
-                     mailbox.Self <! msg
-                  else
-                     let msg =
-                        MaintenanceFeeCommand accountId
-                        |> (StateChange << MaintenanceFee)
-
-                     mailbox.Self <! msg
-
-                  getEmailActor mailbox.System
-                  <! EmailActor.BillingStatement account
+               return! loop <| Some { account with Events = [] }
             | BillingCycle ->
                logWarning
                   "Account not able to process txns. Ignore billing cycle."
 
                return ignored ()
-            | AccountMessage.BillingCycleEnd -> return SaveSnapshot account
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)
@@ -174,22 +153,6 @@ let actorProps
                   PersistentActorEventHandler.init with
                      DeleteMessagesSuccess =
                         fun _ ->
-                           if account.Status = AccountStatus.ReadyForDelete then
-                              DeleteSnapshots(
-                                 SnapshotSelectionCriteria Int64.MaxValue
-                              )
-                           else
-                              ignored ()
-                     SaveSnapshotSuccess =
-                        fun _ res ->
-                           let sequenceNr = res.Metadata.SequenceNr
-
-                           DeleteSnapshots(
-                              SnapshotSelectionCriteria(sequenceNr - 1L)
-                           )
-                           <@> DeleteMessages sequenceNr
-                     DeleteSnapshotsSuccess =
-                        fun mailbox ->
                            if account.Status = AccountStatus.ReadyForDelete then
                               logDebug mailbox "<Passivate>"
                               passivate ()
@@ -218,21 +181,17 @@ let get (sys: ActorSystem) (entityId: Guid) : IEntityRef<AccountMessage> =
 let private getAccountEvents
    (actorSystem: ActorSystem)
    (id: Guid)
-   : AccountEvent list option Task
+   : AccountEvent list Async
    =
-   task {
-      let! evts =
-         ActorUtil
-            .readJournal(actorSystem)
-            .CurrentEventsByPersistenceId(string id, 0, System.Int64.MaxValue)
-            .RunAggregate(
-               [],
-               (fun acc envelope -> unbox envelope.Event :: acc),
-               actorSystem.Materializer()
-            )
-
-      return if evts.IsEmpty then None else evts |> List.rev |> Some
-   }
+   ActorUtil
+      .readJournal(actorSystem)
+      .CurrentEventsByPersistenceId(string id, 0, Int64.MaxValue)
+      .RunAggregate(
+         [],
+         (fun acc envelope -> unbox envelope.Event :: acc),
+         actorSystem.Materializer()
+      )
+   |> Async.AwaitTask
 
 let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
    let getOrStartInternalTransferActor mailbox =

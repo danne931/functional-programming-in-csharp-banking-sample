@@ -26,31 +26,25 @@ let processCommand
       return validation
    }
 
-let getAccountEvents
-   (sys: ActorSystem)
-   (accountId: Guid)
-   : AccountEvent list option Task
-   =
-   let ref = AccountActor.get sys accountId
-   ref <? AccountMessage.GetEvents |> Async.toTask
-
 let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
    let ref = AccountActor.get sys accountId
-   ref <? AccountMessage.GetAccount |> Async.toTask
+
+   ref.Ask(AccountMessage.GetAccount, Some(TimeSpan.FromSeconds 3))
+   |> Async.toTask
 
 let getAccounts () =
    pgQuery<AccountState> "SELECT * FROM accounts" None
    <| fun (read: RowReader) -> {
       EntityId = read.uuid "id"
-      Email = read.text "email" |> Email.deserialize
-      FirstName = read.text "first_name"
-      LastName = read.text "last_name"
+      Email = read.string "email" |> Email.deserialize
+      FirstName = read.string "first_name"
+      LastName = read.string "last_name"
       Currency =
-         read.text "currency"
+         read.string "currency"
          |> sprintf "\"%s\""
          |> Serialization.deserializeUnsafe<Currency>
       Status =
-         read.text "status"
+         read.string "status"
          |> sprintf "\"%s\""
          |> Serialization.deserializeUnsafe<AccountStatus>
       Balance = read.decimal "balance"
@@ -58,7 +52,7 @@ let getAccounts () =
       DailyDebitAccrued = read.decimal "daily_debit_accrued"
       LastDebitDate = read.dateTimeOrNone "last_debit_date"
       TransferRecipients =
-         read.string "transfer_recipients"
+         read.text "transfer_recipients"
          |> Serialization.deserializeUnsafe<Map<string, TransferRecipient>>
       MaintenanceFeeCriteria = {
          QualifyingDepositFound =
@@ -66,6 +60,9 @@ let getAccounts () =
          DailyBalanceThreshold =
             read.bool "maintenance_fee_daily_balance_threshold"
       }
+      Events =
+         read.text "events"
+         |> Serialization.deserializeUnsafe<AccountEvent list>
    }
 
 let upsertAccounts (accounts: AccountState list) =
@@ -73,9 +70,9 @@ let upsertAccounts (accounts: AccountState list) =
       accounts
       |> List.map (fun account -> [
          "@id", Sql.uuid account.EntityId
-         "@email", Sql.text <| string account.Email
-         "@firstName", Sql.text account.FirstName
-         "@lastName", Sql.text account.LastName
+         "@email", Sql.string <| string account.Email
+         "@firstName", Sql.string account.FirstName
+         "@lastName", Sql.string account.LastName
          "@balance", Sql.money account.Balance
          "@currency", Sql.string <| string account.Currency
          "@status", Sql.string <| string account.Status
@@ -84,6 +81,7 @@ let upsertAccounts (accounts: AccountState list) =
          "@lastDebitDate", Sql.dateOrNone account.LastDebitDate
          "@transferRecipients",
          Sql.jsonb <| Serialization.serialize account.TransferRecipients
+         "@events", Sql.jsonb <| Serialization.serialize account.Events
          "@maintenanceFeeQualifyingDepositFound",
          Sql.bool account.MaintenanceFeeCriteria.QualifyingDepositFound
          "@maintenanceFeeDailyBalanceThreshold",
@@ -104,6 +102,7 @@ let upsertAccounts (accounts: AccountState list) =
           daily_debit_accrued,
           last_debit_date,
           transfer_recipients,
+          events,
           maintenance_fee_qualifying_deposit_found,
           maintenance_fee_daily_balance_threshold)
       VALUES
@@ -118,6 +117,7 @@ let upsertAccounts (accounts: AccountState list) =
           @dailyDebitAccrued,
           @lastDebitDate,
           @transferRecipients,
+          @events,
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold)
       ON CONFLICT (id)
@@ -128,8 +128,20 @@ let upsertAccounts (accounts: AccountState list) =
          daily_debit_accrued = @dailyDebitAccrued,
          last_debit_date = @lastDebitDate,
          transfer_recipients = @transferRecipients,
+         events = @events,
          maintenance_fee_qualifying_deposit_found = @maintenanceFeeQualifyingDepositFound,
          maintenance_fee_daily_balance_threshold = @maintenanceFeeDailyBalanceThreshold;
       """,
       sqlParams
    ]
+
+// Diagnostic
+let getAccountEvents
+   (sys: ActorSystem)
+   (accountId: Guid)
+   : AccountEvent list Task
+   =
+   let ref = AccountActor.get sys accountId
+
+   ref.Ask(AccountMessage.GetEvents, Some(TimeSpan.FromSeconds 3))
+   |> Async.toTask

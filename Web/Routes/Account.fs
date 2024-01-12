@@ -46,7 +46,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       Path.AccountEvents,
       Func<ActorSystem, Guid, Task<IResult>>(fun sys id ->
-         getAccountEvents sys id |> RouteUtil.unwrapTaskOption)
+         getAccountEvents sys id |> RouteUtil.unwrapTask)
    )
    |> ignore
 

@@ -7,7 +7,6 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.Types
 open Lib.Time
-open BillingStatement
 
 let recipientLookupKey (recipient: TransferRecipient) =
    match recipient.AccountEnvironment with
@@ -33,120 +32,126 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
       dailyDebitAccrued
 
 let applyEvent (state: AccountState) (evt: AccountEvent) =
-   match evt with
-   | CreatedAccount e -> {
-      AccountState.empty with
-         EntityId = e.EntityId
-         Email = e.Data.Email
-         FirstName = e.Data.FirstName
-         LastName = e.Data.LastName
-         Currency = e.Data.Currency
-         Balance = e.Data.Balance
-         Status = AccountStatus.Active
-         MaintenanceFeeCriteria = MaintenanceFee.reset e.Data.Balance
-     }
-   | AccountClosed _ -> {
-      state with
-         Status = AccountStatus.Closed
-     }
-   | DepositedCash e -> {
-      state with
-         Balance = state.Balance + e.Data.DepositedAmount
-         MaintenanceFeeCriteria =
-            MaintenanceFee.fromDeposit
-               state.MaintenanceFeeCriteria
-               e.Data.DepositedAmount
-     }
-   | DebitedAccount e ->
-      let balance = state.Balance - e.Data.DebitedAmount
-
-      {
+   let newState =
+      match evt with
+      | CreatedAccount e -> {
+         AccountState.empty with
+            EntityId = e.EntityId
+            Email = e.Data.Email
+            FirstName = e.Data.FirstName
+            LastName = e.Data.LastName
+            Currency = e.Data.Currency
+            Balance = e.Data.Balance
+            Status = AccountStatus.Active
+            MaintenanceFeeCriteria = MaintenanceFee.reset e.Data.Balance
+        }
+      | AccountClosed _ -> {
          state with
-            Balance = balance
-            DailyDebitAccrued = DailyDebitAccrued state e
-            LastDebitDate = Some e.Data.Date
+            Status = AccountStatus.Closed
+        }
+      | DepositedCash e -> {
+         state with
+            Balance = state.Balance + e.Data.DepositedAmount
             MaintenanceFeeCriteria =
-               MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
-      }
-   | MaintenanceFeeDebited e ->
-      let balance = state.Balance - e.Data.DebitedAmount
-
-      {
-         state with
-            Balance = balance
-            MaintenanceFeeCriteria = MaintenanceFee.reset balance
-      }
-   | MaintenanceFeeSkipped _ -> {
-      state with
-         MaintenanceFeeCriteria = MaintenanceFee.reset state.Balance
-     }
-   | DailyDebitLimitUpdated e -> {
-      state with
-         DailyDebitLimit = e.Data.DebitLimit
-     }
-   | LockedCard _ -> {
-      state with
-         Status = AccountStatus.CardLocked
-     }
-   | UnlockedCard _ -> {
-      state with
-         Status = AccountStatus.Active
-     }
-   | TransferPending e ->
-      let balance = state.Balance - e.Data.DebitedAmount
-
-      {
-         state with
-            Balance = balance
-            MaintenanceFeeCriteria =
-               MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
-      }
-   | TransferApproved _ -> state
-   | TransferRejected e ->
-      let balance = state.Balance + e.Data.DebitedAmount
-
-      {
-         state with
-            Balance = balance
-            MaintenanceFeeCriteria =
-               MaintenanceFee.fromDebitReversal
+               MaintenanceFee.fromDeposit
                   state.MaintenanceFeeCriteria
-                  balance
-      }
-   | TransferDeposited e -> {
-      state with
-         Balance = state.Balance + e.Data.DepositedAmount
-         MaintenanceFeeCriteria =
-            MaintenanceFee.fromDeposit
-               state.MaintenanceFeeCriteria
-               e.Data.DepositedAmount
-     }
-   | InternalTransferRecipient e ->
-      let recipient = e.Data.toRecipient ()
+                  e.Data.DepositedAmount
+        }
+      | DebitedAccount e ->
+         let balance = state.Balance - e.Data.DebitedAmount
 
-      let key = recipientLookupKey recipient
+         {
+            state with
+               Balance = balance
+               DailyDebitAccrued = DailyDebitAccrued state e
+               LastDebitDate = Some e.Data.Date
+               MaintenanceFeeCriteria =
+                  MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
+         }
+      | MaintenanceFeeDebited e ->
+         let balance = state.Balance - e.Data.DebitedAmount
 
-      {
+         {
+            state with
+               Balance = balance
+               MaintenanceFeeCriteria = MaintenanceFee.reset balance
+         }
+      | MaintenanceFeeSkipped _ -> {
          state with
-            TransferRecipients = state.TransferRecipients.Add(key, recipient)
-      }
-   | DomesticTransferRecipient e ->
-      let recipient = e.Data.toRecipient ()
-
-      let key = recipientLookupKey recipient
-
-      {
+            MaintenanceFeeCriteria = MaintenanceFee.reset state.Balance
+        }
+      | DailyDebitLimitUpdated e -> {
          state with
-            TransferRecipients = state.TransferRecipients.Add(key, recipient)
-      }
-   | InternationalTransferRecipient e ->
-      let recipient = e.Data.toRecipient ()
-      let key = recipientLookupKey recipient
-
-      {
+            DailyDebitLimit = e.Data.DebitLimit
+        }
+      | LockedCard _ -> {
          state with
-            TransferRecipients = state.TransferRecipients.Add(key, recipient)
-      }
+            Status = AccountStatus.CardLocked
+        }
+      | UnlockedCard _ -> {
+         state with
+            Status = AccountStatus.Active
+        }
+      | TransferPending e ->
+         let balance = state.Balance - e.Data.DebitedAmount
+
+         {
+            state with
+               Balance = balance
+               MaintenanceFeeCriteria =
+                  MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
+         }
+      | TransferApproved _ -> state
+      | TransferRejected e ->
+         let balance = state.Balance + e.Data.DebitedAmount
+
+         {
+            state with
+               Balance = balance
+               MaintenanceFeeCriteria =
+                  MaintenanceFee.fromDebitReversal
+                     state.MaintenanceFeeCriteria
+                     balance
+         }
+      | TransferDeposited e -> {
+         state with
+            Balance = state.Balance + e.Data.DepositedAmount
+            MaintenanceFeeCriteria =
+               MaintenanceFee.fromDeposit
+                  state.MaintenanceFeeCriteria
+                  e.Data.DepositedAmount
+        }
+      | InternalTransferRecipient e ->
+         let recipient = e.Data.toRecipient ()
+
+         let key = recipientLookupKey recipient
+
+         {
+            state with
+               TransferRecipients = state.TransferRecipients.Add(key, recipient)
+         }
+      | DomesticTransferRecipient e ->
+         let recipient = e.Data.toRecipient ()
+
+         let key = recipientLookupKey recipient
+
+         {
+            state with
+               TransferRecipients = state.TransferRecipients.Add(key, recipient)
+         }
+      | InternationalTransferRecipient e ->
+         let recipient = e.Data.toRecipient ()
+         let key = recipientLookupKey recipient
+
+         {
+            state with
+               TransferRecipients = state.TransferRecipients.Add(key, recipient)
+         }
+
+   {
+      newState with
+         Events = evt :: state.Events
+   }
 
 module private StateTransition =
    let transitionErr (err: StateTransitionError) =
@@ -301,68 +306,3 @@ let stateTransition (state: AccountState) (command: AccountCommand) =
    | RegisterTransferRecipient cmd ->
       StateTransition.registerTransferRecipient state cmd
    | CloseAccount cmd -> StateTransition.closeAccount state cmd
-
-let accountEventToBillingTransaction
-   (evt: AccountEvent)
-   : BillingTransaction option
-   =
-   match evt with
-   | CreatedAccount e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.Balance
-         Date = e.Timestamp
-         Info = ""
-      }
-   | DepositedCash e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DepositedAmount
-         Date = e.Timestamp
-         Info = e.Data.Origin
-      }
-   | DebitedAccount e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info = e.Data.Origin
-      }
-   | MaintenanceFeeDebited e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info = ""
-      }
-   | TransferPending e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info =
-            $"Recipient: {e.Data.Recipient.FirstName} {e.Data.Recipient.LastName}"
-      }
-   | TransferRejected e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info =
-            $"Recipient: {e.Data.Recipient.FirstName} {e.Data.Recipient.LastName} - Reason: {e.Data.Reason}"
-      }
-   | TransferDeposited e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DepositedAmount
-         Info = $"Received from: {e.Data.Origin}"
-         Date = e.Timestamp
-      }
-   | _ -> None

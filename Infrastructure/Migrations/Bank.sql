@@ -18,6 +18,7 @@ CREATE TABLE accounts (
     transfer_recipients JSONB NOT NULL,
     maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
     maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
+    events JSONB NOT NULL, 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -33,10 +34,12 @@ CREATE TABLE users (
 CREATE TABLE billingstatements (
     name VARCHAR(100) NOT NULL,
     account_id UUID NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+    last_persisted_event_sequence_number BIGINT NOT NULL,
     transactions JSONB NOT NULL,
     balance MONEY NOT NULL,
     month INT NOT NULL,
     year INT NOT NULL,
+    account_snapshot BYTEA NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );

@@ -14,7 +14,6 @@ open Bank.Account.Domain
 open Bank.Account.Api
 open Bank.BillingCycle.Api
 open Bank.Infrastructure
-open Scheduler.Infrastructure
 open ActorUtil
 open BillingStatement
 

@@ -54,7 +54,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? AccountSeederMessage -> "AccountSeederMessage"
       | :? SchedulingActor.Message -> "SchedulingActorMessage"
       | :? AccountClosureMessage -> "AccountClosureActorMessage"
-      | :? Option<List<AccountEvent>> -> "AccountEventListOption"
+      | :? List<AccountEvent> -> "AccountEventList"
       | :? AccountState -> "AccountState"
       | :? Option<AccountState> -> "AccountStateOption"
       | :? List<AccountState> -> "AccountStateList"
@@ -107,7 +107,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | _ -> raise <| NotImplementedException()
       // AccountMessage.GetEvents response serialized for message sent
       // from account cluster nodes to Web node.
-      | :? Option<List<AccountEvent>>
+      | :? List<AccountEvent>
       // AccountMessage.GetAccount response serialized for message sent
       // from account cluster nodes to Web node.
       | :? Option<AccountState>
@@ -157,7 +157,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountStateMap" -> typeof<Map<Guid, AccountState>>
          | "AccountStateList" -> typeof<AccountState list>
          | "AccountEvent" -> typeof<AccountEvent>
-         | "AccountEventListOption" -> typeof<AccountEvent list option>
+         | "AccountEventList" -> typeof<AccountEvent list>
          | "AccountMessage" -> typeof<AccountMessage>
          | "AccountShardEnvelope" -> typeof<AccountShardEnvelope>
          | "SignalRMessage" -> typeof<SignalRMessage>
