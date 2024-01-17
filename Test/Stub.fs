@@ -146,27 +146,6 @@ let command = {|
       )
 |}
 
-let accountState = {
-   AccountState.empty with
-      Status = AccountStatus.Active
-      Balance = 300m
-}
-
-let accountStateAfterCreate = {
-   AccountState.empty with
-      EntityId = command.createAccount.EntityId
-      Email = Email.deserialize command.createAccount.Email
-      FirstName = command.createAccount.FirstName
-      LastName = command.createAccount.LastName
-      Status = AccountStatus.Active
-      Balance = command.createAccount.Balance
-      Currency = command.createAccount.Currency
-      MaintenanceFeeCriteria = {
-         QualifyingDepositFound = false
-         DailyBalanceThreshold = true
-      }
-}
-
 type EventIndex = {
    createdAccount: BankEvent<CreatedAccount>
    depositedCash: BankEvent<DepositedCash>
@@ -201,6 +180,7 @@ let commands: AccountCommand list = [
    <| command.depositCash event.depositedCash.Data.DepositedAmount
    AccountCommand.Debit <| command.debit event.debitedAccount.Data.DebitedAmount
    AccountCommand.MaintenanceFee command.maintenanceFee
+   AccountCommand.RegisterTransferRecipient command.registerInternalRecipient
    AccountCommand.Transfer
    <| command.internalTransfer event.internalTransferPending.Data.DebitedAmount
    AccountCommand.RejectTransfer
@@ -215,6 +195,44 @@ let accountEvents = [
    AccountEnvelope.wrap event.internalTransferPending
    AccountEnvelope.wrap event.transferRejected
 ]
+
+let accountState = {
+   AccountState.empty with
+      Status = AccountStatus.Active
+      Balance = 300m
+}
+
+let accountStateAfterCreate = {
+   AccountState.empty with
+      EntityId = command.createAccount.EntityId
+      Email = Email.deserialize command.createAccount.Email
+      FirstName = command.createAccount.FirstName
+      LastName = command.createAccount.LastName
+      Status = AccountStatus.Active
+      Balance = command.createAccount.Balance
+      Currency = command.createAccount.Currency
+      MaintenanceFeeCriteria = {
+         QualifyingDepositFound = false
+         DailyBalanceThreshold = true
+      }
+      Events = [ AccountEnvelope.wrap event.createdAccount ]
+}
+
+let accountStateOmitEvents (accountOpt: AccountState option) =
+   accountOpt
+   |> Option.map (fun account -> {|
+      EntityId = account.EntityId
+      Email = account.Email
+      FirstName = account.FirstName
+      LastName = account.LastName
+      Currency = account.Currency
+      Status = account.Status
+      Balance = account.Balance
+      DailyDebitLimit = account.DailyDebitLimit
+      DailyDebitAccrued = account.DailyDebitAccrued
+      TransferRecipients = account.TransferRecipients
+      MaintenanceFeeCriteria = account.MaintenanceFeeCriteria
+   |})
 
 let billingTransactions: BillingTransaction list = [
    {
@@ -261,14 +279,8 @@ let billingTransactions: BillingTransaction list = [
    }
 ]
 
-let billingStatement: BillingStatement = {
-   Transactions = billingTransactions
-   Month = 3
-   Year = 2023
-   Balance = 250m
-   Name = "Jelly Fish"
-   AccountId = Guid.NewGuid()
-}
+let billingStatement =
+   BillingStatement.billingStatement accountStateAfterCreate Int64.MaxValue
 
 let accountBroadcast: AccountBroadcast = {
    accountEventPersisted = fun evt accountState -> ()
@@ -277,3 +289,10 @@ let accountBroadcast: AccountBroadcast = {
    circuitBreaker = fun msg -> ()
    endBillingCycle = fun () -> ()
 }
+
+let akkaStreamsRestartSettings () =
+   Akka.Streams.RestartSettings.Create(
+      (TimeSpan.FromSeconds 3),
+      (TimeSpan.FromSeconds 30),
+      0.2
+   )

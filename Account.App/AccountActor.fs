@@ -49,6 +49,8 @@ let actorProps
             | TransferDeposited e ->
                getEmailActor mailbox.System
                <! EmailActor.TransferDeposited(e, newState)
+            | CreatedAccount _ ->
+               getEmailActor mailbox.System <! EmailActor.AccountOpen newState
             | AccountClosed _ ->
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register newState

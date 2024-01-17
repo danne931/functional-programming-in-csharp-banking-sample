@@ -1,36 +1,59 @@
 module BillingStatementActorTests
 
 open System
-open System.Threading
 open Expecto
 open Akkling
 open FsToolkit.ErrorHandling
 
 module ATK = Akkling.TestKit
 
-open Bank.Account.Domain
 open BillingStatement
 open Util
+open Lib.Types
+open Lib.BulkWriteStreamFlow
 
-let config () =
+// Change default test scheduler so BulkWriteStreamFlow used in
+// BillingStatementActor can schedule a message to tell itself
+// to retry persisting failed writes of BillingStatements.
+let config =
    Configuration.parse
       """
-      billing-statement-mailbox: {
-         mailbox-type: "BillingStatementActor+PriorityMailbox, Billing.App"
-      }
+      akka.scheduler.implementation = "Akka.Actor.HashedWheelTimerScheduler, Akka"
       """
 
-let billingPersistence: BillingPersistence = {
-   saveBillingStatements = fun statements -> TaskResult.ok [ statements.Length ]
+let billingPersistenceFail: BillingPersistence = {
+   saveBillingStatements =
+      fun _ -> Exception("test-fail") |> Err.DatabaseError |> TaskResult.error
 }
 
-let stateAfter2Registrations: BillingStatementActor.BulkWriteState = {
-   IsScheduled = true
-   Billing = [ Stub.billingStatement; Stub.billingStatement ]
+let billingPersistenceFailOnce () : BillingPersistence =
+   let mutable counter = 0
+
+   {
+      saveBillingStatements =
+         fun statements ->
+            if counter = 0 then
+               counter <- 1
+               Exception("test-fail") |> Err.DatabaseError |> TaskResult.error
+            else
+               TaskResult.ok [ statements.Length ]
+   }
+
+let stateAfter2Registrations = {
+   IsRetryScheduled = true
+   FailedWrites = [ Stub.billingStatement; Stub.billingStatement ]
 }
 
-let init (tck: TestKit.Tck) =
-   let props = BillingStatementActor.actorProps billingPersistence
+let retryPersistenceAfter = TimeSpan.FromSeconds 1
+
+let init (tck: TestKit.Tck) (chunkSize: int) (persistence: BillingPersistence) =
+   let props =
+      BillingStatementActor.actorProps tck.Sys persistence {
+         Size = chunkSize
+         Duration = TimeSpan.FromSeconds 1
+      }
+      <| Stub.akkaStreamsRestartSettings ()
+      <| retryPersistenceAfter
 
    spawn tck "mock-billing" props
 
@@ -39,9 +62,9 @@ let tests =
    testList "Billing Statement Actor" [
       akkaTest
          "RegisterBillingStatement message should accumulate billing statements in actor state"
-      <| Some(config ())
+      <| Some config
       <| fun tck ->
-         let ref = init tck
+         let ref = init tck 2 billingPersistenceFail
 
          let msg =
             BillingStatementMessage.RegisterBillingStatement
@@ -49,52 +72,44 @@ let tests =
 
          ref <! msg
          ref <! msg
-         ref <! BillingStatementMessage.GetWriteReadyStatements
-         ATK.expectMsg tck stateAfter2Registrations |> ignore
+         ref <! BillingStatementMessage.GetFailedWrites
 
-      akkaTest "Actor state is reset after PersistBillingStatements message"
-      <| Some(config ())
+         let (failedWrites: BillingStatement seq) = ATK.receiveOne tck
+
+         Expect.hasLength
+            failedWrites
+            2
+            "should contain 2 billing statements which failed to persist"
+
+      akkaTest "Failed billing statement persist requests should be retried"
+      <| Some config
       <| fun tck ->
-         let ref = init tck
+         let ref = init tck 1 <| billingPersistenceFailOnce ()
 
          let msg =
             BillingStatementMessage.RegisterBillingStatement
                Stub.billingStatement
 
          ref <! msg
-         ref <! msg
-         Thread.Sleep(100)
-         ref <! BillingStatementMessage.PersistBillingStatements
-         ref <! BillingStatementMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingStatementActor.initState |> ignore
+         ref <! BillingStatementMessage.GetFailedWrites
 
-      akkaTest "Actor state is reset after batch size reached"
-      <| Some(config ())
-      <| fun tck ->
-         let ref = init tck
+         let (failedWrites: BillingStatement seq) = ATK.receiveOne tck
 
-         let msg =
-            BillingStatementMessage.RegisterBillingStatement
-               Stub.billingStatement
+         Expect.hasLength
+            failedWrites
+            1
+            "should contain 1 billing statement which failed to persist"
 
-         let maxMinus1 = BillingStatementActor.batchSizeLimit - 1
+         tck.AwaitAssert(
+            (fun () ->
+               ref <! BillingStatementMessage.GetFailedWrites
 
-         for _ in [ 1..maxMinus1 ] do
-            ref <! msg
+               let (failedWrites: BillingStatement seq) = ATK.receiveOne tck
 
-         ref <! BillingStatementMessage.GetWriteReadyStatements
-         let res = tck.ExpectMsg<BillingStatementActor.BulkWriteState>()
-
-         Expect.equal
-            res.Billing.Length
-            maxMinus1
-            $"actor should have {maxMinus1} billing statements in state"
-
-         // This message increases the batch size to the limit.
-         // Billing statements are persisted & state is restored
-         // to its initial state.
-         ref <! msg
-
-         ref <! BillingStatementMessage.GetWriteReadyStatements
-         ATK.expectMsg tck BillingStatementActor.initState |> ignore
+               Expect.hasLength
+                  failedWrites
+                  0
+                  "should contain 0 billing statements after retry"),
+            retryPersistenceAfter.Add(TimeSpan.FromSeconds 1)
+         )
    ]

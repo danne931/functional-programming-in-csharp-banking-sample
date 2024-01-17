@@ -108,10 +108,11 @@ builder.Services.AddAkka(
             (fun system registry _ ->
                let typedProps =
                   AccountEventConsumerActor.actorProps
-                  <| AccountActor.get system
-                  <| Env.config.AccountEventProjectionChunking
-                  <| Env.config.AccountEventReadModelPersistenceBackoffRestart
-                  <| upsertAccounts
+                     (AccountActor.get system)
+                     Env.config.AccountEventProjectionChunking
+                     Env.config.AccountEventReadModelPersistenceBackoffRestart
+                     Env.config.AccountEventReadModelRetryPersistenceAfter
+                     upsertAccounts
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -189,6 +190,7 @@ builder.Services.AddAkka(
                   }
                   Env.config.BillingStatementPersistenceChunking
                   Env.config.BillingStatementPersistenceBackoffRestart
+                  Env.config.BillingStatementRetryPersistenceAfter
                |> untyped
             )
 

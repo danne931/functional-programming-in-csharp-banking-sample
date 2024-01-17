@@ -353,7 +353,7 @@ module PersistentActorEventHandler =
 let queueOffer<'t>
    (queue: ISourceQueueWithComplete<'t>)
    (msg: 't)
-   : Result<Effect<'t>, string> Task
+   : Result<Effect<obj>, string> Task
    =
    task {
       let! result = queue.AsyncOffer msg

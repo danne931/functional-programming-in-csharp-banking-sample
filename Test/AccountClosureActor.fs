@@ -51,10 +51,15 @@ let init (tck: TestKit.Tck) =
    let accountClosureActor =
       spawn tck ActorMetadata.accountClosure.Name
       <| AccountClosureActor.actorProps
-            (typed quartzSchedulerProbe :> IActorRef<SchedulingActor.Message>)
-            getAccountRef
-            (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
-            mockDeleteHistoricalRecords
+         (typed quartzSchedulerProbe :> IActorRef<SchedulingActor.Message>)
+         getAccountRef
+         (fun _ -> (typed emailProbe :> IActorRef<EmailActor.EmailMessage>))
+         mockDeleteHistoricalRecords
+         {
+            Count = 10
+            Burst = 10
+            Duration = TimeSpan.FromSeconds 3
+         }
 
    accountClosureActor, emailProbe, quartzSchedulerProbe
 

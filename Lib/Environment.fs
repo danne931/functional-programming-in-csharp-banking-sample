@@ -113,8 +113,10 @@ type private BankConfigInput = {
    AccountEventProjectionChunking: StreamChunkingInput
    AccountEventReadModelPersistenceBackoffRestart:
       StreamBackoffRestartSettingsInput
+   AccountEventReadModelRetryPersistenceAfter: TimeSpan option
    BillingStatementPersistenceChunking: StreamChunkingInput
    BillingStatementPersistenceBackoffRestart: StreamBackoffRestartSettingsInput
+   BillingStatementRetryPersistenceAfter: TimeSpan option
 }
 
 type BankConfig = {
@@ -130,8 +132,10 @@ type BankConfig = {
    AccountDeleteThrottle: StreamThrottle
    AccountEventProjectionChunking: StreamChunking
    AccountEventReadModelPersistenceBackoffRestart: Akka.Streams.RestartSettings
+   AccountEventReadModelRetryPersistenceAfter: TimeSpan
    BillingStatementPersistenceChunking: StreamChunking
    BillingStatementPersistenceBackoffRestart: Akka.Streams.RestartSettings
+   BillingStatementRetryPersistenceAfter: TimeSpan
 }
 
 let config =
@@ -204,6 +208,9 @@ let config =
          AccountEventReadModelPersistenceBackoffRestart =
             streamBackoffRestartSettingsFromInput
                input.AccountEventReadModelPersistenceBackoffRestart
+         AccountEventReadModelRetryPersistenceAfter =
+            input.AccountEventReadModelRetryPersistenceAfter
+            |> Option.defaultValue (TimeSpan.FromSeconds 7)
          BillingStatementPersistenceChunking = {
             Size =
                input.BillingStatementPersistenceChunking.Size
@@ -216,6 +223,9 @@ let config =
          BillingStatementPersistenceBackoffRestart =
             streamBackoffRestartSettingsFromInput
                input.BillingStatementPersistenceBackoffRestart
+         BillingStatementRetryPersistenceAfter =
+            input.BillingStatementRetryPersistenceAfter
+            |> Option.defaultValue (TimeSpan.FromSeconds 7)
       }
    | Error err ->
       match err with

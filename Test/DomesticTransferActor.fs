@@ -119,7 +119,7 @@ let initDomesticTransferActor
       DomesticTransferRecipientActor.actorProps
          breaker
          getAccountActor
-         emailActor
+         (fun _ -> emailActor)
          transferRequest
 
    spawn tck ActorMetadata.domesticTransfer.Name prop

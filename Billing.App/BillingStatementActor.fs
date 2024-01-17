@@ -1,6 +1,7 @@
 [<RequireQualifiedAccess>]
 module BillingStatementActor
 
+open System
 open Akka.Actor
 open Akka.Hosting
 open Akkling
@@ -29,9 +30,12 @@ let initQueueSource
    (persistence: BillingPersistence)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
+   (retryAfter: TimeSpan)
+   (billingStatementActorRef: IActorRef<obj>)
    =
-   let bulkWriteFlow, bulkWriteRef =
+   let flow, bulkWriteRef =
       initBulkWriteFlow<BillingStatement> system restartSettings chunking {
+         RetryAfter = retryAfter
          persist =
             fun (statements: BillingStatement seq) ->
                statements |> List.ofSeq |> persistence.saveBillingStatements
@@ -39,29 +43,13 @@ let initQueueSource
          onRetry =
             fun (statements: BillingStatement seq) ->
                for bill in statements do
-                  get system <! RegisterBillingStatement bill
+                  billingStatementActorRef <! RegisterBillingStatement bill
          onPersistOk =
             fun _ response ->
                SystemLog.info system $"Saved billing statements {response}"
       }
 
-   let flow =
-      Flow.id<obj, IActorRef<BillingStatementMessage>>
-      // Filter for statements to be batched in the next stage.
-      |> Flow.choose (fun msg ->
-         match msg with
-         | :? BillingStatementMessage as msg ->
-            match msg with
-            | BillingStatementMessage.RegisterBillingStatement statement ->
-               Some statement
-            // Forward message to internal bulk write
-            // actor without including message in next flow stage.
-            | BillingStatementMessage.GetFailedWrites ->
-               bulkWriteRef <<! BulkWriteMessage.GetFailedWrites
-               None
-         | _ -> None)
-      |> Flow.via bulkWriteFlow
-
+   bulkWriteRef,
    Source.queue OverflowStrategy.Backpressure 1000 |> Source.via flow
 
 let actorProps
@@ -69,6 +57,7 @@ let actorProps
    (persistence: BillingPersistence)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
+   (retryFailedPersistenceAfter: TimeSpan)
    =
    let rec init (ctx: Actor<obj>) = actor {
       let! msg = ctx.Receive()
@@ -79,39 +68,60 @@ let actorProps
          | PreStart ->
             logInfo ctx "Prestart - Init BillingStatementActor Queue Source"
 
+            let (bulkWriteRef, queueSource) =
+               initQueueSource
+                  system
+                  persistence
+                  chunking
+                  restartSettings
+                  retryFailedPersistenceAfter
+                  ctx.Self
+
             let queue =
-               initQueueSource system persistence chunking restartSettings
+               queueSource
                |> Source.toMat Sink.ignore Keep.left
                |> Graph.run (system.Materializer())
 
-            return! processing ctx queue
+            return! processing ctx queue bulkWriteRef
          | _ -> return ignored ()
       | msg ->
          logError ctx $"Unknown msg {msg}"
          return unhandled ()
    }
 
-   and processing (ctx: Actor<obj>) (queue: ISourceQueueWithComplete<obj>) = actor {
-      let! msg = ctx.Receive()
+   and processing
+      (ctx: Actor<obj>)
+      (queue: ISourceQueueWithComplete<BillingStatement>)
+      (bulkWriteRef: IActorRef<BulkWriteMessage<BillingStatement>>)
+      =
+      actor {
+         let! msg = ctx.Receive()
 
-      match msg with
-      | :? BillingStatementMessage as msg ->
-         let! result = queueOffer<obj> queue msg
+         match msg with
+         | :? BillingStatementMessage as msg ->
+            match msg with
+            | RegisterBillingStatement statement ->
+               let! result = queueOffer<BillingStatement> queue statement
 
-         return
-            match result with
-            | Ok effect -> effect
-            | Error errMsg -> failwith errMsg
-      | LifecycleEvent e ->
-         match e with
-         | PostStop ->
-            queue.Complete()
-            return! init ctx
-         | _ -> return ignored ()
-      | msg ->
-         logError ctx $"Unknown msg {msg}"
-         return unhandled ()
-   }
+               return
+                  match result with
+                  | Ok effect -> effect
+                  | Error errMsg -> failwith errMsg
+            | BillingStatementMessage.GetFailedWrites ->
+               let! failedWrites =
+                  bulkWriteRef <? BulkWriteMessage.GetFailedWrites
+
+               ctx.Sender() <! failedWrites
+         | LifecycleEvent e ->
+            match e with
+            | PostStop ->
+               queue.Complete()
+               return! init ctx
+            | _ -> return ignored ()
+         | msg ->
+            logError ctx $"Unknown msg {msg}"
+            return unhandled ()
+      }
 
    props init
 
@@ -120,8 +130,14 @@ let start
    (persistence: BillingPersistence)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
+   (retryFailedPersistenceAfter: TimeSpan)
    : IActorRef<BillingStatementMessage>
    =
    spawn system ActorMetadata.billingStatement.Name
-   <| actorProps system persistence chunking restartSettings
+   <| actorProps
+         system
+         persistence
+         chunking
+         restartSettings
+         retryFailedPersistenceAfter
    |> retype

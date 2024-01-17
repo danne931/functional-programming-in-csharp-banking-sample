@@ -56,6 +56,7 @@ let startProjection
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
+   (retryPersistenceAfter: TimeSpan)
    (upsertAccounts: BulkAccountUpsert)
    (state: AccountEventConsumerState)
    =
@@ -76,6 +77,7 @@ let startProjection
 
    let bulkWriteFlow, _ =
       initBulkWriteFlow<AccountState> system restartSettings chunking {
+         RetryAfter = retryPersistenceAfter
          persist =
             fun (accounts: AccountState seq) ->
                accounts |> List.ofSeq |> upsertAccounts
@@ -109,6 +111,7 @@ let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
+   (retryPersistenceAfter: TimeSpan)
    (upsertAccounts: BulkAccountUpsert)
    =
    let handler (mailbox: Eventsourced<obj>) =
@@ -140,6 +143,7 @@ let actorProps
                                  getAccountRef
                                  chunking
                                  restartSettings
+                                 retryPersistenceAfter
                                  upsertAccounts
                                  state
                               |> ignored

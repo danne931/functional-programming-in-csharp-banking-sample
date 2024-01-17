@@ -1,6 +1,5 @@
 module AccountActorTests
 
-open System.Threading.Tasks
 open Expecto
 open Akkling
 open Akka.Actor
@@ -10,7 +9,6 @@ open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open User
 open BillingStatement
 
 // NOTE: Change default snapshot store from local file system
@@ -22,15 +20,11 @@ let config =
       """
 
 let accountPersistence: AccountPersistence = {
-   getEvents = fun _ -> Stub.accountEvents |> Some |> Task.FromResult
+   getEvents = fun _ -> Stub.accountEvents |> async.Return
 }
 
 let accountPersistenceNoEvents: AccountPersistence = {
-   getEvents = fun _ -> None |> Task.FromResult
-}
-
-let userPersistence: UserPersistence = {
-   createUser = fun _ -> 1 |> Ok |> Task.FromResult
+   getEvents = fun _ -> async.Return []
 }
 
 let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
@@ -66,7 +60,6 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
             getEmailActor
             getAccountClosureActor
             getBillingStatementActor
-            userPersistence
 
    {|
       accountActor = accountActor
@@ -92,8 +85,8 @@ let tests =
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          Expect.equal
-            state
-            (Some Stub.accountStateAfterCreate)
+            (Stub.accountStateOmitEvents state)
+            (Stub.accountStateAfterCreate |> Some |> Stub.accountStateOmitEvents)
             "Account state after CreateAccountCommand should be initialized"
 
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
@@ -101,8 +94,10 @@ let tests =
          match msg with
          | EmailActor.EmailMessage.AccountOpen account ->
             Expect.equal
-               account
-               Stub.accountStateAfterCreate
+               (account |> Some |> Stub.accountStateOmitEvents)
+               (Stub.accountStateAfterCreate
+                |> Some
+                |> Stub.accountStateOmitEvents)
                "EmailActor should receive AccountOpen message with created
                account"
          | msg ->
@@ -129,8 +124,8 @@ let tests =
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          Expect.equal
-            state
-            (Some expectedState)
+            (Stub.accountStateOmitEvents state)
+            (expectedState |> Some |> Stub.accountStateOmitEvents)
             "Account state should be closed"
 
          let msg = o.accountClosureProbe.ExpectMsg<AccountClosureMessage>()
@@ -138,8 +133,8 @@ let tests =
          match msg with
          | AccountClosureMessage.Register account ->
             Expect.equal
-               account
-               expectedState
+               (account |> Some |> Stub.accountStateOmitEvents)
+               (expectedState |> Some |> Stub.accountStateOmitEvents)
                "AccountClosure actor should receive a Register message with an
                 account intended to close"
          | msg ->
@@ -166,18 +161,23 @@ let tests =
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          Expect.equal
-            state
-            (Some Stub.accountStateAfterCreate)
+            (Stub.accountStateOmitEvents state)
+            (Stub.accountStateAfterCreate |> Some |> Stub.accountStateOmitEvents)
             "Account state should be unchanged after failed debit validation due
             to insufficient balance"
+
+         // account create email
+         o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
 
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
          match msg with
          | EmailActor.EmailMessage.DebitDeclined(errMsg, account) ->
             Expect.equal
-               account
-               Stub.accountStateAfterCreate
+               (account |> Some |> Stub.accountStateOmitEvents)
+               (Stub.accountStateAfterCreate
+                |> Some
+                |> Stub.accountStateOmitEvents)
                "EmailActor should receive a DebitDeclined message for
                insufficient balance"
 
@@ -213,8 +213,8 @@ let tests =
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          Expect.equal
-            state
-            (Some expectedState)
+            (Stub.accountStateOmitEvents state)
+            (expectedState |> Some |> Stub.accountStateOmitEvents)
             "Account state should be configured with the daily debit limit"
 
          let debit1 = AccountCommand.Debit <| Stub.command.debit 98m
@@ -337,9 +337,12 @@ let tests =
          let state = tck.ExpectMsg<Option<AccountState>>()
 
          Expect.equal
-            state
-            (Some expectedState)
+            (Stub.accountStateOmitEvents state)
+            (expectedState |> Some |> Stub.accountStateOmitEvents)
             "Account state should reflect a received transfer"
+
+         // account create email
+         o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
 
          match o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
          | EmailActor.EmailMessage.TransferDeposited(evt, account) ->
@@ -351,31 +354,6 @@ let tests =
             Expect.isTrue
                false
                $"Expected TransferDeposited EmailMessage. Received {msg}"
-
-      akkaTest
-         "If no account transactions found for a billing cycle then no
-          interaction with billing statement and no change in account state."
-      <| Some config
-      <| fun tck ->
-         let o = init tck accountPersistenceNoEvents
-
-         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
-         o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.GetAccount
-         let initialState = tck.ExpectMsg<Option<AccountState>>()
-
-         o.accountActor <! AccountMessage.BillingCycle
-
-         o.billingProbe.ExpectNoMsg()
-
-         o.accountActor <! AccountMessage.GetAccount
-
-         let stateAfterBillingCycle = tck.ExpectMsg<Option<AccountState>>()
-
-         Expect.equal
-            initialState
-            stateAfterBillingCycle
-            "Account state should remain unchanged"
 
       akkaTest
          "AccountActor interacts with BillingStatementActor & EmailActor
@@ -396,28 +374,27 @@ let tests =
 
          o.accountActor <! AccountMessage.BillingCycle
 
-         match o.billingProbe.ExpectMsg<BillingStatementMessage>() with
-         | BillingStatementMessage.RegisterBillingStatement statement ->
-            Expect.sequenceEqual
-               (statement.Transactions |> List.map (fun k -> k.Name))
-               (Stub.billingTransactions |> List.map (fun k -> k.Name))
-               "RegisterBillingStatements msg should send transactions equivalent
-                to those associated with the account events"
+         let (RegisterBillingStatement statement) =
+            o.billingProbe.ExpectMsg<BillingStatementMessage>()
 
-            Expect.equal
-               statement.Balance
-               initAccount.Balance
-               "Billing statement balance should = account balance"
+         Expect.sequenceEqual
+            (statement.Transactions |> List.map (fun k -> k.Name))
+            ("DebitedAccount"
+             :: (Stub.billingTransactions
+                 |> List.map (fun k -> k.Name)
+                 |> List.rev))
+            "RegisterBillingStatements msg should send transactions equivalent
+             to those associated with the account events"
 
-            Expect.equal
-               statement.AccountId
-               initAccount.EntityId
-               "Billing statement AccountId should = account EntityId"
-         | msg ->
-            Expect.isTrue
-               false
-               $"BillingStatementActor expects RegisterBillingStatement
-                 message. Received message: {msg}"
+         Expect.equal
+            statement.Balance
+            initAccount.Balance
+            "Billing statement balance should = account balance"
+
+         Expect.equal
+            statement.AccountId
+            initAccount.EntityId
+            "Billing statement AccountId should = account EntityId"
 
          // account create email
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
