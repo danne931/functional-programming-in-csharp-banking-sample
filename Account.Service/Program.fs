@@ -72,12 +72,7 @@ builder.Services.AddAkka(
 
                props.ToProps()),
             ClusterMetadata.accountShardRegion.messageExtractor,
-            ShardOptions(
-               Role = ClusterMetadata.roles.account,
-               StateStoreMode = StateStoreMode.DData,
-               RememberEntities = true,
-               RememberEntitiesStore = RememberEntitiesStore.Eventsourced
-            )
+            ShardOptions(Role = ClusterMetadata.roles.account)
          )
          .WithSingleton<ActorMetadata.BillingCycleMarker>(
             ActorMetadata.billingCycle.Name,
