@@ -4,7 +4,6 @@ module CircuitBreakerActor
 open Akka.Actor
 open Akka.Hosting
 open Akkling
-open Akka.Persistence
 open Akkling.Persistence
 
 open ActorUtil

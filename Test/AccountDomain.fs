@@ -42,10 +42,8 @@ let tests =
       test "DepositCashCommand should recompute maintenance fee criteria" {
          let initState = {
             Stub.accountState with
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = false
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = false
          }
 
          let command =
@@ -70,10 +68,8 @@ let tests =
       test "TransferDepositCommand should recompute maintenance fee criteria" {
          let initState = {
             Stub.accountState with
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = false
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command =
@@ -127,10 +123,8 @@ let tests =
          let initState = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold + 100m
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = true
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command = Stub.command.registerInternalRecipient
@@ -166,10 +160,8 @@ let tests =
          let initState = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold + 100m
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = true
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command = Stub.command.registerInternalRecipient
@@ -200,10 +192,8 @@ let tests =
          let initState = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold + 100m
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = true
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command = Stub.command.debit 90m
@@ -359,10 +349,8 @@ let tests =
          let initState = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = true
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command = Stub.command.maintenanceFee
@@ -383,10 +371,8 @@ let tests =
          let state = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold + 100m
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = false
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = false
          }
 
          let cmd = AccountCommand.MaintenanceFee Stub.command.maintenanceFee
@@ -406,10 +392,8 @@ let tests =
          let initState = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = true
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = true
          }
 
          let command = Stub.command.skipMaintenanceFee
@@ -430,10 +414,8 @@ let tests =
          let state = {
             Stub.accountState with
                Balance = MaintenanceFee.DailyBalanceThreshold - 1m
-               MaintenanceFeeCriteria = {
-                  QualifyingDepositFound = false
-                  DailyBalanceThreshold = false
-               }
+               MaintenanceFeeCriteria.QualifyingDepositFound = false
+               MaintenanceFeeCriteria.DailyBalanceThreshold = false
          }
 
          let cmd = Stub.command.skipMaintenanceFee

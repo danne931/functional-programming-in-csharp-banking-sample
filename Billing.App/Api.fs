@@ -45,6 +45,14 @@ let private snapshotStoreSqlParams (bill: BillingStatement) = [
    "@manifest", Sql.string "AccountState"
 ]
 
+// NOTE:
+// Deleting akka_event_journal account events & taking a snapshot
+// used to be implemented in the AccountActor application logic.
+// These DB ops would occur for each account during a billing cycle,
+// leading to Postgres connection pool errors.
+// To fix this I have removed this application logic from the AccountActor,
+// instead opting to carry out these DB ops in a transaction along with
+// insertion of the billing statements.
 let saveBillingStatements (statements: BillingStatement list) =
    let sqlParams =
       statements

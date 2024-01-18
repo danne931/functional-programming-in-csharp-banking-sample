@@ -377,11 +377,9 @@ let tests =
             o.billingProbe.ExpectMsg<BillingStatementMessage>()
 
          Expect.sequenceEqual
-            (statement.Transactions |> List.map (fun k -> k.Name))
+            (statement.Transactions |> List.map _.Name)
             ("DebitedAccount"
-             :: (Stub.billingTransactions
-                 |> List.map (fun k -> k.Name)
-                 |> List.rev))
+             :: (Stub.billingTransactions |> List.map _.Name |> List.rev))
             "RegisterBillingStatements msg should send transactions equivalent
              to those associated with the account events"
 
