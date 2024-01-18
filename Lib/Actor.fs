@@ -46,7 +46,10 @@ let messageExtractor maxNumberOfShards =
       entityIdExtractor =
          (fun msg ->
             match msg with
-            | :? ShardRegion.StartEntity as e -> e.EntityId
+            // No longer need to handle ShardingEnvelope manually here as of
+            // Akka.NET release 1.5.15 https://github.com/akkadotnet/akka.net/releases/tag/1.5.15
+            // However, Akkling needs a corresponding update before removing
+            // it's equivalent ShardEnvelope.
             | :? ShardEnvelope as e -> e.EntityId
             | :? Guid as id -> string id
             | _ -> null),
@@ -350,6 +353,7 @@ module PersistentActorEventHandler =
          logError mailbox $"<UnknownMessage>: %s{msg.GetType().FullName}"
          unhandled ()
 
+// Add an item to an Akka.Streams queue
 let queueOffer<'t>
    (queue: ISourceQueueWithComplete<'t>)
    (msg: 't)
