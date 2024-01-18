@@ -304,8 +304,7 @@ let tests =
             "Account state should reflect a transfer debit"
 
          let msg =
-            o.domesticTransferProbe.ExpectMsg<DomesticTransferRecipientActor.Message>
-               ()
+            o.domesticTransferProbe.ExpectMsg<DomesticTransferRecipientActor.Message>()
 
          match msg with
          | DomesticTransferRecipientActor.TransferPending(evt) ->

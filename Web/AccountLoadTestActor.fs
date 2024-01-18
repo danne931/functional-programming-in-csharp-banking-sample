@@ -114,9 +114,6 @@ let private prepareTestData () = {
    UnexpectedBalances = Map.empty
 }
 
-let registerSelfForPubSub (ctx: Actor<AccountLoadTestMessage>) =
-   DistributedPubSub.Get(ctx.System).Mediator.Tell(Put(untyped ctx.Self))
-
 let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
    let handler (mailbox: Actor<AccountLoadTestMessage>) =
       let logInfo, logError = logInfo mailbox, logError mailbox

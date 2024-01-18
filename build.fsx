@@ -1,7 +1,7 @@
 #!/usr/bin/env -S dotnet fsi
 #r "nuget: Fake.Core.Target"
 
-// Workaround for FAKE not yet supporting Dotnet 7
+// Workaround for FAKE not yet supporting Dotnet versions > 6
 System.Environment.GetCommandLineArgs()
 |> Array.skip 2
 |> Array.toList
