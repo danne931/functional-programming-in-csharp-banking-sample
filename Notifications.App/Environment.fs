@@ -17,6 +17,11 @@ type NotificationsInput = {
    EmailServiceUri: string
    EmailBearerToken: string option
    SupportEmail: string option
+   CircuitBreaker: {|
+      MaxFailures: int option
+      CallTimeoutSeconds: int option
+      ResetTimeoutSeconds: int option
+   |}
 }
 
 type NotificationsConfig = {
@@ -24,6 +29,7 @@ type NotificationsConfig = {
    EmailThrottle: StreamThrottle
    EmailBearerToken: string option
    SupportEmail: string option
+   circuitBreaker: Akka.Actor.ActorSystem -> Akka.Pattern.CircuitBreaker
 }
 
 let private errorMessage missing =
@@ -68,6 +74,20 @@ let config =
                |> Option.defaultValue 1
                |> TimeSpan.FromSeconds
          }
+         circuitBreaker =
+            fun system ->
+               Akka.Pattern.CircuitBreaker(
+                  system.Scheduler,
+                  input.CircuitBreaker.MaxFailures |> Option.defaultValue 2,
+
+                  input.CircuitBreaker.CallTimeoutSeconds
+                  |> Option.defaultValue 7
+                  |> TimeSpan.FromSeconds,
+
+                  input.CircuitBreaker.ResetTimeoutSeconds
+                  |> Option.defaultValue 10
+                  |> TimeSpan.FromSeconds
+               )
       }
    | Error err ->
       match err with

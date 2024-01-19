@@ -152,27 +152,18 @@ builder.Services.AddAkka(
          )
          .WithActors(fun system registry ->
             let routerEnv = EnvTransfer.config.DomesticTransferRouter
-            let breakerEnv = EnvTransfer.config.DomesticTransferCircuitBreaker
             let broadcast = provider.GetRequiredService<AccountBroadcast>()
             let getAccountRef = AccountActor.get system
 
             let resize = DefaultResizer(1, routerEnv.MaxInstancesPerNode)
             let router = RoundRobinPool(1, resize)
 
-            let breaker =
-               Akka.Pattern.CircuitBreaker(
-                  system.Scheduler,
-                  maxFailures = breakerEnv.MaxFailures,
-                  callTimeout = TimeSpan.FromSeconds breakerEnv.CallTimeout,
-                  resetTimeout = TimeSpan.FromSeconds breakerEnv.ResetTimeout
-               )
-
             registry.Register<ActorMetadata.DomesticTransferMarker>(
                DomesticTransferRecipientActor.start
                   system
                   broadcast
                   getAccountRef
-                  breaker
+                  (EnvTransfer.config.domesticTransferCircuitBreaker system)
                   router
                |> untyped
             )
@@ -194,6 +185,7 @@ builder.Services.AddAkka(
                   system
                   broadcast
                   EnvNotifications.config.EmailThrottle
+                  (EnvNotifications.config.circuitBreaker system)
                |> untyped
             )
 

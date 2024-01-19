@@ -25,6 +25,10 @@ type EmailMessage =
    | TransferDeposited of BankEvent<TransferDeposited> * AccountState
    | ApplicationErrorRequiresSupport of string
 
+type private CircuitBreakerMessage =
+   | BreakerHalfOpen
+   | BreakerClosed
+
 type private QueueItem = QueueItem of EmailMessage
 
 type private TrackingEvent = {
@@ -93,23 +97,29 @@ let private emailPropsFromMessage (msg: EmailMessage) =
 
 // Side effect: Raise an exception instead of returning Result.Error
 //              to trip circuit breaker
-let private sendEmail (client: HttpClient) (data: TrackingEvent) = task {
-   use! response =
-      client.PostAsJsonAsync(
-         "track",
-         {|
-            event = data.event
-            email = data.email
-            data = data.data
-         |}
-      )
+let private sendEmail
+   (client: HttpClient)
+   (data: TrackingEvent)
+   (ctx: Actor<obj>)
+   =
+   task {
+      use! response =
+         client.PostAsJsonAsync(
+            "track",
+            {|
+               event = data.event
+               email = data.email
+               data = data.data
+            |}
+         )
 
-   if not response.IsSuccessStatusCode then
-      let! content = response.Content.ReadFromJsonAsync()
-      failwith $"Error sending email: {response.ReasonPhrase} - {content}"
+      if not response.IsSuccessStatusCode then
+         ctx.Stash()
+         let! content = response.Content.ReadFromJsonAsync()
+         failwith $"Error sending email: {response.ReasonPhrase} - {content}"
 
-   return response
-}
+      return response
+   }
 
 let private createClient (bearerToken: string) =
    let client =
@@ -160,7 +170,6 @@ let actorProps
    }
 
    and processing (ctx: Actor<obj>) (queue: ISourceQueueWithComplete<obj>) = actor {
-      let logWarning, logError = logWarning ctx, logError ctx
       let! msg = ctx.Receive()
 
       match msg with
@@ -176,15 +185,17 @@ let actorProps
          let emailData = emailPropsFromMessage msg
 
          if client.IsNone then
-            logWarning "EmailBearerToken not set.  Will not send email."
+            logWarning ctx "EmailBearerToken not set.  Will not send email."
          elif
             emailData.event = "application-error-requires-support"
             && isNull emailData.email
          then
-            logWarning "Support email not configured. Will not send."
+            logWarning ctx "Support email not configured. Will not send."
+         elif breaker.IsOpen then
+            ctx.Stash()
          else
             breaker.WithCircuitBreaker(fun () ->
-               sendEmail client.Value emailData)
+               sendEmail client.Value emailData ctx)
             |> Async.AwaitTask
             |!> retype ctx.Self
       | LifecycleEvent e ->
@@ -196,28 +207,36 @@ let actorProps
       | :? HttpResponseMessage ->
          // Successful request to email service -> ignore
          return ignored ()
-      | :? Status.Failure ->
-         // Failed request to email service -> dead letters
-         return unhandled ()
+      | :? Status.Failure as e ->
+         logError ctx $"Failed request to email service {e}"
+         return ignored ()
+      | :? CircuitBreakerMessage as msg ->
+         match msg with
+         | BreakerHalfOpen ->
+            logInfo ctx "Breaker half open - unstash one"
+            ctx.Unstash()
+            return ignored ()
+         | BreakerClosed ->
+            logInfo ctx "Breaker closed - unstash all"
+            ctx.UnstashAll()
+            return ignored ()
       | msg ->
-         logError $"Unknown msg {msg}"
+         logError ctx $"Unknown msg {msg}"
          return unhandled ()
    }
 
    props init
 
-let initProps
+let start
    (system: ActorSystem)
    (broadcaster: AccountBroadcast)
    (throttle: StreamThrottle)
+   (breaker: Akka.Pattern.CircuitBreaker)
+   : IActorRef<EmailMessage>
    =
-   let breaker =
-      Akka.Pattern.CircuitBreaker(
-         system.Scheduler,
-         maxFailures = 2,
-         callTimeout = TimeSpan.FromSeconds 7,
-         resetTimeout = TimeSpan.FromMinutes 1
-      )
+   let ref =
+      spawn system ActorMetadata.email.Name
+      <| actorProps system breaker throttle
 
    breaker.OnHalfOpen(fun () ->
       broadcaster.circuitBreaker {
@@ -225,7 +244,9 @@ let initProps
          Status = CircuitBreakerStatus.HalfOpen
          Timestamp = DateTime.UtcNow
       }
-      |> ignore)
+      |> ignore
+
+      ref <! BreakerHalfOpen)
    |> ignore
 
    breaker.OnClose(fun () ->
@@ -234,7 +255,9 @@ let initProps
          Status = CircuitBreakerStatus.Closed
          Timestamp = DateTime.UtcNow
       }
-      |> ignore)
+      |> ignore
+
+      ref <! BreakerClosed)
    |> ignore
 
    breaker.OnOpen(fun () ->
@@ -248,17 +271,7 @@ let initProps
       |> ignore)
    |> ignore
 
-   actorProps system breaker throttle
-
-let start
-   (system: ActorSystem)
-   (broadcaster: AccountBroadcast)
-   (throttle: StreamThrottle)
-   : IActorRef<EmailMessage>
-   =
-   spawn system ActorMetadata.email.Name
-   <| initProps system broadcaster throttle
-   |> retype
+   retype ref
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()

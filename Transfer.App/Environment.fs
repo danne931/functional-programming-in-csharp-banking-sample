@@ -1,12 +1,15 @@
 [<RequireQualifiedAccess>]
 module EnvTransfer
 
+open System
 open System.Net
 open FsConfig
 
 let builder = Env.builder
 
 type DomesticTransferRouter = { MaxInstancesPerNode: int }
+
+type MockThirdPartyBank = { Host: IPAddress; Port: int }
 
 // NOTE: These settings apply to all DomesticTransfer actors created
 //       by the round robin pool router on a given account node.  There are
@@ -24,28 +27,21 @@ type DomesticTransferRouter = { MaxInstancesPerNode: int }
 //          - You would expect BreakerOpen at step 4 if the circuit breaker instances
 //            were coordinated across nodes.
 //       5. Transfer request on Node B -> Failure (BreakerOpen)
-type DomesticTransferCircuitBreaker = {
-   MaxFailures: int
-   CallTimeout: int // seconds
-   ResetTimeout: int // seconds
-}
-
-type MockThirdPartyBank = { Host: IPAddress; Port: int }
-
 type private TransferConfigInput = {
    MockThirdPartyBank: {| Host: string option; Port: int |}
    DomesticTransferRouter: {| MaxInstancesPerNode: int option |}
    DomesticTransferCircuitBreaker: {|
       MaxFailures: int option
-      CallTimeout: int option
-      ResetTimeout: int option
+      CallTimeoutSeconds: int option
+      ResetTimeoutSeconds: int option
    |}
 }
 
 type TransferConfig = {
    MockThirdPartyBank: MockThirdPartyBank
    DomesticTransferRouter: DomesticTransferRouter
-   DomesticTransferCircuitBreaker: DomesticTransferCircuitBreaker
+   domesticTransferCircuitBreaker:
+      Akka.Actor.ActorSystem -> Akka.Pattern.CircuitBreaker
 }
 
 let private getMockThirdPartyBankHost (host: string option) =
@@ -80,20 +76,21 @@ let config =
                10
                input.DomesticTransferRouter.MaxInstancesPerNode
       }
-      DomesticTransferCircuitBreaker = {
-         MaxFailures =
-            Option.defaultValue
-               2
+      domesticTransferCircuitBreaker =
+         fun system ->
+            Akka.Pattern.CircuitBreaker(
+               system.Scheduler,
                input.DomesticTransferCircuitBreaker.MaxFailures
-         CallTimeout =
-            Option.defaultValue
-               7
-               input.DomesticTransferCircuitBreaker.CallTimeout
-         ResetTimeout =
-            Option.defaultValue
-               30
-               input.DomesticTransferCircuitBreaker.ResetTimeout
-      }
+               |> Option.defaultValue 2,
+
+               input.DomesticTransferCircuitBreaker.CallTimeoutSeconds
+               |> Option.defaultValue 7
+               |> TimeSpan.FromSeconds,
+
+               input.DomesticTransferCircuitBreaker.ResetTimeoutSeconds
+               |> Option.defaultValue 20
+               |> TimeSpan.FromSeconds
+            )
      }
    | Error err ->
       match err with
