@@ -100,7 +100,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
 let private sendEmail
    (client: HttpClient)
    (data: TrackingEvent)
-   (ctx: Actor<obj>)
+   (onError: string -> unit)
    =
    task {
       use! response =
@@ -114,9 +114,10 @@ let private sendEmail
          )
 
       if not response.IsSuccessStatusCode then
-         ctx.Stash()
          let! content = response.Content.ReadFromJsonAsync()
-         failwith $"Error sending email: {response.ReasonPhrase} - {content}"
+         let msg = $"Error sending email: {response.ReasonPhrase} - {content}"
+         onError msg
+         failwith msg
 
       return response
    }
@@ -194,8 +195,11 @@ let actorProps
          elif breaker.IsOpen then
             ctx.Stash()
          else
+            let onSendFail _ =
+               ctx.Schedule (TimeSpan.FromSeconds 15.) ctx.Self msg |> ignore
+
             breaker.WithCircuitBreaker(fun () ->
-               sendEmail client.Value emailData ctx)
+               sendEmail client.Value emailData onSendFail)
             |> Async.AwaitTask
             |!> retype ctx.Self
       | LifecycleEvent e ->

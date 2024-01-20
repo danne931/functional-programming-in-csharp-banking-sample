@@ -30,7 +30,10 @@ type Response = {
    AckReceipt: AckReceipt
 }
 
-let domesticTransfer
+type TransferRequest =
+   BankEvent<TransferPending> -> TaskResult<Response, string>
+
+let transferRequest
    (evt: BankEvent<TransferPending>)
    : TaskResult<Response, string>
    =
@@ -60,56 +63,53 @@ type Message =
    | BreakerHalfOpen
    | BreakerClosed
 
+let handleTransfer
+   (mailbox: Actor<obj>)
+   (requestTransfer: TransferRequest)
+   (evt: BankEvent<TransferPending>)
+   =
+   task {
+      let! result = requestTransfer evt
+
+      return
+         match result with
+         | Ok res -> TransferResponse(res, evt)
+         | Error errMsg ->
+            match errMsg with
+            | Contains "Serialization"
+            | Contains "Deserialization" ->
+               let errMsg = $"Corrupt data: {errMsg}"
+               logError mailbox errMsg
+
+               let res = {
+                  AccountNumber = evt.Data.Recipient.Identification
+                  RoutingNumber = evt.Data.Recipient.RoutingNumber.Value
+                  Ok = false
+                  Reason = "CorruptData"
+                  AckReceipt = AckReceipt ""
+               }
+
+               TransferResponse(res, evt)
+            | Contains "Connection"
+            | _ ->
+               // Intermittent Error: Reprocess message later
+               mailbox.Schedule
+                  (TimeSpan.FromSeconds 15.)
+                  mailbox.Self
+                  (TransferPending evt)
+               |> ignore
+
+               failwith errMsg // Side Effect: Trip circuit breaker
+   }
+
 let actorProps
    (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
    (getEmailActor: unit -> IActorRef<EmailActor.EmailMessage>)
-   (requestTransfer: BankEvent<TransferPending> -> TaskResult<Response, string>)
+   (requestTransfer: TransferRequest)
    =
    let handler (mailbox: Actor<obj>) (message: obj) =
       let logError, logInfo = logError mailbox, logInfo mailbox
-
-      let transfer (evt: BankEvent<TransferPending>) = task {
-         let! result = requestTransfer evt
-
-         return
-            match result with
-            | Ok res -> TransferResponse(res, evt)
-            | Error errMsg ->
-               match errMsg with
-               | Contains "Serialization"
-               | Contains "Deserialization" ->
-                  let errMsg = $"Corrupt data: {errMsg}"
-                  logError errMsg
-
-                  let res = {
-                     AccountNumber = evt.Data.Recipient.Identification
-                     RoutingNumber = evt.Data.Recipient.RoutingNumber.Value
-                     Ok = false
-                     Reason = "CorruptData"
-                     AckReceipt = AckReceipt ""
-                  }
-
-                  TransferResponse(res, evt)
-               | Contains "Connection"
-               | _ ->
-                  // NOTE:
-                  // Intermittent Error: Reprocess message later
-                  //
-                  // I would use mailbox.Stash() here but it won't
-                  // reference the appropriate message due to the async
-                  // nature of PipeTo "|!>" below.  Instead, just resend
-                  // the message after a delay.  It will be stashed
-                  // if the circuit breaker is open when it's
-                  // reprocessed.
-                  mailbox.Schedule
-                  <| TimeSpan.FromSeconds(15.)
-                  <| mailbox.Self
-                  <| TransferPending evt
-                  |> ignore
-
-                  failwith errMsg // Side Effect: Trip circuit breaker
-      }
 
       match message with
       | :? Message as msg ->
@@ -128,7 +128,8 @@ let actorProps
                mailbox.Stash()
                Ignore
             else
-               breaker.WithCircuitBreaker(fun () -> transfer evt)
+               breaker.WithCircuitBreaker(fun () ->
+                  handleTransfer mailbox requestTransfer evt)
                |> Async.AwaitTask
                |!> retype mailbox.Self
 
@@ -185,7 +186,7 @@ let start
          breaker
          getAccountRef
          (fun _ -> EmailActor.get system)
-         domesticTransfer
+         transferRequest
 
    let ref = spawn system actorName { prop with Router = Some router }
 
