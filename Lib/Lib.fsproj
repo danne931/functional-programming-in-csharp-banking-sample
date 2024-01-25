@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="Akka.Cluster" />
     <PackageReference Include="Akka.Persistence.Sql" />
+    <PackageReference Include="Akka.Persistence.Extras" />
     <PackageReference Include="Akkling" />
     <PackageReference Include="Akkling.Cluster.Sharding" />
     <PackageReference Include="FsConfig" />

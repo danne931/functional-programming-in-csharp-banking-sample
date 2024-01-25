@@ -1,7 +1,7 @@
 [<RequireQualifiedAccess>]
 module AccountBroadcaster
 
-open System
+open Akkling
 open Akka.Actor
 open Akka.Cluster.Tools.PublishSubscribe
 
@@ -12,9 +12,6 @@ open AccountLoadTestTypes
 let init (system: ActorSystem) : AccountBroadcast =
    let mediator = DistributedPubSub.Get(system).Mediator
    let signalRPath = ActorMetadata.signalR.Path.ToStringWithoutAddress()
-
-   let circuitBreakerPath =
-      ActorMetadata.circuitBreaker.SingletonPath.ToStringWithoutAddress()
 
    let loadTestPath =
       ActorMetadata.accountLoadTest.SingletonPath.ToStringWithoutAddress()
@@ -58,12 +55,8 @@ let init (system: ActorSystem) : AccountBroadcast =
             )
       circuitBreaker =
          fun msg ->
-            mediator.Tell(
-               Send(
-                  circuitBreakerPath,
-                  CircuitBreakerMessage.CircuitBreaker msg
-               )
-            )
+            let circuitBreakerAref = CircuitBreakerActor.get system
+            circuitBreakerAref <! CircuitBreakerMessage.CircuitBreaker msg
 
             mediator.Tell(Send(signalRPath, SignalRMessage.CircuitBreaker msg))
       endBillingCycle =

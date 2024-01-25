@@ -2,9 +2,9 @@
 module AccountActor
 
 open System
-open System.Threading.Tasks
 open Akka.Actor
 open Akka.Persistence
+open Akka.Persistence.Extras
 open Akka.Streams
 open Akkling
 open Akkling.Persistence
@@ -16,9 +16,6 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
-
-let private persist e =
-   e |> Event |> box |> Persist :> Effect<_>
 
 let actorProps
    (persistence: AccountPersistence)
@@ -32,7 +29,7 @@ let actorProps
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    =
    let handler (mailbox: Eventsourced<obj>) =
-      let logWarning = logWarning mailbox
+      let logWarning, logError = logWarning mailbox, logError mailbox
 
       let rec loop (accountOpt: AccountState option) = actor {
          let! msg = mailbox.Receive()
@@ -58,6 +55,52 @@ let actorProps
 
             return! loop <| Some newState
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
+         | :? ConfirmableMessageEnvelope as envelope ->
+            match envelope.Message with
+            | :? AccountMessage as msg ->
+               match msg with
+               | StateChange(CreateAccount cmd) when accountOpt.IsSome ->
+                  logWarning
+                     $"Account already exists - ignore create account command {cmd.EntityId}"
+
+                  return ignored ()
+               | StateChange cmd ->
+                  let validation = Account.stateTransition account cmd
+
+                  match validation with
+                  | Ok(event, _) ->
+                     return!
+                        confirmPersist
+                           mailbox
+                           (AccountMessage.Event event)
+                           envelope.ConfirmationId
+                  | Error err ->
+                     let errMsg = string err
+
+                     broadcaster.accountEventValidationFail
+                        account.EntityId
+                        errMsg
+                     |> ignore
+
+                     logWarning $"Validation fail %s{errMsg}"
+
+                     match err with
+                     | StateTransitionError e ->
+                        match e with
+                        | InsufficientBalance _
+                        | ExceededDailyDebit _ ->
+                           getEmailActor mailbox.System
+                           <! EmailActor.DebitDeclined(errMsg, account)
+                        | _ -> ()
+                     | _ -> ()
+               | msg ->
+                  logError
+                     $"Unknown message in ConfirmableMessageEnvelope - {msg}"
+
+                  unhandled ()
+            | msg ->
+               logError $"Unknown message in ConfirmableMessageEnvelope - {msg}"
+               return unhandled ()
          | :? AccountMessage as msg ->
             match msg with
             | GetAccount -> mailbox.Sender() <! accountOpt
@@ -66,33 +109,6 @@ let actorProps
                | None -> mailbox.Sender() <! []
                | Some account ->
                   mailbox.Sender() <!| persistence.getEvents account.EntityId
-            | StateChange(CreateAccount cmd) when accountOpt.IsSome ->
-               logWarning
-                  $"Account already exists - ignore create account command {cmd.EntityId}"
-
-               return ignored ()
-            | StateChange cmd ->
-               let validation = Account.stateTransition account cmd
-
-               match validation with
-               | Ok(event, _) -> return! persist event
-               | Error err ->
-                  let errMsg = string err
-
-                  broadcaster.accountEventValidationFail account.EntityId errMsg
-                  |> ignore
-
-                  logWarning $"Validation fail %s{errMsg}"
-
-                  match err with
-                  | StateTransitionError e ->
-                     match e with
-                     | InsufficientBalance _
-                     | ExceededDailyDebit _ ->
-                        getEmailActor mailbox.System
-                        <! EmailActor.DebitDeclined(errMsg, account)
-                     | _ -> ()
-                  | _ -> ()
             | DispatchTransfer evt ->
                match evt.Data.Recipient.AccountEnvironment with
                | RecipientAccountEnvironment.Internal ->
@@ -129,13 +145,13 @@ let actorProps
                      SkipMaintenanceFeeCommand(accountId, criteria)
                      |> (StateChange << SkipMaintenanceFee)
 
-                  mailbox.Self <! msg
+                  mailbox.Parent() <! msg
                else
                   let msg =
                      MaintenanceFeeCommand accountId
                      |> (StateChange << MaintenanceFee)
 
-                  mailbox.Self <! msg
+                  mailbox.Parent() <! msg
 
                getEmailActor mailbox.System
                <! EmailActor.BillingStatement account
@@ -195,15 +211,35 @@ let private getAccountEvents
       )
    |> Async.AwaitTask
 
-let initProps (broadcaster: AccountBroadcast) (system: ActorSystem) =
+let initProps
+   (broadcaster: AccountBroadcast)
+   (system: ActorSystem)
+   (supervisorOpts: PersistenceSupervisorOptions)
+   (persistenceId: string)
+   =
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
 
-   actorProps
-      { getEvents = getAccountEvents system }
-      broadcaster
-      getOrStartInternalTransferActor
-      DomesticTransferRecipientActor.get
-      EmailActor.get
-      AccountClosureActor.get
-      BillingStatementActor.get
+   let childProps =
+      actorProps
+         { getEvents = getAccountEvents system }
+         broadcaster
+         getOrStartInternalTransferActor
+         DomesticTransferRecipientActor.get
+         EmailActor.get
+         AccountClosureActor.get
+         BillingStatementActor.get
+
+   let isPersistableMessage (msg: obj) =
+      match msg with
+      | :? AccountMessage as msg ->
+         match msg with
+         | AccountMessage.StateChange _ -> true
+         | _ -> false
+      | _ -> false
+
+   persistenceSupervisor
+      supervisorOpts
+      isPersistableMessage
+      childProps
+      persistenceId

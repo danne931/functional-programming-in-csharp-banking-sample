@@ -111,7 +111,14 @@ let actorProps
 
       loop initState
 
-   propsPersist handler
+   let spawnChild =
+      fun ctx ->
+         spawn
+            ctx
+            $"{ActorMetadata.accountClosure.Name}-worker"
+            (propsPersist handler)
+
+   supervisorProps spawnChild <| Strategy.OneForOne(fun _ -> Directive.Resume)
 
 let initProps
    (system: ActorSystem)

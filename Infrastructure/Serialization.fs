@@ -6,6 +6,7 @@ open System.Runtime.Serialization
 open Akka.Serialization
 open Akka.Actor
 open Akka.Persistence.Journal
+open Akka.Persistence.Extras
 open Akka.Cluster.Sharding
 open Akkling.Cluster.Sharding
 
@@ -48,6 +49,7 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.Manifest(o: obj) =
       match o with
+      | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
       | :? AccountEventConsumerState -> "AccountEventConsumerState"
       | :? AccountLoadTestTypes.AccountLoadTestMessage ->
          "AccountLoadTestMessage"
@@ -76,6 +78,11 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
+      // AccountEvent messages to be persisted are wrapped in
+      // Akka.Persistence.Extras ConfirmableMessageEnvelope to
+      // ensure failed Persist calls are retried & messages received
+      // during backoff period are not lost.
+      | :? ConfirmableMessageEnvelope
       // AccountEventPersisted messages sent over DistributedPubSub
       // from Account nodes to AccountLoadTestActor on Web node.
       | :? AccountLoadTestTypes.AccountLoadTestMessage
@@ -149,6 +156,7 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.FromBinary(bytes: byte[], manifest: string) : obj =
       let deserializeToType =
          match manifest with
+         | "ConfirmableMessageEnvelope" -> typeof<ConfirmableMessageEnvelope>
          | "AccountLoadTestMessage" ->
             typeof<AccountLoadTestTypes.AccountLoadTestMessage>
          | "AccountEventConsumerState" -> typeof<AccountEventConsumerState>

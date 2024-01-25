@@ -94,3 +94,18 @@ type StreamThrottle = {
 }
 
 type StreamChunking = { Size: int; Duration: TimeSpan }
+
+type BackoffSupervisorOptions = {
+   MinBackoff: TimeSpan
+   MaxBackoff: TimeSpan
+   RandomFactor: float
+   MaxNrOfRetries: int
+   ResetCounterAfter: TimeSpan
+}
+
+type PersistenceSupervisorOptions = {
+   MinBackoff: TimeSpan
+   MaxBackoff: TimeSpan
+   RandomFactor: float
+   MaxNrOfRetries: int
+}

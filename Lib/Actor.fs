@@ -11,8 +11,11 @@ open Akka.Actor
 open Akka.Cluster.Sharding
 open Akka.Persistence
 open Akka.Persistence.Query
+open Akka.Persistence.Extras
 open Akka.Persistence.Sql.Query
 open Akka.Cluster.Tools.PublishSubscribe
+
+open Lib.Types
 
 type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
 
@@ -353,7 +356,9 @@ module PersistentActorEventHandler =
          logError mailbox $"<UnknownMessage>: %s{msg.GetType().FullName}"
          unhandled ()
 
-// Add an item to an Akka.Streams queue
+/// <summary>
+/// Add an item to an Akka.Streams queue.
+/// </summary>
 let queueOffer<'t>
    (queue: ISourceQueueWithComplete<'t>)
    (msg: 't)
@@ -371,3 +376,68 @@ let queueOffer<'t>
          | :? QueueOfferResult.Enqueued -> Ok <| ignored ()
          | _ -> Ok <| unhandled ()
    }
+
+/// <summary>
+/// Create props for a parent supervisor actor (which just forwards messages to
+/// child) so can configure non-default SupervisorStrategy for top-level actors.
+/// </summary>
+let supervisorProps
+   (spawnChild: Actor<_> -> IActorRef<_>)
+   (strategy: Akka.Actor.SupervisorStrategy)
+   =
+   let init (ctx: Actor<_>) =
+      let child = spawnChild ctx
+
+      actor {
+         let! msg = ctx.Receive()
+         child <<! msg
+         return ignored ()
+      }
+
+   {
+      props init with
+         SupervisionStrategy = Some strategy
+   }
+
+/// <summary>
+/// Create PersistenceSupervisor props to ensure
+/// failed Persist calls are retried and messages received
+/// during backoff period are not lost.
+/// See https://devops.petabridge.com/articles/state-management/akkadotnet-persistence-failure-handling.html
+/// for info on why PersistenceSupervisor may be preferred over
+/// BackoffSupervisor in persistent actor scenarios.
+/// </summary>
+let persistenceSupervisor
+   (opts: PersistenceSupervisorOptions)
+   (isPersistableMessage: obj -> bool)
+   (childProps: Props<_>)
+   (persistenceId: string)
+   =
+   let config =
+      PersistenceSupervisionConfig(
+         isPersistableMessage,
+         (fun msg confirmationId ->
+            ConfirmableMessageEnvelope(confirmationId, "", msg)),
+         minBackoff = opts.MinBackoff,
+         maxBackoff = opts.MaxBackoff
+      )
+
+   Props.Create(fun () ->
+      PersistenceSupervisor(
+         childProps.ToProps(),
+         persistenceId,
+         config,
+         strategy =
+            SupervisorStrategy.StoppingStrategy.WithMaxNrOfRetries(
+               opts.MaxNrOfRetries
+            )
+      ))
+
+/// <summary>
+/// Persist with ack sent to PersistenceSupervisor parent actor.
+/// </summary>
+let confirmPersist (ctx: Eventsourced<_>) (evt: obj) (confirmationId: int64) =
+   evt
+   |> Persist
+   |> Effects.andThen (fun _ ->
+      ctx.Parent() <! Confirmation(confirmationId, ctx.Pid))

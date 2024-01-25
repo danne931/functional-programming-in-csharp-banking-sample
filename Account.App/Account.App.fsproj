@@ -17,6 +17,7 @@
   <ItemGroup>
     <PackageReference Include="Akka.Cluster.Hosting" />
     <PackageReference Include="Akka.Hosting" />
+    <PackageReference Include="Akka.Persistence.Extras" />
     <PackageReference Include="Akkling" />
     <PackageReference Include="Akkling.Cluster.Sharding" />
     <PackageReference Include="Akkling.Persistence" />

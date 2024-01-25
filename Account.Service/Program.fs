@@ -1,10 +1,8 @@
 open Microsoft.Extensions.DependencyInjection
-open System
 open Akka.Actor
 open Akka.Event
 open Akka.Hosting
 open Akka.Cluster.Hosting
-open Akka.Cluster.Sharding
 open Akka.Persistence.Hosting
 open Akka.Persistence.Sql.Hosting
 open Akka.Routing
@@ -64,13 +62,15 @@ builder.Services.AddAkka(
          )
          .WithShardRegion<ActorMetadata.AccountMarker>(
             ClusterMetadata.accountShardRegion.name,
-            (fun _ ->
+            (fun persistenceId ->
                let props =
                   AccountActor.initProps
                   <| provider.GetRequiredService<AccountBroadcast>()
                   <| provider.GetRequiredService<ActorSystem>()
+                  <| Env.config.AccountActorSupervisor
+                  <| persistenceId
 
-               props.ToProps()),
+               props),
             ClusterMetadata.accountShardRegion.messageExtractor,
             ShardOptions(Role = ClusterMetadata.roles.account)
          )
@@ -100,7 +100,7 @@ builder.Services.AddAkka(
          )
          .WithSingleton<ActorMetadata.AccountEventConsumerMarker>(
             ActorMetadata.accountEventConsumer.Name,
-            (fun system registry _ ->
+            (fun system _ _ ->
                let typedProps =
                   AccountEventConsumerActor.actorProps
                      (AccountActor.get system)
@@ -145,9 +145,8 @@ builder.Services.AddAkka(
          .WithSingleton<ActorMetadata.CircuitBreakerMarker>(
             ActorMetadata.circuitBreaker.Name,
             (fun _ _ _ ->
-               let typedProps = CircuitBreakerActor.actorProps ()
-
-               typedProps.ToProps()),
+               CircuitBreakerActor.initProps
+                  Env.config.CircuitBreakerActorSupervisor),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
          .WithActors(fun system registry ->

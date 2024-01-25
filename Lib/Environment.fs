@@ -52,20 +52,59 @@ type ClusterStartupMethod =
    | DiscoveryConfig of ClusterDiscoveryStartup
    | DiscoveryKubernetes of ClusterDiscoveryKubernetesStartup
 
+type BackoffSupervisorInput = {
+   MinBackoffSeconds: float option
+   MaxBackoffSeconds: float option
+   RandomFactor: float option
+   MaxNrOfRetries: int option
+   ResetCounterAfterSeconds: int option
+}
+
+let backoffSupervisorOptionsFromInput (input: BackoffSupervisorInput) = {
+   MinBackoff =
+      input.MinBackoffSeconds |> Option.defaultValue 3 |> TimeSpan.FromSeconds
+   MaxBackoff =
+      input.MaxBackoffSeconds |> Option.defaultValue 30 |> TimeSpan.FromSeconds
+   // Adds 20% "noise" to vary intervals slightly
+   RandomFactor = input.RandomFactor |> Option.defaultValue 0.2
+   MaxNrOfRetries = input.MaxNrOfRetries |> Option.defaultValue -1
+   ResetCounterAfter =
+      input.ResetCounterAfterSeconds
+      |> Option.defaultValue 60
+      |> TimeSpan.FromSeconds
+}
+
+type PersistenceSupervisorInput = {
+   MinBackoffSeconds: float option
+   MaxBackoffSeconds: float option
+   RandomFactor: float option
+   MaxNrOfRetries: int option
+}
+
+let persistentSupervisorOptionsFromInput (input: PersistenceSupervisorInput) = {
+   MinBackoff =
+      input.MinBackoffSeconds |> Option.defaultValue 0.1 |> TimeSpan.FromSeconds
+   MaxBackoff =
+      input.MaxBackoffSeconds |> Option.defaultValue 2 |> TimeSpan.FromSeconds
+   // Adds 20% "noise" to vary intervals slightly
+   RandomFactor = input.RandomFactor |> Option.defaultValue 0.2
+   MaxNrOfRetries = input.MaxNrOfRetries |> Option.defaultValue 10
+}
+
 type StreamThrottleInput = {|
    Count: int option
    Burst: int option
-   Seconds: int option
+   Seconds: float option
 |}
 
 type StreamChunkingInput = {|
    Size: int option
-   Seconds: int option
+   Seconds: float option
 |}
 
 type StreamBackoffRestartSettingsInput = {|
-   MinBackoffSeconds: int option
-   MaxBackoffSeconds: int option
+   MinBackoffSeconds: float option
+   MaxBackoffSeconds: float option
    RandomFactor: float option
    MaxRestarts: int option
    MaxRestartsWithinSeconds: int option
@@ -109,6 +148,7 @@ type private BankConfigInput = {
       LivenessPort: int option
    |}
    BillingCycleFanoutThrottle: StreamThrottleInput
+   AccountActorSupervisor: PersistenceSupervisorInput
    AccountDeleteThrottle: StreamThrottleInput
    AccountEventProjectionChunking: StreamChunkingInput
    AccountEventReadModelPersistenceBackoffRestart:
@@ -117,6 +157,7 @@ type private BankConfigInput = {
    BillingStatementPersistenceChunking: StreamChunkingInput
    BillingStatementPersistenceBackoffRestart: StreamBackoffRestartSettingsInput
    BillingStatementRetryPersistenceAfter: TimeSpan option
+   CircuitBreakerActorSupervisor: BackoffSupervisorInput
 }
 
 type BankConfig = {
@@ -129,6 +170,7 @@ type BankConfig = {
    SerilogOutputFile: string
    AkkaHealthCheck: AkkaHealthCheck
    BillingCycleFanoutThrottle: StreamThrottle
+   AccountActorSupervisor: PersistenceSupervisorOptions
    AccountDeleteThrottle: StreamThrottle
    AccountEventProjectionChunking: StreamChunking
    AccountEventReadModelPersistenceBackoffRestart: Akka.Streams.RestartSettings
@@ -136,6 +178,7 @@ type BankConfig = {
    BillingStatementPersistenceChunking: StreamChunking
    BillingStatementPersistenceBackoffRestart: Akka.Streams.RestartSettings
    BillingStatementRetryPersistenceAfter: TimeSpan
+   CircuitBreakerActorSupervisor: BackoffSupervisorOptions
 }
 
 let config =
@@ -188,6 +231,8 @@ let config =
                |> Option.defaultValue 1
                |> TimeSpan.FromSeconds
          }
+         AccountActorSupervisor =
+            persistentSupervisorOptionsFromInput input.AccountActorSupervisor
          AccountDeleteThrottle = {
             Count = input.AccountDeleteThrottle.Count |> Option.defaultValue 5
             Burst = input.AccountDeleteThrottle.Burst |> Option.defaultValue 5
@@ -226,6 +271,9 @@ let config =
          BillingStatementRetryPersistenceAfter =
             input.BillingStatementRetryPersistenceAfter
             |> Option.defaultValue (TimeSpan.FromSeconds 7)
+         CircuitBreakerActorSupervisor =
+            backoffSupervisorOptionsFromInput
+               input.CircuitBreakerActorSupervisor
       }
    | Error err ->
       match err with
