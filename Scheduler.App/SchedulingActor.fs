@@ -8,6 +8,7 @@ open Akka.Quartz.Actor.Commands
 open Akkling
 
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open BillingStatement
 open ActorUtil
 
@@ -22,6 +23,7 @@ type Message =
    | AccountClosureCronJobSchedule
    | BillingCycleCronJobSchedule
    | DeleteAccountsJobSchedule of Guid list
+   | TransferProgressCronJobSchedule
 
 let actorProps (quartzPersistentActorRef: IActorRef) =
    let handler (ctx: Actor<Message>) =
@@ -76,6 +78,24 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
                {
                   Manifest = "AccountClosureActorMessage"
                   Message = AccountClosureMessage.DeleteAll accountIds
+               },
+               trigger
+            )
+
+         quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
+         ignored ()
+      | TransferProgressCronJobSchedule ->
+         logInfo $"Scheduling transfer progress tracking."
+
+         let trigger = TransferProgressTrackingTriggers.schedule logInfo
+         let path = ActorMetadata.transferProgressTracking.ProxyPath
+
+         let job =
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "TransferProgressTrackingActorMessage"
+                  Message = TransferProgressTrackingMessage.ProgressCheck
                },
                trigger
             )

@@ -16,6 +16,7 @@ type AccountCommand =
    | LockCard of LockCardCommand
    | UnlockCard of UnlockCardCommand
    | Transfer of TransferCommand
+   | UpdateTransferProgress of UpdateTransferProgressCommand
    | ApproveTransfer of ApproveTransferCommand
    | RejectTransfer of RejectTransferCommand
    | DepositTransfer of DepositTransferCommand
@@ -32,13 +33,12 @@ type AccountEvent =
    | LockedCard of BankEvent<LockedCard>
    | UnlockedCard of BankEvent<UnlockedCard>
    | TransferPending of BankEvent<TransferPending>
+   | TransferProgress of BankEvent<TransferProgressUpdate>
    | TransferApproved of BankEvent<TransferApproved>
    | TransferRejected of BankEvent<TransferRejected>
    | TransferDeposited of BankEvent<TransferDeposited>
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
-   | InternationalTransferRecipient of
-      BankEvent<RegisteredInternationalTransferRecipient>
    | AccountClosed of BankEvent<AccountClosed>
 
 type OpenEventEnvelope = AccountEvent * Envelope
@@ -69,9 +69,8 @@ module AccountEnvelope =
          evt |> InternalTransferRecipient
       | :? BankEvent<RegisteredDomesticTransferRecipient> as evt ->
          evt |> DomesticTransferRecipient
-      | :? BankEvent<RegisteredInternationalTransferRecipient> as evt ->
-         evt |> InternationalTransferRecipient
       | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
+      | :? BankEvent<TransferProgressUpdate> as evt -> evt |> TransferProgress
       | :? BankEvent<TransferApproved> as evt -> evt |> TransferApproved
       | :? BankEvent<TransferRejected> as evt -> evt |> TransferRejected
       | :? BankEvent<TransferDeposited> as evt -> evt |> TransferDeposited
@@ -89,8 +88,8 @@ module AccountEnvelope =
       | UnlockedCard evt -> wrap evt, get evt
       | InternalTransferRecipient evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
-      | InternationalTransferRecipient evt -> wrap evt, get evt
       | TransferPending evt -> wrap evt, get evt
+      | TransferProgress evt -> wrap evt, get evt
       | TransferApproved evt -> wrap evt, get evt
       | TransferRejected evt -> wrap evt, get evt
       | TransferDeposited evt -> wrap evt, get evt
@@ -115,6 +114,7 @@ type AccountState = {
    DailyDebitAccrued: decimal
    LastDebitDate: DateTime option
    TransferRecipients: Map<string, TransferRecipient>
+   InProgressTransfers: Map<string, TransferTransaction>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    Events: AccountEvent list
 } with
@@ -131,6 +131,7 @@ type AccountState = {
       DailyDebitAccrued = 0m
       LastDebitDate = None
       TransferRecipients = Map.empty
+      InProgressTransfers = Map.empty
       MaintenanceFeeCriteria = {
          QualifyingDepositFound = false
          DailyBalanceThreshold = false

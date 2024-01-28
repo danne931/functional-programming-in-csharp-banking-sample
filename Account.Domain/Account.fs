@@ -100,8 +100,27 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                Balance = balance
                MaintenanceFeeCriteria =
                   MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
+               InProgressTransfers =
+                  Map.add
+                  <| string e.CorrelationId
+                  <| TransferEventToTransaction.fromPending e
+                  <| state.InProgressTransfers
          }
-      | TransferApproved _ -> state
+      | TransferProgress e -> {
+         state with
+            // Map.add: will replace existing TransferTransaction
+            // with the latest progress update.
+            InProgressTransfers =
+               Map.add
+               <| string e.CorrelationId
+               <| TransferEventToTransaction.fromProgressUpdate e
+               <| state.InProgressTransfers
+        }
+      | TransferApproved e -> {
+         state with
+            InProgressTransfers =
+               Map.remove (string e.CorrelationId) state.InProgressTransfers
+        }
       | TransferRejected e ->
          let balance = state.Balance + e.Data.DebitedAmount
 
@@ -112,6 +131,8 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                   MaintenanceFee.fromDebitReversal
                      state.MaintenanceFeeCriteria
                      balance
+               InProgressTransfers =
+                  Map.remove (string e.CorrelationId) state.InProgressTransfers
          }
       | TransferDeposited e -> {
          state with
@@ -133,14 +154,6 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
       | DomesticTransferRecipient e ->
          let recipient = e.Data.toRecipient ()
 
-         let key = recipientLookupKey recipient
-
-         {
-            state with
-               TransferRecipients = state.TransferRecipients.Add(key, recipient)
-         }
-      | InternationalTransferRecipient e ->
-         let recipient = e.Data.toRecipient ()
          let key = recipientLookupKey recipient
 
          {
@@ -246,15 +259,45 @@ module private StateTransition =
       else
          map TransferPending state <| cmd.toEvent ()
 
+   let transferProgress
+      (state: AccountState)
+      (cmd: UpdateTransferProgressCommand)
+      =
+      if not state.CanProcessTransactions then
+         transitionErr AccountTransactionProcessingDisabled
+      else
+         let existing =
+            Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
+
+         match existing with
+         | None -> map TransferProgress state <| cmd.toEvent ()
+         | Some txn ->
+            let existingStatus = txn.Status
+
+            if existingStatus = cmd.Status then
+               transitionErr TransferProgressNoChange
+            else
+               map TransferProgress state <| cmd.toEvent ()
+
    let approveTransfer (state: AccountState) (cmd: ApproveTransferCommand) =
       if not state.CanProcessTransactions then
          transitionErr AccountTransactionProcessingDisabled
+      else if
+         Option.isNone
+         <| Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
+      then
+         transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
          map TransferApproved state <| cmd.toEvent ()
 
    let rejectTransfer (state: AccountState) (cmd: RejectTransferCommand) =
       if not state.CanProcessTransactions then
          transitionErr AccountTransactionProcessingDisabled
+      else if
+         Option.isNone
+         <| Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
+      then
+         transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
          map TransferRejected state <| cmd.toEvent ()
 
@@ -276,9 +319,6 @@ module private StateTransition =
          | RecipientAccountEnvironment.Domestic ->
             map DomesticTransferRecipient state
             <| TransferRecipientEvent.domestic cmd
-         | RecipientAccountEnvironment.International ->
-            map InternationalTransferRecipient state
-            <| TransferRecipientEvent.international cmd
 
    let depositTransfer (state: AccountState) (cmd: DepositTransferCommand) =
       if not state.CanProcessTransactions then
@@ -300,6 +340,7 @@ let stateTransition (state: AccountState) (command: AccountCommand) =
    | LockCard cmd -> StateTransition.lockCard state cmd
    | UnlockCard cmd -> StateTransition.unlockCard state cmd
    | Transfer cmd -> StateTransition.transfer state cmd
+   | UpdateTransferProgress cmd -> StateTransition.transferProgress state cmd
    | ApproveTransfer cmd -> StateTransition.approveTransfer state cmd
    | RejectTransfer cmd -> StateTransition.rejectTransfer state cmd
    | DepositTransfer cmd -> StateTransition.depositTransfer state cmd

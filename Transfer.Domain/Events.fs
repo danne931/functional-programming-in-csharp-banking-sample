@@ -4,41 +4,25 @@ open System
 
 open Lib.Types
 
-type AckReceipt = string
-
-type RecipientAccountEnvironment =
-   | Internal
-   | Domestic
-   | International
-
-type RecipientAccountIdentificationStrategy =
-   | AccountId
-   | SwiftBIC
-   | IBAN
-   | NationalID
-
-type TransferRecipient = {
-   LastName: string
-   FirstName: string
-   Identification: string
-   AccountEnvironment: RecipientAccountEnvironment
-   IdentificationStrategy: RecipientAccountIdentificationStrategy
-   RoutingNumber: string option
-   Currency: Currency
-}
-
 type TransferPending = {
    Recipient: TransferRecipient
    Date: DateTime
    DebitedAmount: decimal
    Reference: string option
+   Status: TransferProgress
+}
+
+type TransferProgressUpdate = {
+   Recipient: TransferRecipient
+   Date: DateTime
+   DebitedAmount: decimal
+   Status: TransferProgress
 }
 
 type TransferApproved = {
    Recipient: TransferRecipient
    Date: DateTime
    DebitedAmount: decimal
-   AckReceipt: AckReceipt option
 }
 
 type TransferRejected = {
@@ -85,26 +69,26 @@ type RegisteredDomesticTransferRecipient = {
       RoutingNumber = x.RoutingNumber
    }
 
-type RegisteredInternationalTransferRecipient = {
-   LastName: string
-   FirstName: string
-   Identification: string
-   IdentificationStrategy: RecipientAccountIdentificationStrategy
-   Currency: Currency
-   AccountEnvironment: RecipientAccountEnvironment
-} with
-
-   member x.toRecipient() = {
-      FirstName = x.FirstName
-      LastName = x.LastName
-      AccountEnvironment = x.AccountEnvironment
-      Identification = x.Identification
-      IdentificationStrategy = x.IdentificationStrategy
-      Currency = x.Currency
-      RoutingNumber = None
-   }
-
 type TransferDeposited = {
    DepositedAmount: decimal
    Origin: string
 }
+
+module TransferEventToTransaction =
+   let fromPending (evt: BankEvent<TransferPending>) = {
+      SenderAccountId = evt.EntityId
+      TransactionId = evt.CorrelationId
+      Recipient = evt.Data.Recipient
+      Amount = evt.Data.DebitedAmount
+      Date = evt.Data.Date
+      Status = evt.Data.Status
+   }
+
+   let fromProgressUpdate (evt: BankEvent<TransferProgressUpdate>) = {
+      SenderAccountId = evt.EntityId
+      TransactionId = evt.CorrelationId
+      Recipient = evt.Data.Recipient
+      Amount = evt.Data.DebitedAmount
+      Date = evt.Data.Date
+      Status = evt.Data.Status
+   }

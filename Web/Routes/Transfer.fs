@@ -34,13 +34,6 @@ let startTransferRoutes (app: WebApplication) =
                      sys
                      (AccountCommand.RegisterTransferRecipient cmd)
                      cmd.EntityId
-               |> RouteUtil.unwrapTaskResult
-            | RecipientAccountEnvironment.International ->
-               TransferRecipientEvent.domestic cmd
-               |> processCommand
-                     sys
-                     (AccountCommand.RegisterTransferRecipient cmd)
-                     cmd.EntityId
                |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

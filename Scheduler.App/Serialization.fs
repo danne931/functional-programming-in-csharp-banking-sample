@@ -8,6 +8,7 @@ open Akka.Actor
 open Akka.Cluster.Sharding
 
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open BillingStatement
 
 // NOTE:
@@ -24,6 +25,11 @@ type private QuartzBillingMessageEnvelope = {
 type private QuartzAccountClosureMessageEnvelope = {
    Manifest: string
    Message: AccountClosureMessage
+}
+
+type private QuartzTransferProgressMessageEnvelope = {
+   Manifest: string
+   Message: TransferProgressTrackingMessage
 }
 
 type QuartzSerializer(system: ExtendedActorSystem) =
@@ -76,6 +82,14 @@ type QuartzSerializer(system: ExtendedActorSystem) =
       | "BillingCycleActorMessage" ->
          let deseri =
             JsonSerializer.Deserialize<QuartzBillingMessageEnvelope>(
+               bytes,
+               Serialization.jsonOptions
+            )
+
+         deseri.Message
+      | "TransferProgressTrackingActorMessage" ->
+         let deseri =
+            JsonSerializer.Deserialize<QuartzTransferProgressMessageEnvelope>(
                bytes,
                Serialization.jsonOptions
             )

@@ -37,10 +37,39 @@ type TransferCommand
                   None
                else
                   Some x.Reference
+            Status = TransferProgress.Outgoing
          }
          CorrelationId = x.CorrelationId
       }
    }
+
+type UpdateTransferProgressCommand
+   (
+      entityId,
+      correlationId,
+      recipient: TransferRecipient,
+      date: DateTime,
+      amount: decimal,
+      status: TransferProgress
+   ) =
+   inherit Command(entityId, correlationId)
+   member x.Recipient = recipient
+   member x.Date = date
+   member x.Amount = amount
+   member x.Status = status
+
+   member x.toEvent() : ValidationResult<BankEvent<TransferProgressUpdate>> =
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            Recipient = x.Recipient
+            Date = x.Date
+            DebitedAmount = x.Amount
+            Status = x.Status
+         }
+         CorrelationId = x.CorrelationId
+      }
 
 type ApproveTransferCommand
    (
@@ -48,14 +77,12 @@ type ApproveTransferCommand
       correlationId,
       recipient: TransferRecipient,
       date: DateTime,
-      amount: decimal,
-      ackReceipt: AckReceipt
+      amount: decimal
    ) =
    inherit Command(entityId, correlationId)
    member x.Recipient = recipient
    member x.Date = date
    member x.Amount = amount
-   member x.AckReceipt = ackReceipt
 
    member x.toEvent() : ValidationResult<BankEvent<TransferApproved>> =
       Ok {
@@ -65,11 +92,6 @@ type ApproveTransferCommand
             Recipient = x.Recipient
             Date = x.Date
             DebitedAmount = x.Amount
-            AckReceipt =
-               if String.IsNullOrEmpty x.AckReceipt then
-                  None
-               else
-                  Some x.AckReceipt
          }
          CorrelationId = x.CorrelationId
       }
@@ -182,32 +204,32 @@ module TransferRecipientEvent =
          }
       }
 
-   let international
-      (cmd: RegisterTransferRecipientCommand)
-      : ValidationResult<BankEvent<RegisteredInternationalTransferRecipient>>
-      =
-      Error
-      <| ValidationErrors.create "Recipient" [
-         "international not yet supported"
-      ]
-
-module TransferResponseToCommand =
-   let approve (evt: BankEvent<TransferPending>) (ackReceipt: AckReceipt) =
-      ApproveTransferCommand(
-         evt.EntityId,
-         evt.CorrelationId,
-         evt.Data.Recipient,
-         evt.Data.Date,
-         evt.Data.DebitedAmount,
-         ackReceipt
+module TransferTransactionToCommand =
+   let progress (txn: TransferTransaction) (status: TransferProgress) =
+      UpdateTransferProgressCommand(
+         txn.SenderAccountId,
+         txn.TransactionId,
+         txn.Recipient,
+         txn.Date,
+         txn.Amount,
+         status
       )
 
-   let reject (evt: BankEvent<TransferPending>) (reason: string) =
+   let approve (txn: TransferTransaction) =
+      ApproveTransferCommand(
+         txn.SenderAccountId,
+         txn.TransactionId,
+         txn.Recipient,
+         txn.Date,
+         txn.Amount
+      )
+
+   let reject (txn: TransferTransaction) (reason: string) =
       RejectTransferCommand(
-         evt.EntityId,
-         evt.CorrelationId,
-         evt.Data.Recipient,
-         evt.Data.Date,
-         evt.Data.DebitedAmount,
+         txn.SenderAccountId,
+         txn.TransactionId,
+         txn.Recipient,
+         txn.Date,
+         txn.Amount,
          reason
       )

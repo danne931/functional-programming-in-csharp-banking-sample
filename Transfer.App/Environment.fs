@@ -5,6 +5,8 @@ open System
 open System.Net
 open FsConfig
 
+open Lib.Types
+
 let builder = Env.builder
 
 type DomesticTransferRouter = { MaxInstancesPerNode: int }
@@ -35,6 +37,8 @@ type private TransferConfigInput = {
       CallTimeoutSeconds: int option
       ResetTimeoutSeconds: int option
    |}
+   TransferProgressTrackingThrottle: Env.StreamThrottleInput
+   TransferProgressLookbackMinutes: int option
 }
 
 type TransferConfig = {
@@ -42,6 +46,8 @@ type TransferConfig = {
    DomesticTransferRouter: DomesticTransferRouter
    domesticTransferCircuitBreaker:
       Akka.Actor.ActorSystem -> Akka.Pattern.CircuitBreaker
+   TransferProgressTrackingThrottle: StreamThrottle
+   TransferProgressLookbackMinutes: int
 }
 
 let private getMockThirdPartyBankHost (host: string option) =
@@ -91,6 +97,20 @@ let config =
                |> Option.defaultValue 20
                |> TimeSpan.FromSeconds
             )
+      TransferProgressLookbackMinutes =
+         input.TransferProgressLookbackMinutes |> Option.defaultValue 60
+      TransferProgressTrackingThrottle = {
+         Count =
+            input.TransferProgressTrackingThrottle.Count
+            |> Option.defaultValue 100
+         Burst =
+            input.TransferProgressTrackingThrottle.Burst
+            |> Option.defaultValue 100
+         Duration =
+            input.TransferProgressTrackingThrottle.Seconds
+            |> Option.defaultValue 10
+            |> TimeSpan.FromSeconds
+      }
      }
    | Error err ->
       match err with

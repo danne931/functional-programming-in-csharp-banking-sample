@@ -15,52 +15,62 @@ type Request = {
    RoutingNumber: string
    Amount: decimal
    Date: DateTime
-   CorrelationId: string
+   TransactionId: string
 }
 
 type Response = {
    accountNumber: string
    routingNumber: string
    ok: bool
+   status: string
    reason: string
-   ackReceipt: string
+   transactionId: string
 }
 
-let parseRequest (req: Request) =
+type InProgressTransfers = Map<string, Request>
+
+let parseRequest (req: Request) (state: InProgressTransfers) =
    let res = {
       accountNumber = req.AccountNumber
       routingNumber = req.RoutingNumber
       ok = true
+      status = ""
       reason = ""
-      ackReceipt = ""
+      transactionId = req.TransactionId
    }
 
-   if req.Action <> "TransferRequest" then
+   if req.Action = "TransferRequest" then
+      if
+         String.IsNullOrEmpty req.AccountNumber
+         || String.IsNullOrEmpty req.RoutingNumber
+      then
+         {
+            res with
+               ok = false
+               reason = "InvalidAccountInfo"
+         },
+         state
+      elif req.Amount <= 0m then
+         {
+            res with
+               ok = false
+               reason = "InvalidAmount"
+         },
+         state
+      else
+         { res with status = "Processing" }, Map.add res.transactionId req state
+   elif req.Action = "ProgressCheck" then
+      { res with status = "Complete" }, Map.remove res.transactionId state
+   else
       {
          res with
             ok = false
             reason = "InvalidAction"
-      }
-   elif
-      String.IsNullOrEmpty req.AccountNumber
-      || String.IsNullOrEmpty req.RoutingNumber
-   then
-      {
-         res with
-            ok = false
-            reason = "InvalidAccountInfo"
-      }
-   elif req.Amount <= 0m then
-      {
-         res with
-            ok = false
-            reason = "InvalidAmount"
-      }
-   else
-      {
-         res with
-            ackReceipt = Guid.NewGuid() |> string
-      }
+      },
+      state
+
+let serializeResponse (response: Response) =
+   response |> JsonSerializer.Serialize |> ByteString.ofUtf8String
 
 let actorSystem =
    System.create "thirdparty-bank" <| Configuration.defaultConfig ()
@@ -69,23 +79,18 @@ let actorSystem =
 let tcpMessageHandler connection (ctx: Actor<obj>) =
    monitor ctx connection |> ignore
 
-   let rec loop () = actor {
+   let rec loop (state: InProgressTransfers) = actor {
       let! msg = ctx.Receive()
 
       match msg with
       | Received(data) ->
-         let req = string data
+         let req = data |> string |> JsonSerializer.Deserialize<Request>
          printfn "Received request %A" req
 
-         let reply =
-            req
-            |> JsonSerializer.Deserialize<Request>
-            |> parseRequest
-            |> JsonSerializer.Serialize
-            |> ByteString.ofUtf8String
+         let res, newState = parseRequest req state
 
-         ctx.Sender() <! TcpMessage.Write reply
-         return! loop ()
+         ctx.Sender() <! TcpMessage.Write(serializeResponse res)
+         return! loop newState
       | Terminated(_, _, _)
       | ConnectionClosed(_) ->
          printfn "<Disconnected>"
@@ -93,7 +98,7 @@ let tcpMessageHandler connection (ctx: Actor<obj>) =
       | _ -> return Ignore
    }
 
-   loop ()
+   loop Map.empty
 
 let port, ip =
    try

@@ -63,6 +63,9 @@ let getAccounts () =
       Events =
          read.text "events"
          |> Serialization.deserializeUnsafe<AccountEvent list>
+      InProgressTransfers =
+         read.text "in_progress_transfers"
+         |> Serialization.deserializeUnsafe<Map<string, TransferTransaction>>
    }
 
 let upsertAccounts (accounts: AccountState list) =
@@ -86,6 +89,9 @@ let upsertAccounts (accounts: AccountState list) =
          Sql.bool account.MaintenanceFeeCriteria.QualifyingDepositFound
          "@maintenanceFeeDailyBalanceThreshold",
          Sql.bool account.MaintenanceFeeCriteria.DailyBalanceThreshold
+         "@inProgressTransfers",
+         Sql.jsonb <| Serialization.serialize account.InProgressTransfers
+         "@inProgressTransfersCount", Sql.int account.InProgressTransfers.Count
       ])
 
    pgTransaction [
@@ -104,7 +110,9 @@ let upsertAccounts (accounts: AccountState list) =
           transfer_recipients,
           events,
           maintenance_fee_qualifying_deposit_found,
-          maintenance_fee_daily_balance_threshold)
+          maintenance_fee_daily_balance_threshold,
+          in_progress_transfers,
+          in_progress_transfers_count)
       VALUES
          (@id,
           @email,
@@ -119,7 +127,9 @@ let upsertAccounts (accounts: AccountState list) =
           @transferRecipients,
           @events,
           @maintenanceFeeQualifyingDepositFound,
-          @maintenanceFeeDailyBalanceThreshold)
+          @maintenanceFeeDailyBalanceThreshold,
+          @inProgressTransfers,
+          @inProgressTransfersCount)
       ON CONFLICT (id)
       DO UPDATE SET
          balance = @balance,
@@ -130,7 +140,9 @@ let upsertAccounts (accounts: AccountState list) =
          transfer_recipients = @transferRecipients,
          events = @events,
          maintenance_fee_qualifying_deposit_found = @maintenanceFeeQualifyingDepositFound,
-         maintenance_fee_daily_balance_threshold = @maintenanceFeeDailyBalanceThreshold;
+         maintenance_fee_daily_balance_threshold = @maintenanceFeeDailyBalanceThreshold,
+         in_progress_transfers = @inProgressTransfers,
+         in_progress_transfers_count = @inProgressTransfersCount;
       """,
       sqlParams
    ]

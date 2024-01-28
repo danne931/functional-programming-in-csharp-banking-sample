@@ -6,7 +6,7 @@ const state = {
   selectedEmail: null,
   transferRecipients: {},
   redirectTransferToCreateRecipientView: false,
-  validationErrorModalOpen: false,
+  isValidationErrorModalOpen: false,
   circuitBreaker: {
     isOpen: {
       DomesticTransfer: false,
@@ -339,6 +339,11 @@ function eventToTableRow (evt) {
       rowProps.info = `Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName}`
       rowProps.amount = `-$${evt.debitedAmount}`
       amountEl.classList.add('debit')
+      break
+    case 'TransferProgress':
+      rowProps.name = 'Transfer Progress Update'
+      rowProps.info = `Status: ${evt.status.Fields[0]} Recipient: ${evt.recipient.firstName} ${evt.recipient.lastName}`
+      rowProps.amount = `$${evt.debitedAmount}`
       break
     case 'TransferApproved':
       rowProps.name = 'Approved Transfer'

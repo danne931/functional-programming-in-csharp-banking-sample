@@ -8,6 +8,7 @@ open Quartz
 open Bank.Infrastructure
 open Scheduler.Infrastructure
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open BillingStatement
 open ActorUtil
 
@@ -90,6 +91,7 @@ builder.Services.AddAkka(
                typedefof<SchedulingActor.Message>
                typedefof<BillingCycleMessage>
                typedefof<AccountClosureMessage>
+               typedefof<TransferProgressTrackingMessage>
             ],
             fun system -> BankSerializer(system)
          )
@@ -104,6 +106,10 @@ builder.Services.AddAkka(
          )
          .WithSingletonProxy<ActorMetadata.BillingCycleMarker>(
             ActorMetadata.billingCycle.Name,
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingletonProxy<ActorMetadata.TransferProgressTrackingMarker>(
+            ActorMetadata.transferProgressTracking.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
          .WithSingleton<QuartzPersistentActor>(
@@ -132,6 +138,9 @@ builder.Services.AddAkka(
 
                schedulingActor
                <! SchedulingActor.AccountClosureCronJobSchedule
+
+               schedulingActor
+               <! SchedulingActor.TransferProgressCronJobSchedule
             })
          )
       |> ignore

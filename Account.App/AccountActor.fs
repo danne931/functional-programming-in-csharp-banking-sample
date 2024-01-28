@@ -20,10 +20,8 @@ open BillingStatement
 let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
-   (getOrStartInternalTransferActor:
-      Actor<_> -> IActorRef<BankEvent<TransferPending>>)
-   (getDomesticTransferActor:
-      ActorSystem -> IActorRef<DomesticTransferRecipientActor.Message>)
+   (getOrStartInternalTransferActor: Actor<_> -> IActorRef<TransferTransaction>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
@@ -110,12 +108,19 @@ let actorProps
                | Some account ->
                   mailbox.Sender() <!| persistence.getEvents account.EntityId
             | DispatchTransfer evt ->
+               let txn = TransferEventToTransaction.fromPending evt
+
                match evt.Data.Recipient.AccountEnvironment with
                | RecipientAccountEnvironment.Internal ->
-                  getOrStartInternalTransferActor mailbox <! evt
+                  getOrStartInternalTransferActor mailbox <! txn
                | RecipientAccountEnvironment.Domestic ->
-                  getDomesticTransferActor mailbox.System
-                  <! (evt |> DomesticTransferRecipientActor.TransferPending)
+                  let msg =
+                     DomesticTransferMessage.TransferRequest(
+                        TransferServiceAction.TransferRequest,
+                        txn
+                     )
+
+                  getDomesticTransferActor mailbox.System <! msg
                | _ -> ()
             | Delete ->
                let newState = {

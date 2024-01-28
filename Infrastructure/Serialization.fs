@@ -11,6 +11,7 @@ open Akka.Cluster.Sharding
 open Akkling.Cluster.Sharding
 
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open BillingStatement
 open Lib.Types
 
@@ -70,6 +71,9 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
       | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
       | :? BillingCycleMessage -> "BillingCycleActorMessage"
+      | :? DomesticTransferMessage -> "DomesticTransferActorMessage"
+      | :? TransferProgressTrackingMessage ->
+         "TransferProgressTrackingActorMessage"
       | :? ShardEnvelope as e ->
          match e.Message with
          | :? AccountMessage -> "AccountShardEnvelope"
@@ -78,6 +82,20 @@ type BankSerializer(system: ExtendedActorSystem) =
 
    override x.ToBinary(o: obj) =
       match o with
+      // Akka ShardRegionProxy defined in Akka.Hosting does not
+      // recognize Akkling ShardEnvelope as Akka ShardingEnvelope
+      // so need to explicitly add it for message extraction.
+      //
+      // This would be unnecessary if I was using Akka.Hosting
+      // IRequiredActor<> to dependency inject the account shard
+      // region proxy.  However, doing so would lose Akkling's typed
+      // actor message benefits when forwarding a message from
+      // Akka ShardRegionProxy.
+      | :? ShardEnvelope as e ->
+         match e.Message with
+         | :? AccountMessage ->
+            JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
+         | _ -> raise <| NotImplementedException()
       // AccountEvent messages to be persisted are wrapped in
       // Akka.Persistence.Extras ConfirmableMessageEnvelope to
       // ensure failed Persist calls are retried & messages received
@@ -94,24 +112,14 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? SchedulingActor.Message
       // Messages from SchedulingActor to BillingCycleActor
       | :? BillingCycleMessage
+      // Messages from SchedulingActor TransferProgressTrackingActor
+      | :? TransferProgressTrackingMessage
+      // ProgressCheck messages from TransferProgressTracking
+      // singleton actor to DomesticTransferActor
+      | :? DomesticTransferMessage
       // Messages from sharded account nodes to AccountClosureActor cluster
       // singleton. Also for messages from SchedulingActor to Account Closure Proxy
-      | :? AccountClosureMessage as msg ->
-         JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
-      // Akka ShardRegionProxy defined in Akka.Hosting does not
-      // recognize Akkling ShardEnvelope as Akka ShardingEnvelope
-      // so need to explicitly add it for message extraction.
-      //
-      // This would be unnecessary if I was using Akka.Hosting
-      // IRequiredActor<> to dependency inject the account shard
-      // region proxy.  However, doing so would lose Akkling's typed
-      // actor message benefits when forwarding a message from
-      // Akka ShardRegionProxy.
-      | :? ShardEnvelope as e ->
-         match e.Message with
-         | :? AccountMessage ->
-            JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
-         | _ -> raise <| NotImplementedException()
+      | :? AccountClosureMessage
       // AccountMessage.GetEvents response serialized for message sent
       // from account cluster nodes to Web node.
       | :? List<AccountEvent>
@@ -173,6 +181,9 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "CircuitBreakerActorMessage" -> typeof<CircuitBreakerMessage>
          | "CircuitBreakerActorState" -> typeof<CircuitBreakerActorState>
          | "BillingCycleActorMessage" -> typeof<BillingCycleMessage>
+         | "TransferProgressTrackingActorMessage" ->
+            typeof<TransferProgressTrackingMessage>
+         | "DomesticTransferActorMessage" -> typeof<DomesticTransferMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>

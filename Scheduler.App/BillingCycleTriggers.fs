@@ -3,8 +3,6 @@ module BillingCycleTriggers
 
 open Quartz
 
-type Message = | BillingCycle
-
 let scheduleMonthly (logInfo: string -> unit) =
    let name = "BillingCycle"
    let group = "Bank"

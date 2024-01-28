@@ -10,70 +10,65 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
-open Lib.Types
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-module Command = TransferResponseToCommand
+module Command = TransferTransactionToCommand
 
 module private Msg =
+   let progress =
+      AccountMessage.StateChange << AccountCommand.UpdateTransferProgress
+
    let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
    let reject = AccountMessage.StateChange << AccountCommand.RejectTransfer
 
 let private actorName = ActorUtil.ActorMetadata.domesticTransfer.Name
 
-type Response = {
-   AccountNumber: string
-   RoutingNumber: string
-   Ok: bool
-   Reason: string
-   AckReceipt: AckReceipt
-}
+let private progressFromResponse (response: TransferServiceResponse) =
+   match response.Status with
+   | "Complete" -> TransferProgress.Complete
+   | status -> TransferProgress.InProgress status
 
-type TransferRequest =
-   BankEvent<TransferPending> -> TaskResult<Response, string>
-
-let transferRequest
-   (evt: BankEvent<TransferPending>)
-   : TaskResult<Response, string>
-   =
-   taskResult {
-      let msg = {|
+let transferRequest action (txn: TransferTransaction) = taskResult {
+   let msg: obj =
+      match action with
+      | TransferServiceAction.TransferRequest -> {|
          Action = "TransferRequest"
-         AccountNumber = evt.Data.Recipient.Identification
-         RoutingNumber = evt.Data.Recipient.RoutingNumber
-         Amount = evt.Data.DebitedAmount
-         Date = evt.Data.Date
-         CorrelationId = string evt.CorrelationId
-      |}
+         AccountNumber = txn.Recipient.Identification
+         RoutingNumber = txn.Recipient.RoutingNumber
+         Amount = txn.Amount
+         Date = txn.Date
+         TransactionId = string txn.TransactionId
+        |}
+      | TransferServiceAction.ProgressCheck -> {|
+         Action = "ProgressCheck"
+         AccountNumber = txn.Recipient.Identification
+         RoutingNumber = txn.Recipient.RoutingNumber
+         TransactionId = string txn.TransactionId
+        |}
 
-      let! response =
-         TCP.request
-            EnvTransfer.config.MockThirdPartyBank.Host
-            EnvTransfer.config.MockThirdPartyBank.Port
-            Encoding.UTF8
-            (JsonSerializer.SerializeToUtf8Bytes msg)
+   let! response =
+      TCP.request
+         EnvTransfer.config.MockThirdPartyBank.Host
+         EnvTransfer.config.MockThirdPartyBank.Port
+         Encoding.UTF8
+         (JsonSerializer.SerializeToUtf8Bytes msg)
 
-      return! Serialization.deserialize<Response> response
-   }
-
-type Message =
-   | TransferPending of BankEvent<TransferPending>
-   | TransferResponse of Response * BankEvent<TransferPending>
-   | BreakerHalfOpen
-   | BreakerClosed
+   return! Serialization.deserialize<TransferServiceResponse> response
+}
 
 let handleTransfer
    (mailbox: Actor<obj>)
    (requestTransfer: TransferRequest)
-   (evt: BankEvent<TransferPending>)
+   (action: TransferServiceAction)
+   (txn: TransferTransaction)
    =
    task {
-      let! result = requestTransfer evt
+      let! result = requestTransfer action txn
 
       return
          match result with
-         | Ok res -> TransferResponse(res, evt)
+         | Ok res -> TransferResponse(res, action, txn)
          | Error errMsg ->
             match errMsg with
             | Contains "Serialization"
@@ -82,22 +77,29 @@ let handleTransfer
                logError mailbox errMsg
 
                let res = {
-                  AccountNumber = evt.Data.Recipient.Identification
-                  RoutingNumber = evt.Data.Recipient.RoutingNumber.Value
+                  AccountNumber = txn.Recipient.Identification
+                  RoutingNumber = txn.Recipient.RoutingNumber
                   Ok = false
+                  Status = ""
                   Reason = "CorruptData"
-                  AckReceipt = AckReceipt ""
+                  TransactionId = string txn.TransactionId
                }
 
-               TransferResponse(res, evt)
+               TransferResponse(res, action, txn)
             | Contains "Connection"
             | _ ->
-               // Intermittent Error: Reprocess message later
-               mailbox.Schedule
-                  (TimeSpan.FromSeconds 15.)
-                  mailbox.Self
-                  (TransferPending evt)
-               |> ignore
+               // Intermittent Error:
+               // Reprocess transfer request later.
+               // Ignore intermittent progress check error since we
+               // receive those on a recurring basis.
+               match action with
+               | TransferServiceAction.TransferRequest ->
+                  mailbox.Schedule
+                  <| TimeSpan.FromSeconds 15.
+                  <| mailbox.Self
+                  <| DomesticTransferMessage.TransferRequest(action, txn)
+                  |> ignore
+               | _ -> ()
 
                failwith errMsg // Side Effect: Trip circuit breaker
    }
@@ -112,7 +114,7 @@ let actorProps
       let logError, logInfo = logError mailbox, logInfo mailbox
 
       match message with
-      | :? Message as msg ->
+      | :? DomesticTransferMessage as msg ->
          match msg with
          | BreakerHalfOpen ->
             logInfo "Breaker half open - unstash one"
@@ -122,26 +124,47 @@ let actorProps
             logInfo "Breaker closed - unstash all"
             mailbox.UnstashAll()
             Ignore
-         | TransferPending evt ->
+         | TransferRequest(action, txn) ->
             if breaker.IsOpen then
-               logInfo "Domestic transfer breaker Open - stashing message"
-               mailbox.Stash()
+               match action with
+               | TransferServiceAction.TransferRequest ->
+                  logInfo "Domestic transfer breaker Open - stashing message"
+                  mailbox.Stash()
+               | TransferServiceAction.ProgressCheck ->
+                  logInfo
+                     "Domestic transfer breaker Open - ignore progress check"
+
                Ignore
             else
                breaker.WithCircuitBreaker(fun () ->
-                  handleTransfer mailbox requestTransfer evt)
+                  handleTransfer mailbox requestTransfer action txn)
                |> Async.AwaitTask
                |!> retype mailbox.Self
 
                Ignore
-         | TransferResponse(res, evt) ->
-            let accountRef = getAccountRef evt.EntityId
+         | TransferResponse(res, action, txn) ->
+            let accountRef = getAccountRef txn.SenderAccountId
 
             if res.Ok then
-               let msg = Msg.approve <| Command.approve evt res.AckReceipt
-               accountRef <! msg
-
                mailbox.UnstashAll()
+
+               let progress = progressFromResponse res
+
+               match progress with
+               | TransferProgress.Complete ->
+                  let msg = Msg.approve <| Command.approve txn
+                  accountRef <! msg
+               | progress ->
+                  let msg = Msg.progress <| Command.progress txn progress
+
+                  match action with
+                  | TransferServiceAction.TransferRequest -> accountRef <! msg
+                  | TransferServiceAction.ProgressCheck ->
+                     let previousProgress = txn.Status
+
+                     if progress <> previousProgress then
+                        accountRef <! msg
+
                Ignore
             else
                let errMsg = res.Reason
@@ -159,7 +182,7 @@ let actorProps
                | Contains "InvalidAccountInfo"
                | Contains "InactiveAccount"
                | _ ->
-                  let msg = Msg.reject <| Command.reject evt errMsg
+                  let msg = Msg.reject <| Command.reject txn errMsg
                   accountRef <! msg
                   Ignore
       | :? Status.Failure as e ->
@@ -233,7 +256,7 @@ let start
 
    ref
 
-let get (system: ActorSystem) : IActorRef<Message> =
+let get (system: ActorSystem) : IActorRef<DomesticTransferMessage> =
    typed
    <| ActorRegistry
       .For(system)

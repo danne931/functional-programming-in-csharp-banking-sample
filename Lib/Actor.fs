@@ -115,6 +115,10 @@ module ActorMetadata =
       class
       end
 
+   type TransferProgressTrackingMarker() =
+      class
+      end
+
    type BillingCycleMarker() =
       class
       end
@@ -172,6 +176,11 @@ module ActorMetadata =
    let domesticTransfer = {
       Name = "domestic-transfer-recipient"
       Route = "domestic-transfer-recipient"
+   }
+
+   let transferProgressTracking = {
+      Name = "transfer-progress-tracking"
+      Route = "transfer-progress-tracking"
    }
 
    let billingCycle = {

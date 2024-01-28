@@ -40,6 +40,8 @@ type StateTransitionError =
    | ExceededDailyDebit of decimal
    | RecipientRegistrationRequired
    | RecipientAlreadyRegistered
+   | TransferProgressNoChange
+   | TransferAlreadyProgressedToApprovedOrRejected
 
 type Err =
    | DatabaseError of exn

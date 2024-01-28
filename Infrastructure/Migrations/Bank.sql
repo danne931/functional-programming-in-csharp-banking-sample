@@ -18,7 +18,9 @@ CREATE TABLE accounts (
     transfer_recipients JSONB NOT NULL,
     maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
     maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
-    events JSONB NOT NULL, 
+    events JSONB NOT NULL,
+    in_progress_transfers JSONB NOT NULL,
+    in_progress_transfers_count INT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

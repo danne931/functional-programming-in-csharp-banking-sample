@@ -4,12 +4,11 @@ module InternalTransferRecipientActor
 open System
 open Akkling
 
-open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-module Command = TransferResponseToCommand
+module Command = TransferTransactionToCommand
 
 module private Msg =
    let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
@@ -18,52 +17,55 @@ module private Msg =
 
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   : Props<BankEvent<TransferPending>>
+   : Props<TransferTransaction>
    =
-   let handler (ctx: Actor<_>) (evt: BankEvent<TransferPending>) = actor {
+   let handler (ctx: Actor<_>) (txn: TransferTransaction) = actor {
       let logWarning = logWarning ctx
-      let recipient = evt.Data.Recipient
+      let recipient = txn.Recipient
       let recipientId = Guid recipient.Identification
 
+      let senderAccountRef = getAccountRef txn.SenderAccountId
+      let recipientAccountRef = getAccountRef recipientId
+
       let! (accountOpt: AccountState option) =
-         getAccountRef recipientId <? AccountMessage.GetAccount
+         recipientAccountRef <? AccountMessage.GetAccount
 
       match accountOpt with
       | None ->
          logWarning $"Transfer recipient not found {recipientId}"
 
-         let msg = Msg.reject <| Command.reject evt "NoRecipientFound"
-         getAccountRef evt.EntityId <! msg
+         let msg = Msg.reject <| Command.reject txn "NoRecipientFound"
+         recipientAccountRef <! msg
       | Some account ->
          if account.Status = AccountStatus.Closed then
             logWarning $"Transfer recipient account closed"
 
-            let msg = Msg.reject <| Command.reject evt "AccountClosed"
-            getAccountRef evt.EntityId <! msg
+            let msg = Msg.reject <| Command.reject txn "AccountClosed"
+            senderAccountRef <! msg
          else
-            let msg = Msg.approve <| Command.approve evt ""
-            getAccountRef evt.EntityId <! msg
+            let msg = Msg.approve <| Command.approve txn
+            senderAccountRef <! msg
 
-            let origin = string evt.EntityId
+            let origin = string txn.SenderAccountId
 
             let msg =
                Msg.deposit
                <| DepositTransferCommand(
                   recipientId,
-                  evt.Data.DebitedAmount,
+                  txn.Amount,
                   $"Account ({origin.Substring(origin.Length - 4)})",
                   // CorrelationId from sender transfer request traced to receiver's deposit.
-                  evt.CorrelationId
+                  txn.TransactionId
                )
 
-            getAccountRef recipientId <! msg
+            recipientAccountRef <! msg
    }
 
    props <| actorOf2 handler
 
 let getOrStart mailbox (getAccountRef: EntityRefGetter<AccountMessage>) =
    ActorMetadata.internalTransfer.Name
-   |> getChildActorRef<_, BankEvent<TransferPending>> mailbox
+   |> getChildActorRef<_, TransferTransaction> mailbox
    |> Option.defaultWith (fun _ ->
       spawn mailbox ActorMetadata.internalTransfer.Name
       <| actorProps getAccountRef)
