@@ -95,27 +95,68 @@ let tests =
       }
 
       test "ApproveTransferCommand" {
+         let initAccount = Stub.accountState
+
+         let res =
+            update initAccount
+            <| AccountCommand.RegisterTransferRecipient(
+               Stub.command.registerInternalRecipient
+            )
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let transferAmount = 101m
+
+         let res =
+            update account
+            <| AccountCommand.Transfer(
+               Stub.command.internalTransfer transferAmount
+            )
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+         let balanceAfterTransferRequest = account.Balance
+
+         Expect.equal
+            balanceAfterTransferRequest
+            (initAccount.Balance - transferAmount)
+            "A pending transfer decrements balance"
+
          let cmd = AccountCommand.ApproveTransfer Stub.command.approveTransfer
-         let res = update Stub.accountState cmd
+         let res = update account cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
             account.Balance
-            Stub.accountState.Balance
-            "Approving a transfer does not increment balance"
+            balanceAfterTransferRequest
+            "Approving a transfer does not decrement balance"
       }
 
       test "RejectTransferCommand updates balance" {
-         let command = Stub.command.rejectTransfer 101m
+         let initAccount = Stub.accountState
 
          let res =
-            update Stub.accountState <| AccountCommand.RejectTransfer command
+            update initAccount
+            <| AccountCommand.RegisterTransferRecipient(
+               Stub.command.registerInternalRecipient
+            )
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let res =
+            update account
+            <| AccountCommand.Transfer(Stub.command.internalTransfer 101m)
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let command = Stub.command.rejectTransfer 101m
+
+         let res = update account <| AccountCommand.RejectTransfer command
 
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
             account.Balance
-            (Stub.accountState.Balance + command.Amount)
+            initAccount.Balance
             "should add the transfer amount back to the balance"
       }
 

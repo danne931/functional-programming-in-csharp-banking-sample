@@ -59,7 +59,11 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         ref <! Stub.event.internalTransferPending
+         let txn =
+            TransferEventToTransaction.fromPending
+               Stub.event.internalTransferPending
+
+         ref <! txn
 
          tck.ExpectMsg<RejectTransferCommand>() |> ignore
 
@@ -72,7 +76,11 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         ref <! Stub.event.internalTransferPending
+         let txn =
+            TransferEventToTransaction.fromPending
+               Stub.event.internalTransferPending
+
+         ref <! txn
 
          tck.ExpectMsg<RejectTransferCommand>() |> ignore
 
@@ -90,28 +98,31 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         let evt = Stub.event.internalTransferPending
-         ref <! evt
+         let txn =
+            TransferEventToTransaction.fromPending
+               Stub.event.internalTransferPending
+
+         ref <! txn
 
          let msg = tck.ExpectMsg<ApproveTransferCommand>()
 
          Expect.equal
             msg.EntityId
-            evt.EntityId
-            $"EntityId from TransferPending event should be
+            txn.SenderAccountId
+            $"EntityId from Transfer Transaction should be
             EntityId of resulting ApproveTransferCommand"
 
          let msg = tck.ExpectMsg<DepositTransferCommand>()
 
          Expect.equal
             (string msg.EntityId)
-            evt.Data.Recipient.Identification
+            txn.Recipient.Identification
             $"Recipient ID from TransferPending event recipient should be
             EntityId of resulting DepositTransferCommand"
 
          Expect.equal
             msg.Amount
-            evt.Data.DebitedAmount
+            txn.Amount
             $"Debit amount from TransferPending event should
             equal deposit amount of resulting DepositTransferCommand"
    ]

@@ -23,6 +23,9 @@ let initMockAccountActor (tck: TestKit.Tck) =
             match msg with
             | AccountMessage.StateChange msg ->
                match msg with
+               | UpdateTransferProgress cmd ->
+                  tck.TestActor.Tell cmd
+                  ignored ()
                | RejectTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
@@ -38,48 +41,65 @@ let initMockAccountActor (tck: TestKit.Tck) =
 
 // Will fail with an intermittent "Connection" error
 // for the 2nd and 3rd request received.
-let mockTransferRequestFactory () =
+let mockTransferRequestFactory () : TransferRequest =
    let mutable requestCount = 0
 
-   fun (evt: BankEvent<TransferPending>) ->
+   fun (action: TransferServiceAction) (txn: TransferTransaction) ->
       requestCount <- requestCount + 1
 
-      if requestCount > 1 && requestCount <= 3 then
+      if requestCount > 2 && requestCount <= 4 then
          "Connection" |> Error |> Task.FromResult
       else
-         let response: DomesticTransferRecipientActor.Response = {
+         let status =
+            match action with
+            | TransferServiceAction.TransferRequest -> "Processing"
+            | TransferServiceAction.ProgressCheck -> "Complete"
+
+         let response: TransferServiceResponse = {
             AccountNumber = ""
-            RoutingNumber = ""
+            RoutingNumber = None
             Ok = true
             Reason = ""
-            AckReceipt = AckReceipt(string evt.EntityId)
+            Status = status
+            TransactionId = string <| Guid.NewGuid()
          }
 
          response |> Ok |> Task.FromResult
 
-let mockTransferRequestInvalid (evt: BankEvent<TransferPending>) =
-   let response: DomesticTransferRecipientActor.Response = {
+let mockTransferRequestInvalid
+   (action: TransferServiceAction)
+   (txn: TransferTransaction)
+   =
+   let response: TransferServiceResponse = {
       AccountNumber = ""
-      RoutingNumber = ""
+      RoutingNumber = None
       Ok = false
       Reason = "InvalidAction"
-      AckReceipt = AckReceipt(string evt.EntityId)
+      Status = ""
+      TransactionId = string <| Guid.NewGuid()
    }
 
    response |> Ok |> Task.FromResult
 
-let mockTransferRequestInactiveAccount (_: BankEvent<TransferPending>) =
-   let response: DomesticTransferRecipientActor.Response = {
+let mockTransferRequestInactiveAccount
+   (action: TransferServiceAction)
+   (txn: TransferTransaction)
+   =
+   let response: TransferServiceResponse = {
       AccountNumber = ""
-      RoutingNumber = ""
+      RoutingNumber = None
       Ok = false
       Reason = "InactiveAccount"
-      AckReceipt = AckReceipt("")
+      Status = ""
+      TransactionId = string <| Guid.NewGuid()
    }
 
    response |> Ok |> Task.FromResult
 
-let mockTransferRequestSerializationIssue (_: BankEvent<TransferPending>) =
+let mockTransferRequestSerializationIssue
+   (action: TransferServiceAction)
+   (txn: TransferTransaction)
+   =
    Error "Serialization" |> Task.FromResult
 
 let initCircuitBreaker (tck: TestKit.Tck) =
@@ -111,9 +131,7 @@ let initDomesticTransferActor
    (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountActor: EntityRefGetter<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
-   (transferRequest:
-      BankEvent<TransferPending>
-         -> TaskResult<DomesticTransferRecipientActor.Response, string>)
+   (transferRequest: TransferRequest)
    =
    let prop =
       DomesticTransferRecipientActor.actorProps
@@ -124,12 +142,7 @@ let initDomesticTransferActor
 
    spawn tck ActorMetadata.domesticTransfer.Name prop
 
-let init
-   (tck: TestKit.Tck)
-   (mockTransferRequest:
-      BankEvent<TransferPending>
-         -> TaskResult<DomesticTransferRecipientActor.Response, string>)
-   =
+let init (tck: TestKit.Tck) (mockTransferRequest: TransferRequest) =
    let breaker = initCircuitBreaker tck
    let mockAccountRef = initMockAccountActor tck
 
@@ -154,16 +167,41 @@ let tests =
             init tck <| mockTransferRequestFactory ()
 
          let evt = Stub.event.domesticTransferPending
+         let txn = TransferEventToTransaction.fromPending evt
 
          domesticTransferRef
-         <! DomesticTransferRecipientActor.Message.TransferPending evt
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.TransferRequest,
+            txn
+         )
 
-         let msg = tck.ExpectMsg<ApproveTransferCommand>()
+         let cmd = tck.ExpectMsg<UpdateTransferProgressCommand>()
 
          Expect.equal
-            msg.EntityId
-            evt.EntityId
-            $"EntityId from TransferPending event should be
+            cmd.EntityId
+            txn.SenderAccountId
+            $"SenderAccountId from Transfer Transaction should be
+              EntityId of resulting UpdateTransferProgressCommand"
+
+         let evt =
+            Expect.wantOk
+               (cmd.toEvent ())
+               "TransferProgress cmd -> event validation ok"
+
+         let txn = TransferEventToTransaction.fromProgressUpdate evt
+
+         domesticTransferRef
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.ProgressCheck,
+            txn
+         )
+
+         let cmd = tck.ExpectMsg<ApproveTransferCommand>()
+
+         Expect.equal
+            cmd.EntityId
+            txn.SenderAccountId
+            $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting ApproveTransferCommand"
 
       akkaTest
@@ -175,16 +213,20 @@ let tests =
             init tck mockTransferRequestInactiveAccount
 
          let evt = Stub.event.domesticTransferPending
+         let txn = TransferEventToTransaction.fromPending evt
 
          domesticTransferRef
-         <! DomesticTransferRecipientActor.Message.TransferPending evt
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.TransferRequest,
+            txn
+         )
 
          let msg = tck.ExpectMsg<RejectTransferCommand>()
 
          Expect.equal
             msg.EntityId
-            evt.EntityId
-            $"EntityId from TransferPending event should be
+            txn.SenderAccountId
+            $"SenderAccountId from Transaction should be
               EntityId of resulting RejectTransferCommand"
 
       akkaTest
@@ -203,9 +245,13 @@ let tests =
          |> ignore
 
          let evt = Stub.event.domesticTransferPending
+         let txn = TransferEventToTransaction.fromPending evt
 
          domesticTransferRef
-         <! DomesticTransferRecipientActor.Message.TransferPending evt
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.TransferRequest,
+            txn
+         )
 
          let msg = emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
@@ -237,9 +283,13 @@ let tests =
          |> ignore
 
          let evt = Stub.event.domesticTransferPending
+         let txn = TransferEventToTransaction.fromPending evt
 
          domesticTransferRef
-         <! DomesticTransferRecipientActor.Message.TransferPending evt
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.TransferRequest,
+            txn
+         )
 
          let msg = emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
@@ -264,9 +314,30 @@ let tests =
             init tck <| mockTransferRequestFactory ()
 
          let evt = Stub.event.domesticTransferPending
-         let msg = DomesticTransferRecipientActor.Message.TransferPending evt
+         let txn = TransferEventToTransaction.fromPending evt
 
-         domesticTransferRef <! msg
+         let transferMsg =
+            DomesticTransferMessage.TransferRequest(
+               TransferServiceAction.TransferRequest,
+               txn
+            )
+
+         domesticTransferRef <! transferMsg
+
+         let cmd = tck.ExpectMsg<UpdateTransferProgressCommand>()
+
+         let evt =
+            Expect.wantOk
+               (cmd.toEvent ())
+               "TransferProgress cmd -> event validation ok"
+
+         let txn = TransferEventToTransaction.fromProgressUpdate evt
+
+         domesticTransferRef
+         <! DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.ProgressCheck,
+            txn
+         )
 
          // 1st message succeeds
          tck.ExpectMsg<ApproveTransferCommand>() |> ignore
@@ -275,8 +346,8 @@ let tests =
          // stashing corresponding messages.  Subsequent messages
          // are stashed for later processing without attempting to make
          // a request.
-         domesticTransferRef <! msg
-         domesticTransferRef <! msg
+         domesticTransferRef <! transferMsg
+         domesticTransferRef <! transferMsg
 
          tck.AwaitAssert(fun () ->
             Expect.equal
@@ -286,7 +357,7 @@ let tests =
 
          TestKit.expectMsg tck CircuitBreakerStatus.Open |> ignore
 
-         domesticTransferRef <! msg
+         domesticTransferRef <! transferMsg
 
          tck.AwaitAssert(fun () ->
             Expect.equal

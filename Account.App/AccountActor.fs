@@ -216,6 +216,14 @@ let private getAccountEvents
       )
    |> Async.AwaitTask
 
+let isPersistableMessage (msg: obj) =
+   match msg with
+   | :? AccountMessage as msg ->
+      match msg with
+      | AccountMessage.StateChange _ -> true
+      | _ -> false
+   | _ -> false
+
 let initProps
    (broadcaster: AccountBroadcast)
    (system: ActorSystem)
@@ -234,14 +242,6 @@ let initProps
          EmailActor.get
          AccountClosureActor.get
          BillingStatementActor.get
-
-   let isPersistableMessage (msg: obj) =
-      match msg with
-      | :? AccountMessage as msg ->
-         match msg with
-         | AccountMessage.StateChange _ -> true
-         | _ -> false
-      | _ -> false
 
    persistenceSupervisor
       supervisorOpts

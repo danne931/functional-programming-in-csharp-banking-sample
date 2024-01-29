@@ -1,8 +1,10 @@
 module AccountActorTests
 
+open System
 open Expecto
 open Akkling
 open Akka.Actor
+open Akka.Persistence.Extras
 
 open Util
 open Lib.Types
@@ -27,6 +29,30 @@ let accountPersistenceNoEvents: AccountPersistence = {
    getEvents = fun _ -> async.Return []
 }
 
+// Mock PersistenceSupervisor message wrapping for command
+// intended to be persisted
+let envelope msg =
+   ConfirmableMessageEnvelope(Int64.MinValue, "", msg)
+
+// Mock PersistenceSupervisor forwards messages to AccountActor
+// & wraps StateChange messages intended to be persisted.
+let mockPersistenceSupervisorProps (spawnChild: Actor<obj> -> IActorRef<obj>) =
+   let init (ctx: Actor<obj>) =
+      let child = spawnChild ctx
+
+      actor {
+         let! msg = ctx.Receive()
+
+         if AccountActor.isPersistableMessage msg then
+            child <<! envelope msg
+         else
+            child <<! msg
+
+         return ignored ()
+      }
+
+   props init
+
 let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let internalTransferProbe = tck.CreateTestProbe()
    let domesticTransferProbe = tck.CreateTestProbe()
@@ -35,11 +61,10 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let billingProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
-      typed internalTransferProbe :> IActorRef<BankEvent<TransferPending>>
+      typed internalTransferProbe :> IActorRef<TransferTransaction>
 
    let getDomesticTransferActor (_: ActorSystem) =
-      typed domesticTransferProbe
-      :> IActorRef<DomesticTransferRecipientActor.Message>
+      typed domesticTransferProbe :> IActorRef<DomesticTransferMessage>
 
    let getEmailActor (_: ActorSystem) =
       (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
@@ -50,16 +75,19 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let getBillingStatementActor (_: ActorSystem) =
       typed billingProbe :> IActorRef<BillingStatementMessage>
 
-   let accountActor =
-      spawn tck ActorMetadata.account.Name
-      <| AccountActor.actorProps
-            accountPersistence
-            Stub.accountBroadcast
-            getOrStartInternalTransferActor
-            getDomesticTransferActor
-            getEmailActor
-            getAccountClosureActor
-            getBillingStatementActor
+   let prop =
+      mockPersistenceSupervisorProps (fun ctx ->
+         spawn ctx ActorMetadata.account.Name
+         <| AccountActor.actorProps
+               accountPersistence
+               Stub.accountBroadcast
+               getOrStartInternalTransferActor
+               getDomesticTransferActor
+               getEmailActor
+               getAccountClosureActor
+               getBillingStatementActor)
+
+   let accountActor = spawn tck ActorMetadata.account.Name prop
 
    {|
       accountActor = accountActor
@@ -110,7 +138,7 @@ let tests =
       <| fun tck ->
          let o = init tck accountPersistence
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
-         o.accountActor <! StateChange cmd
+         o.accountActor <! AccountMessage.StateChange cmd
 
          let cmd = AccountCommand.CloseAccount Stub.command.closeAccount
          o.accountActor <! AccountMessage.StateChange cmd
@@ -272,8 +300,7 @@ let tests =
             (Stub.accountStateAfterCreate.Balance - transfer.Amount)
             "Account state should reflect a transfer debit"
 
-         o.internalTransferProbe.ExpectMsg<BankEvent<TransferPending>>()
-         |> ignore
+         o.internalTransferProbe.ExpectMsg<TransferTransaction>() |> ignore
 
       akkaTest
          "A domestic transfer should message the DomesticTransferRecipientActor"
@@ -303,11 +330,10 @@ let tests =
             (Stub.accountStateAfterCreate.Balance - transfer.Amount)
             "Account state should reflect a transfer debit"
 
-         let msg =
-            o.domesticTransferProbe.ExpectMsg<DomesticTransferRecipientActor.Message>()
+         let msg = o.domesticTransferProbe.ExpectMsg<DomesticTransferMessage>()
 
          match msg with
-         | DomesticTransferRecipientActor.TransferPending(evt) ->
+         | DomesticTransferMessage.TransferRequest(action, evt) ->
             Expect.isTrue true ""
          | msg ->
             Expect.isTrue
@@ -430,6 +456,7 @@ let tests =
             o.accountActor <! AccountMessage.StateChange command
 
          o.accountActor <! AccountMessage.GetAccount
+
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
          o.accountActor <! AccountMessage.BillingCycle

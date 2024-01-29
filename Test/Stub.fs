@@ -112,8 +112,7 @@ let command = {|
          correlationId,
          recipient = internalRecipient,
          date = DateTime.UtcNow,
-         amount = 33m,
-         ackReceipt = "123"
+         amount = 33m
       )
    rejectTransfer =
       fun amount ->
