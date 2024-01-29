@@ -208,6 +208,7 @@ type AccountSeederMessage =
    | SeedAccounts
    | VerifyAccountsCreated
    | VerifiedAccountsReceived of AccountState list
+   | ErrorVerifyingAccounts of Err
 
 type AccountEventConsumerState = {
    Offset: Akka.Persistence.Query.Sequence

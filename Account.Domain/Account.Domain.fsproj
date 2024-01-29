@@ -8,6 +8,7 @@
     <Compile Include="Events.fs" />
     <Compile Include="Commands.fs" />
     <Compile Include="Types.fs" />
+    <Compile Include="SqlMapper.fs" />
     <Compile Include="Account.fs" />
   </ItemGroup>
 

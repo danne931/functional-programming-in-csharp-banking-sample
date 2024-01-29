@@ -2,16 +2,17 @@
 module AccountSeederActor
 
 // Actor runs in local development or staging environments to ensure
-// some data is available to interact with.  The verification logic
-// is likey superfluous.
+// some data is available to interact with.
 
 open System
 open Akka.Hosting
 open Akka.Cluster
 open Akkling
 open FSharp.Control
+open FsToolkit.ErrorHandling
 
 open Lib.Types
+open Bank.Account.Api
 open Bank.Account.Domain
 open ActorUtil
 
@@ -41,24 +42,6 @@ let rec getRemainingAccountsToCreate
       getRemainingAccountsToCreate rest
       <| Map.remove account.EntityId accountsToCreate
 
-let private getAccount
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   (command: CreateAccountCommand)
-   : AccountState option Async
-   =
-   async {
-      let ref = getAccountRef command.EntityId
-
-      try
-         return!
-            ref.Ask<AccountState option>(
-               AccountMessage.GetAccount,
-               Some <| TimeSpan.FromSeconds 3.
-            )
-      with _ ->
-         return None
-   }
-
 let private scheduleVerification
    (ctx: Actor<AccountSeederMessage>)
    (seconds: float)
@@ -76,22 +59,18 @@ let private scheduleInitialization (ctx: Actor<AccountSeederMessage>) =
       AccountSeederMessage.SeedAccounts
    |> ignore
 
-let private getVerifiedAccounts
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   (accountsToCreate: CreateAccountsMap)
-   =
-   async {
-      let! lookupResults =
-         accountsToCreate.Values
-         |> List.ofSeq
-         |> List.map (getAccount getAccountRef)
-         |> Async.Parallel
+let private getVerifiedAccounts (accountsToCreate: CreateAccountsMap) = async {
+   let! lookupResults =
+      accountsToCreate.Keys |> List.ofSeq |> getAccountsByIds |> Async.ofTask
 
-      // Filter out Option<AccountState> None results.
-      let verifiedAccounts = lookupResults |> List.ofArray |> List.choose id
-
-      return AccountSeederMessage.VerifiedAccountsReceived verifiedAccounts
-   }
+   return
+      match lookupResults with
+      | Error e -> AccountSeederMessage.ErrorVerifyingAccounts e
+      | Ok opt ->
+         match opt with
+         | None -> AccountSeederMessage.VerifiedAccountsReceived []
+         | Some res -> AccountSeederMessage.VerifiedAccountsReceived res
+}
 
 let private initState = {
    Status = AwaitingClusterUp
@@ -153,7 +132,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                   getAccountRef command.EntityId
                   <! (StateChange << CreateAccount) command
 
-               scheduleVerification ctx 10.
+               scheduleVerification ctx 5.
 
                become
                <| loop {
@@ -161,8 +140,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                      Status = AwaitingVerification
                }
          | VerifyAccountsCreated ->
-            getVerifiedAccounts getAccountRef state.AccountsToCreate
-            |!> ctx.Self
+            getVerifiedAccounts state.AccountsToCreate |!> ctx.Self
 
             ignored ()
          | VerifiedAccountsReceived verified ->
@@ -187,6 +165,10 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                   Status = AwaitingVerification
                   AccountsToCreate = remaining
                }
+         | ErrorVerifyingAccounts err ->
+            logError ctx $"Error verifying accounts {err}"
+            scheduleVerification ctx 7.
+            ignored ()
 
       loop initState
 

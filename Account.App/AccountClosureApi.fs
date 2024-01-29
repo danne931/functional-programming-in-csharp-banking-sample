@@ -5,6 +5,7 @@ open FsToolkit.ErrorHandling
 
 open Lib.Postgres
 open Lib.Types
+open Bank.Account.Domain
 
 // These records are held onto for reporting and legal reasons
 // for 3 months following an account closure.
@@ -19,4 +20,4 @@ let deleteHistoricalRecords (accountIds: Guid list) =
       pgQuery<Email>
          "DELETE FROM accounts WHERE id = ANY(@accountIds) RETURNING email"
          (Some [ "@accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
-         (fun read -> read.text "email" |> Email.deserialize)
+         AccountSqlReader.email
