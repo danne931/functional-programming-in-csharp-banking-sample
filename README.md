@@ -16,7 +16,7 @@ This project utilizes the actor model and event sourcing via Akka.NET to build t
 10. Billing statements issued for each billing cycle
 11. Emails sent for account open/close, billing statement, debit declined, & transfer deposited
 
-![bank-dec-6-small](https://github.com/danne931/akka-dotnet-bank/assets/4181901/3e3a3bf1-5e37-424a-9898-fd8b513ac1af)
+![bank-1-29](https://github.com/danne931/akka-dotnet-bank/assets/4181901/e56e902d-5c22-4480-800b-37091fa120f5)
 
 ## UI
 I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/Web/wwwroot/js/account.js)
