@@ -48,7 +48,7 @@ let actorProps
                // since transfer initiated.
                txn.Date < DateTime.UtcNow.AddMinutes -transferLookbackMinutes)
          |> Source.throttle
-               (ThrottleMode.Shaping)
+               ThrottleMode.Shaping
                throttle.Burst
                throttle.Count
                throttle.Duration

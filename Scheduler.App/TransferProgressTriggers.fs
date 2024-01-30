@@ -18,7 +18,7 @@ let schedule (logInfo: string -> unit) =
 
    if Env.isDev then
       let seconds = 60
-      logInfo $"Scheduling transfer progress tracing every {seconds} seconds."
+      logInfo $"Scheduling transfer progress tracking every {seconds} seconds."
 
       builder
          .WithSimpleSchedule(fun s ->

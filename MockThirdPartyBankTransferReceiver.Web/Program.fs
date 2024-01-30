@@ -5,6 +5,7 @@ open Akkling.IO.Tcp
 open System
 open System.Text.Json
 open System.Net
+open System.Collections.Generic
 
 let builder = WebApplication.CreateBuilder()
 let app = builder.Build()
@@ -27,9 +28,12 @@ type Response = {
    transactionId: string
 }
 
-type InProgressTransfers = Map<string, Request>
+type InProgressTransfers = Dictionary<string, int * Request>
 
-let parseRequest (req: Request) (state: InProgressTransfers) =
+let inMemoryState = InProgressTransfers()
+
+// Compute response & mutate in-memory state of in-progress transfers.
+let processRequest (req: Request) =
    let res = {
       accountNumber = req.AccountNumber
       routingNumber = req.RoutingNumber
@@ -48,26 +52,42 @@ let parseRequest (req: Request) (state: InProgressTransfers) =
             res with
                ok = false
                reason = "InvalidAccountInfo"
-         },
-         state
+         }
       elif req.Amount <= 0m then
          {
             res with
                ok = false
                reason = "InvalidAmount"
-         },
-         state
+         }
       else
-         { res with status = "Processing" }, Map.add res.transactionId req state
+         inMemoryState.Add(res.transactionId, (0, req))
+         { res with status = "ReceivedRequest" }
    elif req.Action = "ProgressCheck" then
-      { res with status = "Complete" }, Map.remove res.transactionId state
+      if not <| inMemoryState.ContainsKey(res.transactionId) then
+         {
+            res with
+               ok = false
+               reason = "NoTransferProcessing"
+         }
+      else
+         let progressCheckCount, request = inMemoryState[res.transactionId]
+
+         if progressCheckCount < 1 then
+            inMemoryState[res.transactionId] <- progressCheckCount + 1, request
+
+            {
+               res with
+                  status = "VerifyingAccountInfo"
+            }
+         else
+            inMemoryState.Remove(res.transactionId) |> ignore
+            { res with status = "Complete" }
    else
       {
          res with
             ok = false
             reason = "InvalidAction"
-      },
-      state
+      }
 
 let serializeResponse (response: Response) =
    response |> JsonSerializer.Serialize |> ByteString.ofUtf8String
@@ -79,7 +99,7 @@ let actorSystem =
 let tcpMessageHandler connection (ctx: Actor<obj>) =
    monitor ctx connection |> ignore
 
-   let rec loop (state: InProgressTransfers) = actor {
+   let rec loop () = actor {
       let! msg = ctx.Receive()
 
       match msg with
@@ -87,10 +107,10 @@ let tcpMessageHandler connection (ctx: Actor<obj>) =
          let req = data |> string |> JsonSerializer.Deserialize<Request>
          printfn "Received request %A" req
 
-         let res, newState = parseRequest req state
+         let res = processRequest req
 
          ctx.Sender() <! TcpMessage.Write(serializeResponse res)
-         return! loop newState
+         return! loop ()
       | Terminated(_, _, _)
       | ConnectionClosed(_) ->
          printfn "<Disconnected>"
@@ -98,7 +118,7 @@ let tcpMessageHandler connection (ctx: Actor<obj>) =
       | _ -> return Ignore
    }
 
-   loop Map.empty
+   loop ()
 
 let port, ip =
    try
