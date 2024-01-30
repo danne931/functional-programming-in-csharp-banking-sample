@@ -37,7 +37,7 @@ web page to test the use cases against an account.
 
 
 ## Running with Kubernetes via minikube
-1. Dependencies: .NET 7, [minikube](https://minikube.sigs.k8s.io/docs/start/), [helm](https://helm.sh/)
+1. Dependencies: .NET 8, [minikube](https://minikube.sigs.k8s.io/docs/start/), [helm](https://helm.sh/)
 2. `sh build.sh -t RunK8sApp`
 3. Browser opens automatically after all K8s resources start up
 4. Enable postgres port forwarding if you want to inspect postgres in a local client: `sh postgres-port-forward-k8s.sh` (Server=postgres;Database=akkabank;Uid=testuser;Pwd=testpass)
@@ -50,13 +50,13 @@ web page to test the use cases against an account.
    ```
 
 ## Running with Docker
-1. Dependencies: .NET 7
+1. Dependencies: .NET 8
 2. `sh build.sh -t RunDockerApp`
 3. Navigate to localhost:3000
 4. If you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
 
 ## Running without Docker or K8s
-1. Dependencies: .NET 7, PostgreSQL & the psql command-line interface
+1. Dependencies: .NET 8, PostgreSQL & the psql command-line interface
 2. Create a database (Server=localhost;Database=akkabank;Uid=postgres;Pwd=password)
 3. Seed the database: `psql postgres < Infrastructure/Migrations/*.sql`
 4. `cd` into ./Web, ./Account.Service, ./Scheduler.Service, & ./MockThirdPartyBankTransferReceiver & `dotnet run` in each
