@@ -74,22 +74,25 @@ let actorProps
                            envelope.ConfirmationId
                   | Error err ->
                      let errMsg = string err
-
-                     broadcaster.accountEventValidationFail
-                        account.EntityId
-                        errMsg
-                     |> ignore
-
                      logWarning $"Validation fail %s{errMsg}"
+
+                     let signalRBroadcastValidationErr () =
+                        broadcaster.accountEventValidationFail
+                           account.EntityId
+                           errMsg
 
                      match err with
                      | StateTransitionError e ->
                         match e with
                         | InsufficientBalance _
                         | ExceededDailyDebit _ ->
+                           signalRBroadcastValidationErr ()
+
                            getEmailActor mailbox.System
                            <! EmailActor.DebitDeclined(errMsg, account)
-                        | _ -> ()
+                        | TransferProgressNoChange
+                        | TransferAlreadyProgressedToApprovedOrRejected -> ()
+                        | _ -> signalRBroadcastValidationErr ()
                      | _ -> ()
                | msg ->
                   logError
