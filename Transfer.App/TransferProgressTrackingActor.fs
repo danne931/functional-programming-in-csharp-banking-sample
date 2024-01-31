@@ -28,7 +28,8 @@ let actorProps
       let domesticTransferActorRef = getDomesticTransferActor system
 
       do!
-         Source.ofAsync <| getInProgressTransfers ()
+         getInProgressTransfers ()
+         |> Source.ofAsync
          |> Source.choose (fun res ->
             match res with
             | Error e ->

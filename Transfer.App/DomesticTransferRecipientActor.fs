@@ -30,22 +30,14 @@ let private progressFromResponse (response: TransferServiceResponse) =
    | status -> TransferProgress.InProgress status
 
 let transferRequest action (txn: TransferTransaction) = taskResult {
-   let msg: obj =
-      match action with
-      | TransferServiceAction.TransferRequest -> {|
-         Action = "TransferRequest"
-         AccountNumber = txn.Recipient.Identification
-         RoutingNumber = txn.Recipient.RoutingNumber
-         Amount = txn.Amount
-         Date = txn.Date
-         TransactionId = string txn.TransactionId
-        |}
-      | TransferServiceAction.ProgressCheck -> {|
-         Action = "ProgressCheck"
-         AccountNumber = txn.Recipient.Identification
-         RoutingNumber = txn.Recipient.RoutingNumber
-         TransactionId = string txn.TransactionId
-        |}
+   let msg = {|
+      Action = string action
+      AccountNumber = txn.Recipient.Identification
+      RoutingNumber = txn.Recipient.RoutingNumber
+      Amount = txn.Amount
+      Date = txn.Date
+      TransactionId = string txn.TransactionId
+   |}
 
    let! response =
       TCP.request

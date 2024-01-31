@@ -12,37 +12,44 @@ open BillingStatement
 open Bank.Account.Domain
 open ActorUtil
 open Lib.Types
+open Lib.Postgres
 
-let private forwardToAccount
-   (getAccountRef: EntityRefGetter<AccountMessage>)
-   (id: string)
-   =
-   let idOpt =
-      try
-         Guid id |> Some
-      with _ ->
-         None
-
-   if idOpt.IsSome then
-      getAccountRef idOpt.Value <! AccountMessage.BillingCycle
+let getActiveAccountIds () =
+   pgQuery<Guid>
+      $"SELECT {AccountFields.entityId} FROM accounts WHERE status = '{string AccountStatus.Active}'"
+      None
+      AccountSqlReader.entityId
 
 let private fanOutBillingCycleMessage
-   system
+   (ctx: Actor<_>)
    (throttle: StreamThrottle)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    =
    task {
-      let source = (readJournal system).CurrentPersistenceIds()
-      let mat = system.Materializer()
+      let mat = ctx.System.Materializer()
 
       do!
-         source
+         getActiveAccountIds ()
+         |> Async.AwaitTask
+         |> Source.ofAsync
          |> Source.throttle
                ThrottleMode.Shaping
                throttle.Burst
                throttle.Count
                throttle.Duration
-         |> Source.runForEach mat (forwardToAccount getAccountRef)
+         |> Source.choose (fun res ->
+            match res with
+            | Error e ->
+               logError ctx $"Error fetching active account ids"
+               None
+            | Ok opt ->
+               if opt.IsNone then
+                  logError ctx "No active accounts."
+
+               opt)
+         |> Source.collect id
+         |> Source.runForEach mat (fun accountId ->
+            getAccountRef accountId <! AccountMessage.BillingCycle)
 
       return BillingCycleFinished
    }
@@ -58,8 +65,7 @@ let actorProps
          logInfo ctx "Start billing cycle"
          broadcaster.endBillingCycle () |> ignore
 
-         fanOutBillingCycleMessage ctx.System throttle getAccountRef
-         |> Async.AwaitTask
+         fanOutBillingCycleMessage ctx throttle getAccountRef |> Async.AwaitTask
          |!> retype ctx.Self
          |> ignored
       | BillingCycleFinished ->
