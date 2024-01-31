@@ -33,23 +33,28 @@ let initReadJournalSource
    (mailbox: Eventsourced<obj>)
    (state: AccountEventConsumerState)
    (chunking: StreamChunking)
+   (restartSettings: Akka.Streams.RestartSettings)
    : Source<Guid, Akka.NotUsed>
    =
-   (readJournal mailbox.System).EventsByTag("AccountEvent", state.Offset)
-   |> Source.groupedWithin chunking.Size chunking.Duration
-   |> Source.collect (fun evtSeq ->
-      let setOfAccountIds =
-         evtSeq
-         |> Seq.map (fun env -> Guid.Parse env.PersistenceId)
-         |> Set.ofSeq
+   let source =
+      (readJournal mailbox.System).EventsByTag("AccountEvent", state.Offset)
+      |> Source.groupedWithin chunking.Size chunking.Duration
+      |> Source.collect (fun evtSeq ->
+         let setOfAccountIds =
+            evtSeq
+            |> Seq.map (fun env -> Guid.Parse env.PersistenceId)
+            |> Set.ofSeq
 
-      let offset = (Seq.last evtSeq).Offset
+         let offset = (Seq.last evtSeq).Offset
 
-      match offset with
-      | :? Query.Sequence as offset -> mailbox.Self <! SaveOffset offset
-      | _ -> ()
+         match offset with
+         | :? Query.Sequence as offset -> mailbox.Self <! SaveOffset offset
+         | _ -> ()
 
-      setOfAccountIds)
+         setOfAccountIds)
+
+   RestartSource.OnFailuresWithBackoff((fun _ -> source), restartSettings)
+
 
 let startProjection
    (mailbox: Eventsourced<obj>)
@@ -66,7 +71,8 @@ let startProjection
 
    let system = mailbox.System
 
-   let readJournalSource = initReadJournalSource mailbox state chunking
+   let readJournalSource =
+      initReadJournalSource mailbox state chunking restartSettings
 
    let failedWritesSource, failedWritesRef = initFailedWritesSource system
 
