@@ -17,7 +17,7 @@ let actorProps
    (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getInProgressTransfers: GetInProgressTransfers)
    (throttle: StreamThrottle)
-   (transferLookbackMinutes: int)
+   (transferLookback: int)
    =
    let mat = system.Materializer()
 
@@ -45,19 +45,18 @@ let actorProps
             // Only do progress checks if the initial transfer request has
             // been acknowledged as received by the mock 3rd party bank.
             // This avoids transfer rejections due to a ProgressCheck being
-            // received by the mock 3rd party bank before a TransferRequest.
+            // received by the mock 3rd party bank before a TransferRequest
+            // in cases where a TransferRequest was rescheduled when the
+            // domestic transfer actor's circuit breaker was open.
             let statusFilter =
                txn.Status <> TransferProgress.Outgoing
                && txn.Status <> TransferProgress.Complete
 
+            // Only do progress check if an hour (for example) has elapsed
+            // since transfer initiated.
             let dateFilter =
-               if Env.isDev then
-                  true
-               else
-                  // Only do progress check if an hour (for example) has elapsed
-                  // since transfer initiated.
-                  txn.Date < DateTime.UtcNow.AddMinutes
-                     -transferLookbackMinutes
+               Env.isDev
+               || txn.Date < DateTime.UtcNow.AddMinutes(-transferLookback)
 
             statusFilter && dateFilter)
          |> Source.throttle
