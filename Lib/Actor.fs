@@ -49,12 +49,7 @@ let messageExtractor maxNumberOfShards =
       entityIdExtractor =
          (fun msg ->
             match msg with
-            // No longer need to handle ShardingEnvelope manually here as of
-            // Akka.NET release 1.5.15 https://github.com/akkadotnet/akka.net/releases/tag/1.5.15
-            // However, Akkling needs a corresponding update before removing
-            // it's equivalent ShardEnvelope.
             | :? ShardEnvelope as e -> e.EntityId
-            | :? Guid as id -> string id
             | _ -> null),
       messageExtractor =
          fun msg ->
@@ -239,7 +234,7 @@ let getEntityRef
          ClusterSharding.Get(system).ShardRegion(shardRegionMeta.name)
    }
 
-   let shardId = shardRegionMeta.messageExtractor.ShardId entityId
+   let shardId = shardRegionMeta.messageExtractor.ShardId(string entityId)
 
    fac.RefFor shardId <| string entityId
 
