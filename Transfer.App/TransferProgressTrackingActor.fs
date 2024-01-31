@@ -42,12 +42,24 @@ let actorProps
                opt)
          |> Source.collect id
          |> Source.filter (fun txn ->
-            if Env.isDev then
-               true
-            else
-               // Only do progress check if an hour (for example) has elapsed
-               // since transfer initiated.
-               txn.Date < DateTime.UtcNow.AddMinutes -transferLookbackMinutes)
+            // Only do progress checks if the initial transfer request has
+            // been acknowledged as received by the mock 3rd party bank.
+            // This avoids transfer rejections due to a ProgressCheck being
+            // received by the mock 3rd party bank before a TransferRequest.
+            let statusFilter =
+               txn.Status <> TransferProgress.Outgoing
+               && txn.Status <> TransferProgress.Complete
+
+            let dateFilter =
+               if Env.isDev then
+                  true
+               else
+                  // Only do progress check if an hour (for example) has elapsed
+                  // since transfer initiated.
+                  txn.Date < DateTime.UtcNow.AddMinutes
+                     -transferLookbackMinutes
+
+            statusFilter && dateFilter)
          |> Source.throttle
                ThrottleMode.Shaping
                throttle.Burst
