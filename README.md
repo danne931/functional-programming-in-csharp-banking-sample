@@ -31,7 +31,7 @@ web page to test the use cases against an account.
 
 ## Demonstration
 ### Domestic transfers to a mock 3rd party bank server with circuit breaker integration:
-![bank-domestic-transfer](https://github.com/danne931/akka-dotnet-bank/assets/4181901/0c504ddd-8b56-4bcb-9001-107f4833e3d1)
+![bank-domestic-transfer-1-30](https://github.com/danne931/akka-dotnet-bank/assets/4181901/8d200b11-99d8-4e8f-98d4-0ab5941f1447)
 ### Transfers to accounts internal to the bank:
 ![bank-internal-transfer-dec-11](https://github.com/danne931/akka-dotnet-bank/assets/4181901/773ec696-fce9-4009-acd3-b5a25bb5c80a)
 
