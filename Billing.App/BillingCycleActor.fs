@@ -10,6 +10,7 @@ open Akkling
 
 open BillingStatement
 open Bank.Account.Domain
+open AccountSqlMapper
 open ActorUtil
 open Lib.Types
 open Lib.Postgres

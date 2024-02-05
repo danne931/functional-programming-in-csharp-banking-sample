@@ -94,9 +94,9 @@ builder.Services.AddAkka(
                   TransferProgressTrackingActor.actorProps
                      system
                      DomesticTransferRecipientActor.get
-                     getInProgressTransfers
+                     (getProgressCheckReadyDomesticTransfers
+                        EnvTransfer.config.TransferProgressLookbackMinutes)
                      EnvTransfer.config.TransferProgressTrackingThrottle
-                     EnvTransfer.config.TransferProgressLookbackMinutes
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)

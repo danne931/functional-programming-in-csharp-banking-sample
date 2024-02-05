@@ -1,10 +1,11 @@
-namespace Bank.Account.Domain
+module AccountSqlMapper
 
 open System
 open Npgsql.FSharp
 
 open Lib.Types
 open MaintenanceFee
+open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 module AccountFields =
@@ -62,7 +63,7 @@ module AccountSqlReader =
 
    let transferRecipients (read: RowReader) =
       read.text AccountFields.transferRecipients
-      |> Serialization.deserializeUnsafe<Map<string, TransferRecipient>>
+      |> Serialization.deserializeUnsafe<TransferRecipient list>
 
    let maintenanceFeeCriteria (read: RowReader) = {
       QualifyingDepositFound =
@@ -77,7 +78,7 @@ module AccountSqlReader =
 
    let inProgressTransfers (read: RowReader) =
       read.text AccountFields.inProgressTransfers
-      |> Serialization.deserializeUnsafe<Map<string, TransferTransaction>>
+      |> Serialization.deserializeUnsafe<TransferTransaction list>
 
    let account (read: RowReader) : AccountState = {
       EntityId = entityId read
@@ -90,10 +91,16 @@ module AccountSqlReader =
       DailyDebitLimit = dailyDebitLimit read
       DailyDebitAccrued = dailyDebitAccrued read
       LastDebitDate = lastDebitDate read
-      TransferRecipients = transferRecipients read
+      TransferRecipients =
+         transferRecipients read
+         |> List.map (fun o -> Account.recipientLookupKey o, o)
+         |> Map.ofList
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
       Events = events read
-      InProgressTransfers = inProgressTransfers read
+      InProgressTransfers =
+         inProgressTransfers read
+         |> List.map (fun txn -> string txn.TransactionId, txn)
+         |> Map.ofList
    }
 
 module AccountSqlWriter =
@@ -109,7 +116,7 @@ module AccountSqlWriter =
    let lastDebitDate (date: DateTime option) = Sql.dateOrNone date
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
-      Sql.jsonb <| Serialization.serialize recipients
+      Sql.jsonb <| Serialization.serialize recipients.Values
 
    let events (events: AccountEvent list) =
       Sql.jsonb <| Serialization.serialize events
@@ -120,6 +127,6 @@ module AccountSqlWriter =
    let inProgressTransfers
       (inProgressTransfers: Map<string, TransferTransaction>)
       =
-      Sql.jsonb <| Serialization.serialize inProgressTransfers
+      Sql.jsonb <| Serialization.serialize inProgressTransfers.Values
 
    let inProgressTransfersCount = Sql.int

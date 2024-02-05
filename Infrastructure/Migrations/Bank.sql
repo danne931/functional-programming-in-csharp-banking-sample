@@ -24,6 +24,8 @@ CREATE TABLE accounts (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX accounts_in_progress_transfers_count_idx ON accounts(in_progress_transfers_count);
+
 CREATE TABLE users (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,

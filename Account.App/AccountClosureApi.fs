@@ -6,6 +6,7 @@ open FsToolkit.ErrorHandling
 open Lib.Postgres
 open Lib.Types
 open Bank.Account.Domain
+open AccountSqlMapper
 
 // These records are held onto for reporting and legal reasons
 // for 3 months following an account closure.

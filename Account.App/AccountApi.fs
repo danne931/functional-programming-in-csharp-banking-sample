@@ -11,6 +11,7 @@ open Validus
 open Lib.Types
 open Lib.Postgres
 open Bank.Account.Domain
+open AccountSqlMapper
 
 let processCommand
    (system: ActorSystem)

@@ -1,7 +1,6 @@
 [<RequireQualifiedAccess>]
 module TransferProgressTrackingActor
 
-open System
 open Akka.Actor
 open Akka.Hosting
 open Akka.Streams
@@ -17,7 +16,6 @@ let actorProps
    (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getInProgressTransfers: GetInProgressTransfers)
    (throttle: StreamThrottle)
-   (transferLookback: int)
    =
    let mat = system.Materializer()
 
@@ -41,43 +39,19 @@ let actorProps
 
                opt)
          |> Source.collect id
-         |> Source.filter (fun txn ->
-            // Only do progress checks if the initial transfer request has
-            // been acknowledged as received by the mock 3rd party bank.
-            // This avoids transfer rejections due to a ProgressCheck being
-            // received by the mock 3rd party bank before a TransferRequest
-            // in cases where a TransferRequest was rescheduled when the
-            // domestic transfer actor's circuit breaker was open.
-            let statusFilter =
-               txn.Status <> TransferProgress.Outgoing
-               && txn.Status <> TransferProgress.Complete
-
-            // Only do progress check if an hour (for example) has elapsed
-            // since transfer initiated.
-            let dateFilter =
-               Env.isDev
-               || txn.Date < DateTime.UtcNow.AddMinutes(-transferLookback)
-
-            statusFilter && dateFilter)
          |> Source.throttle
                ThrottleMode.Shaping
                throttle.Burst
                throttle.Count
                throttle.Duration
          |> Source.runForEach mat (fun transferInProgress ->
-            match transferInProgress.Recipient.AccountEnvironment with
-            | RecipientAccountEnvironment.Domestic ->
-               let msg =
-                  DomesticTransferMessage.TransferRequest(
-                     TransferServiceAction.ProgressCheck,
-                     transferInProgress
-                  )
+            let msg =
+               DomesticTransferMessage.TransferRequest(
+                  TransferServiceAction.ProgressCheck,
+                  transferInProgress
+               )
 
-               domesticTransferActorRef <! msg
-            | RecipientAccountEnvironment.Internal ->
-               logWarning
-                  ctx
-                  $"Internal transfer still in progress {transferInProgress}")
+            domesticTransferActorRef <! msg)
 
       logInfo ctx "Finished running progress checks over in-progress transfers."
 
