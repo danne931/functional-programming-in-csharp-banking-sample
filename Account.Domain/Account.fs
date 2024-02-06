@@ -89,14 +89,8 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
          state with
             DailyDebitLimit = e.Data.DebitLimit
         }
-      | LockedCard _ -> {
-         state with
-            Status = AccountStatus.CardLocked
-        }
-      | UnlockedCard _ -> {
-         state with
-            Status = AccountStatus.Active
-        }
+      | LockedCard _ -> { state with CardLocked = true }
+      | UnlockedCard _ -> { state with CardLocked = false }
       | TransferPending e ->
          let balance = state.Balance - e.Data.DebitedAmount
 
@@ -187,43 +181,43 @@ module private StateTransition =
          (evt, applyEvent state evt))
 
    let create (state: AccountState) (cmd: CreateAccountCommand) =
-      if state.Status <> AccountStatus.ReadyToOpen then
+      if state.Status <> AccountStatus.Pending then
          transitionErr AccountNotReadyToActivate
       else
          map CreatedAccount state <| cmd.toEvent ()
 
    let startBillingcycle (state: AccountState) (cmd: StartBillingCycleCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map BillingCycleStarted state <| cmd.toEvent ()
 
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map DepositedCash state <| cmd.toEvent ()
 
    let limitDailyDebits (state: AccountState) (cmd: LimitDailyDebitsCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map DailyDebitLimitUpdated state <| cmd.toEvent ()
 
    let lockCard (state: AccountState) (cmd: LockCardCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map LockedCard state <| cmd.toEvent ()
 
    let unlockCard (state: AccountState) (cmd: UnlockCardCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map UnlockedCard state <| cmd.toEvent ()
 
    let debit (state: AccountState) (cmd: DebitCommand) =
-      if state.Status = AccountStatus.CardLocked then
+      if state.CardLocked then
          transitionErr AccountCardLocked
       elif state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
@@ -239,8 +233,8 @@ module private StateTransition =
          map DebitedAccount state <| cmd.toEvent ()
 
    let maintenanceFee (state: AccountState) (cmd: MaintenanceFeeCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       elif state.Balance - cmd.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       else
@@ -250,14 +244,14 @@ module private StateTransition =
       (state: AccountState)
       (cmd: SkipMaintenanceFeeCommand)
       =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map MaintenanceFeeSkipped state <| cmd.toEvent ()
 
    let transfer (state: AccountState) (cmd: TransferCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       elif state.Balance - cmd.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
@@ -274,8 +268,8 @@ module private StateTransition =
       (state: AccountState)
       (cmd: UpdateTransferProgressCommand)
       =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          let existing =
             Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
@@ -291,8 +285,8 @@ module private StateTransition =
                map TransferProgress state <| cmd.toEvent ()
 
    let approveTransfer (state: AccountState) (cmd: ApproveTransferCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else if
          Option.isNone
          <| Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
@@ -302,8 +296,8 @@ module private StateTransition =
          map TransferApproved state <| cmd.toEvent ()
 
    let rejectTransfer (state: AccountState) (cmd: RejectTransferCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else if
          Option.isNone
          <| Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
@@ -316,8 +310,8 @@ module private StateTransition =
       (state: AccountState)
       (cmd: RegisterTransferRecipientCommand)
       =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       elif
          state.TransferRecipients.ContainsKey cmd.Recipient.Identification
       then
@@ -332,8 +326,8 @@ module private StateTransition =
             <| TransferRecipientEvent.domestic cmd
 
    let depositTransfer (state: AccountState) (cmd: DepositTransferCommand) =
-      if not state.CanProcessTransactions then
-         transitionErr AccountTransactionProcessingDisabled
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
       else
          map TransferDeposited state <| cmd.toEvent ()
 

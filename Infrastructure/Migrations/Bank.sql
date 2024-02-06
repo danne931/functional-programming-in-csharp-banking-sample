@@ -20,6 +20,7 @@ CREATE TABLE accounts (
     events JSONB NOT NULL,
     in_progress_transfers JSONB NOT NULL,
     in_progress_transfers_count INT NOT NULL,
+    card_locked BOOLEAN NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     last_debit_at TIMESTAMPTZ,
     last_billing_cycle_at TIMESTAMPTZ

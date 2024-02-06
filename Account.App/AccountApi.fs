@@ -73,6 +73,7 @@ let upsertAccounts (accounts: AccountState list) =
          "@inProgressTransfersCount",
          AccountSqlWriter.inProgressTransfersCount
             account.InProgressTransfers.Count
+         "@cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
 
    pgTransaction [
@@ -94,7 +95,8 @@ let upsertAccounts (accounts: AccountState list) =
           {AccountFields.maintenanceFeeQualifyingDepositFound},
           {AccountFields.maintenanceFeeDailyBalanceThreshold},
           {AccountFields.inProgressTransfers},
-          {AccountFields.inProgressTransfersCount})
+          {AccountFields.inProgressTransfersCount},
+          {AccountFields.cardLocked})
       VALUES
          (@id,
           @email,
@@ -112,7 +114,8 @@ let upsertAccounts (accounts: AccountState list) =
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold,
           @inProgressTransfers,
-          @inProgressTransfersCount)
+          @inProgressTransfersCount,
+          @cardLocked)
       ON CONFLICT ({AccountFields.entityId})
       DO UPDATE SET
          {AccountFields.balance} = @balance,
@@ -126,7 +129,8 @@ let upsertAccounts (accounts: AccountState list) =
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,
          {AccountFields.maintenanceFeeDailyBalanceThreshold} = @maintenanceFeeDailyBalanceThreshold,
          {AccountFields.inProgressTransfers} = @inProgressTransfers,
-         {AccountFields.inProgressTransfersCount} = @inProgressTransfersCount;
+         {AccountFields.inProgressTransfersCount} = @inProgressTransfersCount,
+         {AccountFields.cardLocked} = @cardLocked;
       """,
       sqlParams
    ]

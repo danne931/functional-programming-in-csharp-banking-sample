@@ -33,7 +33,6 @@ type Envelope = {
 
 type StateTransitionError =
    | AccountNotReadyToActivate
-   | AccountTransactionProcessingDisabled
    | AccountNotActive
    | AccountCardLocked
    | InsufficientBalance of decimal

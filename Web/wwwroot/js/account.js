@@ -238,7 +238,7 @@ function renderAccountState (account) {
     ? `$${account.dailyDebitLimit}`
     : '-'
   selectors.dailyDebitAccrued().textContent = `$${account.dailyDebitAccrued}`
-  selectors.debitCardLock().checked = account.status === 'CardLocked'
+  selectors.debitCardLock().checked = account.cardLocked
 }
 
 function interpolateTransferRecipientSelection (account) {

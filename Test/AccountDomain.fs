@@ -281,7 +281,7 @@ let tests =
       test "DebitCommand against an account with locked card" {
          let state = {
             Stub.accountState with
-               Status = AccountStatus.CardLocked
+               CardLocked = true
          }
 
          let command = Stub.command.debit 9.31m
@@ -499,8 +499,8 @@ let tests =
 
             Expect.stringContains
                (string err)
-               "AccountTransactionProcessingDisabled"
-               "should be an AccountTransactionProcessingDisabled StateTransition error"
+               "AccountNotActive"
+               "should be an AccountNotActive StateTransition error"
 
          let cmd = Stub.command.debit 13m
          let res = update state <| AccountCommand.Debit cmd
@@ -532,7 +532,7 @@ let tests =
       test "Commands against account with locked card" {
          let state = {
             Stub.accountState with
-               Status = AccountStatus.CardLocked
+               CardLocked = true
          }
 
          let (commands: AccountCommand list) = [
@@ -555,8 +555,7 @@ let tests =
             Expect.wantOk res "should be Result.Ok" |> ignore
 
          let state = {
-            Stub.accountState with
-               Status = AccountStatus.CardLocked
+            state with
                TransferRecipients =
                   Map [
                      Account.recipientLookupKey (Stub.internalRecipient),

@@ -16,6 +16,8 @@ open Lib.Types
 open Lib.Postgres
 
 let getActiveAccounts () =
+   let prevCycle = AccountFields.lastBillingCycleDate
+
    let lookback =
       if Env.isDev then
          "'1 minutes'::interval"
@@ -27,8 +29,9 @@ let getActiveAccounts () =
       SELECT {AccountFields.entityId}, {AccountFields.balance}
       FROM accounts
       WHERE
-         ({AccountFields.status} = '{string AccountStatus.Active}' OR {AccountFields.status} = '{string AccountStatus.CardLocked}')
-         AND {AccountFields.lastBillingCycleDate} < current_timestamp - {lookback}
+         {AccountFields.status} = '{string AccountStatus.Active}'
+         AND ({prevCycle} IS NULL
+              OR {prevCycle} < current_timestamp - {lookback})
       """
       None
    <| fun read -> AccountSqlReader.entityId read, AccountSqlReader.balance read

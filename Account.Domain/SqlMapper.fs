@@ -31,6 +31,7 @@ module AccountFields =
 
    let inProgressTransfers = "in_progress_transfers"
    let inProgressTransfersCount = "in_progress_transfers_count"
+   let cardLocked = "card_locked"
 
 module AccountSqlReader =
    let entityId (read: RowReader) = read.uuid AccountFields.entityId
@@ -84,6 +85,8 @@ module AccountSqlReader =
       read.text AccountFields.inProgressTransfers
       |> Serialization.deserializeUnsafe<TransferTransaction list>
 
+   let cardLocked (read: RowReader) = read.bool AccountFields.cardLocked
+
    let account (read: RowReader) : AccountState = {
       EntityId = entityId read
       Email = email read
@@ -106,6 +109,7 @@ module AccountSqlReader =
          inProgressTransfers read
          |> List.map (fun txn -> string txn.TransactionId, txn)
          |> Map.ofList
+      CardLocked = cardLocked read
    }
 
 module AccountSqlWriter =
@@ -136,3 +140,4 @@ module AccountSqlWriter =
       Sql.jsonb <| Serialization.serialize inProgressTransfers.Values
 
    let inProgressTransfersCount = Sql.int
+   let cardLocked = Sql.bool

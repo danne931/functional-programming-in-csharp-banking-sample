@@ -100,9 +100,8 @@ module AccountEnvelope =
       | BillingCycleStarted evt -> wrap evt, get evt
 
 type AccountStatus =
-   | ReadyToOpen
+   | Pending
    | Active
-   | CardLocked
    | Closed
    | ReadyForDelete
 
@@ -122,6 +121,7 @@ type AccountState = {
    InProgressTransfers: Map<string, TransferTransaction>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    Events: AccountEvent list
+   CardLocked: bool
 } with
 
    static member empty = {
@@ -130,7 +130,7 @@ type AccountState = {
       FirstName = ""
       LastName = ""
       Currency = Currency.USD
-      Status = AccountStatus.ReadyToOpen
+      Status = AccountStatus.Pending
       Balance = 0m
       DailyDebitLimit = -1m
       DailyDebitAccrued = 0m
@@ -143,12 +143,10 @@ type AccountState = {
          DailyBalanceThreshold = false
       }
       Events = []
+      CardLocked = false
    }
 
    member x.Name = $"{x.FirstName} {x.LastName}"
-
-   member x.CanProcessTransactions =
-      x.Status = AccountStatus.Active || x.Status = AccountStatus.CardLocked // Only card debits disabled
 
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
