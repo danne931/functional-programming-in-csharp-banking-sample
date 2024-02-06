@@ -118,8 +118,8 @@ module AccountSqlWriter =
    let status (status: AccountStatus) = Sql.string <| string status
    let dailyDebitLimit = Sql.decimal
    let dailyDebitAccrued = Sql.decimal
-   let lastDebitDate (date: DateTime option) = Sql.dateOrNone date
-   let lastBillingCycleDate (date: DateTime option) = Sql.dateOrNone date
+   let lastDebitDate (date: DateTime option) = Sql.timestamptzOrNone date
+   let lastBillingCycleDate (date: DateTime option) = Sql.timestamptzOrNone date
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
       Sql.jsonb <| Serialization.serialize recipients.Values

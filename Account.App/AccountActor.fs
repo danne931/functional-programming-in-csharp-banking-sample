@@ -144,9 +144,10 @@ let actorProps
                      match err with
                      | StateTransitionError e ->
                         match e with
-                        // Noop transfer progress discarded.
+                        // NOOP
                         | TransferProgressNoChange
-                        | TransferAlreadyProgressedToApprovedOrRejected -> ()
+                        | TransferAlreadyProgressedToApprovedOrRejected
+                        | AccountNotReadyToActivate -> ()
                         // Send email for declined debit.
                         // Broadcast validation errors to UI.
                         | InsufficientBalance _
