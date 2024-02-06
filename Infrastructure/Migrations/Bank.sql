@@ -14,17 +14,19 @@ CREATE TABLE accounts (
     status VARCHAR(50) NOT NULL,
     daily_debit_limit MONEY,
     daily_debit_accrued MONEY NOT NULL,
-    last_debit_date TIMESTAMPTZ,
     transfer_recipients JSONB NOT NULL,
     maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
     maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
     events JSONB NOT NULL,
     in_progress_transfers JSONB NOT NULL,
     in_progress_transfers_count INT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    last_debit_at TIMESTAMPTZ,
+    last_billing_cycle_at TIMESTAMPTZ
 );
 
 CREATE INDEX accounts_in_progress_transfers_count_idx ON accounts(in_progress_transfers_count);
+CREATE INDEX accounts_last_billing_cycle_at_idx ON accounts(last_billing_cycle_at);
 
 CREATE TABLE users (
     first_name VARCHAR(50) NOT NULL,

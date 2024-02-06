@@ -22,6 +22,7 @@ type AccountCommand =
    | DepositTransfer of DepositTransferCommand
    | RegisterTransferRecipient of RegisterTransferRecipientCommand
    | CloseAccount of CloseAccountCommand
+   | StartBillingCycle of StartBillingCycleCommand
 
 type AccountEvent =
    | CreatedAccount of BankEvent<CreatedAccount>
@@ -40,6 +41,7 @@ type AccountEvent =
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | AccountClosed of BankEvent<AccountClosed>
+   | BillingCycleStarted of BankEvent<BillingCycleStarted>
 
 type OpenEventEnvelope = AccountEvent * Envelope
 
@@ -75,6 +77,7 @@ module AccountEnvelope =
       | :? BankEvent<TransferRejected> as evt -> evt |> TransferRejected
       | :? BankEvent<TransferDeposited> as evt -> evt |> TransferDeposited
       | :? BankEvent<AccountClosed> as evt -> evt |> AccountClosed
+      | :? BankEvent<BillingCycleStarted> as evt -> evt |> BillingCycleStarted
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
       match o with
@@ -94,6 +97,7 @@ module AccountEnvelope =
       | TransferRejected evt -> wrap evt, get evt
       | TransferDeposited evt -> wrap evt, get evt
       | AccountClosed evt -> wrap evt, get evt
+      | BillingCycleStarted evt -> wrap evt, get evt
 
 type AccountStatus =
    | ReadyToOpen
@@ -113,6 +117,7 @@ type AccountState = {
    DailyDebitLimit: decimal
    DailyDebitAccrued: decimal
    LastDebitDate: DateTime option
+   LastBillingCycleDate: DateTime option
    TransferRecipients: Map<string, TransferRecipient>
    InProgressTransfers: Map<string, TransferTransaction>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
@@ -130,6 +135,7 @@ type AccountState = {
       DailyDebitLimit = -1m
       DailyDebitAccrued = 0m
       LastDebitDate = None
+      LastBillingCycleDate = None
       TransferRecipients = Map.empty
       InProgressTransfers = Map.empty
       MaintenanceFeeCriteria = {
@@ -150,9 +156,7 @@ type AccountMessage =
    | GetEvents
    | StateChange of AccountCommand
    | Event of AccountEvent
-   | DispatchTransfer of BankEvent<TransferPending>
    | Delete
-   | BillingCycle
 
 type CircuitBreakerService =
    | DomesticTransfer
@@ -194,7 +198,6 @@ type AccountBroadcast = {
    accountEventValidationFail: Guid -> string -> unit
    accountEventPersistenceFail: Guid -> string -> unit
    circuitBreaker: CircuitBreakerEvent -> unit
-   endBillingCycle: unit -> unit
 }
 
 type AccountClosureMessage =

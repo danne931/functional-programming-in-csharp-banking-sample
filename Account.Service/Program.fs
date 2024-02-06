@@ -82,7 +82,6 @@ builder.Services.AddAkka(
                   BillingCycleActor.actorProps
                   <| Env.config.BillingCycleFanoutThrottle
                   <| AccountActor.get system
-                  <| resolver.GetService<AccountBroadcast>()
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)

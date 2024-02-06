@@ -28,8 +28,6 @@ let actorProps (hub: IHubContext<AccountHub, IAccountClient>) =
          hub.Clients.Group(string accountId).ReceiveError(msg) |> ignore
       | SignalRMessage.CircuitBreaker msg ->
          hub.Clients.All.ReceiveCircuitBreakerMessage(msg) |> ignore
-      | SignalRMessage.EndBillingCycle ->
-         hub.Clients.All.ReceiveBillingCycleEnd() |> ignore
    }
 
    props handler

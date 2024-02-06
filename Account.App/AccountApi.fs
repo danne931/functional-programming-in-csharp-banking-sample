@@ -57,6 +57,8 @@ let upsertAccounts (accounts: AccountState list) =
          "@dailyDebitAccrued",
          AccountSqlWriter.dailyDebitAccrued account.DailyDebitAccrued
          "@lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
+         "@lastBillingCycleDate",
+         AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
          "@transferRecipients",
          AccountSqlWriter.transferRecipients account.TransferRecipients
          "@events", AccountSqlWriter.events account.Events
@@ -86,6 +88,7 @@ let upsertAccounts (accounts: AccountState list) =
           {AccountFields.dailyDebitLimit},
           {AccountFields.dailyDebitAccrued},
           {AccountFields.lastDebitDate},
+          {AccountFields.lastBillingCycleDate},
           {AccountFields.transferRecipients},
           {AccountFields.events},
           {AccountFields.maintenanceFeeQualifyingDepositFound},
@@ -103,6 +106,7 @@ let upsertAccounts (accounts: AccountState list) =
           @dailyDebitLimit,
           @dailyDebitAccrued,
           @lastDebitDate,
+          @lastBillingCycleDate,
           @transferRecipients,
           @events,
           @maintenanceFeeQualifyingDepositFound,
@@ -116,6 +120,7 @@ let upsertAccounts (accounts: AccountState list) =
          {AccountFields.dailyDebitLimit} = @dailyDebitLimit,
          {AccountFields.dailyDebitAccrued} = @dailyDebitAccrued,
          {AccountFields.lastDebitDate} = @lastDebitDate,
+         {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
          {AccountFields.transferRecipients} = @transferRecipients,
          {AccountFields.events} = @events,
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,

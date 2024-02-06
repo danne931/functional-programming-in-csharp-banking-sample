@@ -397,7 +397,12 @@ let tests =
          o.accountActor <! AccountMessage.GetAccount
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
-         o.accountActor <! AccountMessage.BillingCycle
+         let msg =
+            StartBillingCycleCommand(initAccount.EntityId, initAccount.Balance)
+            |> AccountCommand.StartBillingCycle
+            |> AccountMessage.StateChange
+
+         o.accountActor <! msg
 
          let (RegisterBillingStatement statement) =
             o.billingProbe.ExpectMsg<BillingStatementMessage>()
@@ -459,7 +464,12 @@ let tests =
 
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
-         o.accountActor <! AccountMessage.BillingCycle
+         let msg =
+            StartBillingCycleCommand(initAccount.EntityId, initAccount.Balance)
+            |> AccountCommand.StartBillingCycle
+            |> AccountMessage.StateChange
+
+         o.accountActor <! msg
 
          o.accountActor <! AccountMessage.GetAccount
 

@@ -35,3 +35,5 @@ type MaintenanceFeeDebited = { DebitedAmount: decimal }
 type MaintenanceFeeSkipped = { Reason: MaintenanceFeeCriteria }
 
 type AccountClosed = { Reference: string option }
+
+type BillingCycleStarted = { Balance: decimal }

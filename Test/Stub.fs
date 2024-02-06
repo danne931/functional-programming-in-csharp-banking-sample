@@ -286,7 +286,6 @@ let accountBroadcast: AccountBroadcast = {
    accountEventValidationFail = fun accountId msg -> ()
    accountEventPersistenceFail = fun accountId msg -> ()
    circuitBreaker = fun msg -> ()
-   endBillingCycle = fun () -> ()
 }
 
 let akkaStreamsRestartSettings () =

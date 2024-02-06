@@ -15,11 +15,15 @@ open ActorUtil
 open Lib.Types
 open Lib.Postgres
 
-let getActiveAccountIds () =
-   pgQuery<Guid>
-      $"SELECT {AccountFields.entityId} FROM accounts WHERE status = '{string AccountStatus.Active}'"
+let getActiveAccounts () =
+   pgQuery<Guid * decimal>
+      $"""
+      SELECT {AccountFields.entityId}, {AccountFields.balance}
+      FROM accounts
+      WHERE status = '{string AccountStatus.Active}'
+      """
       None
-      AccountSqlReader.entityId
+   <| fun read -> AccountSqlReader.entityId read, AccountSqlReader.balance read
 
 let private fanOutBillingCycleMessage
    (ctx: Actor<_>)
@@ -30,7 +34,7 @@ let private fanOutBillingCycleMessage
       let mat = ctx.System.Materializer()
 
       do!
-         getActiveAccountIds ()
+         getActiveAccounts ()
          |> Async.AwaitTask
          |> Source.ofAsync
          |> Source.throttle
@@ -49,8 +53,13 @@ let private fanOutBillingCycleMessage
 
                opt)
          |> Source.collect id
-         |> Source.runForEach mat (fun accountId ->
-            getAccountRef accountId <! AccountMessage.BillingCycle)
+         |> Source.runForEach mat (fun (accountId, balance) ->
+            let msg =
+               StartBillingCycleCommand(accountId, balance)
+               |> AccountCommand.StartBillingCycle
+               |> AccountMessage.StateChange
+
+            getAccountRef accountId <! msg)
 
       return BillingCycleFinished
    }
@@ -58,13 +67,11 @@ let private fanOutBillingCycleMessage
 let actorProps
    (throttle: StreamThrottle)
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   (broadcaster: AccountBroadcast)
    =
    let handler (ctx: Actor<BillingCycleMessage>) =
       function
       | BillingCycleFanout ->
          logInfo ctx "Start billing cycle"
-         broadcaster.endBillingCycle () |> ignore
 
          fanOutBillingCycleMessage ctx throttle getAccountRef |> Async.AwaitTask
          |!> retype ctx.Self

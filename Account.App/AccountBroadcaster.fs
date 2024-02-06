@@ -59,7 +59,4 @@ let init (system: ActorSystem) : AccountBroadcast =
             circuitBreakerAref <! CircuitBreakerMessage.CircuitBreaker msg
 
             mediator.Tell(Send(signalRPath, SignalRMessage.CircuitBreaker msg))
-      endBillingCycle =
-         fun () ->
-            mediator.Tell(Send(signalRPath, SignalRMessage.EndBillingCycle))
    }

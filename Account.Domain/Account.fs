@@ -34,6 +34,11 @@ let DailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
 let applyEvent (state: AccountState) (evt: AccountEvent) =
    let newState =
       match evt with
+      | BillingCycleStarted e -> {
+         state with
+            LastBillingCycleDate = Some e.Timestamp
+            Events = []
+        }
       | CreatedAccount e -> {
          AccountState.empty with
             EntityId = e.EntityId
@@ -163,7 +168,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
 
    {
       newState with
-         Events = evt :: state.Events
+         Events = evt :: newState.Events
    }
 
 module private StateTransition =
@@ -186,6 +191,12 @@ module private StateTransition =
          transitionErr AccountNotReadyToActivate
       else
          map CreatedAccount state <| cmd.toEvent ()
+
+   let startBillingcycle (state: AccountState) (cmd: StartBillingCycleCommand) =
+      if not state.CanProcessTransactions then
+         transitionErr AccountTransactionProcessingDisabled
+      else
+         map BillingCycleStarted state <| cmd.toEvent ()
 
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
       if not state.CanProcessTransactions then
@@ -332,6 +343,7 @@ module private StateTransition =
 let stateTransition (state: AccountState) (command: AccountCommand) =
    match command with
    | CreateAccount cmd -> StateTransition.create state cmd
+   | StartBillingCycle cmd -> StateTransition.startBillingcycle state cmd
    | DepositCash cmd -> StateTransition.deposit state cmd
    | Debit cmd -> StateTransition.debit state cmd
    | MaintenanceFee cmd -> StateTransition.maintenanceFee state cmd

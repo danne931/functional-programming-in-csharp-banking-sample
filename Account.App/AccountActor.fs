@@ -17,6 +17,60 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 
+let private dispatchTransfer
+   (getOrStartInternalTransferActor: Actor<_> -> IActorRef<TransferTransaction>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
+   mailbox
+   evt
+   =
+   let txn = TransferEventToTransaction.fromPending evt
+
+   match evt.Data.Recipient.AccountEnvironment with
+   | RecipientAccountEnvironment.Internal ->
+      getOrStartInternalTransferActor mailbox <! txn
+   | RecipientAccountEnvironment.Domestic ->
+      let msg =
+         DomesticTransferMessage.TransferRequest(
+            TransferServiceAction.TransferRequest,
+            txn
+         )
+
+      getDomesticTransferActor mailbox.System <! msg
+
+// Pass monthly billing statement to BillingStatementActor.
+// Conditionally apply monthly maintenance fee.
+// Email account owner to notify of billing statement availability.
+let private billingCycle
+   (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
+   (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
+   (mailbox: Eventsourced<obj>)
+   account
+   =
+   let billing =
+      BillingStatement.billingStatement account <| mailbox.LastSequenceNr()
+
+   getBillingStatementActor mailbox.System <! RegisterBillingStatement billing
+
+   let criteria = account.MaintenanceFeeCriteria
+   let accountId = account.EntityId
+
+   if criteria.CanSkipFee then
+      let msg =
+         SkipMaintenanceFeeCommand(accountId, criteria)
+         |> AccountCommand.SkipMaintenanceFee
+         |> AccountMessage.StateChange
+
+      mailbox.Parent() <! msg
+   else
+      let msg =
+         MaintenanceFeeCommand accountId
+         |> AccountCommand.MaintenanceFee
+         |> AccountMessage.StateChange
+
+      mailbox.Parent() <! msg
+
+   getEmailActor mailbox.System <! EmailActor.BillingStatement account
+
 let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
@@ -40,7 +94,12 @@ let actorProps
             broadcaster.accountEventPersisted evt newState |> ignore
 
             match evt with
-            | TransferPending e -> mailbox.Self <! DispatchTransfer e
+            | TransferPending e ->
+               dispatchTransfer
+                  getOrStartInternalTransferActor
+                  getDomesticTransferActor
+                  mailbox
+                  e
             | TransferDeposited e ->
                getEmailActor mailbox.System
                <! EmailActor.TransferDeposited(e, newState)
@@ -49,6 +108,12 @@ let actorProps
             | AccountClosed _ ->
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register newState
+            | BillingCycleStarted _ ->
+               billingCycle
+                  getBillingStatementActor
+                  getEmailActor
+                  mailbox
+                  account
             | _ -> ()
 
             return! loop <| Some newState
@@ -57,11 +122,6 @@ let actorProps
             match envelope.Message with
             | :? AccountMessage as msg ->
                match msg with
-               | StateChange(CreateAccount cmd) when accountOpt.IsSome ->
-                  logWarning
-                     $"Account already exists - ignore create account command {cmd.EntityId}"
-
-                  return ignored ()
                | StateChange cmd ->
                   let validation = Account.stateTransition account cmd
 
@@ -84,14 +144,17 @@ let actorProps
                      match err with
                      | StateTransitionError e ->
                         match e with
-                        | InsufficientBalance _
-                        | ExceededDailyDebit _ ->
-                           signalRBroadcastValidationErr ()
-
-                           getEmailActor mailbox.System
-                           <! EmailActor.DebitDeclined(errMsg, account)
+                        // Noop transfer progress discarded.
                         | TransferProgressNoChange
                         | TransferAlreadyProgressedToApprovedOrRejected -> ()
+                        // Send email for declined debit.
+                        // Broadcast validation errors to UI.
+                        | InsufficientBalance _
+                        | ExceededDailyDebit _ ->
+                           getEmailActor mailbox.System
+                           <! EmailActor.DebitDeclined(errMsg, account)
+
+                           signalRBroadcastValidationErr ()
                         | _ -> signalRBroadcastValidationErr ()
                      | _ -> ()
                | msg ->
@@ -110,21 +173,6 @@ let actorProps
                | None -> mailbox.Sender() <! []
                | Some account ->
                   mailbox.Sender() <!| persistence.getEvents account.EntityId
-            | DispatchTransfer evt ->
-               let txn = TransferEventToTransaction.fromPending evt
-
-               match evt.Data.Recipient.AccountEnvironment with
-               | RecipientAccountEnvironment.Internal ->
-                  getOrStartInternalTransferActor mailbox <! txn
-               | RecipientAccountEnvironment.Domestic ->
-                  let msg =
-                     DomesticTransferMessage.TransferRequest(
-                        TransferServiceAction.TransferRequest,
-                        txn
-                     )
-
-                  getDomesticTransferActor mailbox.System <! msg
-               | _ -> ()
             | Delete ->
                let newState = {
                   account with
@@ -132,44 +180,6 @@ let actorProps
                }
 
                return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
-            | BillingCycle when
-               accountOpt.IsSome && account.CanProcessTransactions
-               ->
-               let billing =
-                  BillingStatement.billingStatement account
-                  <| mailbox.LastSequenceNr()
-
-               getBillingStatementActor mailbox.System
-               <! RegisterBillingStatement billing
-
-               // Maintenance fee conditionally applied after account transactions
-               // have been consolidated. If applied, it will be the first transaction
-               // of the new billing cycle.
-               let criteria = account.MaintenanceFeeCriteria
-               let accountId = account.EntityId
-
-               if criteria.CanSkipFee then
-                  let msg =
-                     SkipMaintenanceFeeCommand(accountId, criteria)
-                     |> (StateChange << SkipMaintenanceFee)
-
-                  mailbox.Parent() <! msg
-               else
-                  let msg =
-                     MaintenanceFeeCommand accountId
-                     |> (StateChange << MaintenanceFee)
-
-                  mailbox.Parent() <! msg
-
-               getEmailActor mailbox.System
-               <! EmailActor.BillingStatement account
-
-               return! loop <| Some { account with Events = [] }
-            | BillingCycle ->
-               logWarning
-                  "Account not able to process txns. Ignore billing cycle."
-
-               return ignored ()
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)

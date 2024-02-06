@@ -18,7 +18,8 @@ module AccountFields =
    let balance = "balance"
    let dailyDebitLimit = "daily_debit_limit"
    let dailyDebitAccrued = "daily_debit_accrued"
-   let lastDebitDate = "last_debit_date"
+   let lastDebitDate = "last_debit_at"
+   let lastBillingCycleDate = "last_billing_cycle_at"
    let transferRecipients = "transfer_recipients"
    let events = "events"
 
@@ -61,6 +62,9 @@ module AccountSqlReader =
    let lastDebitDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastDebitDate
 
+   let lastBillingCycleDate (read: RowReader) =
+      read.dateTimeOrNone AccountFields.lastBillingCycleDate
+
    let transferRecipients (read: RowReader) =
       read.text AccountFields.transferRecipients
       |> Serialization.deserializeUnsafe<TransferRecipient list>
@@ -91,6 +95,7 @@ module AccountSqlReader =
       DailyDebitLimit = dailyDebitLimit read
       DailyDebitAccrued = dailyDebitAccrued read
       LastDebitDate = lastDebitDate read
+      LastBillingCycleDate = lastBillingCycleDate read
       TransferRecipients =
          transferRecipients read
          |> List.map (fun o -> Account.recipientLookupKey o, o)
@@ -114,6 +119,7 @@ module AccountSqlWriter =
    let dailyDebitLimit = Sql.decimal
    let dailyDebitAccrued = Sql.decimal
    let lastDebitDate (date: DateTime option) = Sql.dateOrNone date
+   let lastBillingCycleDate (date: DateTime option) = Sql.dateOrNone date
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
       Sql.jsonb <| Serialization.serialize recipients.Values

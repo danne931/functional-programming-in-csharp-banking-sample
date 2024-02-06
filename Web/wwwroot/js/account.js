@@ -72,7 +72,13 @@ connection.on('ReceiveMessage', function ({ newState, event }) {
   state.accounts[newState.email.email] = newState
 
   renderAccountState(newState)
-  renderEventIntoListView(event)
+
+  if (event.name === 'BillingCycleStarted') {
+    renderEventsIntoListView([event])
+  } else {
+    renderEventIntoListView(event)
+  }
+
 
   if (event.name === 'InternalTransferRecipient' ||
       event.name === 'DomesticTransferRecipient'
@@ -92,8 +98,6 @@ connection.on('ReceiveCircuitBreakerMessage', function ({ status, service }) {
     console.error(`Unhandled circuit breaker message for service ${service}`)
   }
 })
-
-connection.on('ReceiveBillingCycleEnd', renderNewBillingCycle)
 
 connection.start().then(hydrate)
 
@@ -264,15 +268,6 @@ function renderEventsIntoListView (events) {
 
 function renderEventIntoListView (evt) {
   selectors.eventList().prepend(eventToTableRow(evt))
-}
-
-function renderNewBillingCycle () {
-  if (state.accounts[state.selectedEmail].status === 'Closed') return
-
-  renderEventsIntoListView([{
-    name: 'BillingCycleStarted',
-    timestamp: '-'
-  }])
 }
 
 function renderTransactionsLoaderStart () {
