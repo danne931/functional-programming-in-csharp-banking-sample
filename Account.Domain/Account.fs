@@ -355,9 +355,7 @@ module private StateTransition =
       =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif
-         state.InternalTransferSenders.ContainsKey cmd.TransferSender.AccountId
-      then
+      elif state.InternalTransferSenders.ContainsKey cmd.Sender.AccountId then
          transitionErr SenderAlreadyRegistered
       else
          map InternalSenderRegistered state <| cmd.toEvent ()

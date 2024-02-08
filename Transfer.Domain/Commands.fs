@@ -215,13 +215,13 @@ module TransferRecipientEvent =
 type RegisterInternalSenderCommand
    (entityId, sender: InternalTransferSender, correlationId) =
    inherit Command(entityId, correlationId)
-   member x.TransferSender = sender
+   member x.Sender = sender
 
    member x.toEvent() : ValidationResult<BankEvent<InternalSenderRegistered>> =
       Ok {
          EntityId = x.EntityId
          Timestamp = x.Timestamp
-         Data = { TransferSender = x.TransferSender }
+         Data = { TransferSender = x.Sender }
          CorrelationId = x.CorrelationId
       }
 

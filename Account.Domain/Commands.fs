@@ -197,11 +197,12 @@ type CloseAccountCommand(entityId, reference: string) =
 
 type StartBillingCycleCommand(entityId, balance) =
    inherit Command(entityId, correlationId = Guid.Empty)
+   member x.Balance = balance
 
    member x.toEvent() : ValidationResult<BankEvent<BillingCycleStarted>> =
       Ok {
          EntityId = x.EntityId
          Timestamp = x.Timestamp
-         Data = { Balance = balance }
+         Data = { Balance = x.Balance }
          CorrelationId = x.CorrelationId
       }
