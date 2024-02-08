@@ -21,6 +21,8 @@ type AccountCommand =
    | RejectTransfer of RejectTransferCommand
    | DepositTransfer of DepositTransferCommand
    | RegisterTransferRecipient of RegisterTransferRecipientCommand
+   | RegisterInternalSender of RegisterInternalSenderCommand
+   | DeactivateInternalRecipient of DeactivateInternalRecipientCommand
    | CloseAccount of CloseAccountCommand
    | StartBillingCycle of StartBillingCycleCommand
 
@@ -40,6 +42,8 @@ type AccountEvent =
    | TransferDeposited of BankEvent<TransferDeposited>
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
+   | InternalRecipientDeactivated of BankEvent<InternalRecipientDeactivated>
+   | InternalSenderRegistered of BankEvent<InternalSenderRegistered>
    | AccountClosed of BankEvent<AccountClosed>
    | BillingCycleStarted of BankEvent<BillingCycleStarted>
 
@@ -71,6 +75,10 @@ module AccountEnvelope =
          evt |> InternalTransferRecipient
       | :? BankEvent<RegisteredDomesticTransferRecipient> as evt ->
          evt |> DomesticTransferRecipient
+      | :? BankEvent<InternalRecipientDeactivated> as evt ->
+         evt |> InternalRecipientDeactivated
+      | :? BankEvent<InternalSenderRegistered> as evt ->
+         evt |> InternalSenderRegistered
       | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
       | :? BankEvent<TransferProgressUpdate> as evt -> evt |> TransferProgress
       | :? BankEvent<TransferApproved> as evt -> evt |> TransferApproved
@@ -91,6 +99,8 @@ module AccountEnvelope =
       | UnlockedCard evt -> wrap evt, get evt
       | InternalTransferRecipient evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
+      | InternalRecipientDeactivated evt -> wrap evt, get evt
+      | InternalSenderRegistered evt -> wrap evt, get evt
       | TransferPending evt -> wrap evt, get evt
       | TransferProgress evt -> wrap evt, get evt
       | TransferApproved evt -> wrap evt, get evt
@@ -117,6 +127,7 @@ type AccountState = {
    DailyDebitAccrued: decimal
    LastDebitDate: DateTime option
    LastBillingCycleDate: DateTime option
+   InternalTransferSenders: Map<Guid, InternalTransferSender>
    TransferRecipients: Map<string, TransferRecipient>
    InProgressTransfers: Map<string, TransferTransaction>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
@@ -138,6 +149,7 @@ type AccountState = {
       LastBillingCycleDate = None
       TransferRecipients = Map.empty
       InProgressTransfers = Map.empty
+      InternalTransferSenders = Map.empty
       MaintenanceFeeCriteria = {
          QualifyingDepositFound = false
          DailyBalanceThreshold = false
@@ -145,6 +157,12 @@ type AccountState = {
       Events = []
       CardLocked = false
    }
+
+   static member recipientLookupKey(recipient: TransferRecipient) =
+      match recipient.AccountEnvironment with
+      | RecipientAccountEnvironment.Internal -> recipient.Identification
+      | RecipientAccountEnvironment.Domestic ->
+         $"{recipient.RoutingNumber.Value}_{recipient.Identification}"
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
@@ -202,7 +220,6 @@ type AccountClosureMessage =
    | Register of AccountState
    | ScheduleDeleteAll
    | DeleteAll of Guid list
-   | ReverseClosure of Guid
    | GetRegisteredAccounts
 
 type AccountSeederMessage =

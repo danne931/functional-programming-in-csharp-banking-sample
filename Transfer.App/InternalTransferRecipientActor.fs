@@ -8,64 +8,126 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-module Command = TransferTransactionToCommand
-
-module private Msg =
-   let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
-   let reject = AccountMessage.StateChange << AccountCommand.RejectTransfer
-   let deposit = AccountMessage.StateChange << AccountCommand.DepositTransfer
-
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
-   : Props<TransferTransaction>
+   : Props<InternalTransferMessage>
    =
-   let handler (ctx: Actor<_>) (txn: TransferTransaction) = actor {
+   let handler (ctx: Actor<_>) (msg: InternalTransferMessage) = actor {
       let logWarning = logWarning ctx
-      let recipient = txn.Recipient
-      let recipientId = Guid recipient.Identification
 
-      let senderAccountRef = getAccountRef txn.SenderAccountId
-      let recipientAccountRef = getAccountRef recipientId
+      match msg with
+      | InternalTransferMessage.ConfirmRecipient(sender, recipient) ->
+         let recipientId = Guid recipient.Identification
+         let senderAccountRef = getAccountRef sender.AccountId
+         let recipientAccountRef = getAccountRef recipientId
 
-      let! (accountOpt: AccountState option) =
-         recipientAccountRef <? AccountMessage.GetAccount
+         let! (accountOpt: AccountState option) =
+            recipientAccountRef <? AccountMessage.GetAccount
 
-      match accountOpt with
-      | None ->
-         logWarning $"Transfer recipient not found {recipientId}"
-
-         let msg = Msg.reject <| Command.reject txn "NoRecipientFound"
-         recipientAccountRef <! msg
-      | Some account ->
-         if account.Status = AccountStatus.Closed then
-            logWarning $"Transfer recipient account closed"
-
-            let msg = Msg.reject <| Command.reject txn "AccountClosed"
-            senderAccountRef <! msg
-         else
-            let msg = Msg.approve <| Command.approve txn
-            senderAccountRef <! msg
-
-            let origin = string txn.SenderAccountId
+         match accountOpt with
+         | None ->
+            logWarning $"Transfer recipient not found {recipientId}"
 
             let msg =
-               Msg.deposit
-               <| DepositTransferCommand(
+               DeactivateInternalRecipientCommand(
+                  sender.AccountId,
                   recipientId,
-                  txn.Amount,
-                  $"Account ({origin.Substring(origin.Length - 4)})",
-                  // CorrelationId from sender transfer request traced to receiver's deposit.
-                  txn.TransactionId
+                  recipient.Name,
+                  Guid.NewGuid()
                )
+               |> AccountCommand.DeactivateInternalRecipient
+               |> AccountMessage.StateChange
 
-            recipientAccountRef <! msg
+            senderAccountRef <! msg
+         | Some account ->
+            if account.Status = AccountStatus.Closed then
+               logWarning $"Transfer recipient account closed"
+
+               let msg =
+                  DeactivateInternalRecipientCommand(
+                     sender.AccountId,
+                     recipientId,
+                     recipient.Name,
+                     Guid.NewGuid()
+                  )
+                  |> AccountCommand.DeactivateInternalRecipient
+                  |> AccountMessage.StateChange
+
+               senderAccountRef <! msg
+            else
+               let msg =
+                  RegisterInternalSenderCommand(
+                     recipientId,
+                     sender,
+                     Guid.NewGuid()
+                  )
+                  |> AccountCommand.RegisterInternalSender
+                  |> AccountMessage.StateChange
+
+               recipientAccountRef <! msg
+      | InternalTransferMessage.TransferRequest txn ->
+         let recipient = txn.Recipient
+         let recipientId = Guid recipient.Identification
+
+         let senderAccountRef = getAccountRef txn.SenderAccountId
+         let recipientAccountRef = getAccountRef recipientId
+
+         let! (accountOpt: AccountState option) =
+            recipientAccountRef <? AccountMessage.GetAccount
+
+         match accountOpt with
+         | None ->
+            logWarning $"Transfer recipient not found {recipientId}"
+
+            let msg =
+               TransferTransactionToCommand.reject
+                  txn
+                  TransferDeclinedReason.InvalidAccountInfo
+               |> AccountCommand.RejectTransfer
+               |> AccountMessage.StateChange
+
+            senderAccountRef <! msg
+         | Some account ->
+            if account.Status = AccountStatus.Closed then
+               logWarning $"Transfer recipient account closed"
+
+               let msg =
+                  TransferTransactionToCommand.reject
+                     txn
+                     TransferDeclinedReason.AccountClosed
+                  |> AccountCommand.RejectTransfer
+                  |> AccountMessage.StateChange
+
+               senderAccountRef <! msg
+            else
+               let msg =
+                  TransferTransactionToCommand.approve txn
+                  |> AccountCommand.ApproveTransfer
+                  |> AccountMessage.StateChange
+
+               senderAccountRef <! msg
+
+               let origin = string txn.SenderAccountId
+
+               let msg =
+                  DepositTransferCommand(
+                     recipientId,
+                     txn.Amount,
+                     $"Account ({origin.Substring(origin.Length - 4)})",
+                     // CorrelationId from sender transfer request traced to receiver's deposit.
+                     txn.TransactionId
+                  )
+                  |> AccountCommand.DepositTransfer
+                  |> AccountMessage.StateChange
+
+               recipientAccountRef <! msg
    }
 
    props <| actorOf2 handler
 
 let getOrStart mailbox (getAccountRef: EntityRefGetter<AccountMessage>) =
    ActorMetadata.internalTransfer.Name
-   |> getChildActorRef<_, TransferTransaction> mailbox
+   |> getChildActorRef<_, InternalTransferMessage> mailbox
    |> Option.defaultWith (fun _ ->
       spawn mailbox ActorMetadata.internalTransfer.Name
       <| actorProps getAccountRef)

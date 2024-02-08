@@ -61,6 +61,9 @@ let upsertAccounts (accounts: AccountState list) =
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
          "@transferRecipients",
          AccountSqlWriter.transferRecipients account.TransferRecipients
+         "@internalTransferSenders",
+         AccountSqlWriter.internalTransferSenders
+            account.InternalTransferSenders
          "@events", AccountSqlWriter.events account.Events
          "@maintenanceFeeQualifyingDepositFound",
          AccountSqlWriter.maintenanceFeeQualifyingDepositFound
@@ -91,6 +94,7 @@ let upsertAccounts (accounts: AccountState list) =
           {AccountFields.lastDebitDate},
           {AccountFields.lastBillingCycleDate},
           {AccountFields.transferRecipients},
+          {AccountFields.internalTransferSenders},
           {AccountFields.events},
           {AccountFields.maintenanceFeeQualifyingDepositFound},
           {AccountFields.maintenanceFeeDailyBalanceThreshold},
@@ -110,6 +114,7 @@ let upsertAccounts (accounts: AccountState list) =
           @lastDebitDate,
           @lastBillingCycleDate,
           @transferRecipients,
+          @internalTransferSenders,
           @events,
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold,
@@ -125,6 +130,7 @@ let upsertAccounts (accounts: AccountState list) =
          {AccountFields.lastDebitDate} = @lastDebitDate,
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
          {AccountFields.transferRecipients} = @transferRecipients,
+         {AccountFields.internalTransferSenders} = @internalTransferSenders,
          {AccountFields.events} = @events,
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,
          {AccountFields.maintenanceFeeDailyBalanceThreshold} = @maintenanceFeeDailyBalanceThreshold,

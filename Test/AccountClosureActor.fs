@@ -172,38 +172,4 @@ let tests =
             Expect.isTrue
                false
                $"Expected AccountClosureMessage. Received {msg}"
-
-      akkaTest "ReverseClosure should remove an account from actor state"
-      <| Some config
-      <| fun tck ->
-         let accountClosureActor, emailProbe, quartzSchedulerProbe = init tck
-         let initState = AccountClosureActor.initState
-
-         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
-         TestKit.expectMsg tck initState |> ignore
-
-         let account1 = {
-            Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
-         }
-
-         let account2 = {
-            Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
-         }
-
-         accountClosureActor <! AccountClosureMessage.Register account1
-         accountClosureActor <! AccountClosureMessage.Register account2
-
-         accountClosureActor
-         <! AccountClosureMessage.ReverseClosure account1.EntityId
-
-         accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
-
-         let expectedState = Map [ account2.EntityId, account2 ]
-
-         TestKit.expectMsg tck expectedState |> ignore
-
-         emailProbe.ExpectNoMsg()
-         quartzSchedulerProbe.ExpectNoMsg()
    ]

@@ -80,6 +80,7 @@ type ApproveTransferCommand
       amount: decimal
    ) =
    inherit Command(entityId, correlationId)
+
    member x.Recipient = recipient
    member x.Date = date
    member x.Amount = amount
@@ -103,7 +104,7 @@ type RejectTransferCommand
       recipient: TransferRecipient,
       date: DateTime,
       amount: decimal,
-      reason: string
+      reason: TransferDeclinedReason
    ) =
    inherit Command(entityId, correlationId)
    member x.Recipient = recipient
@@ -112,11 +113,22 @@ type RejectTransferCommand
    member x.Reason = reason
 
    member x.toEvent() : ValidationResult<BankEvent<TransferRejected>> =
+      // Updates status of transfer recipient when a transfer is declined
+      // due to an account not existing or becoming closed.
+      let updatedRecipientStatus =
+         match reason with
+         | InvalidAccountInfo -> RecipientRegistrationStatus.InvalidAccount
+         | AccountClosed -> RecipientRegistrationStatus.Closed
+         | _ -> x.Recipient.Status
+
       Ok {
          EntityId = x.EntityId
          Timestamp = x.Timestamp
          Data = {
-            Recipient = x.Recipient
+            Recipient = {
+               x.Recipient with
+                  Status = updatedRecipientStatus
+            }
             Date = x.Date
             DebitedAmount = x.Amount
             Reason = x.Reason
@@ -174,8 +186,6 @@ module TransferRecipientEvent =
                AccountNumber = cmd.Recipient.Identification
                LastName = cmd.Recipient.LastName
                FirstName = cmd.Recipient.FirstName
-               Currency = cmd.Recipient.Currency
-               AccountEnvironment = RecipientAccountEnvironment.Internal
             }
             CorrelationId = cmd.CorrelationId
          }
@@ -197,11 +207,41 @@ module TransferRecipientEvent =
                FirstName = cmd.Recipient.FirstName
                AccountNumber = cmd.Recipient.Identification
                RoutingNumber = cmd.Recipient.RoutingNumber
-               Currency = cmd.Recipient.Currency
-               AccountEnvironment = RecipientAccountEnvironment.Domestic
             }
             CorrelationId = cmd.CorrelationId
          }
+      }
+
+type RegisterInternalSenderCommand
+   (entityId, sender: InternalTransferSender, correlationId) =
+   inherit Command(entityId, correlationId)
+   member x.TransferSender = sender
+
+   member x.toEvent() : ValidationResult<BankEvent<InternalSenderRegistered>> =
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = { TransferSender = x.TransferSender }
+         CorrelationId = x.CorrelationId
+      }
+
+type DeactivateInternalRecipientCommand
+   (entityId, recipientId: Guid, recipientName: string, correlationId) =
+   inherit Command(entityId, correlationId)
+   member x.RecipientId = recipientId
+   member x.RecipientName = recipientName
+
+   member x.toEvent
+      ()
+      : ValidationResult<BankEvent<InternalRecipientDeactivated>> =
+      Ok {
+         EntityId = x.EntityId
+         Timestamp = x.Timestamp
+         Data = {
+            RecipientId = x.RecipientId
+            RecipientName = x.RecipientName
+         }
+         CorrelationId = x.CorrelationId
       }
 
 module TransferTransactionToCommand =
@@ -224,7 +264,7 @@ module TransferTransactionToCommand =
          txn.Amount
       )
 
-   let reject (txn: TransferTransaction) (reason: string) =
+   let reject (txn: TransferTransaction) (reason: TransferDeclinedReason) =
       RejectTransferCommand(
          txn.SenderAccountId,
          txn.TransactionId,

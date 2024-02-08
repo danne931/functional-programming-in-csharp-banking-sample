@@ -18,7 +18,8 @@ open Bank.Transfer.Domain
 open BillingStatement
 
 let private dispatchTransfer
-   (getOrStartInternalTransferActor: Actor<_> -> IActorRef<TransferTransaction>)
+   (getOrStartInternalTransferActor:
+      Actor<_> -> IActorRef<InternalTransferMessage>)
    (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    mailbox
    evt
@@ -27,7 +28,8 @@ let private dispatchTransfer
 
    match evt.Data.Recipient.AccountEnvironment with
    | RecipientAccountEnvironment.Internal ->
-      getOrStartInternalTransferActor mailbox <! txn
+      getOrStartInternalTransferActor mailbox
+      <! InternalTransferMessage.TransferRequest txn
    | RecipientAccountEnvironment.Domestic ->
       let msg =
          DomesticTransferMessage.TransferRequest(
@@ -74,7 +76,8 @@ let private billingCycle
 let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
-   (getOrStartInternalTransferActor: Actor<_> -> IActorRef<TransferTransaction>)
+   (getOrStartInternalTransferActor:
+      Actor<_> -> IActorRef<InternalTransferMessage>)
    (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
@@ -94,6 +97,17 @@ let actorProps
             broadcaster.accountEventPersisted evt newState |> ignore
 
             match evt with
+            | InternalTransferRecipient e ->
+               let sender = {
+                  Name = newState.Name
+                  AccountId = newState.EntityId
+               }
+
+               getOrStartInternalTransferActor mailbox
+               <! InternalTransferMessage.ConfirmRecipient(
+                  sender,
+                  e.Data.toRecipient ()
+               )
             | TransferPending e ->
                dispatchTransfer
                   getOrStartInternalTransferActor
@@ -105,7 +119,7 @@ let actorProps
                <! EmailActor.TransferDeposited(e, newState)
             | CreatedAccount _ ->
                getEmailActor mailbox.System <! EmailActor.AccountOpen newState
-            | AccountClosed _ ->
+            | AccountEvent.AccountClosed _ ->
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register newState
             | BillingCycleStarted _ ->

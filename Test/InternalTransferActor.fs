@@ -63,7 +63,7 @@ let tests =
             TransferEventToTransaction.fromPending
                Stub.event.internalTransferPending
 
-         ref <! txn
+         ref <! InternalTransferMessage.TransferRequest txn
 
          tck.ExpectMsg<RejectTransferCommand>() |> ignore
 
@@ -80,7 +80,7 @@ let tests =
             TransferEventToTransaction.fromPending
                Stub.event.internalTransferPending
 
-         ref <! txn
+         ref <! InternalTransferMessage.TransferRequest txn
 
          tck.ExpectMsg<RejectTransferCommand>() |> ignore
 
@@ -102,7 +102,7 @@ let tests =
             TransferEventToTransaction.fromPending
                Stub.event.internalTransferPending
 
-         ref <! txn
+         ref <! InternalTransferMessage.TransferRequest txn
 
          let msg = tck.ExpectMsg<ApproveTransferCommand>()
 

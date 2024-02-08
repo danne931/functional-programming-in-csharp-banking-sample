@@ -13,12 +13,12 @@ let correlationId = Guid.NewGuid()
 
 let internalRecipient = {
    LastName = "fish"
-   FirstName = "big"
+   FirstName = "blow"
    Identification = Guid.NewGuid().ToString()
    IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-   Currency = Currency.EUR
    AccountEnvironment = RecipientAccountEnvironment.Internal
    RoutingNumber = None
+   Status = RecipientRegistrationStatus.Confirmed
 }
 
 let domesticRecipient = {
@@ -26,9 +26,9 @@ let domesticRecipient = {
    FirstName = "big"
    Identification = Guid.NewGuid().ToString()
    IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-   Currency = Currency.VND
    AccountEnvironment = RecipientAccountEnvironment.Domestic
    RoutingNumber = Some "1992384"
+   Status = RecipientRegistrationStatus.Confirmed
 }
 
 let command = {|
@@ -122,7 +122,7 @@ let command = {|
             recipient = internalRecipient,
             date = DateTime.UtcNow,
             amount = amount,
-            reason = "-"
+            reason = TransferDeclinedReason.AccountClosed
          )
    depositTransfer =
       fun amount ->

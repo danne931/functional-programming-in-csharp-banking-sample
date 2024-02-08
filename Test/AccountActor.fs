@@ -61,7 +61,7 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let billingProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
-      typed internalTransferProbe :> IActorRef<TransferTransaction>
+      typed internalTransferProbe :> IActorRef<InternalTransferMessage>
 
    let getDomesticTransferActor (_: ActorSystem) =
       typed domesticTransferProbe :> IActorRef<DomesticTransferMessage>
@@ -300,7 +300,7 @@ let tests =
             (Stub.accountStateAfterCreate.Balance - transfer.Amount)
             "Account state should reflect a transfer debit"
 
-         o.internalTransferProbe.ExpectMsg<TransferTransaction>() |> ignore
+         o.internalTransferProbe.ExpectMsg<InternalTransferMessage>() |> ignore
 
       akkaTest
          "A domestic transfer should message the DomesticTransferRecipientActor"

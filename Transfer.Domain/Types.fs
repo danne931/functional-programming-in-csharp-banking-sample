@@ -22,6 +22,11 @@ type RecipientAccountIdentificationStrategy =
    | IBAN
    | NationalID
 
+type RecipientRegistrationStatus =
+   | Confirmed
+   | InvalidAccount
+   | Closed
+
 type TransferRecipient = {
    LastName: string
    FirstName: string
@@ -29,8 +34,12 @@ type TransferRecipient = {
    AccountEnvironment: RecipientAccountEnvironment
    IdentificationStrategy: RecipientAccountIdentificationStrategy
    RoutingNumber: string option
-   Currency: Currency
-}
+   Status: RecipientRegistrationStatus
+} with
+
+   member x.Name = $"{x.FirstName} {x.LastName}"
+
+type InternalTransferSender = { Name: string; AccountId: Guid }
 
 type TransferServiceResponse = {
    AccountNumber: string
@@ -54,6 +63,10 @@ type TransferServiceAction =
    | TransferRequest
    | ProgressCheck
 
+type InternalTransferMessage =
+   | TransferRequest of TransferTransaction
+   | ConfirmRecipient of InternalTransferSender * TransferRecipient
+
 type DomesticTransferMessage =
    | TransferRequest of TransferServiceAction * TransferTransaction
    | TransferResponse of
@@ -62,6 +75,14 @@ type DomesticTransferMessage =
       TransferTransaction
    | BreakerHalfOpen
    | BreakerClosed
+
+type TransferDeclinedReason =
+   | CorruptData
+   | InvalidAction
+   | InvalidAmount
+   | AccountClosed
+   | InvalidAccountInfo
+   | Unknown of string
 
 type TransferRequest =
    TransferServiceAction

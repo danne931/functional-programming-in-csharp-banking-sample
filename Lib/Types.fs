@@ -39,6 +39,9 @@ type StateTransitionError =
    | ExceededDailyDebit of decimal
    | RecipientRegistrationRequired
    | RecipientAlreadyRegistered
+   | RecipientAlreadyDeactivated
+   | RecipientNotFound
+   | SenderAlreadyRegistered
    | TransferProgressNoChange
    | TransferAlreadyProgressedToApprovedOrRejected
 

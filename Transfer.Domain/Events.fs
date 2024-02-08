@@ -29,25 +29,23 @@ type TransferRejected = {
    Recipient: TransferRecipient
    Date: DateTime
    DebitedAmount: decimal
-   Reason: string
+   Reason: TransferDeclinedReason
 }
 
 type RegisteredInternalTransferRecipient = {
    LastName: string
    FirstName: string
    AccountNumber: string
-   Currency: Currency
-   AccountEnvironment: RecipientAccountEnvironment
 } with
 
    member x.toRecipient() = {
       FirstName = x.FirstName
       LastName = x.LastName
-      AccountEnvironment = x.AccountEnvironment
+      AccountEnvironment = RecipientAccountEnvironment.Internal
       Identification = x.AccountNumber
       IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-      Currency = x.Currency
       RoutingNumber = None
+      Status = RecipientRegistrationStatus.Confirmed
    }
 
 type RegisteredDomesticTransferRecipient = {
@@ -55,19 +53,29 @@ type RegisteredDomesticTransferRecipient = {
    FirstName: string
    RoutingNumber: string option
    AccountNumber: string
-   Currency: Currency
-   AccountEnvironment: RecipientAccountEnvironment
 } with
 
    member x.toRecipient() = {
       FirstName = x.FirstName
       LastName = x.LastName
-      AccountEnvironment = x.AccountEnvironment
+      AccountEnvironment = RecipientAccountEnvironment.Domestic
       Identification = x.AccountNumber
       IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-      Currency = x.Currency
       RoutingNumber = x.RoutingNumber
+      // Domestic recipients are assumed valid until a failed transfer
+      // request (with status AccountClosed/InvalidAccountInfo) proves otherwise.
+      Status = RecipientRegistrationStatus.Confirmed
    }
+
+type InternalRecipientDeactivated = {
+   RecipientId: Guid
+   RecipientName: string
+//Reason: RecipientDeactivatedReason
+}
+
+type InternalSenderRegistered = {
+   TransferSender: InternalTransferSender
+}
 
 type TransferDeposited = {
    DepositedAmount: decimal

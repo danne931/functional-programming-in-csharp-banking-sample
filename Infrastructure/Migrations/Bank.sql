@@ -15,6 +15,7 @@ CREATE TABLE accounts (
     daily_debit_limit MONEY,
     daily_debit_accrued MONEY NOT NULL,
     transfer_recipients JSONB NOT NULL,
+    internal_transfer_senders JSONB NOT NULL,
     maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
     maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
     events JSONB NOT NULL,

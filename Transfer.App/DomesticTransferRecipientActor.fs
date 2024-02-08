@@ -29,6 +29,15 @@ let private progressFromResponse (response: TransferServiceResponse) =
    | "Complete" -> TransferProgress.Complete
    | status -> TransferProgress.InProgress status
 
+let private declinedReasonFromError (err: string) : TransferDeclinedReason =
+   match err with
+   | Contains "CorruptData" -> CorruptData
+   | Contains "InvalidAction" -> InvalidAction
+   | Contains "InvalidAmount" -> InvalidAmount
+   | Contains "InvalidAccountInfo" -> InvalidAccountInfo
+   | Contains "InactiveAccount" -> AccountClosed
+   | e -> Unknown e
+
 let transferRequest action (txn: TransferTransaction) = taskResult {
    let msg = {|
       Action = string action
@@ -159,22 +168,22 @@ let actorProps
 
                Ignore
             else
-               let errMsg = res.Reason
+               let err = declinedReasonFromError res.Reason
 
-               match errMsg with
-               | Contains "CorruptData"
-               | Contains "InvalidAction" ->
-                  logError $"Transfer API requires code update: {errMsg}"
+               match err with
+               | CorruptData
+               | InvalidAction ->
+                  logError $"Transfer API requires code update: {err}"
 
                   getEmailActor ()
-                  <! EmailActor.ApplicationErrorRequiresSupport errMsg
+                  <! EmailActor.ApplicationErrorRequiresSupport(string err)
 
                   Unhandled
-               | Contains "InvalidAmount"
-               | Contains "InvalidAccountInfo"
-               | Contains "InactiveAccount"
+               | InvalidAmount
+               | InvalidAccountInfo
+               | AccountClosed
                | _ ->
-                  let msg = Msg.reject <| Command.reject txn errMsg
+                  let msg = Msg.reject <| Command.reject txn err
                   accountRef <! msg
                   Ignore
       | :? Status.Failure as e ->

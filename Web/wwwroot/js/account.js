@@ -243,10 +243,13 @@ function renderAccountState (account) {
 
 function interpolateTransferRecipientSelection (account) {
   const transferRecipientsAsNodes = Object.entries(account.transferRecipients)
-    .map(([key, val]) => {
+    .map(([key, recipient]) => {
       const option = document.createElement('option')
       option.value = key
-      option.label = `${val.firstName} ${val.lastName}`
+      option.label = `${recipient.firstName} ${recipient.lastName}`
+      if (recipient.status !== 'Confirmed') {
+        option.setAttribute('disabled', '')
+      }
       return option
     })
 
@@ -358,9 +361,20 @@ function eventToTableRow (evt) {
       amountEl.classList.add('credit')
       break
     case 'InternalTransferRecipient':
-    case 'DomesticTransferRecipient':
-      rowProps.name = `Registered ${evt.accountEnvironment} Transfer Recipient`
+      rowProps.name = `Registered Transfer Recipient`
       rowProps.info = `Recipient: ${evt.firstName} ${evt.lastName}`
+      break
+    case 'DomesticTransferRecipient':
+      rowProps.name = `Registered Domestic Transfer Recipient`
+      rowProps.info = `Recipient: ${evt.firstName} ${evt.lastName}`
+      break
+    case 'InternalSenderRegistered':
+      rowProps.name = 'Transfer Sender Registered'
+      rowProps.info = `${evt.transferSender.name} added this account as a transfer recipient.`
+      break
+    case 'InternalRecipientDeactivated':
+      rowProps.name = 'Recipient Deactivated'
+      rowProps.info = `Recipient ${evt.recipientName} closed their account.`
       break
     case 'BillingCycleStarted':
       rowProps.name = 'New Billing Cycle'
@@ -518,8 +532,8 @@ selectors.form.transferRecipient().addEventListener('submit', e => {
       lastName: formData.get('transfer-recipient-last-name'),
       accountEnvironment: formData.get('transfer-recipient-account-environment'),
       identificationStrategy: 'AccountId',
-      currency: 'USD',
-      routingNumber: null
+      routingNumber: null,
+      status: 'Confirmed'
     }
   }
 

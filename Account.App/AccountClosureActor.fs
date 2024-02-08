@@ -15,6 +15,7 @@ open Lib.Types
 open ActorUtil
 open Bank.AccountClosure.Api
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 
 let deleteAccounts
    (system: ActorSystem)
@@ -61,14 +62,25 @@ let actorProps
                   Total scheduled: {newState.Count}.
                   """
 
+               // Deactivates this closed account in the sender account's
+               // TransferRecipients Map.
+               for sender in account.InternalTransferSenders.Values do
+                  let msg =
+                     DeactivateInternalRecipientCommand(
+                        sender.AccountId,
+                        account.EntityId,
+                        account.Name,
+                        Guid.NewGuid()
+                     )
+                     |> AccountCommand.DeactivateInternalRecipient
+                     |> AccountMessage.StateChange
+
+                  getAccountRef sender.AccountId <! msg
+
                return!
                   match newState.Count % 10 with
                   | 0 -> loop newState <@> SaveSnapshot newState
                   | _ -> loop newState
-            | ReverseClosure accountId ->
-               logInfo $"Reverse pending account closure for {accountId}"
-               let newState = Map.remove accountId accounts
-               return! loop newState
             | ScheduleDeleteAll ->
                if accounts.IsEmpty then
                   logInfo "AccountClosure - no accounts requested closure."

@@ -21,6 +21,7 @@ module AccountFields =
    let lastDebitDate = "last_debit_at"
    let lastBillingCycleDate = "last_billing_cycle_at"
    let transferRecipients = "transfer_recipients"
+   let internalTransferSenders = "internal_transfer_senders"
    let events = "events"
 
    let maintenanceFeeQualifyingDepositFound =
@@ -70,6 +71,10 @@ module AccountSqlReader =
       read.text AccountFields.transferRecipients
       |> Serialization.deserializeUnsafe<TransferRecipient list>
 
+   let internalTransferSenders (read: RowReader) =
+      read.text AccountFields.internalTransferSenders
+      |> Serialization.deserializeUnsafe<InternalTransferSender list>
+
    let maintenanceFeeCriteria (read: RowReader) = {
       QualifyingDepositFound =
          read.bool AccountFields.maintenanceFeeQualifyingDepositFound
@@ -101,7 +106,11 @@ module AccountSqlReader =
       LastBillingCycleDate = lastBillingCycleDate read
       TransferRecipients =
          transferRecipients read
-         |> List.map (fun o -> Account.recipientLookupKey o, o)
+         |> List.map (fun o -> AccountState.recipientLookupKey o, o)
+         |> Map.ofList
+      InternalTransferSenders =
+         internalTransferSenders read
+         |> List.map (fun o -> o.AccountId, o)
          |> Map.ofList
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
       Events = events read
@@ -127,6 +136,9 @@ module AccountSqlWriter =
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
       Sql.jsonb <| Serialization.serialize recipients.Values
+
+   let internalTransferSenders (senders: Map<Guid, InternalTransferSender>) =
+      Sql.jsonb <| Serialization.serialize senders.Values
 
    let events (events: AccountEvent list) =
       Sql.jsonb <| Serialization.serialize events
