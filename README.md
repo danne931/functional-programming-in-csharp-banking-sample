@@ -22,7 +22,7 @@ This project utilizes the actor model and event sourcing via Akka.NET to build t
 I created a [simple](https://github.com/danne931/akka-dotnet-bank/blob/main/Web/wwwroot/js/account.js)
 web page to test the use cases against an account.
 
-[SignalR](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) is used to provide real-time feedback from actors to the UI:
+[SignalR](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) is used to provide feedback from actors to the UI:
 - Overall account state
 - History of transactions on the account
 - Toggling between a transfer sender & receiver account (internal to the bank) demonstrates debits in one account and credits in the other
@@ -37,7 +37,7 @@ web page to test the use cases against an account.
 
 
 ## Running with Kubernetes via minikube
-1. Dependencies: .NET 8, [minikube](https://minikube.sigs.k8s.io/docs/start/), [helm](https://helm.sh/)
+1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download), [minikube](https://minikube.sigs.k8s.io/docs/start/), [pulumi](https://www.pulumi.com/docs/install/)
 2. `sh build.sh -t RunK8sApp`
 3. Browser opens automatically after all K8s resources start up
 4. Enable postgres port forwarding if you want to inspect postgres in a local client: `sh postgres-port-forward-k8s.sh` (Server=postgres;Database=akkabank;Uid=testuser;Pwd=testpass)
@@ -50,16 +50,21 @@ web page to test the use cases against an account.
    ```
 
 ## Running with Docker
-1. Dependencies: .NET 8
+1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download)
 2. `sh build.sh -t RunDockerApp`
 3. Navigate to localhost:3000
 4. If you want to inspect postgres in a dashboard you can visit localhost:5008 (Server=postgres;Database=akkabank;Uid=postgres;Pwd=password)
 
 ## Running without Docker or K8s
-1. Dependencies: .NET 8, PostgreSQL & the psql command-line interface
+1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download), [PostgreSQL & psql](https://www.postgresql.org/download/)
 2. Create a database (Server=localhost;Database=akkabank;Uid=postgres;Pwd=password)
 3. Seed the database: `psql postgres < Infrastructure/Migrations/*.sql`
 4. `cd` into ./Web, ./Account.Service, ./Scheduler.Service, & ./MockThirdPartyBankTransferReceiver & `dotnet run` in each
+
+## Deploying to Azure AKS
+1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download), [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), [Pulumi](https://www.pulumi.com/docs/install/), [Node.js 18](https://nodejs.org/en/download) (Pulumi config written in typescript)
+2. `sh build.sh -t DeployAllStaging` (You will be prompted to sign in to Pulumi & Azure CLI)
+3. One pulumi stack of Azure AKS resources and another Pulumi stack for K8s resources will be created.  A [Pulumi ESC](https://www.pulumi.com/product/esc/) staging environment will be created and app environment configuration will be set.  Your local kubeconfig file will be modified to include details needed to connect to the AKS cluster.  See `kubectl get all --namespace akkabank` & `kubectl get all --namespace app-routing-system`.  App images are currently being pulled from my public docker hub repos.  Ingress is partially configured - An IP will be exported to the console when Pulumi finishes creating resources.
 
 ## Running tests
 1. `sh build.sh -t Test`
@@ -73,4 +78,4 @@ and [domain logic](https://github.com/la-yumba/functional-csharp-code-2/blob/mas
 additional business use cases as well as integration with more tech such as [EventStoreDB](https://www.eventstore.com/eventstoredb) and the
 de facto library for functional programming in C#, [language-ext](https://github.com/louthy/language-ext).
 
-The second iteration of this project [(see FSharpWithAkka directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/Archive/FSharpWithAkka) is close to a one-to-one representation of the CSharpWithLanguageExt directory, with all use cases rewritten in F# and **Paul Louth**'s echo-process actor library replaced with Akka.  I saw that [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference) and [computation expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions) made writing programs with typed functional programming more second nature than with C# so I decided to continue with it for the third iteration.
+The second iteration [(see FSharpWithAkka directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/Archive/FSharpWithAkka) is close to a one-to-one representation of the CSharpWithLanguageExt directory, with all use cases rewritten in F# and **Paul Louth**'s echo-process actor library replaced with Akka.  I saw that [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference) and [computation expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions) made writing programs with typed functional programming more second nature than with C# so I decided to continue with it for the third iteration.
