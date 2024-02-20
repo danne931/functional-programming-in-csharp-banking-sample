@@ -1,0 +1,7 @@
+name: akka-dotnet-bank
+runtime: nodejs
+description: Deploy Azure Resources
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: kubernetes-azure-typescript

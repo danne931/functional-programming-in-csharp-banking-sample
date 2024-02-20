@@ -5,4 +5,7 @@ Web/snapshots/*
 Account.Service/ddata-*
 Account.Service/snapshots/*
 Scheduler.Service/snapshots/*
+Deploy/K8s/node_modules/*
+Deploy/Azure/node_modules/*
+Deploy/K8s/Pulumi.k8s-local.yaml
 .fake

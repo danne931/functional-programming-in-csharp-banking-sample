@@ -53,7 +53,7 @@ type DepositCashCommand
 
    member x.toEvent() : ValidationResult<BankEvent<DepositedCash>> = validate {
       let! _ = amountValidator "Deposit amount" x.Amount
-      let! _ = transactionDateValidator "Date" x.Date
+      let! _ = dateNotDefaultValidator "Date" x.Date
 
       return {
          EntityId = x.EntityId
@@ -83,7 +83,7 @@ type DebitCommand
 
    member x.toEvent() : ValidationResult<BankEvent<DebitedAccount>> = validate {
       let! _ = amountValidator "Debit amount" x.Amount
-      let! _ = transactionDateValidator "Date" x.Date
+      let! _ = dateNotDefaultValidator "Date" x.Date
 
       return {
          EntityId = x.EntityId

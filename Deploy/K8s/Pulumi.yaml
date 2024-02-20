@@ -1,0 +1,7 @@
+name: akka-dotnet-bank
+runtime: nodejs
+description: Deploy a K8s cluster w/Akka.NET & Postgres to Azure AKS
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: kubernetes-azure-typescript

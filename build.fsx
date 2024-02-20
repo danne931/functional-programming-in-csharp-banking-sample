@@ -27,6 +27,23 @@ type ImageBuilder = {
    GetArgs: ImageName -> DirectoryName -> string
 }
 
+type Env = { Pulumi: string; Dotnet: string }
+
+let envs = {|
+   Local = {
+      Pulumi = "local"
+      Dotnet = "Development"
+   }
+   Staging = {
+      Pulumi = "staging"
+      Dotnet = "Staging"
+   }
+   Production = {
+      Pulumi = "production"
+      Dotnet = "Production"
+   }
+|}
+
 let imageBuilders = {|
    docker = {
       Program = "docker"
@@ -86,12 +103,40 @@ Target.create "BuildDockerImages" (fun o ->
    else
       List.iter (buildImage imageBuilders.docker) paths)
 
+// NOTE: Pushes app images to public docker hub repos.
+//       Currently pulling public app images into Azure Staging environment.
+// TODO: Research Azure Container Registry & versioning docker images.
+Target.create "DockerHubPublic" (fun _ ->
+   for project in projects do
+      let imageOpt = dockerImageNameFromProject project
+
+      if imageOpt.IsSome then
+         let image = imageOpt.Value
+         let tag = $"danne931/akka-dotnet-bank-{image}"
+         Trace.trace $"Uploading {tag} to public docker hub"
+
+         let exitCode = Shell.Exec("docker", $"tag {image} {tag}")
+
+         if exitCode <> 0 then
+            Trace.traceError $"Error creating docker tag {tag}"
+
+         let exitCode = Shell.Exec("docker", $"push {tag}")
+
+         if exitCode <> 0 then
+            Trace.traceError $"Error uploading {tag} to public docker hub")
+
 Target.create "RunDockerApp" (fun _ ->
    Shell.Exec("docker", "compose up") |> ignore)
 
 Target.create "StartK8s" (fun _ ->
    //Shell.Exec("minikube", "start --cpus 4 --memory 8192") |> ignore)
-   Shell.Exec("minikube", "start") |> ignore)
+   Shell.Exec("minikube", "start --alsologtostderr -v=2") |> ignore
+
+   Shell.Exec(
+      "minikube",
+      "kubectl -- config set-context minikube --namespace akkabank"
+   )
+   |> ignore)
 
 Target.create "BuildDockerImagesForK8s" (fun o ->
    let paths = o.Context.Arguments
@@ -101,36 +146,41 @@ Target.create "BuildDockerImagesForK8s" (fun o ->
    else
       List.iter (buildImage imageBuilders.minikube) paths)
 
-let applyK8sResources () =
-   // ConfigMap of .sql scripts to set up postgres tables
-   Shell.Exec(
-      "minikube",
-      "kubectl -- create configmap postgres-schemas --from-file=Infrastructure/Migrations"
-   )
-   |> ignore
+Target.create "VerifyPulumiLogin" (fun _ ->
+   if Shell.Exec("pulumi", "whoami") <> 0 then
+      failwith
+         "\n\nLogin to pulumi via command line before proceeding: pulumi login")
 
-   Shell.Exec(
-      "helm",
-      "install pg oci://registry-1.docker.io/bitnamicharts/postgresql --values=K8s/environment/values/postgres-values.yaml"
-   )
-   |> ignore
+Target.create "VerifyAzureLogin" (fun _ ->
+   let azureLoginResult = Shell.Exec("az", "login")
 
-   let applyK8sResource resource =
-      Shell.Exec("minikube", $"kubectl -- apply -f {resource}") |> ignore
-
-   let resources = !! "./K8s/**/*.yaml" -- "./K8s/environment/values/*.yaml"
-   Seq.iter applyK8sResource resources
+   if azureLoginResult <> 0 then
+      failwith "Issue logging in to Azure.")
 
 Target.create "ApplyK8sResources" (fun _ ->
-   Shell.Exec("minikube", "kubectl -- create namespace akkabank") |> ignore
+   let env = envs.Local
+   let pulumiStack = $"k8s-{env.Pulumi}"
 
-   Shell.Exec(
-      "minikube",
-      "kubectl -- config set-context --current --namespace=akkabank"
-   )
+   Shell.cd "Deploy/K8s"
+   Shell.Exec("pulumi", $"stack init {pulumiStack}") |> ignore
+
+   let selectResult = Shell.Exec("pulumi", $"stack select {pulumiStack}")
+
+   if selectResult <> 0 then
+      failwith $"Could not select {pulumiStack} stack"
+
+   Shell.Exec("pulumi", $"config set environment {env.Dotnet}") |> ignore
+   Shell.Exec("pulumi", "config set defaultK8Namespace akkabank") |> ignore
+   Shell.Exec("pulumi", "config set postgresDatabase akkabank") |> ignore
+   Shell.Exec("pulumi", "config set postgresUser testuser") |> ignore
+
+   Shell.Exec("pulumi", "config set --secret postgresPassword testpass")
    |> ignore
 
-   applyK8sResources ())
+   let result = Shell.Exec("pulumi", "up --skip-preview")
+
+   if result <> 0 then
+      failwith "Error applying K8s resources to minikube cluster")
 
 let openK8sAppInBrowser () =
    Shell.Exec("minikube", "kubectl -- get all") |> ignore
@@ -148,44 +198,134 @@ let openK8sAppInBrowser () =
 
 Target.create "RunK8sApp" (fun _ -> openK8sAppInBrowser ())
 
-Target.create "DeleteK8sResources" (fun _ ->
-   Trace.trace "Deleting K8s resources..."
-   Shell.Exec("helm", "uninstall pg") |> ignore
-   Shell.Exec("minikube", "kubectl -- delete configmap --all") |> ignore
-   Shell.Exec("minikube", "kubectl -- delete statefulset --all") |> ignore
-   Shell.Exec("minikube", "kubectl -- delete replicaset --all") |> ignore
-   Shell.Exec("minikube", "kubectl -- delete service --all") |> ignore
-   Shell.Exec("minikube", "kubectl -- delete deployment --all") |> ignore)
-
-Target.create "RefreshK8sResources" (fun _ ->
-   Trace.trace "Refreshing K8s resources..."
-   applyK8sResources ()
-   openK8sAppInBrowser ())
-
 // no-spinner option fixes intermittent hanging of Expecto
 Target.create "Test" (fun _ ->
    Shell.Exec("dotnet", "run --no-spinner", dir = testDir) |> ignore)
 
-"Clean" ==> "Publish" ==> "BuildDockerImages" ==> "RunDockerApp"
+let pulumiAzure (env: Env) =
+   let pulumiStack = $"azure-{env.Pulumi}"
+   Trace.trace $"Deploying Azure resources to Pulumi stack {pulumiStack}"
+   Shell.cd "Deploy/Azure"
 
-"DeleteK8sResources" ==> "RefreshK8sResources"
+   Shell.Exec("pulumi", $"stack init {pulumiStack}") |> ignore
 
-"Clean"
-==> "Publish"
-==> "StartK8s"
-==> "BuildDockerImagesForK8s"
-==> "ApplyK8sResources"
-==> "RunK8sApp"
+   let selectResult = Shell.Exec("pulumi", $"stack select {pulumiStack}")
+
+   if selectResult <> 0 then
+      failwith $"Could not select {pulumiStack} stack"
+
+   let azureDeployResult = Shell.Exec("pulumi", "up --skip-preview")
+
+   if azureDeployResult <> 0 then
+      failwith "Error deploying Azure resources"
+
+   Shell.cd "../../"
+
+let pulumiK8s (env: Env) =
+   let pulumiStack = $"k8s-{env.Pulumi}"
+   Trace.trace $"Deploying K8s resources to Pulumi stack {pulumiStack}"
+   Shell.cd "Deploy/K8s"
+
+   Shell.Exec("pulumi", $"stack init {pulumiStack}") |> ignore
+
+   let selectResult = Shell.Exec("pulumi", $"stack select {pulumiStack}")
+
+   if selectResult <> 0 then
+      failwith $"Could not select {pulumiStack} stack"
+
+   let whoAmI =
+      CreateProcess.fromRawCommand "pulumi" [ "whoami" ]
+      |> CreateProcess.redirectOutput
+      |> Proc.run
+
+   if whoAmI.ExitCode <> 0 then
+      failwith "Could not determine current logged-in Pulumi user"
+
+   let org = whoAmI.Result.Output |> String.removeLineBreaks
+   let qualified = $"{org}/{env.Pulumi}"
+
+   Shell.Exec("pulumi", $"env init {env.Pulumi}") |> ignore
+
+   Shell.Exec(
+      "pulumi",
+      $"env set {qualified} pulumiConfig.environment {env.Dotnet}"
+   )
+   |> ignore
+
+   Shell.Exec(
+      "pulumi",
+      $"env set {qualified} pulumiConfig.defaultK8Namespace akkabank"
+   )
+   |> ignore
+
+   Shell.Exec(
+      "pulumi",
+      $"env set {qualified} pulumiConfig.postgresDatabase akkabank"
+   )
+   |> ignore
+
+   Shell.Exec(
+      "pulumi",
+      $"env set {qualified} pulumiConfig.postgresUser testuser"
+   )
+   |> ignore
+
+   Shell.Exec(
+      "pulumi",
+      $"env set {qualified} pulumiConfig.postgresPassword testpass --secret"
+   )
+   |> ignore
+
+   let k8sDeployResult = Shell.Exec("pulumi", "up --skip-preview")
+
+   if k8sDeployResult <> 0 then
+      failwith "Error deploying K8s resources to AKS"
+
+   Shell.cd "../../"
+
+Target.create "DeployAzureStaging" (fun _ -> pulumiAzure envs.Staging)
+
+Target.create "DeployK8sStaging" (fun _ -> pulumiK8s envs.Staging)
+
+Target.create "DeployAllStaging" (fun _ ->
+   pulumiAzure (envs.Staging)
+   pulumiK8s (envs.Staging)
+   Trace.trace "Finished deploying")
+
+"Clean" ==> "Publish"
+
+"Publish" ==> "BuildDockerImages"
+
+"BuildDockerImages" ==> "RunDockerApp"
+
+"Publish" ==> "StartK8s" ==> "BuildDockerImagesForK8s"
+
+"VerifyPulumiLogin" ?=> "Clean"
+
+"VerifyPulumiLogin" ==> "ApplyK8sResources"
+
+"BuildDockerImagesForK8s" ==> "ApplyK8sResources"
+
+"ApplyK8sResources" ==> "RunK8sApp"
+
+// NOTE:
+// Currently hosting images in public Docker Hub repos for Azure
+// staging deployment to retrieve.
+// TODO: Host containers in private Azure Container Registry.
+"BuildDockerImages" ==> "DockerHubPublic"
+
+"VerifyAzureLogin" ==> "DeployAllStaging"
+
+"VerifyPulumiLogin" ==> "DeployAllStaging"
 
 Target.runOrDefaultWithArguments "Clean"
 
 // NOTE:
 // Run app via docker compose: sh build.sh -t RunDockerApp
-// Run app via kubernetes: sh build.sh -t RunK8sApp
+// Run app via kubernetes minikube: sh build.sh -t RunK8sApp
+// Deploy app to Azure AKS staging environment: sh build.sh -t DeployAllStaging
 //
 // Selectively rebuild images for docker compose:
 // sh build.sh -t BuildDockerImages ./Web/Web.fsproj ./Scheduler.Service/Scheduler.Service.fsproj
-//
-// Delete running K8s resources and restart app: sh build.sh -t RefreshK8sResources
 //
 // Test: sh build.sh -t Test

@@ -11,12 +11,6 @@ let dateNotDefaultValidator propName =
    let msg = sprintf "%s should not be missing"
    Check.WithMessage.DateTime.notEquals DateTime.MinValue msg propName
 
-let dateInPastValidator propName date =
-   Check.DateTime.lessThan DateTime.UtcNow propName date
-
-let transactionDateValidator =
-   ValidatorGroup(dateNotDefaultValidator).And(dateInPastValidator).Build()
-
 let transferRecipientIdValidator senderId =
    let msg = sprintf "%s should not equal sender id"
    Check.WithMessage.String.notEquals senderId msg "Recipient Id"

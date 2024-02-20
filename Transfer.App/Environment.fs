@@ -99,7 +99,7 @@ let config =
             )
       TransferProgressLookbackMinutes =
          input.TransferProgressLookbackMinutes
-         |> Option.defaultValue (if Env.isDev then 0 else 60)
+         |> Option.defaultValue (if Env.isProd then 60 else 0)
       TransferProgressTrackingThrottle = {
          Count =
             input.TransferProgressTrackingThrottle.Count

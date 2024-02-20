@@ -56,11 +56,7 @@ let config =
       if not missing.IsEmpty then
          let errMsg = errorMessage missing
 
-         if not Env.isDev then
-            // Fail if running app outside local dev environment.
-            failwith errMsg
-         else
-            printfn "%A" errMsg
+         if Env.isProd then failwith errMsg else printfn "%A" errMsg
 
       {
          EmailServiceUri = input.EmailServiceUri

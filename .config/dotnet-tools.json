@@ -3,7 +3,7 @@
   "isRoot": true,
   "tools": {
     "fsautocomplete": {
-      "version": "0.69.0",
+      "version": "0.70.1",
       "commands": [
         "fsautocomplete"
       ]

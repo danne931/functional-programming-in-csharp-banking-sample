@@ -19,10 +19,10 @@ let getActiveAccounts () =
    let prevCycle = AccountFields.lastBillingCycleDate
 
    let lookback =
-      if Env.isDev then
-         "'1 minutes'::interval"
-      else
+      if Env.isProd then
          "'27 days'::interval"
+      else
+         "'1 minutes'::interval"
 
    pgQuery<Guid * decimal>
       $"""

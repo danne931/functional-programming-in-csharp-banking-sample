@@ -1,0 +1,5 @@
+# This tells Pulumi to pull config from Pulumi ESC "staging"
+# environment rather than under the local "config" property which
+# could be set here.
+environment:
+  - staging

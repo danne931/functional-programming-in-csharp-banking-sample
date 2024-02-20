@@ -12,7 +12,7 @@ let builder = WebApplication.CreateBuilder()
 let isDev = builder.Environment.EnvironmentName = "Development"
 let isStaging = builder.Environment.EnvironmentName = "Staging"
 let isProd = builder.Environment.EnvironmentName = "Production"
-let allowLiveLoadTest = isDev || isStaging
+let allowLiveLoadTest = not isProd
 
 type Connection = {
    Postgres: string
@@ -153,10 +153,8 @@ type private BankConfigInput = {
    AccountEventProjectionChunking: StreamChunkingInput
    AccountEventReadModelPersistenceBackoffRestart:
       StreamBackoffRestartSettingsInput
-   AccountEventReadModelRetryPersistenceAfter: TimeSpan option
    BillingStatementPersistenceChunking: StreamChunkingInput
    BillingStatementPersistenceBackoffRestart: StreamBackoffRestartSettingsInput
-   BillingStatementRetryPersistenceAfter: TimeSpan option
    CircuitBreakerActorSupervisor: BackoffSupervisorInput
 }
 
@@ -253,9 +251,7 @@ let config =
          AccountEventReadModelPersistenceBackoffRestart =
             streamBackoffRestartSettingsFromInput
                input.AccountEventReadModelPersistenceBackoffRestart
-         AccountEventReadModelRetryPersistenceAfter =
-            input.AccountEventReadModelRetryPersistenceAfter
-            |> Option.defaultValue (TimeSpan.FromSeconds 7)
+         AccountEventReadModelRetryPersistenceAfter = TimeSpan.FromSeconds 7
          BillingStatementPersistenceChunking = {
             Size =
                input.BillingStatementPersistenceChunking.Size
@@ -268,9 +264,7 @@ let config =
          BillingStatementPersistenceBackoffRestart =
             streamBackoffRestartSettingsFromInput
                input.BillingStatementPersistenceBackoffRestart
-         BillingStatementRetryPersistenceAfter =
-            input.BillingStatementRetryPersistenceAfter
-            |> Option.defaultValue (TimeSpan.FromSeconds 7)
+         BillingStatementRetryPersistenceAfter = TimeSpan.FromSeconds 7
          CircuitBreakerActorSupervisor =
             backoffSupervisorOptionsFromInput
                input.CircuitBreakerActorSupervisor

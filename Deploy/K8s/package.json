@@ -1,0 +1,12 @@
+{
+  "name": "kube-azure",
+  "main": "index.ts",
+  "devDependencies": {
+    "@types/node": "^18",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@pulumi/kubernetes": "^4.7.1",
+    "@pulumi/pulumi": "^3.0.0"
+  }
+}

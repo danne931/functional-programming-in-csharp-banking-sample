@@ -205,7 +205,7 @@ builder.Services.AddAkka(
             ())
          .AddStartup(
             StartupTask(fun _ registry -> task {
-               if Env.isDev then
+               if not Env.isProd then
                   AccountSeederActor.get registry
                   <! AccountSeederMessage.SeedAccounts
             })
