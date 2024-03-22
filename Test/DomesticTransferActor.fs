@@ -10,7 +10,7 @@ open FsToolkit.ErrorHandling
 
 open Util
 open ActorUtil
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
@@ -48,7 +48,11 @@ let mockTransferRequestFactory () : TransferRequest =
       requestCount <- requestCount + 1
 
       if requestCount > 2 && requestCount <= 4 then
-         "Connection" |> Error |> Task.FromResult
+         "Connection terminated"
+         |> exn
+         |> Err.NetworkError
+         |> Error
+         |> Task.FromResult
       else
          let status =
             match action with
@@ -100,7 +104,7 @@ let mockTransferRequestSerializationIssue
    (action: TransferServiceAction)
    (txn: TransferTransaction)
    =
-   Error "Serialization" |> Task.FromResult
+   "Serialization" |> Err.SerializationError |> Result.Error |> Task.FromResult
 
 let initCircuitBreaker (tck: TestKit.Tck) =
    let breaker =
@@ -185,7 +189,7 @@ let tests =
 
          let evt =
             Expect.wantOk
-               (cmd.toEvent ())
+               (UpdateTransferProgressCommand.toEvent cmd)
                "TransferProgress cmd -> event validation ok"
 
          let txn = TransferEventToTransaction.fromProgressUpdate evt
@@ -328,7 +332,7 @@ let tests =
 
          let evt =
             Expect.wantOk
-               (cmd.toEvent ())
+               (UpdateTransferProgressCommand.toEvent cmd)
                "TransferProgress cmd -> event validation ok"
 
          let txn = TransferEventToTransaction.fromProgressUpdate evt

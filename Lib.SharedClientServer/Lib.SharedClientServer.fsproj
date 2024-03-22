@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Routes.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="ActivePatterns.fs" />
+    <Compile Include="Time.fs" />
+    <Compile Include="Validators.fs" />
+    <Compile Include="Serialization.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FSharp.SystemTextJson" />
+    <PackageReference Include="Thoth.Json" />
+    <PackageReference Include="Thoth.Json.Net" />
+    <PackageReference Include="Validus" />
+  </ItemGroup>
+</Project>

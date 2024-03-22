@@ -11,6 +11,7 @@ open Akkling.Persistence
 open Akkling.Cluster.Sharding
 open FsToolkit.ErrorHandling
 
+open Lib.SharedTypes
 open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
@@ -58,14 +59,14 @@ let private billingCycle
 
    if criteria.CanSkipFee then
       let msg =
-         SkipMaintenanceFeeCommand(accountId, criteria)
+         SkipMaintenanceFeeCommand.create accountId { Reason = criteria }
          |> AccountCommand.SkipMaintenanceFee
          |> AccountMessage.StateChange
 
       mailbox.Parent() <! msg
    else
       let msg =
-         MaintenanceFeeCommand accountId
+         MaintenanceFeeCommand.create accountId
          |> AccountCommand.MaintenanceFee
          |> AccountMessage.StateChange
 
@@ -147,13 +148,12 @@ let actorProps
                            (AccountMessage.Event event)
                            envelope.ConfirmationId
                   | Error err ->
-                     let errMsg = string err
-                     logWarning $"Validation fail %s{errMsg}"
+                     logWarning $"Validation fail %s{string err}"
 
                      let signalRBroadcastValidationErr () =
                         broadcaster.accountEventValidationFail
                            account.EntityId
-                           errMsg
+                           err
 
                      match err with
                      | StateTransitionError e ->
@@ -167,7 +167,7 @@ let actorProps
                         | InsufficientBalance _
                         | ExceededDailyDebit _ ->
                            getEmailActor mailbox.System
-                           <! EmailActor.DebitDeclined(errMsg, account)
+                           <! EmailActor.DebitDeclined(string err, account)
 
                            signalRBroadcastValidationErr ()
                         | _ -> signalRBroadcastValidationErr ()
@@ -213,7 +213,7 @@ let actorProps
                         fun _ err evt sequenceNr ->
                            broadcaster.accountEventPersistenceFail
                               account.EntityId
-                              err.Message
+                              (Err.DatabaseError err)
                            |> ignore
 
                            ignored ()

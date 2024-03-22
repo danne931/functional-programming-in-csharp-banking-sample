@@ -7,6 +7,7 @@
     <Compile Include="SignalRHub.fs" />
     <Compile Include="SignalRActor.fs" />
     <Compile Include="AccountLoadTestActor.fs" />
+    <Compile Include="Routes/Diagnostic.fs" />
     <Compile Include="Routes/Account.fs" />
     <Compile Include="Routes/Transfer.fs" />
     <Compile Include="Routes/User.fs" />

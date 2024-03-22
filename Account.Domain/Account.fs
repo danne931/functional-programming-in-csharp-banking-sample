@@ -5,7 +5,7 @@ open Validus
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open Lib.Types
+open Lib.SharedTypes
 open Lib.Time
 
 let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
@@ -209,61 +209,62 @@ module private StateTransition =
       if state.Status <> AccountStatus.Pending then
          transitionErr AccountNotReadyToActivate
       else
-         map CreatedAccount state <| cmd.toEvent ()
+         map CreatedAccount state (CreateAccountCommand.toEvent cmd)
 
    let startBillingcycle (state: AccountState) (cmd: StartBillingCycleCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map BillingCycleStarted state <| cmd.toEvent ()
+         map BillingCycleStarted state (StartBillingCycleCommand.toEvent cmd)
 
    let deposit (state: AccountState) (cmd: DepositCashCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map DepositedCash state <| cmd.toEvent ()
+         map DepositedCash state (DepositCashCommand.toEvent cmd)
 
    let limitDailyDebits (state: AccountState) (cmd: LimitDailyDebitsCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map DailyDebitLimitUpdated state <| cmd.toEvent ()
+         map DailyDebitLimitUpdated state (LimitDailyDebitsCommand.toEvent cmd)
 
    let lockCard (state: AccountState) (cmd: LockCardCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map LockedCard state <| cmd.toEvent ()
+         map LockedCard state (LockCardCommand.toEvent cmd)
 
    let unlockCard (state: AccountState) (cmd: UnlockCardCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map UnlockedCard state <| cmd.toEvent ()
+         map UnlockedCard state (UnlockCardCommand.toEvent cmd)
 
    let debit (state: AccountState) (cmd: DebitCommand) =
+      let input = cmd.Data
+
       if state.CardLocked then
          transitionErr AccountCardLocked
       elif state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif state.Balance - cmd.Amount < 0m then
+      elif state.Balance - input.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
-         state.DailyDebitLimit <> -1m
-         && IsToday cmd.Date
-         && state.DailyDebitAccrued + cmd.Amount > state.DailyDebitLimit
+         IsToday input.Date
+         && state.DailyDebitAccrued + input.Amount > state.DailyDebitLimit
       then
          transitionErr <| ExceededDailyDebit state.DailyDebitLimit
       else
-         map DebitedAccount state <| cmd.toEvent ()
+         map DebitedAccount state (DebitCommand.toEvent cmd)
 
    let maintenanceFee (state: AccountState) (cmd: MaintenanceFeeCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif state.Balance - cmd.Amount < 0m then
+      elif state.Balance - cmd.Data.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       else
-         map MaintenanceFeeDebited state <| cmd.toEvent ()
+         map MaintenanceFeeDebited state (MaintenanceFeeCommand.toEvent cmd)
 
    let skipMaintenanceFee
       (state: AccountState)
@@ -272,21 +273,23 @@ module private StateTransition =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map MaintenanceFeeSkipped state <| cmd.toEvent ()
+         map MaintenanceFeeSkipped state (SkipMaintenanceFeeCommand.toEvent cmd)
 
    let transfer (state: AccountState) (cmd: TransferCommand) =
+      let input = cmd.Data
+
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif state.Balance - cmd.Amount < 0m then
+      elif state.Balance - input.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
          state.TransferRecipients
-         |> Map.containsKey (AccountState.recipientLookupKey cmd.Recipient)
+         |> Map.containsKey (AccountState.recipientLookupKey input.Recipient)
          |> not
       then
          transitionErr RecipientRegistrationRequired
       else
-         map TransferPending state <| cmd.toEvent ()
+         map TransferPending state (TransferCommand.toEvent cmd)
 
    let transferProgress
       (state: AccountState)
@@ -299,14 +302,21 @@ module private StateTransition =
             Map.tryFind (string cmd.CorrelationId) state.InProgressTransfers
 
          match existing with
-         | None -> map TransferProgress state <| cmd.toEvent ()
+         | None ->
+            map
+               TransferProgress
+               state
+               (UpdateTransferProgressCommand.toEvent cmd)
          | Some txn ->
             let existingStatus = txn.Status
 
-            if existingStatus = cmd.Status then
+            if existingStatus = cmd.Data.Status then
                transitionErr TransferProgressNoChange
             else
-               map TransferProgress state <| cmd.toEvent ()
+               map
+                  TransferProgress
+                  state
+                  (UpdateTransferProgressCommand.toEvent cmd)
 
    let approveTransfer (state: AccountState) (cmd: ApproveTransferCommand) =
       if state.Status <> AccountStatus.Active then
@@ -317,7 +327,7 @@ module private StateTransition =
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
-         map TransferApproved state <| cmd.toEvent ()
+         map TransferApproved state (ApproveTransferCommand.toEvent cmd)
 
    let rejectTransfer (state: AccountState) (cmd: RejectTransferCommand) =
       if state.Status <> AccountStatus.Active then
@@ -328,20 +338,20 @@ module private StateTransition =
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
-         map TransferRejected state <| cmd.toEvent ()
+         map TransferRejected state (RejectTransferCommand.toEvent cmd)
 
    let registerTransferRecipient
       (state: AccountState)
       (cmd: RegisterTransferRecipientCommand)
       =
+      let recipient = cmd.Data.Recipient
+
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif
-         state.TransferRecipients.ContainsKey cmd.Recipient.Identification
-      then
+      elif state.TransferRecipients.ContainsKey recipient.Identification then
          transitionErr RecipientAlreadyRegistered
       else
-         match cmd.Recipient.AccountEnvironment with
+         match recipient.AccountEnvironment with
          | RecipientAccountEnvironment.Internal ->
             map InternalTransferRecipient state
             <| TransferRecipientEvent.local cmd
@@ -355,38 +365,47 @@ module private StateTransition =
       =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
-      elif state.InternalTransferSenders.ContainsKey cmd.Sender.AccountId then
+      elif
+         state.InternalTransferSenders.ContainsKey cmd.Data.Sender.AccountId
+      then
          transitionErr SenderAlreadyRegistered
       else
-         map InternalSenderRegistered state <| cmd.toEvent ()
+         map
+            InternalSenderRegistered
+            state
+            (RegisterInternalSenderCommand.toEvent cmd)
 
    let deactivateInternalRecipient
       (state: AccountState)
       (cmd: DeactivateInternalRecipientCommand)
       =
+      let recipientId = cmd.Data.RecipientId
+
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       elif
-         not
-         <| Map.containsKey (string cmd.RecipientId) state.TransferRecipients
+         not <| Map.containsKey (string recipientId) state.TransferRecipients
       then
          transitionErr RecipientNotFound
       else
-         let recipient = state.TransferRecipients[string cmd.RecipientId]
+         let recipient = state.TransferRecipients[string recipientId]
 
          if recipient.Status = RecipientRegistrationStatus.Closed then
             transitionErr RecipientAlreadyDeactivated
          else
-            map InternalRecipientDeactivated state <| cmd.toEvent ()
+            map
+               InternalRecipientDeactivated
+               state
+               (DeactivateInternalRecipientCommand.toEvent cmd)
 
    let depositTransfer (state: AccountState) (cmd: DepositTransferCommand) =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map TransferDeposited state <| cmd.toEvent ()
+         map TransferDeposited state <| (DepositTransferCommand.toEvent cmd)
 
    let closeAccount (state: AccountState) (cmd: CloseAccountCommand) =
-      map AccountEvent.AccountClosed state <| cmd.toEvent ()
+      map AccountEvent.AccountClosed state (CloseAccountCommand.toEvent cmd)
 
 let stateTransition (state: AccountState) (command: AccountCommand) =
    match command with

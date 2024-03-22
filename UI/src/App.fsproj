@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Lib/Env.fs" />
+    <Compile Include="Lib/Alerts.fs" />
+    <Compile Include="Lib/Logger.fs" />
+    <Compile Include="Lib/AsyncUtil.fs" />
+    <Compile Include="Lib/SignalR.fs" />
+    <Compile Include="Lib/ElmishExtensions.fs" />
+    <Compile Include="Lib/FelizExtensions.fs" />
+    <Compile Include="Lib/Contexts.fs" />
+    <Compile Include="Lib/Util.fs" />
+    <Compile Include="Lib/Form.fs" />
+    <Compile Include="Lib/SignalRConnectionProvider.fs" />
+    <Compile Include="Lib/AccountDomain.fs" />
+    <Compile Include="Services/Diagnostics.fs" />
+    <Compile Include="Services/Account.fs" />
+    <Compile Include="Components/Forms/FormContainer.fs" />
+    <Compile Include="Components/Forms/CardAccess.fs" />
+    <Compile Include="Components/Forms/Transfer.fs" />
+    <Compile Include="Components/Forms/RegisterTransferRecipient.fs" />
+    <Compile Include="Components/Forms/DailyDebitLimit.fs" />
+    <Compile Include="Components/Forms/Debit.fs" />
+    <Compile Include="Components/Forms/Deposit.fs" />
+    <Compile Include="Components/ServiceHealth.fs" />
+    <Compile Include="Components/AccountSelection.fs" />
+    <Compile Include="Components/Navigation.fs" />
+    <Compile Include="Components/TransactionTable.fs" />
+    <Compile Include="Components/AccountActions.fs" />
+    <Compile Include="Components/AccountSummary.fs" />
+    <Compile Include="Components/AccountDashboard.fs" />
+    <Compile Include="App.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Elmish.SweetAlert" />
+    <PackageReference Include="Fable.Form.Simple" />
+    <PackageReference Include="Fable.SimpleHttp" />
+    <PackageReference Include="Feliz" />
+    <PackageReference Include="Feliz.Router" />
+    <PackageReference Include="Feliz.UseElmish" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
+    <PackageReference Include="Thoth.Json" />
+    <PackageReference Include="Validus" />
+  </ItemGroup>
+
+  <ItemGroup>
+     <ProjectReference Include="../../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" />
+     <ProjectReference Include="../../Transfer.Domain/Transfer.Domain.fsproj" />
+     <ProjectReference Include="../../Account.Domain/Account.Domain.fsproj" />
+  </ItemGroup>
+
+</Project>

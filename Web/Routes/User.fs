@@ -6,13 +6,11 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 
 open Bank.User.Api
-
-module private Path =
-   let Base = "/users"
+open RoutePaths
 
 let startUserRoutes (app: WebApplication) =
    app.MapGet(
-      Path.Base,
+      UserPath.Base,
       Func<Task<IResult>>(getUsers >> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore

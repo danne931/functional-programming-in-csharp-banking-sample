@@ -13,8 +13,10 @@ open Bank.User.Routes
 open Bank.Account.Routes
 open Bank.Account.Domain
 open Bank.Transfer.Routes
+open Bank.Diagnostic.Routes
 open Bank.Hubs
 open ActorUtil
+open Lib.SharedTypes
 
 let builder = Env.builder
 
@@ -123,5 +125,6 @@ app.MapAkkaHealthCheckRoutes(
 startUserRoutes app
 startTransferRoutes app
 startAccountRoutes app
+startDiagnosticRoutes app
 
 app.Run()

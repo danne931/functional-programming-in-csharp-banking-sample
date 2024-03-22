@@ -4,7 +4,9 @@ module AccountBroadcaster
 open Akkling
 open Akka.Actor
 open Akka.Cluster.Tools.PublishSubscribe
+open System
 
+open Lib.SharedTypes
 open Bank.Account.Domain
 open ActorUtil
 open AccountLoadTestTypes
@@ -22,7 +24,13 @@ let init (system: ActorSystem) : AccountBroadcast =
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventPersisted(event, account)
+                  SignalRMessage.AccountEventPersisted(
+                     {
+                        Date = DateTime.UtcNow
+                        EventPersisted = event
+                        NewState = account
+                     }
+                  )
                )
             )
 
@@ -38,19 +46,27 @@ let init (system: ActorSystem) : AccountBroadcast =
                   )
                )
       accountEventValidationFail =
-         fun accountId errMsg ->
+         fun accountId err ->
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventValidationFail(accountId, errMsg)
+                  SignalRMessage.AccountEventValidationFail {
+                     AccountId = accountId
+                     Error = err
+                     Date = DateTime.UtcNow
+                  }
                )
             )
       accountEventPersistenceFail =
-         fun accountId errMsg ->
+         fun accountId err ->
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventPersistenceFail(accountId, errMsg)
+                  SignalRMessage.AccountEventPersistenceFail {
+                     AccountId = accountId
+                     Error = err
+                     Date = DateTime.UtcNow
+                  }
                )
             )
       circuitBreaker =

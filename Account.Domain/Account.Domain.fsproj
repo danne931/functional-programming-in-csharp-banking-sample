@@ -9,7 +9,6 @@
     <Compile Include="Commands.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Account.fs" />
-    <Compile Include="SqlMapper.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Lib/Lib.fsproj" />
+    <ProjectReference Include="../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" /> 
     <ProjectReference Include="../Transfer.Domain/Transfer.Domain.fsproj" />
   </ItemGroup>
 </Project>

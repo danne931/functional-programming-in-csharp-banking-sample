@@ -23,11 +23,12 @@
     <PackageReference Include="Petabridge.Cmd.Cluster.Sharding" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Thoth.Json.Net" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
-    <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Account.App/Account.App.fsproj" />
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../Scheduler.App/Scheduler.App.fsproj" />
   </ItemGroup>

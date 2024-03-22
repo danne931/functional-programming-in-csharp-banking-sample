@@ -13,6 +13,7 @@ open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
 open Lib.Types
+open Lib.SharedTypes
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain

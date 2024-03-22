@@ -1,9 +1,9 @@
 namespace Bank.Transfer.Domain
 
 open System
-open FsToolkit.ErrorHandling
+open System.Threading.Tasks
 
-open Lib.Types
+open Lib.SharedTypes
 
 type TransferProgressTrackingMessage = | ProgressCheck
 
@@ -87,7 +87,7 @@ type TransferDeclinedReason =
 type TransferRequest =
    TransferServiceAction
       -> TransferTransaction
-      -> TaskResult<TransferServiceResponse, string>
+      -> Task<Result<TransferServiceResponse, Err>>
 
 type GetInProgressTransfers =
    unit -> Result<Option<TransferTransaction list>, Err> Async

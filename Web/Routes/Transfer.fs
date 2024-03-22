@@ -10,17 +10,14 @@ open Akka.Actor
 open Bank.Transfer.Domain
 open Bank.Account.Api
 open Bank.Account.Domain
-
-module private Path =
-   let Base = "/transfers"
-   let TransferRecipient = Base + "/register-recipient"
+open RoutePaths
 
 let startTransferRoutes (app: WebApplication) =
    app.MapPost(
-      Path.TransferRecipient,
+      TransferPath.TransferRecipient,
       Func<ActorSystem, RegisterTransferRecipientCommand, Task<IResult>>
          (fun sys cmd ->
-            match cmd.Recipient.AccountEnvironment with
+            match cmd.Data.Recipient.AccountEnvironment with
             | RecipientAccountEnvironment.Internal ->
                TransferRecipientEvent.local cmd
                |> processCommand
@@ -39,13 +36,13 @@ let startTransferRoutes (app: WebApplication) =
    |> ignore
 
    app.MapPost(
-      Path.Base,
+      TransferPath.Base,
       Func<ActorSystem, TransferCommand, Task<IResult>>(fun sys cmd ->
          processCommand
             sys
             (AccountCommand.Transfer cmd)
             cmd.EntityId
-            (cmd.toEvent ())
+            (TransferCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

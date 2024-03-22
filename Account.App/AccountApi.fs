@@ -8,7 +8,7 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 open Validus
 
-open Lib.Types
+open Lib.SharedTypes
 open Lib.Postgres
 open Bank.Account.Domain
 open AccountSqlMapper
@@ -20,17 +20,21 @@ let processCommand
    (validation: ValidationResult<BankEvent<'E>>)
    =
    taskResult {
-      let! _ = Result.mapError ValidationError validation
+      let! _ = validation |> Result.mapError Err.ValidationError
       let ref = AccountActor.get system entityId
       ref <! AccountMessage.StateChange command
-      return validation
+      return validation |> Result.map _.Id
    }
 
-let getAccount (sys: ActorSystem) (accountId: Guid) : AccountState option Task =
-   let ref = AccountActor.get sys accountId
+let getAccount (id: Guid) = taskResultOption {
+   let! accountList =
+      pgQuery<AccountState>
+         "SELECT * FROM accounts WHERE id = @accountId"
+         (Some [ "accountId", Sql.uuid id ])
+         AccountSqlReader.account
 
-   ref.Ask(AccountMessage.GetAccount, Some(TimeSpan.FromSeconds 3))
-   |> Async.toTask
+   return accountList.Head
+}
 
 let getAccounts () =
    pgQuery<AccountState> "SELECT * FROM accounts" None AccountSqlReader.account
@@ -142,7 +146,7 @@ let upsertAccounts (accounts: AccountState list) =
    ]
 
 // Diagnostic
-let getAccountEvents
+let getAccountEventsFromAkka
    (sys: ActorSystem)
    (accountId: Guid)
    : AccountEvent list Task
@@ -150,4 +154,15 @@ let getAccountEvents
    let ref = AccountActor.get sys accountId
 
    ref.Ask(AccountMessage.GetEvents, Some(TimeSpan.FromSeconds 3))
+   |> Async.toTask
+
+// Diagnostic
+let getAccountFromAkka
+   (sys: ActorSystem)
+   (accountId: Guid)
+   : AccountState option Task
+   =
+   let ref = AccountActor.get sys accountId
+
+   ref.Ask(AccountMessage.GetAccount, Some(TimeSpan.FromSeconds 3))
    |> Async.toTask

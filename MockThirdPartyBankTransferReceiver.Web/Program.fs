@@ -20,12 +20,12 @@ type Request = {
 }
 
 type Response = {
-   accountNumber: string
-   routingNumber: string
-   ok: bool
-   status: string
-   reason: string
-   transactionId: string
+   AccountNumber: string
+   RoutingNumber: string
+   Ok: bool
+   Status: string
+   Reason: string
+   TransactionId: string
 }
 
 type InProgressTransfers = Dictionary<string, int * Request>
@@ -35,12 +35,12 @@ let inMemoryState = InProgressTransfers()
 // Compute response & mutate in-memory state of in-progress transfers.
 let processRequest (req: Request) =
    let res = {
-      accountNumber = req.AccountNumber
-      routingNumber = req.RoutingNumber
-      ok = true
-      status = ""
-      reason = ""
-      transactionId = req.TransactionId
+      AccountNumber = req.AccountNumber
+      RoutingNumber = req.RoutingNumber
+      Ok = true
+      Status = ""
+      Reason = ""
+      TransactionId = req.TransactionId
    }
 
    if req.Action = "TransferRequest" then
@@ -50,43 +50,43 @@ let processRequest (req: Request) =
       then
          {
             res with
-               ok = false
-               reason = "InvalidAccountInfo"
+               Ok = false
+               Reason = "InvalidAccountInfo"
          }
       elif req.Amount <= 0m then
          {
             res with
-               ok = false
-               reason = "InvalidAmount"
+               Ok = false
+               Reason = "InvalidAmount"
          }
       else
-         inMemoryState.Add(res.transactionId, (0, req))
-         { res with status = "ReceivedRequest" }
+         inMemoryState.Add(res.TransactionId, (0, req))
+         { res with Status = "ReceivedRequest" }
    elif req.Action = "ProgressCheck" then
-      if not <| inMemoryState.ContainsKey(res.transactionId) then
+      if not <| inMemoryState.ContainsKey(res.TransactionId) then
          {
             res with
-               ok = false
-               reason = "NoTransferProcessing"
+               Ok = false
+               Reason = "NoTransferProcessing"
          }
       else
-         let progressCheckCount, request = inMemoryState[res.transactionId]
+         let progressCheckCount, request = inMemoryState[res.TransactionId]
 
          if progressCheckCount < 1 then
-            inMemoryState[res.transactionId] <- progressCheckCount + 1, request
+            inMemoryState[res.TransactionId] <- progressCheckCount + 1, request
 
             {
                res with
-                  status = "VerifyingAccountInfo"
+                  Status = "VerifyingAccountInfo"
             }
          else
-            inMemoryState.Remove(res.transactionId) |> ignore
-            { res with status = "Complete" }
+            inMemoryState.Remove(res.TransactionId) |> ignore
+            { res with Status = "Complete" }
    else
       {
          res with
-            ok = false
-            reason = "InvalidAction"
+            Ok = false
+            Reason = "InvalidAction"
       }
 
 let serializeResponse (response: Response) =

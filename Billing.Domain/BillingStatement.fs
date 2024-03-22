@@ -2,9 +2,9 @@ module BillingStatement
 
 open System
 open System.Text.Json
-open FsToolkit.ErrorHandling
+open System.Threading.Tasks
 
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 
 type BillingTransaction = {
@@ -27,7 +27,7 @@ type BillingStatement = {
 }
 
 type BillingPersistence = {
-   saveBillingStatements: BillingStatement list -> TaskResult<int list, Err>
+   saveBillingStatements: BillingStatement list -> Task<Result<int list, Err>>
 }
 
 type BillingCycleMessage =

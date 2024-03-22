@@ -8,12 +8,14 @@ open System.Text
 open System.Net
 open System.Net.Sockets
 
+open Lib.SharedTypes
+
 let request
    (host: IPAddress)
    (port: int)
    (encoding: Encoding)
    (msg: byte[])
-   : Task<Result<string, string>>
+   : Task<Result<string, Err>>
    =
    task {
       use client = new TcpClient()
@@ -35,5 +37,5 @@ let request
 
          return Ok(encoding.GetString(buffer, 0, received))
       with err ->
-         return Error err.Message
+         return Error(Err.NetworkError err)
    }

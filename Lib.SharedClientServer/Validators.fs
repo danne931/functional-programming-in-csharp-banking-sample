@@ -2,10 +2,12 @@ module Lib.Validators
 
 open System
 open Validus
+open Lib.SharedTypes
 
 let amountValidator = Check.Decimal.greaterThan 0m
 
-let nameValidator = Check.String.betweenLen 2 50
+let firstNameValidator = Check.String.betweenLen 2 50 "First name"
+let lastNameValidator = Check.String.betweenLen 2 50 "Last name"
 
 let dateNotDefaultValidator propName =
    let msg = sprintf "%s should not be missing"
@@ -22,3 +24,11 @@ let accountNumberValidator =
 // TODO: ++ validation
 let routingNumberValidator =
    Check.required (Check.String.betweenLen 3 40) "Recipient routing number"
+
+let originValidator = Check.String.greaterThanLen 2 "Origin"
+
+let validationErrorsHumanFriendly
+   (result: ValidationResult<'t>)
+   : Result<'t, string>
+   =
+   result |> Result.mapError (Err.ValidationError >> _.HumanFriendly)

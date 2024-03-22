@@ -3,7 +3,7 @@ module Bank.User.Api
 open FsToolkit.ErrorHandling
 
 open Lib.Postgres
-open Lib.Types
+open Lib.SharedTypes
 open User
 
 /// <summary>

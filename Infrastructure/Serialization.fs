@@ -13,7 +13,7 @@ open Akkling.Cluster.Sharding
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
-open Lib.Types
+open Lib.SharedTypes
 
 type AkkaPersistenceEventAdapter() =
    let envelopeFromJournal (entry: obj) : Envelope =
@@ -51,7 +51,8 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.Manifest(o: obj) =
       match o with
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
-      | :? AccountEventConsumerState -> "AccountEventConsumerState"
+      | :? AccountEventConsumerActor.AccountEventConsumerState ->
+         "AccountEventConsumerState"
       | :? AccountLoadTestTypes.AccountLoadTestMessage ->
          "AccountLoadTestMessage"
       | :? AccountSeederMessage -> "AccountSeederMessage"
@@ -105,7 +106,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // from Account nodes to AccountLoadTestActor on Web node.
       | :? AccountLoadTestTypes.AccountLoadTestMessage
       // AccountEventConsumerActor projection offset snapshot
-      | :? AccountEventConsumerState
+      | :? AccountEventConsumerActor.AccountEventConsumerState
       // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
@@ -167,7 +168,8 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "ConfirmableMessageEnvelope" -> typeof<ConfirmableMessageEnvelope>
          | "AccountLoadTestMessage" ->
             typeof<AccountLoadTestTypes.AccountLoadTestMessage>
-         | "AccountEventConsumerState" -> typeof<AccountEventConsumerState>
+         | "AccountEventConsumerState" ->
+            typeof<AccountEventConsumerActor.AccountEventConsumerState>
          | "AccountState" -> typeof<AccountState>
          | "AccountStateOption" -> typeof<AccountState option>
          | "AccountStateMap" -> typeof<Map<Guid, AccountState>>

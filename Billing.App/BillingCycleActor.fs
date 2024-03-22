@@ -66,7 +66,7 @@ let private fanOutBillingCycleMessage
          |> Source.collect id
          |> Source.runForEach mat (fun (accountId, balance) ->
             let msg =
-               StartBillingCycleCommand(accountId, balance)
+               StartBillingCycleCommand.create accountId { Balance = balance }
                |> AccountCommand.StartBillingCycle
                |> AccountMessage.StateChange
 

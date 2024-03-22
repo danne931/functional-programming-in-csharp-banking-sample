@@ -2,7 +2,7 @@ namespace Bank.Account.Domain
 
 open System
 
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Transfer.Domain
 open MaintenanceFee
 
@@ -52,14 +52,15 @@ type OpenEventEnvelope = AccountEvent * Envelope
 [<RequireQualifiedAccess>]
 module AccountEnvelope =
    let private get (evt: BankEvent<'E>) = {
+      Id = evt.Id
       EntityId = evt.EntityId
+      CorrelationId = evt.CorrelationId
       Timestamp = evt.Timestamp
       EventName = evt.EventName
-      CorrelationId = evt.CorrelationId
    }
 
-   let wrap (o: obj) : AccountEvent =
-      match o with
+   let wrap (o: BankEvent<_>) : AccountEvent =
+      match box o with
       | :? BankEvent<CreatedAccount> as evt -> evt |> CreatedAccount
       | :? BankEvent<DepositedCash> as evt -> evt |> DepositedCash
       | :? BankEvent<DebitedAccount> as evt -> evt |> DebitedAccount
@@ -86,6 +87,7 @@ module AccountEnvelope =
       | :? BankEvent<TransferDeposited> as evt -> evt |> TransferDeposited
       | :? BankEvent<AccountClosed> as evt -> evt |> AccountClosed
       | :? BankEvent<BillingCycleStarted> as evt -> evt |> BillingCycleStarted
+      | _ -> failwith "Missing definition for AccountEvent message"
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
       match o with
@@ -143,7 +145,7 @@ type AccountState = {
       Currency = Currency.USD
       Status = AccountStatus.Pending
       Balance = 0m
-      DailyDebitLimit = -1m
+      DailyDebitLimit = 2000m
       DailyDebitAccrued = 0m
       LastDebitDate = None
       LastBillingCycleDate = None
@@ -159,10 +161,9 @@ type AccountState = {
    }
 
    static member recipientLookupKey(recipient: TransferRecipient) =
-      match recipient.AccountEnvironment with
-      | RecipientAccountEnvironment.Internal -> recipient.Identification
-      | RecipientAccountEnvironment.Domestic ->
-         $"{recipient.RoutingNumber.Value}_{recipient.Identification}"
+      match recipient.RoutingNumber with
+      | None -> recipient.Identification
+      | Some routingNum -> $"{routingNum}_{recipient.Identification}"
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
@@ -174,36 +175,23 @@ type AccountMessage =
    | Event of AccountEvent
    | Delete
 
-type CircuitBreakerService =
-   | DomesticTransfer
-   | Email
-
-type CircuitBreakerStatus =
-   | Closed
-   | HalfOpen
-   | Open
-
-type CircuitBreakerEvent = {
-   Service: CircuitBreakerService
-   Status: CircuitBreakerStatus
-   Timestamp: DateTime
+type AccountEventPersistedConfirmation = {
+   EventPersisted: AccountEvent
+   NewState: AccountState
+   Date: DateTime
 }
 
-type CircuitBreakerMessage =
-   | Lookup
-   | CircuitBreaker of CircuitBreakerEvent
-
-type CircuitBreakerActorState = {
-   DomesticTransfer: CircuitBreakerStatus
-   Email: CircuitBreakerStatus
+type AccountEventRejected = {
+   AccountId: Guid
+   Error: Err
+   Date: DateTime
 }
 
 type SignalRMessage =
-   | AccountEventPersisted of AccountEvent * AccountState
-   | AccountEventValidationFail of Guid * string
-   | AccountEventPersistenceFail of Guid * string
+   | AccountEventPersisted of AccountEventPersistedConfirmation
+   | AccountEventValidationFail of AccountEventRejected
+   | AccountEventPersistenceFail of AccountEventRejected
    | CircuitBreaker of CircuitBreakerEvent
-   | EndBillingCycle
 
 type AccountPersistence = {
    getEvents: Guid -> AccountEvent list Async
@@ -211,8 +199,8 @@ type AccountPersistence = {
 
 type AccountBroadcast = {
    accountEventPersisted: AccountEvent -> AccountState -> unit
-   accountEventValidationFail: Guid -> string -> unit
-   accountEventPersistenceFail: Guid -> string -> unit
+   accountEventValidationFail: Guid -> Err -> unit
+   accountEventPersistenceFail: Guid -> Err -> unit
    circuitBreaker: CircuitBreakerEvent -> unit
 }
 
@@ -225,14 +213,6 @@ type AccountClosureMessage =
 type AccountSeederMessage =
    | SeedAccounts
    | VerifyAccountsCreated
-   | VerifiedAccountsReceived of AccountState list
-   | ErrorVerifyingAccounts of Err
-
-type AccountEventConsumerState = {
-   Offset: Akka.Persistence.Query.Sequence
-}
-
-type AccountEventConsumerMessage = SaveOffset of Akka.Persistence.Query.Sequence
 
 module AccountLoadTestTypes =
    type ProgressCheck = {

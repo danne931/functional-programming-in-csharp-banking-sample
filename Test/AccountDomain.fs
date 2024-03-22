@@ -35,7 +35,7 @@ let tests =
 
             Expect.equal
                account.Balance
-               (Stub.accountState.Balance + command.Amount)
+               (Stub.accountState.Balance + command.Data.Amount)
                "should result in account balanced incremented by command amount"
       }
 
@@ -274,7 +274,7 @@ let tests =
 
             Expect.equal
                account.Balance
-               (Stub.accountState.Balance - command.Amount)
+               (Stub.accountState.Balance - command.Data.Amount)
                "should result in account balanced decremented by command amount"
       }
 
@@ -400,7 +400,7 @@ let tests =
 
          Expect.equal
             account.Balance
-            (initState.Balance - command.Amount)
+            (initState.Balance - command.Data.Amount)
             "maintenance fee decrements balance by configured amount"
 
          Expect.equal

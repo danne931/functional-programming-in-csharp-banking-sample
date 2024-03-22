@@ -8,7 +8,7 @@ open Akkling
 open Akkling.Persistence
 
 open ActorUtil
-open Bank.Account.Domain
+open Lib.SharedTypes
 open Lib.Types
 
 let private persistAsync (msg: CircuitBreakerEvent) = msg |> box |> PersistAsync

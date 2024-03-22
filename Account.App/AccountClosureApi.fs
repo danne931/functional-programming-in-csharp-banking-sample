@@ -4,7 +4,7 @@ open System
 open FsToolkit.ErrorHandling
 
 open Lib.Postgres
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 open AccountSqlMapper
 

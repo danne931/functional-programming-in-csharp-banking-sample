@@ -8,7 +8,7 @@ open Expecto
 
 open Util
 open ActorUtil
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
@@ -121,7 +121,7 @@ let tests =
             EntityId of resulting DepositTransferCommand"
 
          Expect.equal
-            msg.Amount
+            msg.Data.Amount
             txn.Amount
             $"Debit amount from TransferPending event should
             equal deposit amount of resulting DepositTransferCommand"

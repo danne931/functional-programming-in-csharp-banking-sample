@@ -1,3 +1,5 @@
+@import "@picocss/pico";
+
 @media screen {
   :root:not([data-theme]) {
     --primary: #fdd835;
@@ -5,6 +7,10 @@
     --primary-focus: rgba(253, 216, 53, 0.25);
     --primary-inverse: rgba(0, 0, 0, 0.75);
   }
+}
+
+:where(input,select,textarea,fieldset,.grid)[aria-invalid=true]+small {
+  color: var(--del-color)
 }
 
 :root {
@@ -82,7 +88,8 @@ button {
   display: inline-block;
   margin-top: 0.35rem;
 }
-.form-wrapper button {
+
+.form-wrapper > button {
   position: relative;
   float: right;
   padding: 0.3rem 1rem;
@@ -95,9 +102,38 @@ footer {
   bottom: 0;
   background: var(--card-background-color);
   box-shadow: var(--card-box-shadow);
+  padding: 1rem;
 }
 footer p {
   display: inline;
+}
+
+.swal2-popup {
+  background: var(--card-background-color)
+}
+.swal2-popup.swal2-toast {
+  box-shadow: 0 0 0.45em var(--color);
+}
+.swal2-title {
+  color: var(--color);
+}
+.swal2-content {
+  color: var(--color);
+}
+.swal2-styled.swal2-confirm {
+  color: var(--color);
+  background-color: var(--background-color);
+  border-color: var(--border-color);
+}
+.swal2-icon.swal2-error {
+  border-color: var(--del-color);
+}
+.swal2-icon.swal2-error [class^=swal2-x-mark-line] {
+  background-color: var(--del-color);
+}
+
+main {
+  padding: var(--block-spacing-vertical) 0;
 }
 
 main > .grid article {
@@ -112,43 +148,43 @@ main > .grid article {
 }
 
 @media (min-width: 576px) {
-  body > main {
+  main {
     --block-spacing-vertical: calc(var(--spacing) * 1.5);
   }
 }
 @media (min-width: 768px) {
-  body > main {
+  main {
     --block-spacing-vertical: calc(var(--spacing) * 1.5);
   }
 }
 @media (min-width: 992px) {
-  body > main {
+  main {
     --block-spacing-vertical: calc(var(--spacing) * 1.5);
   }
 }
 @media (min-width: 1200px) {
-  body > main {
+  main {
     --block-spacing-vertical: calc(var(--spacing) * 1.5);
   }
 }
 
 @media (min-width: 576px) {
-  body > footer {
+  body footer {
     --block-spacing-vertical: var(--spacing);
   }
 }
 @media (min-width: 768px) {
-  body > footer {
+  footer {
     --block-spacing-vertical: var(--spacing);
   }
 }
 @media (min-width: 992px) {
-  body > footer {
+  footer {
     --block-spacing-vertical: var(--spacing);
   }
 }
 @media (min-width: 1200px) {
-  body > footer {
+  footer {
     --block-spacing-vertical: var(--spacing);
   }
 }

@@ -6,10 +6,9 @@ open Akka.Hosting
 open Akka.Actor
 open Akkling
 open FsToolkit.ErrorHandling
-open Akka.Cluster.Tools.PublishSubscribe
 
 open ActorUtil
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 open AccountLoadTestTypes
 
@@ -66,29 +65,27 @@ module private Stub =
 
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
-      <| CreateAccountCommand(
-         entityId = accountId,
-         email = $"{string accountId}@gmail.com",
-         balance = startBalance,
-         firstName = "Small",
-         lastName = "Fish",
-         currency = Currency.EUR,
-         correlationId = Guid.NewGuid()
-      )
+      <| CreateAccountCommand.create accountId {
+         Email = $"{string accountId}@gmail.com"
+         Balance = startBalance
+         FirstName = "Small"
+         LastName = "Fish"
+         Currency = Currency.EUR
+      }
 
    let depositMessage accountId =
       AccountMessage.StateChange << AccountCommand.DepositCash
-      <| DepositCashCommand(
-         entityId = accountId,
-         date = DateTime.UtcNow,
-         amount = depositAmount,
-         origin = "load-test",
-         correlationId = Guid.NewGuid()
-      )
+      <| DepositCashCommand.create accountId {
+         Date = DateTime.UtcNow
+         Amount = depositAmount
+         Origin = Some "load-test"
+      }
 
    let closeAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CloseAccount
-      <| CloseAccountCommand(accountId, reference = "load test - clean up")
+      <| CloseAccountCommand.create accountId {
+         Reference = Some "load test - clean up"
+      }
 
 let private config = {|
    NumberOfAccountTests = 900

@@ -7,13 +7,8 @@
   <ItemGroup>
     <Compile Include="Types.fs" />
     <Compile Include="Environment.fs" />
-    <Compile Include="ActivePatterns.fs" />
-    <Compile Include="Time.fs" />
-    <Compile Include="Validators.fs" />
     <Compile Include="TCP.fs" />
-    <Compile Include="Postgres.fs" />
     <Compile Include="Actor.fs" />
-    <Compile Include="Serialization.fs" />
     <Compile Include="BulkWriteStreamFlow.fs" />
   </ItemGroup>
 
@@ -24,9 +19,12 @@
     <PackageReference Include="Akkling" />
     <PackageReference Include="Akkling.Cluster.Sharding" />
     <PackageReference Include="FsConfig" />
-    <PackageReference Include="FSharp.SystemTextJson" />
     <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
     <PackageReference Include="Npgsql.FSharp" />
     <PackageReference Include="Validus" />
+  </ItemGroup>
+
+  <ItemGroup>
+     <ProjectReference Include="../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" />
   </ItemGroup>
 </Project>

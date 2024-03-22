@@ -13,12 +13,19 @@ open Akkling.Persistence
 open Akkling.Streams
 open FsToolkit.ErrorHandling
 
+open Lib.SharedTypes
 open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Lib.BulkWriteStreamFlow
 
 type BulkAccountUpsert = AccountState list -> Result<List<int>, Err> Task
+
+type AccountEventConsumerState = {
+   Offset: Akka.Persistence.Query.Sequence
+}
+
+type AccountEventConsumerMessage = SaveOffset of Akka.Persistence.Query.Sequence
 
 let initFailedWritesSource
    (system: ActorSystem)

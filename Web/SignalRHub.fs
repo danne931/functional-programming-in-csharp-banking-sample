@@ -3,19 +3,14 @@ namespace Bank.Hubs
 open Microsoft.AspNetCore.SignalR
 open System.Threading.Tasks
 
-open Bank.Account.Domain
-
 type IAccountClient =
-   abstract member ReceiveMessage:
-      {|
-         event: AccountEvent
-         newState: AccountState
-      |} ->
-         Task
+   abstract member AccountEventPersistenceConfirmation: string -> Task
 
-   abstract member ReceiveError: string -> Task
+   abstract member AccountEventPersistenceFail: string -> Task
 
-   abstract member ReceiveCircuitBreakerMessage: CircuitBreakerEvent -> Task
+   abstract member AccountEventValidationFail: string -> Task
+
+   abstract member CircuitBreakerMessage: string -> Task
 
 type AccountHub() =
    inherit Hub<IAccountClient>()

@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Lib.SharedClientServer\Lib.SharedClientServer.fsproj" />
     <ProjectReference Include="..\Transfer.App\Transfer.App.fsproj" />
     <ProjectReference Include="..\Billing.App\Billing.App.fsproj" />
     <ProjectReference Include="..\Account.App\Account.App.fsproj" />

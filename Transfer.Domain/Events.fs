@@ -2,7 +2,7 @@ namespace Bank.Transfer.Domain
 
 open System
 
-open Lib.Types
+open Lib.SharedTypes
 
 type TransferPending = {
    Recipient: TransferRecipient

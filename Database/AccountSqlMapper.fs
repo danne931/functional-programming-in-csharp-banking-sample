@@ -3,7 +3,7 @@ module AccountSqlMapper
 open System
 open Npgsql.FSharp
 
-open Lib.Types
+open Lib.SharedTypes
 open MaintenanceFee
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -135,10 +135,10 @@ module AccountSqlWriter =
    let lastBillingCycleDate (date: DateTime option) = Sql.timestamptzOrNone date
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
-      Sql.jsonb <| Serialization.serialize recipients.Values
+      recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let internalTransferSenders (senders: Map<Guid, InternalTransferSender>) =
-      Sql.jsonb <| Serialization.serialize senders.Values
+      senders.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let events (events: AccountEvent list) =
       Sql.jsonb <| Serialization.serialize events
@@ -149,7 +149,10 @@ module AccountSqlWriter =
    let inProgressTransfers
       (inProgressTransfers: Map<string, TransferTransaction>)
       =
-      Sql.jsonb <| Serialization.serialize inProgressTransfers.Values
+      inProgressTransfers.Values
+      |> Seq.toList
+      |> Serialization.serialize
+      |> Sql.jsonb
 
    let inProgressTransfersCount = Sql.int
    let cardLocked = Sql.bool

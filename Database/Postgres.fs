@@ -4,7 +4,7 @@ open System.Threading.Tasks
 open Npgsql.FSharp
 open FsToolkit.ErrorHandling
 
-open Lib.Types
+open Lib.SharedTypes
 
 let private connString = Env.config.ConnectionStrings.Postgres
 

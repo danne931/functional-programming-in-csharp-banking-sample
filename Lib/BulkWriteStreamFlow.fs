@@ -7,6 +7,7 @@ open Akka.Streams.Dsl
 open Akkling.Streams
 open FsToolkit.ErrorHandling
 
+open Lib.SharedTypes
 open Lib.Types
 
 type BulkWriteOptions<'T> = {

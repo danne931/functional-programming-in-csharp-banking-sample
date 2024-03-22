@@ -5,9 +5,10 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open type Microsoft.AspNetCore.Http.Results
 
-open Lib.Types
+open Lib.SharedTypes
 
-let private json (res: 't) : IResult = Json(res, Serialization.jsonOptions)
+let private json (res: 't) : IResult =
+   Results.Content <| Serialization.serialize res
 
 let private badRequest (err: Err) : IResult =
    BadRequest <| {| validationError = string err |}
@@ -20,7 +21,7 @@ let private unwrapOption (opt: 't option) : IResult =
 let unwrapTask (future: 'a Task) : Task<IResult> = task {
    try
       let! res = future
-      return Ok res
+      return json res
    with e ->
       return Problem e.Message
 }

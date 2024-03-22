@@ -11,7 +11,7 @@ open Akkling
 open FSharp.Control
 open FsToolkit.ErrorHandling
 
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Api
 open Bank.Account.Domain
 open ActorUtil
@@ -64,12 +64,10 @@ let private getVerifiedAccounts (accountsToCreate: CreateAccountsMap) = async {
       accountsToCreate.Keys |> List.ofSeq |> getAccountsByIds |> Async.ofTask
 
    return
-      match lookupResults with
-      | Error e -> AccountSeederMessage.ErrorVerifyingAccounts e
-      | Ok opt ->
-         match opt with
-         | None -> AccountSeederMessage.VerifiedAccountsReceived []
-         | Some res -> AccountSeederMessage.VerifiedAccountsReceived res
+      lookupResults
+      |> Result.toOption
+      |> Option.flatten
+      |> Option.defaultValue []
 }
 
 let private initState = {
@@ -77,37 +75,37 @@ let private initState = {
    AccountsToCreate =
       Map [
          Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"),
-         CreateAccountCommand(
-            entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"),
-            firstName = "Jelly",
-            lastName = "Fish",
-            balance = 1300,
-            email = "jellyfish@gmail.com",
-            currency = Currency.USD,
-            correlationId = Guid.NewGuid()
-         )
+         CreateAccountCommand.create
+            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"))
+            {
+               FirstName = "Jelly"
+               LastName = "Fish"
+               Balance = 1300m
+               Email = "jellyfish@gmail.com"
+               Currency = Currency.USD
+            }
 
          Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"),
-         CreateAccountCommand(
-            entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"),
-            firstName = "Star",
-            lastName = "Fish",
-            balance = 1000,
-            email = "starfish@gmail.com",
-            currency = Currency.USD,
-            correlationId = Guid.NewGuid()
-         )
+         CreateAccountCommand.create
+            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"))
+            {
+               FirstName = "Star"
+               LastName = "Fish"
+               Balance = 1000m
+               Email = "starfish@gmail.com"
+               Currency = Currency.USD
+            }
 
          Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"),
-         CreateAccountCommand(
-            entityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"),
-            firstName = "Rainbow",
-            lastName = "Trout",
-            balance = 850,
-            email = "rainbowtrout@gmail.com",
-            currency = Currency.USD,
-            correlationId = Guid.NewGuid()
-         )
+         CreateAccountCommand.create
+            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"))
+            {
+               FirstName = "Rainbow"
+               LastName = "Trout"
+               Balance = 850m
+               Email = "rainbowtrout@gmail.com"
+               Currency = Currency.USD
+            }
       ]
 }
 
@@ -115,43 +113,55 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
    let handler (ctx: Actor<AccountSeederMessage>) =
       let logInfo = logInfo ctx
 
-      let rec loop (state: State) =
-         function
+      let rec loop (state: State) = actor {
+         let! msg = ctx.Receive()
+
+         match msg with
          | SeedAccounts ->
             if state.Status <> AwaitingClusterUp then
                logInfo "Account seed already initialized"
-               ignored ()
             else if not (Cluster.Get(ctx.System).IsUp) then
                logInfo "Cluster not up yet.  Retry account seeding momentarily."
                scheduleInitialization ctx
-               ignored ()
             else
-               logInfo "Seed postgres with accounts"
+               let! verified = getVerifiedAccounts state.AccountsToCreate
 
-               for command in state.AccountsToCreate.Values do
-                  getAccountRef command.EntityId
-                  <! (StateChange << CreateAccount) command
+               if verified.Length = state.AccountsToCreate.Count then
+                  return!
+                     loop {
+                        Status = FinishedSeeding
+                        AccountsToCreate = Map.empty
+                     }
+               else
+                  logInfo "Seed postgres with accounts"
 
-               scheduleVerification ctx 5.
+                  let remaining =
+                     getRemainingAccountsToCreate
+                        verified
+                        state.AccountsToCreate
 
-               become
-               <| loop {
-                  state with
-                     Status = AwaitingVerification
-               }
+                  for command in remaining.Values do
+                     getAccountRef command.EntityId
+                     <! (StateChange << CreateAccount) command
+
+                  scheduleVerification ctx 5.
+
+                  return!
+                     loop {
+                        state with
+                           Status = AwaitingVerification
+                     }
          | VerifyAccountsCreated ->
-            getVerifiedAccounts state.AccountsToCreate |!> ctx.Self
+            let! verified = getVerifiedAccounts state.AccountsToCreate
 
-            ignored ()
-         | VerifiedAccountsReceived verified ->
             if verified.Length = state.AccountsToCreate.Count then
                logInfo "Finished seeding accounts"
 
-               become
-               <| loop {
-                  Status = FinishedSeeding
-                  AccountsToCreate = Map.empty
-               }
+               return!
+                  loop {
+                     Status = FinishedSeeding
+                     AccountsToCreate = Map.empty
+                  }
             else
                let remaining =
                   getRemainingAccountsToCreate verified state.AccountsToCreate
@@ -160,19 +170,16 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
 
                scheduleVerification ctx 3.
 
-               become
-               <| loop {
-                  Status = AwaitingVerification
-                  AccountsToCreate = remaining
-               }
-         | ErrorVerifyingAccounts err ->
-            logError ctx $"Error verifying accounts {err}"
-            scheduleVerification ctx 7.
-            ignored ()
+               return!
+                  loop {
+                     Status = AwaitingVerification
+                     AccountsToCreate = remaining
+                  }
+      }
 
       loop initState
 
-   props <| actorOf2 handler
+   props handler
 
 let get (registry: IActorRegistry) : IActorRef<AccountSeederMessage> =
    typed <| registry.Get<ActorMetadata.AccountSeederMarker>()

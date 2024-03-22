@@ -2,7 +2,7 @@ namespace Bank.Account.Domain
 
 open System
 
-open Lib.Types
+open Lib.SharedTypes
 open MaintenanceFee
 
 type CreatedAccount = {

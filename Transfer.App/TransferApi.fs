@@ -20,8 +20,8 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
    let reader (read: RowReader) =
       read.text "txns" |> Serialization.deserializeUnsafe<TransferTransaction>
 
-   let recipientEnvironmentPath = "{recipient,accountEnvironment}"
-   let statusPath = "{status,Case}"
+   let recipientEnvironmentPath = "{Recipient,AccountEnvironment}"
+   let statusPath = "{Status,0}"
 
    let! transfers =
       pgQuery<TransferTransaction>
@@ -34,7 +34,7 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
             accounts.{AccountFields.inProgressTransfersCount} > 0
             AND txns #>> '{recipientEnvironmentPath}' = 'Domestic'
             AND txns #>> '{statusPath}' = 'InProgress'
-            AND (txns ->> 'date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
+            AND (txns ->> 'Date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
          """
          None
          reader

@@ -17,17 +17,24 @@ let actorProps (hub: IHubContext<AccountHub, IAccountClient>) =
       let! msg = ctx.Receive()
 
       match msg with
-      | SignalRMessage.AccountEventPersisted(evt, account) ->
+      | SignalRMessage.AccountEventPersisted msg ->
          hub.Clients
-            .Group(string account.EntityId)
-            .ReceiveMessage({| event = evt; newState = account |})
+            .Group(string msg.NewState.EntityId)
+            .AccountEventPersistenceConfirmation(Serialization.serialize msg)
          |> ignore
-      | SignalRMessage.AccountEventValidationFail(accountId: Guid, msg: string) ->
-         hub.Clients.Group(string accountId).ReceiveError(msg) |> ignore
-      | SignalRMessage.AccountEventPersistenceFail(accountId: Guid, msg: string) ->
-         hub.Clients.Group(string accountId).ReceiveError(msg) |> ignore
+      | SignalRMessage.AccountEventValidationFail msg ->
+         hub.Clients
+            .Group(string msg.AccountId)
+            .AccountEventValidationFail(Serialization.serialize msg)
+         |> ignore
+      | SignalRMessage.AccountEventPersistenceFail msg ->
+         hub.Clients
+            .Group(string msg.AccountId)
+            .AccountEventPersistenceFail(Serialization.serialize msg)
+         |> ignore
       | SignalRMessage.CircuitBreaker msg ->
-         hub.Clients.All.ReceiveCircuitBreakerMessage(msg) |> ignore
+         hub.Clients.All.CircuitBreakerMessage(Serialization.serialize msg)
+         |> ignore
    }
 
    props handler

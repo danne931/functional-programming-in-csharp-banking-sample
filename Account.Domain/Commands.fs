@@ -3,206 +3,224 @@ namespace Bank.Account.Domain
 open System
 open Validus
 
-open Lib.Types
+open Lib.SharedTypes
 open Lib.Validators
 open MaintenanceFee
 
-type CreateAccountCommand
-   (
-      entityId,
-      email: string,
-      balance: decimal,
-      firstName: string,
-      lastName: string,
-      currency: Currency,
-      correlationId
-   ) =
-   inherit Command(entityId, correlationId)
-   member x.Email = email
-   member x.Currency = currency
-   member x.Balance = balance
-   member x.FirstName = firstName
-   member x.LastName = lastName
+type CreateAccountInput = {
+   Email: string
+   Balance: decimal
+   FirstName: string
+   LastName: string
+   Currency: Currency
+}
 
-   member x.toEvent() : ValidationResult<BankEvent<CreatedAccount>> = validate {
-      let! _ = nameValidator "First name" x.FirstName
-      and! _ = nameValidator "Last name" x.LastName
-      and! _ = Check.Decimal.greaterThanOrEqualTo 100m "Balance" x.Balance
-      and! email = Email.ofString "Create account email" x.Email
+type CreateAccountCommand = Command<CreateAccountInput>
 
-      return {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            Email = email
-            FirstName = x.FirstName
-            LastName = x.LastName
-            Balance = x.Balance
-            Currency = x.Currency
-         }
-         CorrelationId = x.CorrelationId
-      }
-   }
+module CreateAccountCommand =
+   let create accountId (data: CreateAccountInput) =
+      Command.create accountId (guid ()) data
 
-type DepositCashCommand
-   (entityId, date: DateTime, amount: decimal, origin: string, correlationId) =
-   inherit Command(entityId, correlationId)
-   member x.Date = date
-   member x.Amount = amount
-   member x.Origin = if isNull origin then "ATM" else origin
+   let toEvent
+      (cmd: CreateAccountCommand)
+      : ValidationResult<BankEvent<CreatedAccount>>
+      =
+      validate {
+         let input = cmd.Data
+         let! _ = firstNameValidator input.FirstName
+         and! _ = lastNameValidator input.LastName
 
-   member x.toEvent() : ValidationResult<BankEvent<DepositedCash>> = validate {
-      let! _ = amountValidator "Deposit amount" x.Amount
-      let! _ = dateNotDefaultValidator "Date" x.Date
+         and! _ =
+            Check.Decimal.greaterThanOrEqualTo 100m "Balance" input.Balance
 
-      return {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            DepositedAmount = x.Amount
-            Origin = x.Origin
-         }
-         CorrelationId = x.CorrelationId
-      }
-   }
+         and! email = Email.ofString "Create account email" input.Email
 
-type DebitCommand
-   (
-      entityId,
-      date: DateTime,
-      amount: decimal,
-      origin: string,
-      reference: string,
-      correlationId
-   ) =
-   inherit Command(entityId, correlationId)
-   member x.Date = date
-   member x.Amount = amount
-   member x.Origin = origin
-   member x.Reference = reference
-
-   member x.toEvent() : ValidationResult<BankEvent<DebitedAccount>> = validate {
-      let! _ = amountValidator "Debit amount" x.Amount
-      let! _ = dateNotDefaultValidator "Date" x.Date
-
-      return {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            DebitedAmount = x.Amount
-            Origin = x.Origin
-            Date = x.Date
-            Reference =
-               if String.IsNullOrEmpty x.Reference then
-                  None
-               else
-                  Some x.Reference
-         }
-         CorrelationId = x.CorrelationId
-      }
-   }
-
-type LimitDailyDebitsCommand(entityId, debitLimit: decimal, correlationId) =
-   inherit Command(entityId, correlationId)
-   member x.DebitLimit = debitLimit
-
-   member x.toEvent() : ValidationResult<BankEvent<DailyDebitLimitUpdated>> = validate {
-      let! _ = amountValidator "Debit limit" x.DebitLimit
-
-      return {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = { DebitLimit = x.DebitLimit }
-         CorrelationId = x.CorrelationId
-      }
-   }
-
-type LockCardCommand(entityId, reference: string, correlationId) =
-   inherit Command(entityId, correlationId)
-   member x.Reference = reference
-
-   member x.toEvent() : ValidationResult<BankEvent<LockedCard>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            Reference =
-               if String.IsNullOrEmpty x.Reference then
-                  None
-               else
-                  Some x.Reference
-         }
-         CorrelationId = x.CorrelationId
+         return
+            BankEvent.create<CreateAccountInput, CreatedAccount> cmd {
+               Email = email
+               FirstName = input.FirstName
+               LastName = input.LastName
+               Balance = input.Balance
+               Currency = input.Currency
+            }
       }
 
-type UnlockCardCommand(entityId, reference: string, correlationId) =
-   inherit Command(entityId, correlationId)
-   member x.Reference = reference
+type DepositCashInput = {
+   Date: DateTime
+   Amount: decimal
+   Origin: string option
+}
 
-   member x.toEvent() : ValidationResult<BankEvent<UnlockedCard>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            Reference =
-               if String.IsNullOrEmpty x.Reference then
-                  None
-               else
-                  Some x.Reference
-         }
-         CorrelationId = x.CorrelationId
+type DepositCashCommand = Command<DepositCashInput>
+
+module DepositCashCommand =
+   let create entityId (data: DepositCashInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: DepositCashCommand)
+      : ValidationResult<BankEvent<DepositedCash>>
+      =
+      validate {
+         let input = cmd.Data
+         let! _ = amountValidator "Deposit amount" input.Amount
+         let! _ = dateNotDefaultValidator "Date" input.Date
+
+         return
+            BankEvent.create<DepositCashInput, DepositedCash> cmd {
+               DepositedAmount = input.Amount
+               Origin = input.Origin |> Option.defaultValue "ATM"
+            }
       }
 
-type MaintenanceFeeCommand(entityId) =
-   inherit Command(entityId, correlationId = Guid.Empty)
-   member x.Amount = MaintenanceFee.RecurringDebitAmount
+type DebitInput = {
+   Date: DateTime
+   Amount: decimal
+   Origin: string
+   Reference: string option
+}
 
-   member x.toEvent() : ValidationResult<BankEvent<MaintenanceFeeDebited>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = { DebitedAmount = x.Amount }
-         CorrelationId = x.CorrelationId
+type DebitCommand = Command<DebitInput>
+
+module DebitCommand =
+   let create entityId (data: DebitInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: DebitCommand)
+      : ValidationResult<BankEvent<DebitedAccount>>
+      =
+      validate {
+         let input = cmd.Data
+         let! _ = amountValidator "Debit amount" input.Amount
+         let! _ = dateNotDefaultValidator "Date" input.Date
+         let! _ = originValidator input.Origin
+
+         return
+            BankEvent.create<DebitInput, DebitedAccount> cmd {
+               DebitedAmount = input.Amount
+               Origin = input.Origin
+               Date = input.Date
+               Reference = input.Reference
+            }
       }
 
-type SkipMaintenanceFeeCommand(entityId, reason: MaintenanceFeeCriteria) =
-   inherit Command(entityId, correlationId = Guid.Empty)
-   member x.Reason = reason
+type LimitDailyDebitsInput = { DebitLimit: decimal }
+type LimitDailyDebitsCommand = Command<LimitDailyDebitsInput>
 
-   member x.toEvent() : ValidationResult<BankEvent<MaintenanceFeeSkipped>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = { Reason = x.Reason }
-         CorrelationId = x.CorrelationId
+module LimitDailyDebitsCommand =
+   let create entityId (data: LimitDailyDebitsInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: LimitDailyDebitsCommand)
+      : ValidationResult<BankEvent<DailyDebitLimitUpdated>>
+      =
+      validate {
+         let input = cmd.Data
+         let! _ = amountValidator "Debit limit" input.DebitLimit
+
+         return
+            BankEvent.create<LimitDailyDebitsInput, DailyDebitLimitUpdated> cmd {
+               DebitLimit = input.DebitLimit
+            }
       }
 
-type CloseAccountCommand(entityId, reference: string) =
-   inherit Command(entityId, correlationId = Guid.Empty)
-   member x.Reference = reference
+type LockCardInput = { Reference: string option }
+type LockCardCommand = Command<LockCardInput>
 
-   member x.toEvent() : ValidationResult<BankEvent<AccountClosed>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = {
-            Reference =
-               if String.IsNullOrEmpty x.Reference then
-                  None
-               else
-                  Some x.Reference
-         }
-         CorrelationId = x.CorrelationId
+module LockCardCommand =
+   let create entityId (data: LockCardInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: LockCardCommand)
+      : ValidationResult<BankEvent<LockedCard>>
+      =
+      Ok
+      <| BankEvent.create<LockCardInput, LockedCard> cmd {
+         Reference = cmd.Data.Reference
       }
 
-type StartBillingCycleCommand(entityId, balance) =
-   inherit Command(entityId, correlationId = Guid.Empty)
-   member x.Balance = balance
+type UnlockCardInput = { Reference: string option }
+type UnlockCardCommand = Command<UnlockCardInput>
 
-   member x.toEvent() : ValidationResult<BankEvent<BillingCycleStarted>> =
-      Ok {
-         EntityId = x.EntityId
-         Timestamp = x.Timestamp
-         Data = { Balance = x.Balance }
-         CorrelationId = x.CorrelationId
+module UnlockCardCommand =
+   let create entityId (data: UnlockCardInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: UnlockCardCommand)
+      : ValidationResult<BankEvent<UnlockedCard>>
+      =
+      Ok
+      <| BankEvent.create<UnlockCardInput, UnlockedCard> cmd {
+         Reference = cmd.Data.Reference
+      }
+
+type MaintenanceFeeInput = { Amount: decimal }
+type MaintenanceFeeCommand = Command<MaintenanceFeeInput>
+
+module MaintenanceFeeCommand =
+   let create entityId =
+      Command.create entityId (guid ()) {
+         Amount = MaintenanceFee.RecurringDebitAmount
+      }
+
+   let toEvent
+      (cmd: MaintenanceFeeCommand)
+      : ValidationResult<BankEvent<MaintenanceFeeDebited>>
+      =
+      Ok
+      <| BankEvent.create<MaintenanceFeeInput, MaintenanceFeeDebited> cmd {
+         DebitedAmount = cmd.Data.Amount
+      }
+
+
+type SkipMaintenanceFeeInput = { Reason: MaintenanceFeeCriteria }
+type SkipMaintenanceFeeCommand = Command<SkipMaintenanceFeeInput>
+
+module SkipMaintenanceFeeCommand =
+   let create entityId (data: SkipMaintenanceFeeInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: SkipMaintenanceFeeCommand)
+      : ValidationResult<BankEvent<MaintenanceFeeSkipped>>
+      =
+      Ok
+      <| BankEvent.create<SkipMaintenanceFeeInput, MaintenanceFeeSkipped> cmd {
+         Reason = cmd.Data.Reason
+      }
+
+type CloseAccountInput = { Reference: string option }
+type CloseAccountCommand = Command<CloseAccountInput>
+
+module CloseAccountCommand =
+   let create entityId (data: CloseAccountInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: CloseAccountCommand)
+      : ValidationResult<BankEvent<AccountClosed>>
+      =
+      Ok
+      <| BankEvent.create<CloseAccountInput, AccountClosed> cmd {
+         Reference = cmd.Data.Reference
+      }
+
+type StartBillingCycleInput = { Balance: decimal }
+type StartBillingCycleCommand = Command<StartBillingCycleInput>
+
+module StartBillingCycleCommand =
+   let create entityId (data: StartBillingCycleInput) =
+      Command.create entityId (guid ()) data
+
+   let toEvent
+      (cmd: StartBillingCycleCommand)
+      : ValidationResult<BankEvent<BillingCycleStarted>>
+      =
+      Ok
+      <| BankEvent.create<StartBillingCycleInput, BillingCycleStarted> cmd {
+         Balance = cmd.Data.Balance
       }

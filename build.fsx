@@ -82,10 +82,27 @@ let buildImage (builder: ImageBuilder) fsprojPath =
       Shell.Exec(builder.Program, builder.GetArgs imageName dirName) |> ignore
 
 Target.create "Clean" (fun _ ->
-   let dirs = !! "**/bin/" ++ "**/obj/"
+   let dirs = !! "**/bin/" ++ "**/obj/" ++ "./UI/dist/" ++ "./UI/node_modules/"
    Trace.trace $"Cleaning directories: {dirs}"
    Shell.cleanDirs dirs
    Shell.rm $"{appEntryDir}/logs.json")
+
+Target.create "BuildUI" (fun _ ->
+   Shell.cd "./UI/"
+
+   let exitCode = Shell.Exec("npm", "install")
+
+   if exitCode <> 0 then
+      failwith "Error running npm install"
+
+   let exitCode = Shell.Exec("npm", "run build")
+
+   if exitCode <> 0 then
+      failwith "Error running npm build"
+
+   Shell.cd "../"
+
+   Shell.copyDir "./Web/wwwroot/" "./UI/dist" (fun _ -> true))
 
 Target.create "Publish" (fun o ->
    let paths = o.Context.Arguments
@@ -288,11 +305,11 @@ Target.create "DeployAzureStaging" (fun _ -> pulumiAzure envs.Staging)
 Target.create "DeployK8sStaging" (fun _ -> pulumiK8s envs.Staging)
 
 Target.create "DeployAllStaging" (fun _ ->
-   pulumiAzure (envs.Staging)
-   pulumiK8s (envs.Staging)
+   pulumiAzure envs.Staging
+   pulumiK8s envs.Staging
    Trace.trace "Finished deploying")
 
-"Clean" ==> "Publish"
+"Clean" ==> "BuildUI" ==> "Publish"
 
 "Publish" ==> "BuildDockerImages"
 

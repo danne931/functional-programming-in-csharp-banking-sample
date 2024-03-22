@@ -7,6 +7,5 @@ module SignalRInfra =
    let start (builder: WebApplicationBuilder) =
       builder.Services
          .AddSignalR()
-         .AddJsonProtocol(fun opts ->
-            Serialization.withInjectedOptions opts.PayloadSerializerOptions)
+         .AddHubOptions(fun opts -> opts.EnableDetailedErrors <- true)
       |> ignore

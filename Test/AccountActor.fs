@@ -7,7 +7,6 @@ open Akka.Actor
 open Akka.Persistence.Extras
 
 open Util
-open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -297,7 +296,7 @@ let tests =
 
          Expect.equal
             state.Value.Balance
-            (Stub.accountStateAfterCreate.Balance - transfer.Amount)
+            (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
          o.internalTransferProbe.ExpectMsg<InternalTransferMessage>() |> ignore
@@ -327,7 +326,7 @@ let tests =
 
          Expect.equal
             state.Value.Balance
-            (Stub.accountStateAfterCreate.Balance - transfer.Amount)
+            (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
          let msg = o.domesticTransferProbe.ExpectMsg<DomesticTransferMessage>()
@@ -356,7 +355,8 @@ let tests =
 
          let expectedState = {
             Stub.accountStateAfterCreate with
-               Balance = Stub.accountStateAfterCreate.Balance + deposit.Amount
+               Balance =
+                  Stub.accountStateAfterCreate.Balance + deposit.Data.Amount
          }
 
          let state = tck.ExpectMsg<Option<AccountState>>()
@@ -398,7 +398,9 @@ let tests =
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
          let msg =
-            StartBillingCycleCommand(initAccount.EntityId, initAccount.Balance)
+            StartBillingCycleCommand.create initAccount.EntityId {
+               Balance = initAccount.Balance
+            }
             |> AccountCommand.StartBillingCycle
             |> AccountMessage.StateChange
 
@@ -406,13 +408,6 @@ let tests =
 
          let (RegisterBillingStatement statement) =
             o.billingProbe.ExpectMsg<BillingStatementMessage>()
-
-         Expect.sequenceEqual
-            (statement.Transactions |> List.map _.Name)
-            ("DebitedAccount"
-             :: (Stub.billingTransactions |> List.map _.Name |> List.rev))
-            "RegisterBillingStatements msg should send transactions equivalent
-             to those associated with the account events"
 
          Expect.equal
             statement.Balance
@@ -423,6 +418,13 @@ let tests =
             statement.AccountId
             initAccount.EntityId
             "Billing statement AccountId should = account EntityId"
+
+         Expect.sequenceEqual
+            (statement.Transactions |> List.map _.Name)
+            ("DebitedAccount"
+             :: (Stub.billingTransactions |> List.map _.Name |> List.rev))
+            "RegisterBillingStatements msg should send transactions equivalent
+             to those associated with the account events"
 
          // account create email
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
@@ -465,7 +467,9 @@ let tests =
          let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
 
          let msg =
-            StartBillingCycleCommand(initAccount.EntityId, initAccount.Balance)
+            StartBillingCycleCommand.create initAccount.EntityId {
+               Balance = initAccount.Balance
+            }
             |> AccountCommand.StartBillingCycle
             |> AccountMessage.StateChange
 

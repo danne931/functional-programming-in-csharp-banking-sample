@@ -10,6 +10,7 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 
 open Lib.ActivePatterns
+open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
@@ -67,13 +68,28 @@ let handleTransfer
    task {
       let! result = requestTransfer action txn
 
+      // Intermittent Error:
+      // Reprocess transfer request later.
+      // Ignore intermittent progress check error since we
+      // receive those on a recurring basis.
+      let reprocessLater (errMsg: string) =
+         match action with
+         | TransferServiceAction.TransferRequest ->
+            mailbox.Schedule
+            <| TimeSpan.FromSeconds 15.
+            <| mailbox.Self
+            <| DomesticTransferMessage.TransferRequest(action, txn)
+            |> ignore
+         | _ -> ()
+
+         failwith errMsg // Side Effect: Trip circuit breaker
+
       return
          match result with
          | Ok res -> TransferResponse(res, action, txn)
-         | Error errMsg ->
-            match errMsg with
-            | Contains "Serialization"
-            | Contains "Deserialization" ->
+         | Error err ->
+            match err with
+            | Err.SerializationError errMsg ->
                let errMsg = $"Corrupt data: {errMsg}"
                logError mailbox errMsg
 
@@ -87,22 +103,8 @@ let handleTransfer
                }
 
                TransferResponse(res, action, txn)
-            | Contains "Connection"
-            | _ ->
-               // Intermittent Error:
-               // Reprocess transfer request later.
-               // Ignore intermittent progress check error since we
-               // receive those on a recurring basis.
-               match action with
-               | TransferServiceAction.TransferRequest ->
-                  mailbox.Schedule
-                  <| TimeSpan.FromSeconds 15.
-                  <| mailbox.Self
-                  <| DomesticTransferMessage.TransferRequest(action, txn)
-                  |> ignore
-               | _ -> ()
-
-               failwith errMsg // Side Effect: Trip circuit breaker
+            | Err.NetworkError err -> reprocessLater err.Message
+            | err -> reprocessLater (string err)
    }
 
 let actorProps

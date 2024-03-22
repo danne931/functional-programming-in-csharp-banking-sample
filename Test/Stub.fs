@@ -3,7 +3,7 @@ module Stub
 
 open System
 
-open Lib.Types
+open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
@@ -33,116 +33,106 @@ let domesticRecipient = {
 
 let command = {|
    createAccount =
-      CreateAccountCommand(
-         entityId,
-         email = "smallfish@gmail.com",
-         balance = 2000m,
-         firstName = "small",
-         lastName = "fish",
-         currency = Currency.VND,
-         correlationId = correlationId
-      )
-   closeAccount = CloseAccountCommand(entityId, reference = "")
+      CreateAccountCommand.create entityId {
+         Email = "smallfish@gmail.com"
+         Balance = 2000m
+         FirstName = "small"
+         LastName = "fish"
+         Currency = Currency.VND
+      }
+   closeAccount = CloseAccountCommand.create entityId { Reference = None }
    debit =
       fun amount ->
-         DebitCommand(
-            entityId,
-            DateTime.UtcNow,
-            amount,
-            origin = "Groceries",
-            reference = "",
-            correlationId = correlationId
-         )
+         DebitCommand.create entityId {
+            Date = DateTime.UtcNow
+            Amount = amount
+            Origin = "Groceries"
+            Reference = None
+         }
    debitWithDate =
       fun amount date ->
-         DebitCommand(
-            entityId,
-            date,
-            amount,
-            origin = "Groceries",
-            reference = "",
-            correlationId = correlationId
-         )
+         DebitCommand.create entityId {
+            Date = date
+            Amount = amount
+            Origin = "Groceries"
+            Reference = None
+         }
    depositCash =
       fun amount ->
-         DepositCashCommand(
-            entityId,
-            DateTime.UtcNow,
-            amount,
-            "",
-            correlationId
-         )
+         DepositCashCommand.create entityId {
+            Date = DateTime.UtcNow
+            Amount = amount
+            Origin = None
+         }
    limitDailyDebits =
-      fun amount -> LimitDailyDebitsCommand(entityId, amount, correlationId)
+      fun amount ->
+         LimitDailyDebitsCommand.create entityId { DebitLimit = amount }
    registerInternalRecipient =
-      RegisterTransferRecipientCommand(
-         entityId,
-         internalRecipient,
-         correlationId
-      )
+      RegisterTransferRecipientCommand.create entityId {
+         Recipient = internalRecipient
+      }
    registerDomesticRecipient =
-      RegisterTransferRecipientCommand(
-         entityId,
-         domesticRecipient,
-         correlationId
-      )
+      RegisterTransferRecipientCommand.create entityId {
+         Recipient = domesticRecipient
+      }
    domesticTransfer =
       fun amount ->
-         TransferCommand(
-            entityId,
-            correlationId,
-            recipient = domesticRecipient,
-            date = DateTime.UtcNow,
-            amount = amount,
-            reference = ""
-         )
+         let transferCmd =
+            TransferCommand.create entityId {
+               Recipient = domesticRecipient
+               Date = DateTime.UtcNow
+               Amount = amount
+               Reference = None
+            }
+
+         {
+            transferCmd with
+               CorrelationId = correlationId
+         }
    internalTransfer =
       fun amount ->
-         TransferCommand(
-            entityId,
-            correlationId,
-            recipient = internalRecipient,
-            date = DateTime.UtcNow,
-            amount = amount,
-            reference = ""
-         )
+         let transferCmd =
+            TransferCommand.create entityId {
+               Recipient = internalRecipient
+               Date = DateTime.UtcNow
+               Amount = amount
+               Reference = None
+            }
+
+         {
+            transferCmd with
+               CorrelationId = correlationId
+         }
    approveTransfer =
-      ApproveTransferCommand(
-         entityId,
-         correlationId,
-         recipient = internalRecipient,
-         date = DateTime.UtcNow,
-         amount = 33m
-      )
+      ApproveTransferCommand.create entityId correlationId {
+         Recipient = internalRecipient
+         Date = DateTime.UtcNow
+         Amount = 33m
+      }
    rejectTransfer =
       fun amount ->
-         RejectTransferCommand(
-            entityId,
-            correlationId,
-            recipient = internalRecipient,
-            date = DateTime.UtcNow,
-            amount = amount,
-            reason = TransferDeclinedReason.AccountClosed
-         )
+         RejectTransferCommand.create entityId correlationId {
+            Recipient = internalRecipient
+            Date = DateTime.UtcNow
+            Amount = amount
+            Reason = TransferDeclinedReason.AccountClosed
+         }
    depositTransfer =
       fun amount ->
-         DepositTransferCommand(
-            entityId,
-            amount,
-            origin = "Account (9289)",
-            correlationId = correlationId
-         )
-   lockCard = LockCardCommand(entityId, "", correlationId)
-   unlockCard = UnlockCardCommand(entityId, "", correlationId)
-   maintenanceFee = MaintenanceFeeCommand(entityId)
+         DepositTransferCommand.create entityId correlationId {
+            Amount = amount
+            Origin = "Account (9289)"
+         }
+   lockCard = LockCardCommand.create entityId { Reference = None }
+   unlockCard = UnlockCardCommand.create entityId { Reference = None }
+   maintenanceFee = MaintenanceFeeCommand.create entityId
    skipMaintenanceFee =
-      SkipMaintenanceFeeCommand(
-         entityId,
-         {
+      SkipMaintenanceFeeCommand.create entityId {
+         Reason = {
             DailyBalanceThreshold = true
             QualifyingDepositFound = false
          }
-      )
+      }
 |}
 
 type EventIndex = {
@@ -157,20 +147,46 @@ type EventIndex = {
 }
 
 let event: EventIndex = {
-   createdAccount = Result.toValueOption(command.createAccount.toEvent ()).Value
+   createdAccount =
+      Result
+         .toValueOption(CreateAccountCommand.toEvent command.createAccount)
+         .Value
    depositedCash =
-      Result.toValueOption(command.depositCash(150m).toEvent ()).Value
-   debitedAccount = Result.toValueOption(command.debit(150m).toEvent ()).Value
+      Result
+         .toValueOption(
+            DepositCashCommand.toEvent <| command.depositCash (150m)
+         )
+         .Value
+   debitedAccount =
+      Result.toValueOption(DebitCommand.toEvent <| command.debit (150m)).Value
    maintenanceFeeDebited =
-      Result.toValueOption(command.maintenanceFee.toEvent ()).Value
+      Result
+         .toValueOption(MaintenanceFeeCommand.toEvent <| command.maintenanceFee)
+         .Value
    internalTransferPending =
-      Result.toValueOption(command.internalTransfer(20m).toEvent ()).Value
+      Result
+         .toValueOption(
+            TransferCommand.toEvent <| command.internalTransfer (20m)
+         )
+         .Value
    domesticTransferPending =
-      Result.toValueOption(command.domesticTransfer(20m).toEvent ()).Value
+      Result
+         .toValueOption(
+            TransferCommand.toEvent <| command.domesticTransfer (20m)
+         )
+         .Value
    transferRejected =
-      Result.toValueOption(command.rejectTransfer(20m).toEvent ()).Value
+      Result
+         .toValueOption(
+            RejectTransferCommand.toEvent <| command.rejectTransfer (20m)
+         )
+         .Value
    transferDeposited =
-      Result.toValueOption(command.depositTransfer(100m).toEvent ()).Value
+      Result
+         .toValueOption(
+            DepositTransferCommand.toEvent <| command.depositTransfer (100m)
+         )
+         .Value
 }
 
 let commands: AccountCommand list = [
@@ -204,12 +220,12 @@ let accountState = {
 let accountStateAfterCreate = {
    AccountState.empty with
       EntityId = command.createAccount.EntityId
-      Email = Email.deserialize command.createAccount.Email
-      FirstName = command.createAccount.FirstName
-      LastName = command.createAccount.LastName
+      Email = Email.deserialize command.createAccount.Data.Email
+      FirstName = command.createAccount.Data.FirstName
+      LastName = command.createAccount.Data.LastName
       Status = AccountStatus.Active
-      Balance = command.createAccount.Balance
-      Currency = command.createAccount.Currency
+      Balance = command.createAccount.Data.Balance
+      Currency = command.createAccount.Data.Currency
       MaintenanceFeeCriteria = {
          QualifyingDepositFound = false
          DailyBalanceThreshold = true

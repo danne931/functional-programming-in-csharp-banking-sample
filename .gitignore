@@ -1,5 +1,8 @@
 **/*bin
 **/*obj
+UI/dist
+UI/node_modules
+Web/wwwroot
 Web/logs.json
 Web/snapshots/*
 Account.Service/ddata-*

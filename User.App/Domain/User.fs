@@ -3,7 +3,7 @@ module User
 open System
 open System.Threading.Tasks
 
-open Lib.Types
+open Lib.SharedTypes
 
 type User = {
    FirstName: string

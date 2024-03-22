@@ -4,10 +4,24 @@ module Env
 open Microsoft.AspNetCore.Builder
 open System
 open System.Net
+open System.IO
 open FsConfig
 open Lib.Types
 
-let builder = WebApplication.CreateBuilder()
+// Serve static files out of the UI/dist directory during development.
+// This dist directory is copied over to the default Web/wwwroot
+// location during builds.  See BuildUI task in build.fsx.
+let builder =
+#if DEBUG
+   WebApplication.CreateBuilder(
+      WebApplicationOptions(
+         WebRootPath =
+            Path.Combine(Environment.CurrentDirectory, "..", "UI/dist")
+      )
+   )
+#else
+   WebApplication.CreateBuilder()
+#endif
 
 let isDev = builder.Environment.EnvironmentName = "Development"
 let isStaging = builder.Environment.EnvironmentName = "Staging"

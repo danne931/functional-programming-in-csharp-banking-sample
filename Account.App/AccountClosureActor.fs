@@ -11,6 +11,7 @@ open Akka.Streams
 open Akkling.Streams
 open FsToolkit.ErrorHandling
 
+open Lib.SharedTypes
 open Lib.Types
 open ActorUtil
 open Bank.AccountClosure.Api
@@ -66,12 +67,10 @@ let actorProps
                // TransferRecipients Map.
                for sender in account.InternalTransferSenders.Values do
                   let msg =
-                     DeactivateInternalRecipientCommand(
-                        sender.AccountId,
-                        account.EntityId,
-                        account.Name,
-                        Guid.NewGuid()
-                     )
+                     DeactivateInternalRecipientCommand.create sender.AccountId {
+                        RecipientId = account.EntityId
+                        RecipientName = account.Name
+                     }
                      |> AccountCommand.DeactivateInternalRecipient
                      |> AccountMessage.StateChange
 

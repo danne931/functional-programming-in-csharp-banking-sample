@@ -7,6 +7,7 @@ open Akkling
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Lib.SharedTypes
 
 let actorProps
    (getAccountRef: EntityRefGetter<AccountMessage>)
@@ -29,12 +30,10 @@ let actorProps
             logWarning $"Transfer recipient not found {recipientId}"
 
             let msg =
-               DeactivateInternalRecipientCommand(
-                  sender.AccountId,
-                  recipientId,
-                  recipient.Name,
-                  Guid.NewGuid()
-               )
+               DeactivateInternalRecipientCommand.create sender.AccountId {
+                  RecipientName = recipient.Name
+                  RecipientId = recipientId
+               }
                |> AccountCommand.DeactivateInternalRecipient
                |> AccountMessage.StateChange
 
@@ -44,23 +43,19 @@ let actorProps
                logWarning $"Transfer recipient account closed"
 
                let msg =
-                  DeactivateInternalRecipientCommand(
-                     sender.AccountId,
-                     recipientId,
-                     recipient.Name,
-                     Guid.NewGuid()
-                  )
+                  DeactivateInternalRecipientCommand.create sender.AccountId {
+                     RecipientId = recipientId
+                     RecipientName = recipient.Name
+                  }
                   |> AccountCommand.DeactivateInternalRecipient
                   |> AccountMessage.StateChange
 
                senderAccountRef <! msg
             else
                let msg =
-                  RegisterInternalSenderCommand(
-                     recipientId,
-                     sender,
-                     Guid.NewGuid()
-                  )
+                  RegisterInternalSenderCommand.create recipientId {
+                     Sender = sender
+                  }
                   |> AccountCommand.RegisterInternalSender
                   |> AccountMessage.StateChange
 
@@ -109,14 +104,13 @@ let actorProps
 
                let origin = string txn.SenderAccountId
 
+               // CorrelationId (here as txn.TransactionId) from sender
+               // transfer request traced to receiver's deposit.
                let msg =
-                  DepositTransferCommand(
-                     recipientId,
-                     txn.Amount,
-                     $"Account ({origin.Substring(origin.Length - 4)})",
-                     // CorrelationId from sender transfer request traced to receiver's deposit.
-                     txn.TransactionId
-                  )
+                  DepositTransferCommand.create recipientId txn.TransactionId {
+                     Amount = txn.Amount
+                     Origin = $"Account ({origin.Substring(origin.Length - 4)})"
+                  }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange
 

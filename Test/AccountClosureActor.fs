@@ -8,7 +8,7 @@ open Akkling.Cluster.Sharding
 open FsToolkit.ErrorHandling
 
 open Util
-open Lib.Types
+open Lib.SharedTypes
 open ActorUtil
 open Bank.Account.Domain
 

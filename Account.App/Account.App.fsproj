@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Database/Database.fsproj" />
     <ProjectReference Include="../Scheduler.App/Scheduler.App.fsproj" />
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../Transfer.App/Transfer.App.fsproj" />

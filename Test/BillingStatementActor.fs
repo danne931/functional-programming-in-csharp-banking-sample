@@ -9,7 +9,7 @@ module ATK = Akkling.TestKit
 
 open BillingStatement
 open Util
-open Lib.Types
+open Lib.SharedTypes
 open Lib.BulkWriteStreamFlow
 
 // Change default test scheduler so BulkWriteStreamFlow used in
