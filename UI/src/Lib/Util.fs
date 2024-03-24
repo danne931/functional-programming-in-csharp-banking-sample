@@ -6,7 +6,8 @@ open Feliz
 
 module time =
    let formatDate (date: DateTime) =
-      $"{date.ToLongDateString()} {date.ToShortTimeString()}"
+      let dayAndMonth = date.ToLongDateString().Split(string date.Year)[0]
+      $"{dayAndMonth} {date.ToShortTimeString()}"
 
 /// TLDR: This node has class.
 /// Utility to create a node with classes and child nodes.

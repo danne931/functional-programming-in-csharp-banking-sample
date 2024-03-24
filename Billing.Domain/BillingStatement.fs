@@ -1,19 +1,26 @@
 module BillingStatement
 
 open System
-open System.Text.Json
 open System.Threading.Tasks
 
 open Lib.SharedTypes
 open Bank.Account.Domain
 
-type BillingTransaction = {
-   EventId: Guid
-   Name: string
-   Amount: decimal
-   Date: DateTime
-   Info: string
-}
+type BillingTransaction = private BillingTransaction of AccountEvent
+
+module BillingTransaction =
+   let create (evt: AccountEvent) : BillingTransaction option =
+      match evt with
+      | CreatedAccount _
+      | DepositedCash _
+      | DebitedAccount _
+      | MaintenanceFeeDebited _
+      | TransferPending _
+      | TransferRejected _
+      | TransferDeposited _ -> Some(BillingTransaction evt)
+      | _ -> None
+
+   let value (BillingTransaction evt) = evt
 
 type BillingStatement = {
    Transactions: BillingTransaction list
@@ -38,70 +45,10 @@ type BillingStatementMessage =
    | RegisterBillingStatement of BillingStatement
    | GetFailedWrites
 
-let eventToBillingTransaction (evt: AccountEvent) : BillingTransaction option =
-   match evt with
-   | CreatedAccount e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.Balance
-         Date = e.Timestamp
-         Info = ""
-      }
-   | DepositedCash e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DepositedAmount
-         Date = e.Timestamp
-         Info = e.Data.Origin
-      }
-   | DebitedAccount e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info = e.Data.Origin
-      }
-   | MaintenanceFeeDebited e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info = ""
-      }
-   | TransferPending e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = -e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info =
-            $"Recipient: {e.Data.Recipient.FirstName} {e.Data.Recipient.LastName}"
-      }
-   | TransferRejected e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DebitedAmount
-         Date = e.Timestamp
-         Info =
-            $"Recipient: {e.Data.Recipient.FirstName} {e.Data.Recipient.LastName} - Reason: {e.Data.Reason}"
-      }
-   | TransferDeposited e ->
-      Some {
-         EventId = e.EntityId
-         Name = e.EventName
-         Amount = e.Data.DepositedAmount
-         Info = $"Received from: {e.Data.Origin}"
-         Date = e.Timestamp
-      }
-   | _ -> None
+let billingTransactions = List.choose BillingTransaction.create
 
-let billingTransactions (account: AccountState) =
-   account.Events |> List.choose eventToBillingTransaction
+#if !FABLE_COMPILER
+open System.Text.Json
 
 let billingStatement
    (account: AccountState)
@@ -109,7 +56,7 @@ let billingStatement
    : BillingStatement
    =
    {
-      Transactions = billingTransactions account
+      Transactions = billingTransactions account.Events
       Month = DateTime.Today.Month
       Year = DateTime.Today.Year
       Balance = account.Balance
@@ -122,3 +69,4 @@ let billingStatement
             Serialization.jsonOptions
          )
    }
+#endif

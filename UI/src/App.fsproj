@@ -35,6 +35,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Elmish.SweetAlert" />
+    <PackageReference Include="Fable.FontAwesome" />
+    <PackageReference Include="Fable.FontAwesome.Free" />
     <PackageReference Include="Fable.Form.Simple" />
     <PackageReference Include="Fable.SimpleHttp" />
     <PackageReference Include="Feliz" />
@@ -49,6 +51,7 @@
   <ItemGroup>
      <ProjectReference Include="../../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" />
      <ProjectReference Include="../../Transfer.Domain/Transfer.Domain.fsproj" />
+     <ProjectReference Include="../../Billing.Domain/Billing.Domain.fsproj" />
      <ProjectReference Include="../../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
 

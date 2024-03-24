@@ -134,7 +134,7 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
         }
       | TransferPending evt -> {
          props with
-            Name = "Pending Transfer"
+            Name = "Transfer Request"
             Info = Some $"Recipient: {evt.Data.Recipient.Name}"
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.Out
@@ -149,13 +149,13 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
         }
       | TransferApproved evt -> {
          props with
-            Name = "Approved Transfer"
+            Name = "Transfer Approved"
             Info = Some $"Recipient: {evt.Data.Recipient.Name}"
             AmountNaked = Some evt.Data.DebitedAmount
         }
       | TransferRejected evt -> {
          props with
-            Name = "Rejected Transfer"
+            Name = "Transfer Rejected"
             Info =
                Some
                   $"Recipient: {evt.Data.Recipient.Name} - Reason {evt.Data.Reason} - Acount refunded"

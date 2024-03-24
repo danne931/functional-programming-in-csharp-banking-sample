@@ -223,9 +223,10 @@ let update msg state =
 
 let renderAccountTransactions state =
    Html.section [
-      Html.h5 "Account Transactions"
+      Html.h5 "Transactions"
 
       Html.progress [
+         attr.style [ style.marginBottom 5 ]
          attr.custom ("data-transactions-loader", "")
 
          if Deferred.resolved state.Accounts then

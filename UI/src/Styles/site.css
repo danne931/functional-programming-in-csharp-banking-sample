@@ -132,6 +132,15 @@ footer p {
   background-color: var(--del-color);
 }
 
+.transaction-table-control-panel {
+  padding: 1rem;
+}
+.transaction-table-control-panel a {
+  float: right;
+  padding: 0 .4rem 0 .4rem;
+} 
+
+
 main {
   padding: var(--block-spacing-vertical) 0;
 }

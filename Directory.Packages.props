@@ -24,6 +24,8 @@
     <PackageVersion Include="Akkling.Persistence" Version="0.14.0" />
     <PackageVersion Include="Akkling.TestKit" Version="0.14.0" />
     <PackageVersion Include="Elmish.SweetAlert" Version="3.4.0" />
+    <PackageVersion Include="Fable.FontAwesome" Version="3.0.0" />
+    <PackageVersion Include="Fable.FontAwesome.Free" Version="3.0.0" />
     <PackageVersion Include="Fable.Form.Simple" Version="4.1.0" />
     <PackageVersion Include="Fable.SimpleHttp" Version="3.6.0" />
     <PackageVersion Include="FsConfig" Version="4.1.0" />
