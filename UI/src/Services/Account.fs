@@ -7,6 +7,7 @@ open FsToolkit.ErrorHandling
 
 open Bank.Account.UIDomain
 open Bank.Account.Domain
+open BillingStatement
 open Lib.SharedTypes
 open RoutePaths
 
@@ -78,6 +79,26 @@ let getAccount (id: Guid) : Async<AccountMaybe> = async {
          |> Serialization.deserialize<AccountState>
          |> Result.map Some
 }
+
+let getPaginatedTransactions
+   (accountId: Guid)
+   (offset: int)
+   : Async<BillingTransactionsMaybe>
+   =
+   async {
+      let! (code, responseText) =
+         Http.get (AccountPath.billingStatement accountId offset)
+
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
+         return Error <| Err.InvalidStatusCodeError("AccountService", code)
+      else
+         return
+            responseText
+            |> Serialization.deserialize<BillingTransaction list>
+            |> Result.map Some
+   }
 
 let submitCommand
    (account: AccountState)

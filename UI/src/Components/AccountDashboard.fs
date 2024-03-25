@@ -221,23 +221,6 @@ let update msg state =
       },
       Cmd.none
 
-let renderAccountTransactions state =
-   Html.section [
-      Html.h5 "Transactions"
-
-      Html.progress [
-         attr.style [ style.marginBottom 5 ]
-         attr.custom ("data-transactions-loader", "")
-
-         if Deferred.resolved state.Accounts then
-            attr.value 100
-      ]
-
-      match selectedAccount state with
-      | None -> ()
-      | Some account -> TransactionTable.TransactionTableComponent account
-   ]
-
 let renderAccountActions state =
    let selectedAccountAndPotentialTransferRecipients
       : (AccountState * PotentialInternalTransferRecipients) option =
@@ -253,18 +236,14 @@ let renderAccountActions state =
          (Url.accountIdMaybe state.CurrentUrl)
       |> Option.flatten
 
-   Html.aside [
-      Html.h5 "Actions"
-
-      Html.article [
-         match selectedAccountAndPotentialTransferRecipients with
-         | None -> ()
-         | Some(account, potentialTransferRecipients) ->
-            AccountActionsComponent
-               account
-               potentialTransferRecipients
-               (Url.accountFormMaybe state.CurrentUrl)
-      ]
+   Html.article [
+      match selectedAccountAndPotentialTransferRecipients with
+      | None -> ()
+      | Some(account, potentialTransferRecipients) ->
+         AccountActionsComponent
+            account
+            potentialTransferRecipients
+            (Url.accountFormMaybe state.CurrentUrl)
    ]
 
 [<ReactComponent>]
@@ -304,9 +283,13 @@ let AccountDashboardComponent (url: Url) =
 
       classyNode Html.main [ "container-fluid" ] [
          classyNode Html.div [ "grid" ] [
-            renderAccountTransactions state
+            Html.section [
+               Html.h5 "Transactions"
+               TransactionTable.TransactionTableComponent(selectedAccount state)
+            ]
 
-            renderAccountActions state
+
+            Html.aside [ Html.h5 "Actions"; renderAccountActions state ]
          ]
       ]
 

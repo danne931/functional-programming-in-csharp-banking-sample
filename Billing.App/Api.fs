@@ -1,34 +1,68 @@
 module Bank.BillingCycle.Api
 
 open System
+open Lib.SharedTypes
+open FsToolkit.ErrorHandling
 
 open Lib.Postgres
 open BillingStatement
 
+module BillingSqlReader =
+   let transactions (read: RowReader) =
+      read.text "transactions"
+      |> Serialization.deserializeUnsafe<BillingTransaction list>
+
+   let month (read: RowReader) = read.int "month"
+   let year (read: RowReader) = read.int "year"
+
+   let balance (read: RowReader) = read.decimal "balance"
+
+   let name (read: RowReader) = read.text "name"
+
+   let accountId (read: RowReader) = read.uuid "account_id"
+
+   let lastPersistedEventSequenceNumber (read: RowReader) =
+      read.int64 "last_persisted_event_sequence_number"
+
+   let accountSnapshot (read: RowReader) = read.bytea "account_snapshot"
+
+module BillingSqlWriter =
+   let transactions (txns: BillingTransaction list) =
+      txns |> Serialization.serialize |> Sql.jsonb
+
+   let month = Sql.int
+   let year = Sql.int
+   let balance = Sql.money
+   let name = Sql.text
+   let accountId = Sql.uuid
+   let lastPersistedEventSequenceNumber = Sql.int64
+   let accountSnapshot = Sql.bytea
+
 let getBillingStatement () =
    pgQuery<BillingStatement> "SELECT * FROM billingstatements" None
    <| fun (read: RowReader) -> {
-      Transactions = read.fieldValue<BillingTransaction list> "transactions"
-      Month = read.int "month"
-      Year = read.int "year"
-      Balance = read.decimal "balance"
-      Name = read.text "name"
-      AccountId = read.uuid "account_id"
+      Transactions = BillingSqlReader.transactions read
+      Month = BillingSqlReader.month read
+      Year = BillingSqlReader.year read
+      Balance = BillingSqlReader.balance read
+      Name = BillingSqlReader.name read
+      AccountId = BillingSqlReader.accountId read
       LastPersistedEventSequenceNumber =
-         read.int64 "last_persisted_event_sequence_number"
-      AccountSnapshot = read.bytea "account_snapshot"
+         BillingSqlReader.lastPersistedEventSequenceNumber read
+      AccountSnapshot = BillingSqlReader.accountSnapshot read
    }
 
 let private billingStatementSqlParams (bill: BillingStatement) = [
-   "@transactions", Sql.jsonb <| Serialization.serialize bill.Transactions
-   "@month", Sql.int bill.Month
-   "@year", Sql.int bill.Year
-   "@balance", Sql.money bill.Balance
-   "@name", Sql.text bill.Name
-   "@accountId", Sql.uuid bill.AccountId
+   "@transactions", BillingSqlWriter.transactions bill.Transactions
+   "@month", BillingSqlWriter.month bill.Month
+   "@year", BillingSqlWriter.year bill.Year
+   "@balance", BillingSqlWriter.balance bill.Balance
+   "@name", BillingSqlWriter.name bill.Name
+   "@accountId", BillingSqlWriter.accountId bill.AccountId
    "@lastPersistedEventSequenceNumber",
-   Sql.int64 bill.LastPersistedEventSequenceNumber
-   "@accountSnapshot", Sql.bytea bill.AccountSnapshot
+   BillingSqlWriter.lastPersistedEventSequenceNumber
+      bill.LastPersistedEventSequenceNumber
+   "@accountSnapshot", BillingSqlWriter.accountSnapshot bill.AccountSnapshot
 ]
 
 let private eventJournalSqlParams (bill: BillingStatement) = [
@@ -119,3 +153,34 @@ let saveBillingStatements (statements: BillingStatement list) =
       """,
       sqlParams.SnapshotStore
    ]
+
+/// Get AccountEvents for a past billing cycle.
+// Current account events are sourced from the account read model
+// and are displayed in the Transaction Table component.
+// If the user paginates for past transactions then the
+// the account events are sourced instead from historical billing
+// statement records as provided by this function.
+let getPaginatedTransactions
+   (accountId: Guid)
+   (offset: int)
+   : TaskResultOption<BillingTransaction list, Err>
+   =
+   taskResultOption {
+      let! res =
+         pgQuery<BillingTransaction list>
+            """
+            SELECT transactions
+            FROM billingstatements
+            WHERE account_id = @accountId
+            ORDER BY created_at DESC
+            LIMIT 1
+            OFFSET @offset
+            """
+            (Some [
+               "@accountId", BillingSqlWriter.accountId accountId
+               "@offset", Sql.int offset
+            ])
+            BillingSqlReader.transactions
+
+      return res.Head
+   }

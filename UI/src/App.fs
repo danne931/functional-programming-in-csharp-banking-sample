@@ -27,7 +27,7 @@ let parseUrl (segments: string list) =
 
 [<ReactComponent>]
 let App () =
-   let currentUrl, updateUrl = React.useState (parseUrl <| Router.currentUrl ())
+   let currentUrl, setUrl = React.useState (parseUrl <| Router.currentUrl ())
 
    let activePage =
       match currentUrl with
@@ -40,7 +40,7 @@ let App () =
 
    Html.div [
       React.router [
-         router.onUrlChanged (parseUrl >> updateUrl)
+         router.onUrlChanged (parseUrl >> setUrl)
          router.children [ activePage ]
       ]
    ]

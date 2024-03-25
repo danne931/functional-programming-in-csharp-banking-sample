@@ -8,6 +8,7 @@ open Akka.Actor
 
 open Bank.Account.Domain
 open Bank.Account.Api
+open Bank.BillingCycle.Api
 open RoutePaths
 
 let startAccountRoutes (app: WebApplication) =
@@ -21,6 +22,14 @@ let startAccountRoutes (app: WebApplication) =
       AccountPath.Account,
       Func<Guid, Task<IResult>>(fun id ->
          getAccount id |> RouteUtil.unwrapTaskResultOption)
+   )
+   |> ignore
+
+   app.MapGet(
+      AccountPath.BillingStatement,
+      Func<Guid, int, Task<IResult>>(fun accountId offset ->
+         getPaginatedTransactions accountId offset
+         |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 

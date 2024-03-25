@@ -4,10 +4,12 @@ open System
 
 open AsyncUtil
 open Bank.Account.Domain
+open BillingStatement
 open Lib.SharedTypes
 
 type AccountsMaybe = Result<Map<Guid, AccountState> option, Err>
 type AccountMaybe = Result<AccountState option, Err>
+type BillingTransactionsMaybe = Result<BillingTransaction list option, Err>
 
 type AccountTransform = AccountState -> AccountState
 

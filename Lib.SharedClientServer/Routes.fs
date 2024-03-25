@@ -13,6 +13,11 @@ module AccountPath =
    let UnlockCard = Base + "/unlock"
    let CloseAccount = Base + "/close-account"
 
+   let billingStatement (accountId: Guid) (offset: int) =
+      $"{Base}/billing-statement/{accountId}/{offset}"
+
+   let BillingStatement = Base + "/billing-statement/{accountId}/{offset}"
+
 module DiagnosticPath =
    let Base = "/diagnostic"
    let Account = Base + "/account/{id}"
