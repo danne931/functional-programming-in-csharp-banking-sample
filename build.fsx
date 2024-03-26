@@ -107,40 +107,48 @@ Target.create "BuildUI" (fun _ ->
 Target.create "Publish" (fun o ->
    let paths = o.Context.Arguments
 
-   if paths.IsEmpty then
-      Seq.iter publishProject projects
-   else
-      List.iter publishProject paths)
+   let sources =
+      if paths.IsEmpty then
+         Seq.toArray projects
+      else
+         List.toArray paths
+
+   Array.Parallel.iter publishProject sources)
 
 Target.create "BuildDockerImages" (fun o ->
    let paths = o.Context.Arguments
 
-   if paths.IsEmpty then
-      Seq.iter (buildImage imageBuilders.docker) projects
-   else
-      List.iter (buildImage imageBuilders.docker) paths)
+   let sources =
+      if paths.IsEmpty then
+         Seq.toArray projects
+      else
+         List.toArray paths
+
+   Array.Parallel.iter (buildImage imageBuilders.docker) sources)
 
 // NOTE: Pushes app images to public docker hub repos.
 //       Currently pulling public app images into Azure Staging environment.
 // TODO: Research Azure Container Registry & versioning docker images.
+let pushImageToDockerHub (image: string) =
+   let tag = $"danne931/akka-dotnet-bank-{image}"
+   Trace.trace $"Uploading {tag} to public docker hub"
+
+   let exitCode = Shell.Exec("docker", $"tag {image} {tag}")
+
+   if exitCode <> 0 then
+      Trace.traceError $"Error creating docker tag {tag}"
+
+   let exitCode = Shell.Exec("docker", $"push {tag}")
+
+   if exitCode <> 0 then
+      Trace.traceError $"Error uploading {tag} to public docker hub"
+
 Target.create "DockerHubPublic" (fun _ ->
-   for project in projects do
-      let imageOpt = dockerImageNameFromProject project
-
-      if imageOpt.IsSome then
-         let image = imageOpt.Value
-         let tag = $"danne931/akka-dotnet-bank-{image}"
-         Trace.trace $"Uploading {tag} to public docker hub"
-
-         let exitCode = Shell.Exec("docker", $"tag {image} {tag}")
-
-         if exitCode <> 0 then
-            Trace.traceError $"Error creating docker tag {tag}"
-
-         let exitCode = Shell.Exec("docker", $"push {tag}")
-
-         if exitCode <> 0 then
-            Trace.traceError $"Error uploading {tag} to public docker hub")
+   projects
+   |> Seq.toArray
+   |> Array.Parallel.iter (
+      dockerImageNameFromProject >> Option.iter pushImageToDockerHub
+   ))
 
 Target.create "RunDockerApp" (fun _ ->
    Shell.Exec("docker", "compose up") |> ignore)
@@ -158,10 +166,13 @@ Target.create "StartK8s" (fun _ ->
 Target.create "BuildDockerImagesForK8s" (fun o ->
    let paths = o.Context.Arguments
 
-   if paths.IsEmpty then
-      Seq.iter (buildImage imageBuilders.minikube) projects
-   else
-      List.iter (buildImage imageBuilders.minikube) paths)
+   let sources =
+      if paths.IsEmpty then
+         Seq.toArray projects
+      else
+         List.toArray paths
+
+   Array.Parallel.iter (buildImage imageBuilders.minikube) sources)
 
 Target.create "VerifyPulumiLogin" (fun _ ->
    if Shell.Exec("pulumi", "whoami") <> 0 then
@@ -261,10 +272,7 @@ let pulumiK8s (env: Env) =
    let org = whoAmI.Result.Output |> String.removeLineBreaks
    let qualified = $"{org}/{env.Pulumi}"
 
-   let envCreateResult = Shell.Exec("pulumi", $"env init {qualified}")
-
-   if envCreateResult <> 0 then
-      failwith $"Error creating Pulumi ESC environment {qualified}"
+   Shell.Exec("pulumi", $"env init {qualified}") |> ignore
 
    Shell.Exec(
       "pulumi",
