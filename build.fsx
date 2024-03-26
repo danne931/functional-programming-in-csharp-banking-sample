@@ -261,7 +261,10 @@ let pulumiK8s (env: Env) =
    let org = whoAmI.Result.Output |> String.removeLineBreaks
    let qualified = $"{org}/{env.Pulumi}"
 
-   Shell.Exec("pulumi", $"env init {env.Pulumi}") |> ignore
+   let envCreateResult = Shell.Exec("pulumi", $"env init {qualified}")
+
+   if envCreateResult <> 0 then
+      failwith $"Error creating Pulumi ESC environment {qualified}"
 
    Shell.Exec(
       "pulumi",
