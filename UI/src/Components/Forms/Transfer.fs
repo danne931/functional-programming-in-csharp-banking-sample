@@ -70,7 +70,6 @@ let form
 
    Form.succeed onSubmit |> Form.append selectField |> Form.append amountField
 
-[<ReactComponent>]
 let TransferFormComponent
    (account: AccountState)
    (onSubmit: ParentOnSubmitHandler)

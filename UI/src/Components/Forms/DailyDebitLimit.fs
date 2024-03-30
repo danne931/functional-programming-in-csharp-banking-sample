@@ -38,7 +38,6 @@ let form
 
    Form.succeed onSubmit |> Form.append amountField
 
-[<ReactComponent>]
 let DailyDebitLimitFormComponent
    (account: AccountState)
    (onSubmit: ParentOnSubmitHandler)

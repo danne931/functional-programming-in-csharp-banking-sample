@@ -35,7 +35,6 @@ let form
 
    Form.succeed onSubmit |> Form.append isLockedField
 
-[<ReactComponent>]
 let CardAccessFormComponent
    (account: AccountState)
    (onSubmit: ParentOnSubmitHandler)

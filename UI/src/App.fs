@@ -38,12 +38,16 @@ let App () =
          )
       | Url.NotFound -> Html.h1 "Not Found"
 
-   Html.div [
-      React.router [
-         router.onUrlChanged (parseUrl >> setUrl)
-         router.children [ activePage ]
+   React.strictMode (
+      [
+         Html.div [
+            React.router [
+               router.onUrlChanged (parseUrl >> setUrl)
+               router.children [ activePage ]
+            ]
+         ]
       ]
-   ]
+   )
 
 let root = ReactDOM.createRoot <| document.getElementById "bank-react-root"
 root.render <| App()

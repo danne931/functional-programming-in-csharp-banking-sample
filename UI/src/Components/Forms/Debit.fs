@@ -1,13 +1,10 @@
 module Bank.Account.Forms.DebitForm
 
 open Feliz
-open Feliz.UseElmish
-open Elmish
 open Fable.Form.Simple
 open System
 
 open Fable.Form.Simple.Pico
-open Lib.SharedTypes
 open Bank.Account.Domain
 open AsyncUtil
 open Lib.Validators
@@ -71,7 +68,6 @@ let form
 
    Form.succeed onSubmit |> Form.append amountField |> Form.append originField
 
-[<ReactComponent>]
 let DebitFormComponent
    (account: AccountState)
    (onSubmit: ParentOnSubmitHandler)

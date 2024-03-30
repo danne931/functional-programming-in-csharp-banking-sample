@@ -43,7 +43,6 @@ let form
 
    Form.succeed onSubmit |> Form.append amountField
 
-[<ReactComponent>]
 let DepositFormComponent
    (account: AccountState)
    (onSubmit: ParentOnSubmitHandler)
