@@ -12,13 +12,13 @@ module.exports = (env, argv) => {
     entry: './dist/App.js',
     output: {
       path: staticPath,
-      filename: 'main.js'
+      filename: '[name].js'
     },
 
     devServer: {
       proxy: {
         '/accounts': 'http://localhost:3000',
-        '/transfers': 'http://localhost:3000', 
+        '/transfers': 'http://localhost:3000',
         '/diagnostic': 'http://localhost:3000',
         '/accountHub': {
           target: 'ws://localhost:3000',
@@ -46,6 +46,17 @@ module.exports = (env, argv) => {
           use: ['style-loader', 'css-loader']
         }
       ]
+    },
+
+    optimization: {
+      splitChunks: {
+        cacheGroups: {
+          vendor: {
+            test: /[\\/]node_modules|dist[\\/]fable_modules[\\/]/,
+            chunks: 'all'
+          }
+        }
+      }
     }
   }
 }
