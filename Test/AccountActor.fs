@@ -419,10 +419,16 @@ let tests =
             initAccount.EntityId
             "Billing statement AccountId should = account EntityId"
 
+         let getEventName =
+            BillingTransaction.value
+            >> AccountEnvelope.unwrap
+            >> snd
+            >> _.EventName
+
          Expect.sequenceEqual
-            (statement.Transactions |> List.map _.Name)
+            (statement.Transactions |> List.map getEventName)
             ("DebitedAccount"
-             :: (Stub.billingTransactions |> List.map _.Name |> List.rev))
+             :: (Stub.billingTransactions |> List.map getEventName |> List.rev))
             "RegisterBillingStatements msg should send transactions equivalent
              to those associated with the account events"
 

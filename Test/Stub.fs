@@ -250,48 +250,30 @@ let accountStateOmitEvents (accountOpt: AccountState option) =
    |})
 
 let billingTransactions: BillingTransaction list = [
-   {
-      EventId = event.createdAccount.EntityId
-      Name = event.createdAccount.EventName
-      Amount = event.createdAccount.Data.Balance
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = event.depositedCash.EntityId
-      Name = event.depositedCash.EventName
-      Amount = event.depositedCash.Data.DepositedAmount
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = event.debitedAccount.EntityId
-      Name = event.debitedAccount.EventName
-      Amount = -event.debitedAccount.Data.DebitedAmount
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = event.maintenanceFeeDebited.EntityId
-      Name = event.maintenanceFeeDebited.EventName
-      Amount = -event.maintenanceFeeDebited.Data.DebitedAmount
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = event.internalTransferPending.EntityId
-      Name = event.internalTransferPending.EventName
-      Amount = -event.internalTransferPending.Data.DebitedAmount
-      Date = DateTime.UtcNow
-      Info = ""
-   }
-   {
-      EventId = event.transferRejected.EntityId
-      Name = event.transferRejected.EventName
-      Amount = event.transferRejected.Data.DebitedAmount
-      Date = DateTime.UtcNow
-      Info = ""
-   }
+   (event.createdAccount
+    |> AccountEvent.CreatedAccount
+    |> BillingTransaction.create)
+      .Value
+   (event.depositedCash
+    |> AccountEvent.DepositedCash
+    |> BillingTransaction.create)
+      .Value
+   (event.debitedAccount
+    |> AccountEvent.DebitedAccount
+    |> BillingTransaction.create)
+      .Value
+   (event.maintenanceFeeDebited
+    |> AccountEvent.MaintenanceFeeDebited
+    |> BillingTransaction.create)
+      .Value
+   (event.internalTransferPending
+    |> AccountEvent.TransferPending
+    |> BillingTransaction.create)
+      .Value
+   (event.transferRejected
+    |> AccountEvent.TransferRejected
+    |> BillingTransaction.create)
+      .Value
 ]
 
 let billingStatement =
