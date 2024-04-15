@@ -57,6 +57,13 @@ type AkkaHealthCheck = {
 
 type ClusterSeedNodeStartup = { SeedNodes: string list }
 
+// Recommended to have ~10 shards per node. If 4 account nodes are deployed in
+// K8s (see Deploy/K8s/account.ts account cluster config) then this value
+// should be ~40.
+//
+// Changing this value requires a cluster restart.
+type AccountCluster = { NumberOfShards: int }
+
 type AkkaRemoting = { Host: string; Port: int }
 
 type PetabridgeCmdRemoting = { Port: int }
@@ -162,6 +169,7 @@ type private BankConfigInput = {
       LivenessPort: int option
    |}
    BillingCycleFanoutThrottle: StreamThrottleInput
+   AccountCluster: {| NumberOfShards: int option |}
    AccountActorSupervisor: PersistenceSupervisorInput
    AccountDeleteThrottle: StreamThrottleInput
    AccountEventProjectionChunking: StreamChunkingInput
@@ -182,6 +190,7 @@ type BankConfig = {
    SerilogOutputFile: string
    AkkaHealthCheck: AkkaHealthCheck
    BillingCycleFanoutThrottle: StreamThrottle
+   AccountCluster: AccountCluster
    AccountActorSupervisor: PersistenceSupervisorOptions
    AccountDeleteThrottle: StreamThrottle
    AccountEventProjectionChunking: StreamChunking
@@ -242,6 +251,10 @@ let config =
                input.BillingCycleFanoutThrottle.Seconds
                |> Option.defaultValue 1
                |> TimeSpan.FromSeconds
+         }
+         AccountCluster = {
+            NumberOfShards =
+               input.AccountCluster.NumberOfShards |> Option.defaultValue 10
          }
          AccountActorSupervisor =
             persistentSupervisorOptionsFromInput input.AccountActorSupervisor

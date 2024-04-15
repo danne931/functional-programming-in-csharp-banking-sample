@@ -43,7 +43,9 @@ let getChildActorRef<'t, 'r>
    | true -> None
    | false -> Some(typed accountRef)
 
-let messageExtractor maxNumberOfShards =
+// Recommended to have ~10 shards per node. If 4 nodes are deployed in
+// K8s then number of shards should be ~40.
+let messageExtractor (maxNumberOfShards: int) =
    HashCodeMessageExtractor.Create(
       maxNumberOfShards = maxNumberOfShards,
       entityIdExtractor =
@@ -66,8 +68,8 @@ module ClusterMetadata =
 
    let accountShardRegion = {
       name = "account"
-      // TODO: Figure out ideal max #
-      messageExtractor = messageExtractor 1000
+      messageExtractor =
+         messageExtractor Env.config.AccountCluster.NumberOfShards
    }
 
    let roles = {|

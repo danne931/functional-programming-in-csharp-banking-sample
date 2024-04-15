@@ -6,6 +6,14 @@ import { ports, initContainers, isDev } from './environment'
 // Grab some values from the Pulumi stack configuration (or use defaults)
 const config = new pulumi.Config()
 
+// Recommended to have ~10 shards per node. If 4 account nodes are deployed in
+// K8s then number of shards should be ~40.
+// See Lib/Actor.fs messageExtractor.
+// Changing max number of shards requires a cluster restart.
+const accountClusterNumberOfNodes = config.getNumber('accountReplicas') ?? 4
+const accountClusterNumberOfShards =
+  config.getNumber('accountClusterNumberOfShards') ?? (accountClusterNumberOfNodes * 10)
+
 // These environment variables can optionally be configured. Defaults
 // are provided in ./Lib/Environment.fs and ./Transfer.App/Environment.fs.
 const optionalEnv = [
@@ -52,6 +60,10 @@ const optionalEnv = [
   {
     name: 'BillingCycleFanoutThrottle__Seconds',
     value: config.get('billingCycleFanoutThrottleSeconds')
+  },
+  {
+    name: 'AccountCluster__NumberOfShards',
+    value: accountClusterNumberOfShards
   },
   {
     name: 'AccountActorSupervisor__MinBackoffSeconds',
@@ -207,7 +219,7 @@ export const initAccountCluster = (
         name: 'account-cluster'
       },
       spec: {
-        replicas: config.getNumber('accountReplicas') ?? 4,
+        replicas: accountClusterNumberOfNodes,
         selector: {
           matchLabels: {
             app: 'account-cluster'
