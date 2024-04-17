@@ -5,6 +5,7 @@ module AccountSeederActor
 // some data is available to interact with.
 
 open System
+open System.Threading.Tasks
 open Akka.Hosting
 open Akka.Cluster
 open Akkling
@@ -26,7 +27,132 @@ type CreateAccountsMap = Map<Guid, CreateAccountCommand>
 type State = {
    Status: Status
    AccountsToCreate: CreateAccountsMap
+   AccountsToSeedWithTransactions: Map<Guid, bool>
 }
+
+let mockAccounts =
+   let withModifiedTimestamp (command: CreateAccountCommand) = {
+      command with
+         Timestamp = command.Timestamp.AddMonths -1
+   }
+
+   let account1 =
+      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")) {
+         FirstName = "Jelly"
+         LastName = "Fish"
+         Balance = 1300m
+         Email = "jellyfish@gmail.com"
+         Currency = Currency.USD
+      }
+      |> withModifiedTimestamp
+
+   let account2 =
+      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")) {
+         FirstName = "Star"
+         LastName = "Fish"
+         Balance = 1000m
+         Email = "starfish@gmail.com"
+         Currency = Currency.USD
+      }
+      |> withModifiedTimestamp
+
+   let account3 =
+      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6")) {
+         FirstName = "Rainbow"
+         LastName = "Trout"
+         Balance = 850m
+         Email = "rainbowtrout@gmail.com"
+         Currency = Currency.USD
+      }
+      |> withModifiedTimestamp
+
+   Map [
+      account1.EntityId, account1
+
+      account2.EntityId, account2
+
+      account3.EntityId, account3
+   ]
+
+let seedAccountTransactions
+   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (command: CreateAccountCommand)
+   =
+   task {
+      let accountId = command.EntityId
+      let aref = getAccountRef accountId
+
+      let rnd = new Random()
+
+      let randomAmount () =
+         decimal (rnd.Next(13, 42)) + decimal (rnd.NextDouble())
+
+      let txnOrigins = [
+         "Trader Joe's"
+         "Nem nướng Happy Belly"
+         "Cơm Chay All Day"
+         "Thai Spice ++"
+         "Pho Number 1"
+      ]
+
+      let timestamp = command.Timestamp.AddDays(rnd.Next(1, 3))
+
+      let command = {
+         DepositCashCommand.create accountId {
+            Date = timestamp
+            Amount = randomAmount ()
+            Origin = None
+         } with
+            Timestamp = timestamp
+      }
+
+      aref <! (StateChange << DepositCash) command
+
+      for num in [ 1..3 ] do
+         let timestamp = timestamp.AddDays((double num) * 2.3)
+
+         let command = {
+            DebitCommand.create accountId {
+               Date = timestamp
+               Amount = randomAmount ()
+               Origin = txnOrigins[num]
+               Reference = None
+            } with
+               Timestamp = timestamp
+         }
+
+         aref <! (StateChange << Debit) command
+
+      let command =
+         StartBillingCycleCommand.create command.EntityId { Reference = None }
+
+      aref <! (StateChange << StartBillingCycle) command
+
+      do! Task.Delay 1300
+
+      for num in [ 1..7 ] do
+         let command =
+            DebitCommand.create accountId {
+               Date = DateTime.UtcNow
+               Amount = randomAmount ()
+               Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
+               Reference = None
+            }
+
+         aref <! (StateChange << Debit) command
+
+         if num = 2 || num = 5 then
+            let command = {
+               DepositCashCommand.create accountId {
+                  Date = timestamp
+                  Amount = randomAmount ()
+                  Origin = None
+               } with
+                  Timestamp = DateTime.UtcNow
+            }
+
+            aref <! (StateChange << DepositCash) command
+   }
 
 // Creates a new Map consisting of initial state of accounts to create
 // minus accounts created thus far.
@@ -72,41 +198,9 @@ let private getVerifiedAccounts (accountsToCreate: CreateAccountsMap) = async {
 
 let private initState = {
    Status = AwaitingClusterUp
-   AccountsToCreate =
-      Map [
-         Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"),
-         CreateAccountCommand.create
-            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"))
-            {
-               FirstName = "Jelly"
-               LastName = "Fish"
-               Balance = 1300m
-               Email = "jellyfish@gmail.com"
-               Currency = Currency.USD
-            }
-
-         Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"),
-         CreateAccountCommand.create
-            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"))
-            {
-               FirstName = "Star"
-               LastName = "Fish"
-               Balance = 1000m
-               Email = "starfish@gmail.com"
-               Currency = Currency.USD
-            }
-
-         Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"),
-         CreateAccountCommand.create
-            (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6"))
-            {
-               FirstName = "Rainbow"
-               LastName = "Trout"
-               Balance = 850m
-               Email = "rainbowtrout@gmail.com"
-               Currency = Currency.USD
-            }
-      ]
+   AccountsToCreate = mockAccounts
+   AccountsToSeedWithTransactions =
+      Map [ for acctId in mockAccounts.Keys -> acctId, true ]
 }
 
 let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
@@ -129,8 +223,9 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                if verified.Length = state.AccountsToCreate.Count then
                   return!
                      loop {
-                        Status = FinishedSeeding
-                        AccountsToCreate = Map.empty
+                        state with
+                           Status = FinishedSeeding
+                           AccountsToCreate = Map.empty
                      }
                else
                   logInfo "Seed postgres with accounts"
@@ -141,8 +236,8 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                         state.AccountsToCreate
 
                   for command in remaining.Values do
-                     getAccountRef command.EntityId
-                     <! (StateChange << CreateAccount) command
+                     let aref = getAccountRef command.EntityId
+                     aref <! (StateChange << CreateAccount) command
 
                   scheduleVerification ctx 5.
 
@@ -154,6 +249,25 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
          | VerifyAccountsCreated ->
             let! verified = getVerifiedAccounts state.AccountsToCreate
 
+            let accountsToSeedWithTxns, seeded =
+               verified
+               |> List.partition (fun account ->
+                  state.AccountsToSeedWithTransactions[account.EntityId])
+
+            for acct in accountsToSeedWithTxns do
+               do!
+                  seedAccountTransactions
+                     getAccountRef
+                     state.AccountsToCreate[acct.EntityId]
+
+               ()
+
+            let txnsSeedMap =
+               accountsToSeedWithTxns @ seeded
+               |> List.fold
+                     (fun acc account -> acc |> Map.add account.EntityId false)
+                     state.AccountsToSeedWithTransactions
+
             if verified.Length = state.AccountsToCreate.Count then
                logInfo "Finished seeding accounts"
 
@@ -161,6 +275,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                   loop {
                      Status = FinishedSeeding
                      AccountsToCreate = Map.empty
+                     AccountsToSeedWithTransactions = txnsSeedMap
                   }
             else
                let remaining =
@@ -174,6 +289,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                   loop {
                      Status = AwaitingVerification
                      AccountsToCreate = remaining
+                     AccountsToSeedWithTransactions = txnsSeedMap
                   }
       }
 

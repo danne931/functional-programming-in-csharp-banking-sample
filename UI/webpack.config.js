@@ -1,6 +1,7 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const Dotenv = require('dotenv-webpack')
 const path = require('path')
+
 const staticPath = path.resolve(__dirname, './dist')
 
 module.exports = (env, argv) => {
@@ -37,7 +38,7 @@ module.exports = (env, argv) => {
           viewport: 'width=device-width, initial-scale=1'
         }
       })
-    ].filter(k => k != null),
+    ],
 
     module: {
       rules: [

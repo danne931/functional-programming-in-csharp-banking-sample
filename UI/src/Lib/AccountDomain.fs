@@ -191,14 +191,12 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
       | MoneyFlow.Out -> "-"
       | MoneyFlow.None -> props.Sign
 
-   let currencySymbol = "$"
-
    {
       props with
          Sign = sign
          Amount =
             props.AmountNaked
-            |> Option.map (fun amount -> $"{sign}{currencySymbol}{amount}")
+            |> Option.map (fun amount -> sign + money.format amount)
    }
 
 type PotentialInternalTransferRecipients =

@@ -399,7 +399,7 @@ let tests =
 
          let msg =
             StartBillingCycleCommand.create initAccount.EntityId {
-               Balance = initAccount.Balance
+               Reference = None
             }
             |> AccountCommand.StartBillingCycle
             |> AccountMessage.StateChange
@@ -474,7 +474,7 @@ let tests =
 
          let msg =
             StartBillingCycleCommand.create initAccount.EntityId {
-               Balance = initAccount.Balance
+               Reference = None
             }
             |> AccountCommand.StartBillingCycle
             |> AccountMessage.StateChange

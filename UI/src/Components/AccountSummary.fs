@@ -13,7 +13,7 @@ let render (account: AccountState) =
 
          Html.div [
             Html.p "Balance: "
-            Html.ins [ attr.text $"${account.Balance}" ]
+            Html.ins [ attr.text (money.format account.Balance) ]
          ]
 
          Html.div [
@@ -24,13 +24,13 @@ let render (account: AccountState) =
             attr.custom ("data-placement", "top")
             attr.children [
                Html.p "Daily Debit Accrued: "
-               Html.ins [ attr.text $"${account.DailyDebitAccrued}" ]
+               Html.ins [ attr.text (money.format account.DailyDebitAccrued) ]
             ]
          ]
 
          Html.div [
             Html.p "Daily Debit Limit: "
-            Html.ins [ attr.text $"${account.DailyDebitLimit}" ]
+            Html.ins [ attr.text (money.format account.DailyDebitLimit) ]
          ]
       ]
    ]

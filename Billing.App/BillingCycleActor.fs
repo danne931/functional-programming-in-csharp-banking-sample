@@ -24,9 +24,9 @@ let getActiveAccounts () =
       else
          "'1 minutes'::interval"
 
-   pgQuery<Guid * decimal>
+   pgQuery<Guid>
       $"""
-      SELECT {AccountFields.entityId}, {AccountFields.balance}
+      SELECT {AccountFields.entityId}
       FROM accounts
       WHERE
          {AccountFields.status} = '{string AccountStatus.Active}'
@@ -34,7 +34,7 @@ let getActiveAccounts () =
               OR {prevCycle} < current_timestamp - {lookback})
       """
       None
-   <| fun read -> AccountSqlReader.entityId read, AccountSqlReader.balance read
+   <| fun read -> AccountSqlReader.entityId read
 
 let private fanOutBillingCycleMessage
    (ctx: Actor<_>)
@@ -56,7 +56,7 @@ let private fanOutBillingCycleMessage
          |> Source.choose (fun res ->
             match res with
             | Error e ->
-               logError ctx $"Error fetching active account ids"
+               logError ctx $"Error fetching active account ids {e}"
                None
             | Ok opt ->
                if opt.IsNone then
@@ -64,9 +64,9 @@ let private fanOutBillingCycleMessage
 
                opt)
          |> Source.collect id
-         |> Source.runForEach mat (fun (accountId, balance) ->
+         |> Source.runForEach mat (fun (accountId) ->
             let msg =
-               StartBillingCycleCommand.create accountId { Balance = balance }
+               StartBillingCycleCommand.create accountId { Reference = None }
                |> AccountCommand.StartBillingCycle
                |> AccountMessage.StateChange
 

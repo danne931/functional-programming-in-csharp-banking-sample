@@ -209,7 +209,7 @@ module CloseAccountCommand =
          Reference = cmd.Data.Reference
       }
 
-type StartBillingCycleInput = { Balance: decimal }
+type StartBillingCycleInput = { Reference: string option }
 type StartBillingCycleCommand = Command<StartBillingCycleInput>
 
 module StartBillingCycleCommand =
@@ -222,5 +222,5 @@ module StartBillingCycleCommand =
       =
       Ok
       <| BankEvent.create<StartBillingCycleInput, BillingCycleStarted> cmd {
-         Balance = cmd.Data.Balance
+         Reference = cmd.Data.Reference
       }
