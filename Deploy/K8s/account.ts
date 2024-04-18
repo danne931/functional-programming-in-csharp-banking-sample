@@ -63,7 +63,7 @@ const optionalEnv = [
   },
   {
     name: 'AccountCluster__NumberOfShards',
-    value: accountClusterNumberOfShards
+    value: accountClusterNumberOfShards.toString()
   },
   {
     name: 'AccountActorSupervisor__MinBackoffSeconds',

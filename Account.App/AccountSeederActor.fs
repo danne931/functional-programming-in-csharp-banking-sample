@@ -15,6 +15,7 @@ open FsToolkit.ErrorHandling
 open Lib.SharedTypes
 open Bank.Account.Api
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open ActorUtil
 
 type Status =
@@ -142,16 +143,53 @@ let seedAccountTransactions
          aref <! (StateChange << Debit) command
 
          if num = 2 || num = 5 then
-            let command = {
+            let command =
                DepositCashCommand.create accountId {
                   Date = timestamp
                   Amount = randomAmount ()
                   Origin = None
-               } with
-                  Timestamp = DateTime.UtcNow
-            }
+               }
 
             aref <! (StateChange << DepositCash) command
+
+      if accountId = Seq.head mockAccounts.Keys then
+         let lockCmd = LockCardCommand.create accountId { Reference = None }
+         aref <! (StateChange << LockCard) lockCmd
+
+         let unlockCmd = UnlockCardCommand.create accountId { Reference = None }
+         aref <! (StateChange << UnlockCard) unlockCmd
+
+         for num in [ 1..2 ] do
+            let createAccountCmd = mockAccounts.Values |> Seq.item num
+            let recipientId = createAccountCmd.EntityId
+
+            let registerRecipientCmd =
+               RegisterTransferRecipientCommand.create accountId {
+                  Recipient = {
+                     LastName = createAccountCmd.Data.LastName
+                     FirstName = createAccountCmd.Data.FirstName
+                     AccountEnvironment = RecipientAccountEnvironment.Internal
+                     Identification = string recipientId
+                     IdentificationStrategy =
+                        RecipientAccountIdentificationStrategy.AccountId
+                     RoutingNumber = None
+                     Status = RecipientRegistrationStatus.Confirmed
+                  }
+               }
+
+            aref
+            <! (StateChange << RegisterTransferRecipient) registerRecipientCmd
+
+            let transferCmd =
+               TransferCommand.create accountId {
+                  Recipient = registerRecipientCmd.Data.Recipient
+                  Amount = randomAmount ()
+                  Date = DateTime.UtcNow
+                  Reference = None
+               }
+
+            aref <! (StateChange << Transfer) transferCmd
+
    }
 
 // Creates a new Map consisting of initial state of accounts to create
