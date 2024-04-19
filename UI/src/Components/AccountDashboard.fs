@@ -74,7 +74,7 @@ type Msg =
    | SignalRDisconnected
    | AddAccountToSignalRConnectionGroup of
       AsyncOperationStatus<Result<Guid, Err>>
-   | AccountEventReceivedViaSignalR of AccountEventPersistedConfirmation
+   | AccountEventPersisted of AccountEventPersistedConfirmation
 
 let refreshAccount (accountId) = async {
    let! res = AccountService.getAccount accountId
@@ -210,7 +210,7 @@ let update msg state =
             SignalRCurrentAccountId = Some accountIdAdded
       },
       Cmd.none
-   | AccountEventReceivedViaSignalR data ->
+   | AccountEventPersisted data ->
       {
          state with
             Accounts =
@@ -221,7 +221,7 @@ let update msg state =
       },
       Cmd.none
 
-let renderAccountActions state =
+let renderAccountActions state dispatch =
    let selectedAccountAndPotentialTransferRecipients
       : (AccountState * PotentialInternalTransferRecipients) option =
       Option.map2
@@ -244,6 +244,7 @@ let renderAccountActions state =
             account
             potentialTransferRecipients
             (Url.accountFormMaybe state.CurrentUrl)
+            (AccountEventPersisted >> dispatch)
    ]
 
 [<ReactComponent>]
@@ -268,7 +269,7 @@ let AccountDashboardComponent (url: Url) =
             dispatch (SignalRConnected conn)
 
             AccountService.listenForSignalRMessages
-               (AccountEventReceivedViaSignalR >> dispatch)
+               (AccountEventPersisted >> dispatch)
                conn
       , [| box signalRConnection |]
    )
@@ -289,7 +290,10 @@ let AccountDashboardComponent (url: Url) =
             ]
 
 
-            Html.aside [ Html.h5 "Actions"; renderAccountActions state ]
+            Html.aside [
+               Html.h5 "Actions"
+               renderAccountActions state dispatch
+            ]
          ]
       ]
 

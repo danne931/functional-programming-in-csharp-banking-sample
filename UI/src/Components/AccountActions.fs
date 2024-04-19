@@ -96,7 +96,12 @@ let init account selectedFormView () =
 
 let closeForm state = { state with FormView = None }
 
-let update msg state =
+let update
+   (handleConfirmationReceivedViaPolling:
+      AccountEventPersistedConfirmation -> unit)
+   msg
+   state
+   =
    match msg with
    | ShowForm form ->
       let form =
@@ -203,6 +208,12 @@ let update msg state =
                         do! Async.Sleep 2500
                         return checkAgainMsg
                      | Some correspondingEvtFound ->
+                        handleConfirmationReceivedViaPolling {
+                           NewState = account
+                           EventPersisted = correspondingEvtFound
+                           Date = DateTime.UtcNow
+                        }
+
                         return Msg.AccountEventReceived account
             }
 
@@ -241,8 +252,15 @@ let AccountActionsComponent
    (account: AccountState)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
    (form: FormView option)
+   (handleConfirmationReceivedViaPolling:
+      AccountEventPersistedConfirmation -> unit)
    =
-   let state, dispatch = React.useElmish (init account form, update, [||])
+   let state, dispatch =
+      React.useElmish (
+         init account form,
+         update handleConfirmationReceivedViaPolling,
+         [||]
+      )
 
    React.useEffect (
       (fun () -> dispatch <| Reset(account, form)),
