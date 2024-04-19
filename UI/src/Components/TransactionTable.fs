@@ -17,6 +17,7 @@ type State = {
    IsDiagnosticView: bool
    PaginatedBillingTransactions: Map<Page, Deferred<BillingTransactionsMaybe>>
    PageIndex: Page
+   BillingCycleStart: DateTime option
 }
 
 type Msg =
@@ -26,6 +27,7 @@ type Msg =
       accountId: Guid *
       Page *
       AsyncOperationStatus<BillingTransactionsMaybe>
+   | UpdateBillingCycleStart of DateTime
    | Reset
 
 let init () =
@@ -33,6 +35,7 @@ let init () =
       IsDiagnosticView = true
       PaginatedBillingTransactions = Map.empty
       PageIndex = 0
+      BillingCycleStart = None
    },
    Cmd.none
 
@@ -86,6 +89,31 @@ let update msg state =
          $"Error loading billing transactions for {accountId} - Page {page}: {err}"
 
       state, Cmd.none
+   | UpdateBillingCycleStart date ->
+      match state.BillingCycleStart with
+      | None ->
+         {
+            state with
+               BillingCycleStart = Some date
+         },
+         Cmd.none
+      | Some previousDate when previousDate < date ->
+         // New Billing Cycle detected.  Shift the page without disrupting
+         // the view to accommodate account.Events transitioning into a
+         // billing statement.
+         {
+            state with
+               BillingCycleStart = Some date
+               PageIndex =
+                  if state.PageIndex = 0 then 0 else state.PageIndex + 1
+               PaginatedBillingTransactions =
+                  state.PaginatedBillingTransactions
+                  |> Map.fold
+                        (fun acc page txns -> acc.Add(page + 1, txns))
+                        Map.empty
+         },
+         Cmd.none
+      | _ -> state, Cmd.none
    | Reset -> init ()
 
 let renderControlPanel accountId state dispatch =
@@ -244,6 +272,19 @@ let TransactionTableComponent (accountOpt: AccountState option) =
 
    let accountIdOpt = accountOpt |> Option.map _.EntityId
    React.useEffect ((fun _ -> dispatch Reset), [| box accountIdOpt |])
+
+   React.useEffect (
+      (fun _ ->
+         match accountOpt with
+         | Some account when
+            account.LastBillingCycleDate.IsSome
+            && account.LastBillingCycleDate <> state.BillingCycleStart
+            ->
+            dispatch
+            <| Msg.UpdateBillingCycleStart account.LastBillingCycleDate.Value
+         | _ -> ()),
+      [| box accountOpt |]
+   )
 
    let loaderFinished = attr.value 100
 
