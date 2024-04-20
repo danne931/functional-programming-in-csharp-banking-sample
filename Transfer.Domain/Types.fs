@@ -5,23 +5,28 @@ open System.Threading.Tasks
 
 open Lib.SharedTypes
 
+[<RequireQualifiedAccess>]
 type TransferProgressTrackingMessage = | ProgressCheck
 
+[<RequireQualifiedAccess>]
 type TransferProgress =
    | Outgoing
    | InProgress of string
    | Complete
 
+[<RequireQualifiedAccess>]
 type RecipientAccountEnvironment =
    | Internal
    | Domestic
 
+[<RequireQualifiedAccess>]
 type RecipientAccountIdentificationStrategy =
    | AccountId
    | SwiftBIC
    | IBAN
    | NationalID
 
+[<RequireQualifiedAccess>]
 type RecipientRegistrationStatus =
    | Confirmed
    | InvalidAccount
@@ -59,14 +64,17 @@ type TransferTransaction = {
    Status: TransferProgress
 }
 
+[<RequireQualifiedAccess>]
 type TransferServiceAction =
    | TransferRequest
    | ProgressCheck
 
+[<RequireQualifiedAccess>]
 type InternalTransferMessage =
    | TransferRequest of TransferTransaction
    | ConfirmRecipient of InternalTransferSender * TransferRecipient
 
+[<RequireQualifiedAccess>]
 type DomesticTransferMessage =
    | TransferRequest of TransferServiceAction * TransferTransaction
    | TransferResponse of
@@ -76,6 +84,7 @@ type DomesticTransferMessage =
    | BreakerHalfOpen
    | BreakerClosed
 
+[<RequireQualifiedAccess>]
 type TransferDeclinedReason =
    | CorruptData
    | InvalidAction

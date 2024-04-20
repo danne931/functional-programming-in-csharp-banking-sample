@@ -111,6 +111,7 @@ module AccountEnvelope =
       | AccountClosed evt -> wrap evt, get evt
       | BillingCycleStarted evt -> wrap evt, get evt
 
+[<RequireQualifiedAccess>]
 type AccountStatus =
    | Pending
    | Active
@@ -187,6 +188,7 @@ type AccountEventRejected = {
    Date: DateTime
 }
 
+[<RequireQualifiedAccess>]
 type SignalRMessage =
    | AccountEventPersisted of AccountEventPersistedConfirmation
    | AccountEventValidationFail of AccountEventRejected
@@ -204,12 +206,14 @@ type AccountBroadcast = {
    circuitBreaker: CircuitBreakerEvent -> unit
 }
 
+[<RequireQualifiedAccess>]
 type AccountClosureMessage =
    | Register of AccountState
    | ScheduleDeleteAll
    | DeleteAll of Guid list
    | GetRegisteredAccounts
 
+[<RequireQualifiedAccess>]
 type AccountSeederMessage =
    | SeedAccounts
    | VerifyAccountsCreated

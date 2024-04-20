@@ -119,6 +119,7 @@ type Err =
             "Recipient Registration Required"
          | _ -> "Error Applying Transaction to Account"
 
+[<RequireQualifiedAccess>]
 type Currency =
    | USD
    | EUR
@@ -158,10 +159,12 @@ type Email = private {
 
    static member empty = { Email = "" }
 
+[<RequireQualifiedAccess>]
 type CircuitBreakerService =
    | DomesticTransfer
    | Email
 
+[<RequireQualifiedAccess>]
 type CircuitBreakerStatus =
    | Closed
    | HalfOpen
@@ -173,6 +176,7 @@ type CircuitBreakerEvent = {
    Timestamp: DateTime
 }
 
+[<RequireQualifiedAccess>]
 type CircuitBreakerMessage =
    | Lookup
    | CircuitBreaker of CircuitBreakerEvent

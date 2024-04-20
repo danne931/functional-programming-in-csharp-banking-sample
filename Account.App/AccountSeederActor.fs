@@ -249,7 +249,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
          let! msg = ctx.Receive()
 
          match msg with
-         | SeedAccounts ->
+         | AccountSeederMessage.SeedAccounts ->
             if state.Status <> AwaitingClusterUp then
                logInfo "Account seed already initialized"
             else if not (Cluster.Get(ctx.System).IsUp) then
@@ -284,7 +284,7 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                         state with
                            Status = AwaitingVerification
                      }
-         | VerifyAccountsCreated ->
+         | AccountSeederMessage.VerifyAccountsCreated ->
             let! verified = getVerifiedAccounts state.AccountsToCreate
 
             let accountsToSeedWithTxns, seeded =

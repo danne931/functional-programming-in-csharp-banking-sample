@@ -32,12 +32,12 @@ let private progressFromResponse (response: TransferServiceResponse) =
 
 let private declinedReasonFromError (err: string) : TransferDeclinedReason =
    match err with
-   | Contains "CorruptData" -> CorruptData
-   | Contains "InvalidAction" -> InvalidAction
-   | Contains "InvalidAmount" -> InvalidAmount
-   | Contains "InvalidAccountInfo" -> InvalidAccountInfo
-   | Contains "InactiveAccount" -> AccountClosed
-   | e -> Unknown e
+   | Contains "CorruptData" -> TransferDeclinedReason.CorruptData
+   | Contains "InvalidAction" -> TransferDeclinedReason.InvalidAction
+   | Contains "InvalidAmount" -> TransferDeclinedReason.InvalidAmount
+   | Contains "InvalidAccountInfo" -> TransferDeclinedReason.InvalidAccountInfo
+   | Contains "InactiveAccount" -> TransferDeclinedReason.AccountClosed
+   | e -> TransferDeclinedReason.Unknown e
 
 let transferRequest action (txn: TransferTransaction) = taskResult {
    let msg = {|
@@ -86,7 +86,7 @@ let handleTransfer
 
       return
          match result with
-         | Ok res -> TransferResponse(res, action, txn)
+         | Ok res -> DomesticTransferMessage.TransferResponse(res, action, txn)
          | Error err ->
             match err with
             | Err.SerializationError errMsg ->
@@ -102,7 +102,7 @@ let handleTransfer
                   TransactionId = string txn.TransactionId
                }
 
-               TransferResponse(res, action, txn)
+               DomesticTransferMessage.TransferResponse(res, action, txn)
             | Err.NetworkError err -> reprocessLater err.Message
             | err -> reprocessLater (string err)
    }
@@ -119,15 +119,15 @@ let actorProps
       match message with
       | :? DomesticTransferMessage as msg ->
          match msg with
-         | BreakerHalfOpen ->
+         | DomesticTransferMessage.BreakerHalfOpen ->
             logInfo "Breaker half open - unstash one"
             mailbox.Unstash()
             Ignore
-         | BreakerClosed ->
+         | DomesticTransferMessage.BreakerClosed ->
             logInfo "Breaker closed - unstash all"
             mailbox.UnstashAll()
             Ignore
-         | TransferRequest(action, txn) ->
+         | DomesticTransferMessage.TransferRequest(action, txn) ->
             if breaker.IsOpen then
                match action with
                | TransferServiceAction.TransferRequest ->
@@ -145,7 +145,7 @@ let actorProps
                |!> retype mailbox.Self
 
                Ignore
-         | TransferResponse(res, action, txn) ->
+         | DomesticTransferMessage.TransferResponse(res, action, txn) ->
             let accountRef = getAccountRef txn.SenderAccountId
 
             if res.Ok then
@@ -173,17 +173,17 @@ let actorProps
                let err = declinedReasonFromError res.Reason
 
                match err with
-               | CorruptData
-               | InvalidAction ->
+               | TransferDeclinedReason.CorruptData
+               | TransferDeclinedReason.InvalidAction ->
                   logError $"Transfer API requires code update: {err}"
 
                   getEmailActor ()
                   <! EmailActor.ApplicationErrorRequiresSupport(string err)
 
                   Unhandled
-               | InvalidAmount
-               | InvalidAccountInfo
-               | AccountClosed
+               | TransferDeclinedReason.InvalidAmount
+               | TransferDeclinedReason.InvalidAccountInfo
+               | TransferDeclinedReason.AccountClosed
                | _ ->
                   let msg = Msg.reject <| Command.reject txn err
                   accountRef <! msg
@@ -224,7 +224,7 @@ let start
       }
       |> ignore
 
-      ref <! BreakerHalfOpen)
+      ref <! DomesticTransferMessage.BreakerHalfOpen)
    |> ignore
 
    // The event handler is bound once even though there may be
@@ -239,7 +239,8 @@ let start
       }
       |> ignore
 
-      retype ref <! Akka.Routing.Broadcast BreakerClosed)
+      retype ref
+      <! Akka.Routing.Broadcast DomesticTransferMessage.BreakerClosed)
    |> ignore
 
    breaker.OnOpen(fun () ->

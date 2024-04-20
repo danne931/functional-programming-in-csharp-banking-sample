@@ -112,8 +112,10 @@ module RejectTransferCommand =
       // due to an account not existing or becoming closed.
       let updatedRecipientStatus =
          match input.Reason with
-         | InvalidAccountInfo -> RecipientRegistrationStatus.InvalidAccount
-         | AccountClosed -> RecipientRegistrationStatus.Closed
+         | TransferDeclinedReason.InvalidAccountInfo ->
+            RecipientRegistrationStatus.InvalidAccount
+         | TransferDeclinedReason.AccountClosed ->
+            RecipientRegistrationStatus.Closed
          | _ -> input.Recipient.Status
 
       Ok

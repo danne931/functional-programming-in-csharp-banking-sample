@@ -53,8 +53,9 @@ let actorProps
          | :? SnapshotOffer as o -> return! loop <| unbox o.Snapshot
          | :? AccountClosureMessage as msg ->
             match msg with
-            | GetRegisteredAccounts -> mailbox.Sender() <! accounts
-            | Register account ->
+            | AccountClosureMessage.GetRegisteredAccounts ->
+               mailbox.Sender() <! accounts
+            | AccountClosureMessage.Register account ->
                let newState = Map.add account.EntityId account accounts
 
                logInfo
@@ -80,7 +81,7 @@ let actorProps
                   match newState.Count % 10 with
                   | 0 -> loop newState <@> SaveSnapshot newState
                   | _ -> loop newState
-            | ScheduleDeleteAll ->
+            | AccountClosureMessage.ScheduleDeleteAll ->
                if accounts.IsEmpty then
                   logInfo "AccountClosure - no accounts requested closure."
                else
@@ -98,7 +99,7 @@ let actorProps
                   <! SchedulingActor.DeleteAccountsJobSchedule accountIds
 
                   return! loop initState <@> SaveSnapshot initState
-            | DeleteAll accountIds ->
+            | AccountClosureMessage.DeleteAll accountIds ->
                let! res = deleteHistoricalRecords accountIds
 
                match res with

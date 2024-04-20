@@ -72,7 +72,7 @@ let private fanOutBillingCycleMessage
 
             getAccountRef accountId <! msg)
 
-      return BillingCycleFinished
+      return BillingCycleMessage.BillingCycleFinished
    }
 
 let actorProps
@@ -81,13 +81,13 @@ let actorProps
    =
    let handler (ctx: Actor<BillingCycleMessage>) =
       function
-      | BillingCycleFanout ->
+      | BillingCycleMessage.BillingCycleFanout ->
          logInfo ctx "Start billing cycle"
 
          fanOutBillingCycleMessage ctx throttle getAccountRef |> Async.AwaitTask
          |!> retype ctx.Self
          |> ignored
-      | BillingCycleFinished ->
+      | BillingCycleMessage.BillingCycleFinished ->
          logInfo ctx "Billing cycle finished"
          ignored ()
 
