@@ -18,7 +18,11 @@ module AccountFields =
    let balance = "balance"
    let dailyDebitLimit = "daily_debit_limit"
    let dailyDebitAccrued = "daily_debit_accrued"
+   let dailyInternalTransferAccrued = "daily_internal_transfer_accrued"
+   let dailyDomesticTransferAccrued = "daily_domestic_transfer_accrued"
    let lastDebitDate = "last_debit_at"
+   let lastInternalTransferDate = "last_internal_transfer_at"
+   let lastDomesticTransferDate = "last_domestic_transfer_at"
    let lastBillingCycleDate = "last_billing_cycle_at"
    let transferRecipients = "transfer_recipients"
    let internalTransferSenders = "internal_transfer_senders"
@@ -61,8 +65,20 @@ module AccountSqlReader =
    let dailyDebitAccrued (read: RowReader) =
       read.decimal AccountFields.dailyDebitAccrued
 
+   let dailyInternalTransferAccrued (read: RowReader) =
+      read.decimal AccountFields.dailyInternalTransferAccrued
+
+   let dailyDomesticTransferAccrued (read: RowReader) =
+      read.decimal AccountFields.dailyDomesticTransferAccrued
+
    let lastDebitDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastDebitDate
+
+   let lastInternalTransferDate (read: RowReader) =
+      read.dateTimeOrNone AccountFields.lastInternalTransferDate
+
+   let lastDomesticTransferDate (read: RowReader) =
+      read.dateTimeOrNone AccountFields.lastDomesticTransferDate
 
    let lastBillingCycleDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastBillingCycleDate
@@ -102,7 +118,11 @@ module AccountSqlReader =
       Balance = balance read
       DailyDebitLimit = dailyDebitLimit read
       DailyDebitAccrued = dailyDebitAccrued read
+      DailyInternalTransferAccrued = dailyInternalTransferAccrued read
+      DailyDomesticTransferAccrued = dailyDomesticTransferAccrued read
       LastDebitDate = lastDebitDate read
+      LastInternalTransferDate = lastInternalTransferDate read
+      LastDomesticTransferDate = lastDomesticTransferDate read
       LastBillingCycleDate = lastBillingCycleDate read
       TransferRecipients =
          transferRecipients read
@@ -131,7 +151,16 @@ module AccountSqlWriter =
    let status (status: AccountStatus) = Sql.string <| string status
    let dailyDebitLimit = Sql.decimal
    let dailyDebitAccrued = Sql.decimal
+   let dailyInternalTransferAccrued = Sql.decimal
+   let dailyDomesticTransferAccrued = Sql.decimal
    let lastDebitDate (date: DateTime option) = Sql.timestamptzOrNone date
+
+   let lastInternalTransferDate (date: DateTime option) =
+      Sql.timestamptzOrNone date
+
+   let lastDomesticTransferDate (date: DateTime option) =
+      Sql.timestamptzOrNone date
+
    let lastBillingCycleDate (date: DateTime option) = Sql.timestamptzOrNone date
 
    let transferRecipients (recipients: Map<string, TransferRecipient>) =

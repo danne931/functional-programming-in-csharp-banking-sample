@@ -60,7 +60,19 @@ let upsertAccounts (accounts: AccountState list) =
          AccountSqlWriter.dailyDebitLimit account.DailyDebitLimit
          "@dailyDebitAccrued",
          AccountSqlWriter.dailyDebitAccrued account.DailyDebitAccrued
+         "@dailyInternalTransferAccrued",
+         AccountSqlWriter.dailyInternalTransferAccrued
+            account.DailyInternalTransferAccrued
+         "@dailyDomesticTransferAccrued",
+         AccountSqlWriter.dailyDomesticTransferAccrued
+            account.DailyDomesticTransferAccrued
          "@lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
+         "@lastInternalTransferDate",
+         AccountSqlWriter.lastInternalTransferDate
+            account.LastInternalTransferDate
+         "@lastDomesticTransferDate",
+         AccountSqlWriter.lastDomesticTransferDate
+            account.LastDomesticTransferDate
          "@lastBillingCycleDate",
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
          "@transferRecipients",
@@ -95,7 +107,11 @@ let upsertAccounts (accounts: AccountState list) =
           {AccountFields.status},
           {AccountFields.dailyDebitLimit},
           {AccountFields.dailyDebitAccrued},
+          {AccountFields.dailyInternalTransferAccrued},
+          {AccountFields.dailyDomesticTransferAccrued},
           {AccountFields.lastDebitDate},
+          {AccountFields.lastInternalTransferDate},
+          {AccountFields.lastDomesticTransferDate},
           {AccountFields.lastBillingCycleDate},
           {AccountFields.transferRecipients},
           {AccountFields.internalTransferSenders},
@@ -115,7 +131,11 @@ let upsertAccounts (accounts: AccountState list) =
           @status,
           @dailyDebitLimit,
           @dailyDebitAccrued,
+          @dailyInternalTransferAccrued,
+          @dailyDomesticTransferAccrued,
           @lastDebitDate,
+          @lastInternalTransferDate,
+          @lastDomesticTransferDate,
           @lastBillingCycleDate,
           @transferRecipients,
           @internalTransferSenders,
@@ -131,7 +151,11 @@ let upsertAccounts (accounts: AccountState list) =
          {AccountFields.status} = @status,
          {AccountFields.dailyDebitLimit} = @dailyDebitLimit,
          {AccountFields.dailyDebitAccrued} = @dailyDebitAccrued,
+         {AccountFields.dailyInternalTransferAccrued} = @dailyInternalTransferAccrued,
+         {AccountFields.dailyDomesticTransferAccrued} = @dailyDomesticTransferAccrued,
          {AccountFields.lastDebitDate} = @lastDebitDate,
+         {AccountFields.lastInternalTransferDate} = @lastInternalTransferDate,
+         {AccountFields.lastDomesticTransferDate} = @lastDomesticTransferDate,
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
          {AccountFields.transferRecipients} = @transferRecipients,
          {AccountFields.internalTransferSenders} = @internalTransferSenders,

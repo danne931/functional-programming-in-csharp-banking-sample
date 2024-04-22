@@ -9,11 +9,13 @@ let render (account: AccountState) =
       attr.classes [ "container-fluid grid" ]
 
       attr.children [
-         Html.b [ attr.classes [ "account-name" ]; attr.text account.Name ]
-
          Html.div [
-            Html.p "Balance: "
-            Html.ins [ attr.text (money.format account.Balance) ]
+            Html.b [ attr.classes [ "account-name" ]; attr.text account.Name ]
+
+            Html.div [
+               Html.p "Balance: "
+               Html.ins [ attr.text (money.format account.Balance) ]
+            ]
          ]
 
          Html.div [
@@ -23,14 +25,24 @@ let render (account: AccountState) =
             )
             attr.custom ("data-placement", "top")
             attr.children [
-               Html.p "Daily Debit Accrued: "
+               Html.p "Daily Debit: "
                Html.ins [ attr.text (money.format account.DailyDebitAccrued) ]
+               Html.small $"/{money.format account.DailyDebitLimit}"
             ]
          ]
 
          Html.div [
-            Html.p "Daily Debit Limit: "
-            Html.ins [ attr.text (money.format account.DailyDebitLimit) ]
+            Html.p "Daily Internal Transfer: "
+            Html.ins [
+               attr.text (money.format account.DailyInternalTransferAccrued)
+            ]
+         ]
+
+         Html.div [
+            Html.p "Daily Domestic Transfer: "
+            Html.ins [
+               attr.text (money.format account.DailyDomesticTransferAccrued)
+            ]
          ]
       ]
    ]

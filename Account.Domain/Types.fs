@@ -128,7 +128,11 @@ type AccountState = {
    Balance: decimal
    DailyDebitLimit: decimal
    DailyDebitAccrued: decimal
+   DailyInternalTransferAccrued: decimal
+   DailyDomesticTransferAccrued: decimal
    LastDebitDate: DateTime option
+   LastInternalTransferDate: DateTime option
+   LastDomesticTransferDate: DateTime option
    LastBillingCycleDate: DateTime option
    InternalTransferSenders: Map<Guid, InternalTransferSender>
    TransferRecipients: Map<string, TransferRecipient>
@@ -148,7 +152,11 @@ type AccountState = {
       Balance = 0m
       DailyDebitLimit = 2000m
       DailyDebitAccrued = 0m
+      DailyInternalTransferAccrued = 0m
+      DailyDomesticTransferAccrued = 0m
       LastDebitDate = None
+      LastInternalTransferDate = None
+      LastDomesticTransferDate = None
       LastBillingCycleDate = None
       TransferRecipients = Map.empty
       InProgressTransfers = Map.empty

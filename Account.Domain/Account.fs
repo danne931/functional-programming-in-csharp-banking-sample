@@ -25,6 +25,48 @@ let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    else
       accrued
 
+module TransferLimits =
+   let DailyInternalLimit = 999_999_999m
+   let DailyDomesticLimit = 100_000m
+
+   let exceedsDailyTransferLimit
+      (account: AccountState)
+      (cmd: TransferCommand)
+      : bool
+      =
+      let o = cmd.Data
+
+      match o.Recipient.AccountEnvironment with
+      | RecipientAccountEnvironment.Internal ->
+         IsToday o.Date
+         && account.DailyInternalTransferAccrued + o.Amount > DailyInternalLimit
+      | RecipientAccountEnvironment.Domestic ->
+         IsToday o.Date
+         && account.DailyDomesticTransferAccrued + o.Amount > DailyDomesticLimit
+
+   let accruedDailyTransfers
+      (account: AccountState)
+      (evt: BankEvent<TransferPending>)
+      =
+      let lastTransferDate, accrued =
+         match evt.Data.Recipient.AccountEnvironment with
+         | RecipientAccountEnvironment.Internal ->
+            account.LastInternalTransferDate,
+            account.DailyInternalTransferAccrued
+         | RecipientAccountEnvironment.Domestic ->
+            account.LastDomesticTransferDate,
+            account.DailyDomesticTransferAccrued
+
+      let accrued =
+         match lastTransferDate with
+         | Some date when IsToday date -> accrued
+         | _ -> 0m
+
+      if IsToday evt.Data.Date then
+         accrued + evt.Data.DebitedAmount
+      else
+         accrued
+
 let applyEvent (state: AccountState) (evt: AccountEvent) =
    let newState =
       match evt with
@@ -88,7 +130,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
       | TransferPending e ->
          let balance = state.Balance - e.Data.DebitedAmount
 
-         {
+         let state = {
             state with
                Balance = balance
                MaintenanceFeeCriteria =
@@ -99,6 +141,20 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                   <| TransferEventToTransaction.fromPending e
                   <| state.InProgressTransfers
          }
+
+         match e.Data.Recipient.AccountEnvironment with
+         | RecipientAccountEnvironment.Internal -> {
+            state with
+               DailyInternalTransferAccrued =
+                  TransferLimits.accruedDailyTransfers state e
+               LastInternalTransferDate = Some e.Data.Date
+           }
+         | RecipientAccountEnvironment.Domestic -> {
+            state with
+               DailyDomesticTransferAccrued =
+                  TransferLimits.accruedDailyTransfers state e
+               LastDomesticTransferDate = Some e.Data.Date
+           }
       | TransferProgress e -> {
          state with
             // Map.add: will replace existing TransferTransaction
@@ -128,7 +184,7 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                state.TransferRecipients.Add(key, recipient)
             | _ -> state.TransferRecipients
 
-         {
+         let state = {
             state with
                Balance = balance
                MaintenanceFeeCriteria =
@@ -139,6 +195,19 @@ let applyEvent (state: AccountState) (evt: AccountEvent) =
                   Map.remove (string e.CorrelationId) state.InProgressTransfers
                TransferRecipients = updatedRecipients
          }
+
+         match IsToday e.Data.Date, e.Data.Recipient.AccountEnvironment with
+         | true, RecipientAccountEnvironment.Internal -> {
+            state with
+               DailyInternalTransferAccrued =
+                  state.DailyInternalTransferAccrued - e.Data.DebitedAmount
+           }
+         | true, RecipientAccountEnvironment.Domestic -> {
+            state with
+               DailyDomesticTransferAccrued =
+                  state.DailyDomesticTransferAccrued - e.Data.DebitedAmount
+           }
+         | _ -> state
       | TransferDeposited e -> {
          state with
             Balance = state.Balance + e.Data.DepositedAmount
@@ -288,6 +357,17 @@ module private StateTransition =
          |> not
       then
          transitionErr RecipientRegistrationRequired
+      elif TransferLimits.exceedsDailyTransferLimit state cmd then
+         let err =
+            match input.Recipient.AccountEnvironment with
+            | RecipientAccountEnvironment.Internal ->
+               ExceededDailyInternalTransferLimit
+                  TransferLimits.DailyInternalLimit
+            | RecipientAccountEnvironment.Domestic ->
+               ExceededDailyDomesticTransferLimit
+                  TransferLimits.DailyDomesticLimit
+
+         transitionErr err
       else
          map TransferPending state (TransferCommand.toEvent cmd)
 

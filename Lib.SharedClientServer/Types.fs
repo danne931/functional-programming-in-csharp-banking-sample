@@ -58,6 +58,8 @@ type StateTransitionError =
    | AccountCardLocked
    | InsufficientBalance of decimal
    | ExceededDailyDebit of decimal
+   | ExceededDailyInternalTransferLimit of decimal
+   | ExceededDailyDomesticTransferLimit of decimal
    | RecipientRegistrationRequired
    | RecipientAlreadyRegistered
    | RecipientAlreadyDeactivated
@@ -106,6 +108,10 @@ type Err =
          | StateTransitionError.AccountCardLocked -> "Account Card Locked"
          | StateTransitionError.ExceededDailyDebit limit ->
             $"Exceeded Daily Debit Limit ${limit}"
+         | StateTransitionError.ExceededDailyInternalTransferLimit limit ->
+            $"Exceeded Daily Internal Transfer Limit ${limit}"
+         | StateTransitionError.ExceededDailyDomesticTransferLimit limit ->
+            $"Exceeded Daily Internal Transfer Limit ${limit}"
          | StateTransitionError.InsufficientBalance balance ->
             $"Insufficient Balance ${balance}"
          | StateTransitionError.SenderAlreadyRegistered ->
@@ -117,7 +123,10 @@ type Err =
          | StateTransitionError.RecipientNotFound -> "Recipient Not Found"
          | StateTransitionError.RecipientRegistrationRequired ->
             "Recipient Registration Required"
-         | _ -> "Error Applying Transaction to Account"
+         | StateTransitionError.TransferAlreadyProgressedToApprovedOrRejected ->
+            "Transfer already progressed to approved or rejected"
+         | StateTransitionError.TransferProgressNoChange ->
+            "Transfer progress no change"
 
 [<RequireQualifiedAccess>]
 type Currency =

@@ -1,4 +1,5 @@
 @import "@picocss/pico";
+@import "./sweet-alert.css";
 
 @media screen {
   :root:not([data-theme]) {
@@ -104,32 +105,17 @@ footer {
   box-shadow: var(--card-box-shadow);
   padding: 1rem;
 }
+footer > div:not(:first-child) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+footer > div:not(:first-child) p {
+  margin-bottom: 0;
+  padding-right: 0.4rem;
+}
 footer p {
   display: inline;
-}
-
-.swal2-popup {
-  background: var(--card-background-color)
-}
-.swal2-popup.swal2-toast {
-  box-shadow: 0 0 0.45em var(--color);
-}
-.swal2-title {
-  color: var(--color);
-}
-.swal2-content {
-  color: var(--color);
-}
-.swal2-styled.swal2-confirm {
-  color: var(--color);
-  background-color: var(--background-color);
-  border-color: var(--border-color);
-}
-.swal2-icon.swal2-error {
-  border-color: var(--del-color);
-}
-.swal2-icon.swal2-error [class^=swal2-x-mark-line] {
-  background-color: var(--del-color);
 }
 
 .transaction-table-control-panel {

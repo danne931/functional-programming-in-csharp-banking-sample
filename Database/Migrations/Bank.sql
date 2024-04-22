@@ -13,7 +13,11 @@ CREATE TABLE accounts (
     currency VARCHAR(3) NOT NULL,
     status VARCHAR(50) NOT NULL,
     daily_debit_limit MONEY,
+    -- TODO: Compute accrued amounts in view.  
+    --       Storing accrued amounts here results in stale values.
     daily_debit_accrued MONEY NOT NULL,
+    daily_internal_transfer_accrued MONEY NOT NULL,
+    daily_domestic_transfer_accrued MONEY NOT NULL,
     transfer_recipients JSONB NOT NULL,
     internal_transfer_senders JSONB NOT NULL,
     maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
@@ -24,6 +28,8 @@ CREATE TABLE accounts (
     card_locked BOOLEAN NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     last_debit_at TIMESTAMPTZ,
+    last_internal_transfer_at TIMESTAMPTZ,
+    last_domestic_transfer_at TIMESTAMPTZ,
     last_billing_cycle_at TIMESTAMPTZ
 );
 

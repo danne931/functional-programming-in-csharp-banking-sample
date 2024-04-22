@@ -4,6 +4,7 @@ open System
 open Expecto
 
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 
 let update = Account.stateTransition
 
@@ -382,6 +383,190 @@ let tests =
             (string err)
             "ExceededDailyDebit"
             "should be an ExceededDailyDebit validation error"
+      }
+
+      test "Internal transfers accrue a daily transfer balance" {
+         let initState = {
+            Stub.accountState with
+               DailyInternalTransferAccrued = 0m
+         }
+
+         let res =
+            update
+               initState
+               (AccountCommand.RegisterTransferRecipient
+                  Stub.command.registerInternalRecipient)
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let updates =
+            List.fold
+               (fun acc amount ->
+                  let account, total = acc
+                  let cmd = Stub.command.internalTransfer amount
+                  let res = update account <| AccountCommand.Transfer cmd
+
+                  let _, newState = Expect.wantOk res "should be Result.Ok"
+
+                  newState, total + amount)
+               (account, 0m)
+               [ 25m; 30m; 100m ]
+
+         let newState, transferTotal = updates
+
+         Expect.equal
+            newState.DailyInternalTransferAccrued
+            transferTotal
+            "DailyInternalTransferAccrued should accrue transfers for the day"
+
+         let command = Stub.command.internalTransfer 10m
+
+         let command = {
+            command with
+               Data.Date = DateTime.UtcNow.AddDays(-1)
+         }
+
+         let res = update newState <| AccountCommand.Transfer command
+         let _, newState = Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            newState.DailyInternalTransferAccrued
+            transferTotal
+            "DailyInternalTransferAccrued should not accrue transfers older than a day"
+      }
+
+      test "Rejected internal transfers are removed from daily transfer accrual" {
+         let initState = {
+            Stub.accountState with
+               DailyInternalTransferAccrued = 0m
+         }
+
+         let res =
+            update
+               initState
+               (AccountCommand.RegisterTransferRecipient
+                  Stub.command.registerInternalRecipient)
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let transferAmount = 100m
+         let command = Stub.command.internalTransfer transferAmount
+         let res = update account <| AccountCommand.Transfer command
+
+         let (AccountEvent.TransferPending evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            account.DailyInternalTransferAccrued
+            transferAmount
+            "DailyInternalTransferAccrued should accrue transfers for the day"
+
+         let txn = TransferEventToTransaction.fromPending evt
+
+         let cmd =
+            TransferTransactionToCommand.reject
+               txn
+               TransferDeclinedReason.AccountClosed
+
+         let res = update account <| AccountCommand.RejectTransfer cmd
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            account.DailyInternalTransferAccrued
+            initState.DailyInternalTransferAccrued
+            "DailyInternalTransferAccrued should not include a rejected transfer"
+      }
+
+      test "Domestic transfers accrue a daily transfer balance" {
+         let initState = {
+            Stub.accountState with
+               DailyDomesticTransferAccrued = 0m
+         }
+
+         let res =
+            update
+               initState
+               (AccountCommand.RegisterTransferRecipient
+                  Stub.command.registerDomesticRecipient)
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let updates =
+            List.fold
+               (fun acc amount ->
+                  let account, total = acc
+                  let cmd = Stub.command.domesticTransfer amount
+                  let res = update account <| AccountCommand.Transfer cmd
+
+                  let _, newState = Expect.wantOk res "should be Result.Ok"
+
+                  newState, total + amount)
+               (account, 0m)
+               [ 25m; 30m; 100m ]
+
+         let newState, transferTotal = updates
+
+         Expect.equal
+            newState.DailyDomesticTransferAccrued
+            transferTotal
+            "DailyDomesticTransferAccrued should accrue transfers for the day"
+
+         let command = Stub.command.domesticTransfer 10m
+
+         let command = {
+            command with
+               Data.Date = DateTime.UtcNow.AddDays(-1)
+         }
+
+         let res = update newState <| AccountCommand.Transfer command
+         let _, newState = Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            newState.DailyDomesticTransferAccrued
+            transferTotal
+            "DailyDomesticTransferAccrued should not accrue transfers older than a day"
+      }
+
+      test "Rejected domestic transfers are removed from daily transfer accrual" {
+         let initState = {
+            Stub.accountState with
+               DailyDomesticTransferAccrued = 0m
+         }
+
+         let res =
+            update
+               initState
+               (AccountCommand.RegisterTransferRecipient
+                  Stub.command.registerDomesticRecipient)
+
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         let transferAmount = 100m
+         let command = Stub.command.domesticTransfer transferAmount
+         let res = update account <| AccountCommand.Transfer command
+
+         let (AccountEvent.TransferPending evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            account.DailyDomesticTransferAccrued
+            transferAmount
+            "DailyDomesticTransferAccrued should accrue transfers for the day"
+
+         let txn = TransferEventToTransaction.fromPending evt
+
+         let cmd =
+            TransferTransactionToCommand.reject
+               txn
+               TransferDeclinedReason.AccountClosed
+
+         let res = update account <| AccountCommand.RejectTransfer cmd
+         let _, account = Expect.wantOk res "should be Result.Ok"
+
+         Expect.equal
+            account.DailyDomesticTransferAccrued
+            initState.DailyDomesticTransferAccrued
+            "DailyDomesticTransferAccrued should not include a rejected transfer"
       }
 
       test
