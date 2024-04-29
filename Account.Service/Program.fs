@@ -9,12 +9,9 @@ open Akka.Routing
 open Akkling
 
 open Bank.Account.Domain
-open Bank.Account.Api
 open Bank.Transfer.Api
-open Bank.BillingCycle.Api
 open Bank.Infrastructure
 open ActorUtil
-open BillingStatement
 
 let builder = Env.builder
 
@@ -116,12 +113,11 @@ builder.Services.AddAkka(
             ActorMetadata.accountEventConsumer.Name,
             (fun system _ _ ->
                let typedProps =
-                  AccountEventConsumerActor.actorProps
+                  AccountEventConsumerActor.initProps
                      (AccountActor.get system)
                      Env.config.AccountEventProjectionChunking
                      Env.config.AccountEventReadModelPersistenceBackoffRestart
                      Env.config.AccountEventReadModelRetryPersistenceAfter
-                     upsertAccounts
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -184,9 +180,6 @@ builder.Services.AddAkka(
             registry.Register<ActorMetadata.BillingStatementMarker>(
                BillingStatementActor.start
                   system
-                  {
-                     saveBillingStatements = saveBillingStatements
-                  }
                   Env.config.BillingStatementPersistenceChunking
                   Env.config.BillingStatementPersistenceBackoffRestart
                   Env.config.BillingStatementRetryPersistenceAfter

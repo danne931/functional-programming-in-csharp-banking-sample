@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <Compile Include="Postgres.fs" />
+    <Compile Include="BillingSqlMapper.fs" />
     <Compile Include="AccountSqlMapper.fs" />
   </ItemGroup>
 
@@ -17,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.fsproj" />
+    <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
 </Project>

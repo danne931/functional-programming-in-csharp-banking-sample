@@ -12,6 +12,8 @@ open Util
 open Lib.SharedTypes
 open Lib.BulkWriteStreamFlow
 
+type BillingPersistence = BillingStatementActor.BillingPersistence
+
 // Change default test scheduler so BulkWriteStreamFlow used in
 // BillingStatementActor can schedule a message to tell itself
 // to retry persisting failed writes of BillingStatements.

@@ -1,9 +1,7 @@
 module BillingStatement
 
 open System
-open System.Threading.Tasks
 
-open Lib.SharedTypes
 open Bank.Account.Domain
 
 type BillingTransaction = private BillingTransaction of AccountEvent
@@ -31,10 +29,6 @@ type BillingStatement = {
    AccountId: Guid
    LastPersistedEventSequenceNumber: Int64
    AccountSnapshot: byte[]
-}
-
-type BillingPersistence = {
-   saveBillingStatements: BillingStatement list -> Task<Result<int list, Err>>
 }
 
 type BillingCycleMessage =
