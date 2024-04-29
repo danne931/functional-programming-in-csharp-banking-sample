@@ -1,8 +1,15 @@
+begin;
+
 SET timezone = 'America/Los_Angeles';
 
 DROP TABLE IF EXISTS billingstatements;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS merchantalias;
+DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS transactionnote;
+DROP TABLE IF EXISTS transactioncategory;
+DROP TABLE IF EXISTS category;
 
 CREATE TABLE accounts (
     id UUID PRIMARY KEY,
@@ -13,7 +20,7 @@ CREATE TABLE accounts (
     currency VARCHAR(3) NOT NULL,
     status VARCHAR(50) NOT NULL,
     daily_debit_limit MONEY,
-    -- TODO: Compute accrued amounts in view.  
+    -- TODO: Compute accrued amounts in view.
     --       Storing accrued amounts here results in stale values.
     daily_debit_accrued MONEY NOT NULL,
     daily_internal_transfer_accrued MONEY NOT NULL,
@@ -57,3 +64,67 @@ CREATE TABLE billingstatements (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
+
+CREATE TABLE category (
+    category_id SMALLSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO category (name)
+VALUES
+    ('Advertising'),
+    ('Airlines'),
+    ('Alcohol and Bars'),
+    ('Books and Newspaper'),
+    ('Car Rental'),
+    ('Charity'),
+    ('Clothing'),
+    ('Conferences'),
+    ('Education'),
+    ('Electronics'),
+    ('Entertainment'),
+    ('Facilities Expenses'),
+    ('Fees'),
+    ('Food Delivery'),
+    ('Fuel and Gas'),
+    ('Gambling'),
+    ('Government Services'),
+    ('Grocery'),
+    ('Ground Transportation'),
+    ('Insurance'),
+    ('Internet and Telephone'),
+    ('Legal'),
+    ('Lodging'),
+    ('Medical'),
+    ('Memberships'),
+    ('Office Supplies'),
+    ('Parking'),
+    ('Political'),
+    ('Professional Services'),
+    ('Restaurants'),
+    ('Retail'),
+    ('Rideshare and Taxis'),
+    ('Shipping'),
+    ('Software'),
+    ('Taxes'),
+    ('Travel'),
+    ('Utilities'),
+    ('Vehicle Expenses'),
+    ('Other');
+
+CREATE TABLE transactioncategory (
+    id BIGSERIAL PRIMARY KEY,
+    category_id SMALLSERIAL REFERENCES category (category_id),
+    transaction_id UUID UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE transactionnote (
+    id BIGSERIAL PRIMARY KEY,
+    transaction_id UUID UNIQUE NOT NULL,
+    note TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+commit;

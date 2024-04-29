@@ -245,3 +245,11 @@ module AccountLoadTestTypes =
       | Teardown
       | Lookup
       | AccountEventPersisted of LoadTestEventPersisted
+
+type TransactionCategory = { Id: int; Name: string }
+
+type AncillaryTransactionInfo = {
+   Id: Guid
+   Category: TransactionCategory option
+   Note: string option
+}

@@ -14,3 +14,9 @@ let signalRContext =
       name = "SignalRContext",
       defaultValue = { Connection = None; Errors = [] }
    )
+
+let transactionCategoryContext =
+   React.createContext<Map<int, TransactionCategory>> (
+      name = "TransactionCategoryContext",
+      defaultValue = Map.empty
+   )

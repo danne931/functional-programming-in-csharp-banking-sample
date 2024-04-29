@@ -2,6 +2,7 @@ module TransactionTable
 
 open Feliz
 open Feliz.UseElmish
+open Feliz.Router
 open Elmish
 open Fable.FontAwesome
 open System
@@ -210,13 +211,26 @@ let renderControlPanel accountId state dispatch =
       ]
    ]
 
-let renderTableRow (txn: AccountEvent) =
+let renderTableRow (account: AccountState) (txn: AccountEvent) =
    let _, envelope = AccountEnvelope.unwrap txn
-   let txn = transactionUIFriendly txn
+   let txn = transactionUIFriendly account txn
    let orDefaultValue opt = opt |> Option.defaultValue "-"
 
    Html.tr [
       attr.key envelope.Id
+
+      // Allow opening transaction detail view for account events
+      // with money flow, i.e. not diagnostic events.
+      if txn.MoneyFlow = MoneyFlow.None then
+         attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
+      else
+         attr.onClick (fun _ ->
+            Router.navigate (
+               "account",
+               string envelope.EntityId,
+               "transaction-detail",
+               string envelope.Id
+            ))
 
       attr.children [
          Html.th [ attr.scope "row" ]
@@ -242,8 +256,9 @@ let renderTableRow (txn: AccountEvent) =
       ]
    ]
 
-let renderTable (txns: AccountEvent list) =
+let renderTable (account: AccountState) (txns: AccountEvent list) =
    Html.table [
+      attr.classes [ "clickable-table" ]
       attr.role "grid"
       attr.children [
          Html.thead [
@@ -262,7 +277,7 @@ let renderTable (txns: AccountEvent list) =
             ]
          ]
 
-         Html.tbody [ for txn in txns -> renderTableRow txn ]
+         Html.tbody [ for txn in txns -> renderTableRow account txn ]
       ]
    ]
 
@@ -313,6 +328,8 @@ let TransactionTableComponent (accountOpt: AccountState option) =
       match accountOpt with
       | None -> ()
       | Some account ->
+         let renderTable = renderTable account
+
          Html.figure [
             renderControlPanel account.EntityId state dispatch
 

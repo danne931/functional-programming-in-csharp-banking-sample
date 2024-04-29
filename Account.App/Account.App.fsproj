@@ -10,6 +10,7 @@
     <Compile Include="AccountEventConsumerActor.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="AccountActor.fs" />
+    <Compile Include="AncillaryTransactionInfoApi.fs" />
     <Compile Include="AccountApi.fs" />
     <Compile Include="AccountSeederActor.fs" />
   </ItemGroup>

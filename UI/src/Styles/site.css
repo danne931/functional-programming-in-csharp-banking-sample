@@ -90,11 +90,28 @@ button {
   margin-top: 0.35rem;
 }
 
-.form-wrapper > button {
+aside button.close {
   position: relative;
   float: right;
   padding: 0.3rem 1rem;
   width: auto;
+}
+.transaction-detail {
+  padding: 1rem;
+  background-color: var(--card-background-color);
+}
+.transaction-detail details {
+  position: absolute;
+  right: 0;
+  width: 80%;
+  display: inline-block;
+}
+.transaction-detail details[role=list] summary::after {
+  background-image: none;
+}
+.transaction-detail section {
+  margin-top: 1.5rem;
+  margin-bottom: 0;
 }
 
 footer {
@@ -127,6 +144,14 @@ footer p {
 }
 a.pagination {
   padding: 0 .4rem 0 .4rem;
+}
+
+table.clickable-table tbody tr {
+  cursor: pointer;
+  border-left: solid transparent 0.2rem;
+}
+table.clickable-table tbody tr:hover {
+  border-color: var(--primary)
 }
 
 main {

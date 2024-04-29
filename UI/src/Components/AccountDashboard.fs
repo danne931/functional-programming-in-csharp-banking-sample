@@ -11,6 +11,7 @@ open Bank.Account.Domain
 open Bank.Account.UIDomain
 open Lib.SharedTypes
 open AccountActions
+open TransactionDetail
 open Contexts
 
 type Url =
@@ -18,6 +19,7 @@ type Url =
    | AccountSelected of Guid
    | AccountEdit of Guid
    | AccountActionOpen of Guid * FormView
+   | AccountTransaction of accountId: Guid * transactionId: Guid
    | NotFound
 
 module Url =
@@ -40,6 +42,8 @@ module Url =
          Url.AccountActionOpen(accountId, FormView.DailyDebitLimit)
       | [ Route.Guid accountId; "card-access" ] ->
          Url.AccountActionOpen(accountId, FormView.CardAccess)
+      | [ Route.Guid accountId; "transaction-detail"; Route.Guid transactionId ] ->
+         Url.AccountTransaction(accountId, transactionId)
       | _ -> Url.NotFound
 
    let accountIdMaybe (url: Url) : Guid option =
@@ -47,6 +51,7 @@ module Url =
       | AccountSelected id
       | AccountEdit id -> Some id
       | AccountActionOpen(id, _) -> Some id
+      | AccountTransaction(id, _) -> Some id
       | _ -> None
 
    let accountFormMaybe (url: Url) : FormView option =
@@ -274,6 +279,8 @@ let AccountDashboardComponent (url: Url) =
       , [| box signalRConnection |]
    )
 
+   let accountOpt = selectedAccount state
+
    Html.div [
       match accountsFromDeferred state.Accounts with
       | None -> Navigation.NavigationComponent None None
@@ -286,18 +293,31 @@ let AccountDashboardComponent (url: Url) =
          classyNode Html.div [ "grid" ] [
             Html.section [
                Html.h5 "Transactions"
-               TransactionTable.TransactionTableComponent(selectedAccount state)
+               TransactionTable.TransactionTableComponent accountOpt
             ]
 
-
             Html.aside [
-               Html.h5 "Actions"
-               renderAccountActions state dispatch
+               match state.CurrentUrl, accountOpt with
+               | Url.AccountTransaction(accountId, transactionId), Some account ->
+                  Html.h5 "Transaction Detail"
+
+                  let evtFound =
+                     account.Events
+                     |> List.tryFind (fun evt ->
+                        let _, envelope = AccountEnvelope.unwrap evt
+                        envelope.Id = transactionId)
+
+                  match evtFound with
+                  | None -> Html.p $"Transaction {transactionId} not found."
+                  | Some evt -> TransactionDetailComponent account evt
+               | _ ->
+                  Html.h5 "Actions"
+                  renderAccountActions state dispatch
             ]
          ]
       ]
 
-      match selectedAccount state with
+      match accountOpt with
       | None -> ()
       | Some account -> AccountSummary.render account
    ]

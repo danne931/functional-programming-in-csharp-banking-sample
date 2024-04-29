@@ -31,3 +31,22 @@ let classyNode
    (children: Fable.React.ReactElement list)
    =
    elementGenerator [ attr.classes classes; attr.children children ]
+
+/// Pass latest value from input, after some delay, to provided function.
+/// Useful in input onChange handler.
+let throttleInput (delay: int) (func: string -> unit) =
+   let mutable timeoutId = None
+   let mutable state = ""
+
+   fun (input: string) ->
+      state <- input
+
+      if timeoutId.IsNone then
+         timeoutId <-
+            Some
+            <| Browser.Dom.window.setTimeout (
+               fun () ->
+                  func state
+                  timeoutId <- None
+               , delay
+            )

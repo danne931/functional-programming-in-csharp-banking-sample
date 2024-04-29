@@ -7,6 +7,7 @@ open Feliz
 open Feliz.Router
 open Browser.Dom
 open SignalRConnectionProvider
+open TransactionCategoryProvider
 
 [<RequireQualifiedAccess>]
 type Url =
@@ -33,9 +34,9 @@ let App () =
       match currentUrl with
       | Url.Index -> Html.h1 "Home"
       | Url.Account url ->
-         SignalRConnectionProvider(
-            AccountDashboard.AccountDashboardComponent url
-         )
+         AccountDashboard.AccountDashboardComponent url
+         |> SignalRConnectionProvider
+         |> TransactionCategoryProvider
       | Url.NotFound -> Html.h1 "Not Found"
 
    React.strictMode (

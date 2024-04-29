@@ -3,11 +3,9 @@ module SignalRConnectionProvider
 open Feliz
 open Feliz.UseElmish
 open Elmish
-open System
 
 open AsyncUtil
 open Contexts
-open Lib.SharedTypes
 open Bank.Account.Domain
 
 type State = {

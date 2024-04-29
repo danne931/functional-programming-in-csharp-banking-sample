@@ -57,9 +57,15 @@ type TransactionUIFriendly = {
    Sign: string
    Info: string option
    MoneyFlow: MoneyFlow
+   Source: string
+   Destination: string
 }
 
-let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
+let transactionUIFriendly
+   (account: AccountState)
+   (txn: AccountEvent)
+   : TransactionUIFriendly
+   =
    let _, envelope = AccountEnvelope.unwrap txn
 
    let props = {
@@ -72,7 +78,16 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
       Sign = ""
       Info = None
       MoneyFlow = MoneyFlow.None
+      Source = ""
+      Destination = ""
    }
+
+   let accountName =
+      account.FirstName
+      + " "
+      + account.LastName
+      + " **"
+      + (string account.EntityId).Substring(-4)
 
    let props =
       match txn with
@@ -95,6 +110,8 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
             AmountNaked = Some evt.Data.DebitedAmount
             Origin = Some evt.Data.Origin
             MoneyFlow = MoneyFlow.Out
+            Source = accountName
+            Destination = evt.Data.Origin
         }
       | MaintenanceFeeDebited evt -> {
          props with
@@ -140,6 +157,11 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
             Info = Some $"Recipient: {evt.Data.Recipient.Name}"
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.Out
+            Source = accountName
+            Destination =
+               evt.Data.Recipient.Name
+               + " **"
+               + evt.Data.Recipient.Identification.Substring(-4)
         }
       | TransferProgress evt -> {
          props with
@@ -170,6 +192,8 @@ let transactionUIFriendly (txn: AccountEvent) : TransactionUIFriendly =
             AmountNaked = Some evt.Data.DepositedAmount
             Origin = Some evt.Data.Origin
             MoneyFlow = MoneyFlow.In
+            Source = evt.Data.Origin
+            Destination = string evt.EntityId
         }
       | LockedCard _ -> { props with Name = "Card Locked" }
       | UnlockedCard _ -> { props with Name = "Card Unlocked" }

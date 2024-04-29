@@ -240,13 +240,6 @@ let private renderMenuButton dispatch (form: FormView) =
       )
    ]
 
-let private renderCloseButton dispatch =
-   Html.button [
-      attr.onClick (fun _ -> dispatch CancelForm)
-      attr.text "Close"
-      attr.classes [ "secondary"; "outline" ]
-   ]
-
 [<ReactComponent>]
 let AccountActionsComponent
    (account: AccountState)
@@ -311,7 +304,7 @@ let AccountActionsComponent
             | FormView.CardAccess -> "Card Access"
          )
 
-         renderCloseButton dispatch
+         CloseButton.render (fun _ -> dispatch CancelForm)
 
          match form with
          | FormView.RegisterTransferRecipient ->

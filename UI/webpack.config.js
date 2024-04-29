@@ -21,6 +21,7 @@ module.exports = (env, argv) => {
         '/accounts': 'http://localhost:3000',
         '/transfers': 'http://localhost:3000',
         '/diagnostic': 'http://localhost:3000',
+        '/ancillary-transaction-info': 'http://localhost:3000', 
         '/accountHub': {
           target: 'ws://localhost:3000',
           ws: true

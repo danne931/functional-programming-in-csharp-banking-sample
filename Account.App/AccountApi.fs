@@ -42,7 +42,7 @@ let getAccounts () =
 let getAccountsByIds (accountIds: Guid list) =
    pgQuery<AccountState>
       "SELECT * FROM accounts WHERE id = ANY(@accountIds)"
-      (Some [ "@accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
+      (Some [ "accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
       AccountSqlReader.account
 
 let upsertAccounts (accounts: AccountState list) =

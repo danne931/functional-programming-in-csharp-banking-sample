@@ -31,5 +31,18 @@ module TransferPath =
    let Base = "/transfers"
    let TransferRecipient = Base + "/register-recipient"
 
+module AncillaryTransactionInfoPath =
+   let Base = "/ancillary-transaction-info"
+   let Categories = Base + "/categories"
+   let TransactionInfo = Base + "/transaction/{txnId}"
+   let transactionInfo (txnId: Guid) = $"{Base}/transaction/{txnId}"
+   let Category = TransactionInfo + "/category/{categoryId}"
+
+   let category (txnId: Guid) (categoryId: int) =
+      transactionInfo txnId + $"/category/{categoryId}"
+
+   let Note = TransactionInfo + "/note"
+   let note (txnId: Guid) = transactionInfo txnId + "/note"
+
 module UserPath =
    let Base = "/users"

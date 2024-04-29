@@ -14,6 +14,7 @@ open Bank.Account.Routes
 open Bank.Account.Domain
 open Bank.Transfer.Routes
 open Bank.Diagnostic.Routes
+open Bank.AncillaryTransactionInfo.Routes
 open Bank.Hubs
 open ActorUtil
 open Lib.SharedTypes
@@ -126,5 +127,6 @@ startUserRoutes app
 startTransferRoutes app
 startAccountRoutes app
 startDiagnosticRoutes app
+startAncillaryTransactionInfoRoutes app
 
 app.Run()
