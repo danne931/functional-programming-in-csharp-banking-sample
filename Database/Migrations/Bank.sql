@@ -2,13 +2,14 @@ begin;
 
 SET timezone = 'America/Los_Angeles';
 
+DROP TYPE IF EXISTS money_flow;
+
+DROP TABLE IF EXISTS transaction;
 DROP TABLE IF EXISTS billingstatements;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS merchantalias;
 DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS accounts;
-DROP TABLE IF EXISTS transactionnote;
-DROP TABLE IF EXISTS transactioncategory;
 DROP TABLE IF EXISTS category;
 
 CREATE TABLE accounts (
@@ -113,18 +114,20 @@ VALUES
     ('Vehicle Expenses'),
     ('Other');
 
-CREATE TABLE transactioncategory (
-    id BIGSERIAL PRIMARY KEY,
+CREATE TYPE money_flow AS ENUM ('none', 'in', 'out');
+CREATE TABLE transaction (
+    name VARCHAR(50) NOT NULL,
+    amount MONEY,
+    money_flow money_flow,
+    timestamp TIMESTAMPTZ NOT NULL,
+    note TEXT,
     category_id SMALLSERIAL REFERENCES category (category_id),
-    transaction_id UUID UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    transaction_id UUID PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+    correlation_id UUID NOT NULL,
+    event JSONB NOT NULL
 );
-
-CREATE TABLE transactionnote (
-    id BIGSERIAL PRIMARY KEY,
-    transaction_id UUID UNIQUE NOT NULL,
-    note TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
+ALTER TABLE transaction
+ALTER COLUMN category_id DROP NOT NULL;
 
 commit;

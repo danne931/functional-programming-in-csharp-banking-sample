@@ -20,8 +20,12 @@ open ActorUtil
 open Bank.Account.Domain
 open Lib.BulkWriteStreamFlow
 open AccountSqlMapper
+open TransactionSqlMapper
 
-type BulkAccountUpsert = AccountState list -> Result<List<int>, Err> Task
+type EventsGroupedByAccount = AccountState * AccountEvent list
+
+type ReadModelUpsert =
+   AccountState list * AccountEvent list -> Result<List<int>, Err> Task
 
 type AccountEventConsumerState = {
    Offset: Akka.Persistence.Query.Sequence
@@ -31,7 +35,7 @@ type AccountEventConsumerMessage = SaveOffset of Akka.Persistence.Query.Sequence
 
 let initFailedWritesSource
    (system: ActorSystem)
-   : Source<Guid, Akka.NotUsed> * IActorRef<Guid>
+   : Source<AccountEvent list, Akka.NotUsed> * IActorRef<AccountEvent list>
    =
    let failedWritesSource = Source.actorRef OverflowStrategy.DropHead 1000
    let preMat = failedWritesSource.PreMaterialize system
@@ -43,16 +47,14 @@ let initReadJournalSource
    (state: AccountEventConsumerState)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
-   : Source<Guid, Akka.NotUsed>
+   : Source<AccountEvent list, Akka.NotUsed>
    =
    let source =
       (readJournal mailbox.System).EventsByTag("AccountEvent", state.Offset)
       |> Source.groupedWithin chunking.Size chunking.Duration
-      |> Source.collect (fun evtSeq ->
-         let setOfAccountIds =
-            evtSeq
-            |> Seq.map (fun env -> Guid.Parse env.PersistenceId)
-            |> Set.ofSeq
+      |> Source.map (fun evtSeq ->
+         let evts: AccountEvent list =
+            evtSeq |> Seq.map (fun env -> unbox env.Event) |> List.ofSeq
 
          let offset = (Seq.last evtSeq).Offset
 
@@ -60,10 +62,9 @@ let initReadJournalSource
          | :? Query.Sequence as offset -> mailbox.Self <! SaveOffset offset
          | _ -> ()
 
-         setOfAccountIds)
+         evts)
 
    RestartSource.OnFailuresWithBackoff((fun _ -> source), restartSettings)
-
 
 let startProjection
    (mailbox: Eventsourced<obj>)
@@ -71,7 +72,7 @@ let startProjection
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)
-   (upsertAccounts: BulkAccountUpsert)
+   (upsertReadModels: ReadModelUpsert)
    (state: AccountEventConsumerState)
    =
    logInfo
@@ -91,29 +92,64 @@ let startProjection
    }
 
    let bulkWriteFlow, _ =
-      initBulkWriteFlow<AccountState> system restartSettings chunking {
+      initBulkWriteFlow<EventsGroupedByAccount> system restartSettings chunking {
          RetryAfter = retryPersistenceAfter
          persist =
-            fun (accounts: AccountState seq) ->
-               accounts |> List.ofSeq |> upsertAccounts
+            fun (props: EventsGroupedByAccount seq) ->
+               let props =
+                  props
+                  |> Seq.fold
+                        (fun (accountAcc, eventsAcc) grouping ->
+                           let account, accountEvents = grouping
+
+                           account :: accountAcc,
+                           List.append eventsAcc accountEvents)
+                        ([], [])
+
+               upsertReadModels props
          // Feed failed upserts back into the stream
          onRetry =
-            fun (accounts: AccountState seq) ->
-               for account in accounts do
-                  failedWritesRef <! account.EntityId
+            fun (props: EventsGroupedByAccount seq) ->
+               for _, accountEvents in props do
+                  failedWritesRef <! accountEvents
          onPersistOk =
             fun _ response ->
-               SystemLog.info system $"Saved account read models {response}"
+               logInfo mailbox $"Saved account read models {response}"
       }
 
-   let flow =
-      Flow.id
-      |> Flow.asyncMapUnordered 10 (fun accountId -> async {
-         let! (accountOpt: AccountState option) =
-            getAccountRef accountId <? GetAccount
+   let getAccount (accountId: Guid, accountEvents: AccountEvent list) = task {
+      let! (accountOpt: AccountState option) =
+         getAccountRef accountId <? GetAccount
 
-         return accountOpt
+      return accountOpt |> Option.map (fun account -> account, accountEvents)
+   }
+
+   let flow =
+      Flow.id<AccountEvent list, EventsGroupedByAccount>
+      |> Flow.asyncMap 1000 (fun accountEvents -> async {
+         let distinctAccountIds =
+            accountEvents
+            |> List.fold
+                  (fun acc accountEvent ->
+                     let _, envelope = AccountEnvelope.unwrap accountEvent
+                     let accountId = envelope.EntityId
+
+                     match Map.tryFind accountId acc with
+                     | None -> Map.add accountId [ accountEvent ] acc
+                     | Some found ->
+                        Map.change
+                           accountId
+                           (Option.map (fun accountEvents ->
+                              accountEvent :: accountEvents))
+                           acc)
+                  Map.empty<Guid, AccountEvent list>
+            |> Map.toArray
+            |> Array.map getAccount
+
+         let! res = Task.WhenAll(distinctAccountIds) |> Async.AwaitTask
+         return res |> Array.toSeq
       })
+      |> Flow.collect id
       |> Flow.choose id
       |> Flow.via bulkWriteFlow
 
@@ -127,7 +163,7 @@ let actorProps
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)
-   (upsertAccounts: BulkAccountUpsert)
+   (upsertReadModels: ReadModelUpsert)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logInfo = logInfo mailbox
@@ -159,7 +195,7 @@ let actorProps
                                  chunking
                                  restartSettings
                                  retryPersistenceAfter
-                                 upsertAccounts
+                                 upsertReadModels
                                  state
                               |> ignored
                   }
@@ -171,8 +207,13 @@ let actorProps
 
    propsPersist handler
 
-let upsertAccounts (accounts: AccountState list) =
-   let sqlParams =
+let upsertReadModels
+   (
+      accounts: AccountState list,
+      accountEvents: AccountEvent list
+   )
+   =
+   let accountSqlParams =
       accounts
       |> List.map (fun account -> [
          "@id", AccountSqlWriter.entityId account.EntityId
@@ -220,6 +261,46 @@ let upsertAccounts (accounts: AccountState list) =
             account.InProgressTransfers.Count
          "@cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
+
+   let transactionSqlParams =
+      accountEvents
+      |> List.map (fun evt ->
+         let evt, envelope = AccountEnvelope.unwrap evt
+
+         let sqlParams = [
+            "@transactionId", TransactionSqlWriter.transactionId envelope.Id
+            "@accountId", TransactionSqlWriter.accountId envelope.EntityId
+            "@correlationId",
+            TransactionSqlWriter.correlationId envelope.CorrelationId
+            "@name", TransactionSqlWriter.name envelope.EventName
+            "@timestamp", TransactionSqlWriter.timestamp envelope.Timestamp
+            "@event", TransactionSqlWriter.event evt
+            "@categoryId", TransactionSqlWriter.categoryId None
+         ]
+
+         let amountOpt, moneyFlow =
+            match evt with
+            | AccountEvent.CreatedAccount evt ->
+               Some evt.Data.Balance, MoneyFlow.In
+            | AccountEvent.DepositedCash evt ->
+               Some evt.Data.DepositedAmount, MoneyFlow.In
+            | AccountEvent.DebitedAccount evt ->
+               Some evt.Data.DebitedAmount, MoneyFlow.Out
+            | AccountEvent.TransferPending evt ->
+               Some evt.Data.DebitedAmount, MoneyFlow.Out
+            | AccountEvent.TransferRejected evt ->
+               Some evt.Data.DebitedAmount, MoneyFlow.In
+            | AccountEvent.TransferDeposited evt ->
+               Some evt.Data.DepositedAmount, MoneyFlow.In
+            | AccountEvent.MaintenanceFeeDebited evt ->
+               Some evt.Data.DebitedAmount, MoneyFlow.Out
+            | _ -> None, MoneyFlow.None
+
+         sqlParams
+         @ [
+            ("@amount", TransactionSqlWriter.amount amountOpt)
+            ("@moneyFlow", TransactionSqlWriter.moneyFlow moneyFlow)
+         ])
 
    pgTransaction [
       $"""
@@ -292,7 +373,33 @@ let upsertAccounts (accounts: AccountState list) =
          {AccountFields.inProgressTransfersCount} = @inProgressTransfersCount,
          {AccountFields.cardLocked} = @cardLocked;
       """,
-      sqlParams
+      accountSqlParams
+
+      $"""
+      INSERT into transaction
+         ({TransactionFields.transactionId},
+          {TransactionFields.accountId},
+          {TransactionFields.correlationId},
+          {TransactionFields.name},
+          {TransactionFields.timestamp},
+          {TransactionFields.event},
+          {TransactionFields.amount},
+          {TransactionFields.moneyFlow},
+          {TransactionFields.categoryId})
+      VALUES
+         (@transactionId,
+          @accountId,
+          @correlationId,
+          @name,
+          @timestamp,
+          @event,
+          @amount,
+          @moneyFlow::{TransactionTypeCast.moneyFlow},
+          @categoryId)
+      ON CONFLICT ({TransactionFields.transactionId})
+      DO NOTHING;
+      """,
+      transactionSqlParams
    ]
 
 let initProps
@@ -306,7 +413,7 @@ let initProps
       chunking
       restartSettings
       retryPersistenceAfter
-      upsertAccounts
+      upsertReadModels
 
 let get (system: ActorSystem) : IActorRef<AccountClosureMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.AccountClosureMarker>()

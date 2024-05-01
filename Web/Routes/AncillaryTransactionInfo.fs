@@ -1,6 +1,7 @@
 module Bank.AncillaryTransactionInfo.Routes
 
 open System
+open System.IO
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
@@ -25,14 +26,22 @@ let startAncillaryTransactionInfoRoutes (app: WebApplication) =
    app.MapPost(
       AncillaryTransactionInfoPath.Category,
       Func<Guid, int, Task<IResult>>(fun txnId categoryId ->
-         upsertTransactionCategory txnId categoryId
+         updateTransactionCategory txnId categoryId
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
       AncillaryTransactionInfoPath.Note,
-      Func<Guid, string, Task<IResult>>(fun txnId note ->
-         upsertTransactionNote txnId note |> RouteUtil.unwrapTaskResult)
+      Func<Guid, Stream, Task<IResult>>(fun txnId body -> task {
+         try
+            use reader = new StreamReader(body)
+            let! note = reader.ReadToEndAsync()
+
+            return!
+               updateTransactionNote txnId note |> RouteUtil.unwrapTaskResult
+         with e ->
+            return Results.Problem e.Message
+      })
    )
    |> ignore

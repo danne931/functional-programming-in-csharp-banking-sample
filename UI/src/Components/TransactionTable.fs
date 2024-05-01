@@ -7,6 +7,7 @@ open Elmish
 open Fable.FontAwesome
 open System
 
+open Lib.SharedTypes
 open Bank.Account.UIDomain
 open Bank.Account.Domain
 open BillingStatement

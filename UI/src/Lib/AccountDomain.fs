@@ -41,12 +41,6 @@ let updateAccount
          accounts |> Map.change accountId (Option.map transform) |> Some |> Ok
       | other -> other)
 
-[<RequireQualifiedAccess>]
-type MoneyFlow =
-   | None
-   | In
-   | Out
-
 type TransactionUIFriendly = {
    DateNaked: DateTime
    Date: string

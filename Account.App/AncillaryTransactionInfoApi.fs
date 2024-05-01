@@ -1,23 +1,18 @@
 module Bank.AncillaryTransactionInfo.Api
 
 open System
-open System.Threading.Tasks
-open FSharp.Control
 open FsToolkit.ErrorHandling
 
-open Lib.SharedTypes
 open Lib.Postgres
+open TransactionSqlMapper
 open Bank.Account.Domain
 
-let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
+let updateTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
    let query =
       $"""
-      INSERT into transactioncategory
-         (transaction_id, category_id)
-      VALUES
-         (@transactionId, @categoryId)
-      ON CONFLICT (transaction_id)
-      DO UPDATE SET category_id = @categoryId
+      UPDATE transaction
+      SET {TransactionFields.categoryId} = @categoryId
+      WHERE {TransactionFields.transactionId} = @transactionId
       """
 
    let! res =
@@ -29,21 +24,20 @@ let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResu
    return res
 }
 
-let upsertTransactionNote (transactionId: Guid) (note: string) = taskResult {
+let updateTransactionNote (transactionId: Guid) (note: string) = taskResult {
    let query =
       $"""
-      INSERT into transactionnote
-         (transaction_id, note)
-      VALUES
-         (@transactionId, @note)
-      ON CONFLICT (transaction_id)
-      DO UPDATE SET note = @note
+      UPDATE transaction
+      SET {TransactionFields.note} = @note
+      WHERE {TransactionFields.transactionId} = @transactionId
       """
+
+   printfn "note %A" note
 
    let! res =
       pgPersist query [
-         "transactionId", Sql.uuid transactionId
-         "note", Sql.string note
+         "transactionId", TransactionSqlWriter.transactionId transactionId
+         "note", TransactionSqlWriter.note note
       ]
 
    return res
@@ -60,26 +54,25 @@ let getCategories () =
 
 let getTransactionInfo (txnId: Guid) = taskResult {
    let query =
-      """
+      $"""
       SELECT
-         transactioncategory.category_id as category_id,
-         transactionnote.note as note,
+         transaction.{TransactionFields.categoryId},
+         transaction.{TransactionFields.note},
          category.name as category_name
-      FROM transactioncategory 
-         FULL OUTER JOIN transactionnote using(transaction_id)
-         LEFT JOIN category using(category_id)
-      WHERE transaction_id = @transactionId
+      FROM transaction
+         LEFT JOIN category using({TransactionFields.categoryId})
+      WHERE {TransactionFields.transactionId} = @transactionId
       """
 
    let rowReader (read: RowReader) = {
       Id = txnId
       Category =
-         read.intOrNone "category_id"
+         TransactionSqlReader.categoryId read
          |> Option.map (fun catId -> {
             Id = catId
             Name = read.string "category_name"
          })
-      Note = read.textOrNone "note"
+      Note = TransactionSqlReader.note read
    }
 
    let! infoOpt =

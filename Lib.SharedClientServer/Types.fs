@@ -129,6 +129,12 @@ type Err =
             "Transfer progress no change"
 
 [<RequireQualifiedAccess>]
+type MoneyFlow =
+   | None
+   | In
+   | Out
+
+[<RequireQualifiedAccess>]
 type Currency =
    | USD
    | EUR
