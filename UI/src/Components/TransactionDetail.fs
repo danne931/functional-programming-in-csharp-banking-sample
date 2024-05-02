@@ -159,6 +159,7 @@ let TransactionDetailComponent
          Html.input [
             attr.type' "text"
             attr.placeholder "Add a note"
+            attr.key txnId
 
             attr.defaultValue (state.Transaction.Note |> Option.defaultValue "")
 
