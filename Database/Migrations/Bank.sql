@@ -4,6 +4,7 @@ SET timezone = 'America/Los_Angeles';
 
 DROP TYPE IF EXISTS money_flow;
 
+DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
 DROP TABLE IF EXISTS billingstatements;
 DROP TABLE IF EXISTS users;
@@ -120,14 +121,18 @@ CREATE TABLE transaction (
     amount MONEY,
     money_flow money_flow,
     timestamp TIMESTAMPTZ NOT NULL,
-    note TEXT,
-    category_id SMALLSERIAL REFERENCES category (category_id),
     transaction_id UUID PRIMARY KEY,
     account_id UUID NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
     correlation_id UUID NOT NULL,
     event JSONB NOT NULL
 );
-ALTER TABLE transaction
+
+CREATE TABLE ancillarytransactioninfo (
+    note TEXT,
+    category_id SMALLSERIAL REFERENCES category (category_id),
+    transaction_id UUID PRIMARY KEY REFERENCES transaction (transaction_id) ON DELETE CASCADE
+);
+ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
 
 commit;

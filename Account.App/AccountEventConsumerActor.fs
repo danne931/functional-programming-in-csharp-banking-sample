@@ -216,50 +216,50 @@ let upsertReadModels
    let accountSqlParams =
       accounts
       |> List.map (fun account -> [
-         "@id", AccountSqlWriter.entityId account.EntityId
-         "@email", AccountSqlWriter.email account.Email
-         "@firstName", AccountSqlWriter.firstName account.FirstName
-         "@lastName", AccountSqlWriter.lastName account.LastName
-         "@balance", AccountSqlWriter.balance account.Balance
-         "@currency", AccountSqlWriter.currency account.Currency
-         "@status", AccountSqlWriter.status account.Status
-         "@dailyDebitLimit",
+         "id", AccountSqlWriter.entityId account.EntityId
+         "email", AccountSqlWriter.email account.Email
+         "firstName", AccountSqlWriter.firstName account.FirstName
+         "lastName", AccountSqlWriter.lastName account.LastName
+         "balance", AccountSqlWriter.balance account.Balance
+         "currency", AccountSqlWriter.currency account.Currency
+         "status", AccountSqlWriter.status account.Status
+         "dailyDebitLimit",
          AccountSqlWriter.dailyDebitLimit account.DailyDebitLimit
-         "@dailyDebitAccrued",
+         "dailyDebitAccrued",
          AccountSqlWriter.dailyDebitAccrued account.DailyDebitAccrued
-         "@dailyInternalTransferAccrued",
+         "dailyInternalTransferAccrued",
          AccountSqlWriter.dailyInternalTransferAccrued
             account.DailyInternalTransferAccrued
-         "@dailyDomesticTransferAccrued",
+         "dailyDomesticTransferAccrued",
          AccountSqlWriter.dailyDomesticTransferAccrued
             account.DailyDomesticTransferAccrued
-         "@lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
-         "@lastInternalTransferDate",
+         "lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
+         "lastInternalTransferDate",
          AccountSqlWriter.lastInternalTransferDate
             account.LastInternalTransferDate
-         "@lastDomesticTransferDate",
+         "lastDomesticTransferDate",
          AccountSqlWriter.lastDomesticTransferDate
             account.LastDomesticTransferDate
-         "@lastBillingCycleDate",
+         "lastBillingCycleDate",
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
-         "@transferRecipients",
+         "transferRecipients",
          AccountSqlWriter.transferRecipients account.TransferRecipients
-         "@internalTransferSenders",
+         "internalTransferSenders",
          AccountSqlWriter.internalTransferSenders
             account.InternalTransferSenders
-         "@events", AccountSqlWriter.events account.Events
-         "@maintenanceFeeQualifyingDepositFound",
+         "events", AccountSqlWriter.events account.Events
+         "maintenanceFeeQualifyingDepositFound",
          AccountSqlWriter.maintenanceFeeQualifyingDepositFound
             account.MaintenanceFeeCriteria.QualifyingDepositFound
-         "@maintenanceFeeDailyBalanceThreshold",
+         "maintenanceFeeDailyBalanceThreshold",
          AccountSqlWriter.maintenanceFeeDailyBalanceThreshold
             account.MaintenanceFeeCriteria.DailyBalanceThreshold
-         "@inProgressTransfers",
+         "inProgressTransfers",
          AccountSqlWriter.inProgressTransfers account.InProgressTransfers
-         "@inProgressTransfersCount",
+         "inProgressTransfersCount",
          AccountSqlWriter.inProgressTransfersCount
             account.InProgressTransfers.Count
-         "@cardLocked", AccountSqlWriter.cardLocked account.CardLocked
+         "cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
 
    let transactionSqlParams =
@@ -268,14 +268,13 @@ let upsertReadModels
          let evt, envelope = AccountEnvelope.unwrap evt
 
          let sqlParams = [
-            "@transactionId", TransactionSqlWriter.transactionId envelope.Id
-            "@accountId", TransactionSqlWriter.accountId envelope.EntityId
-            "@correlationId",
+            "transactionId", TransactionSqlWriter.transactionId envelope.Id
+            "accountId", TransactionSqlWriter.accountId envelope.EntityId
+            "correlationId",
             TransactionSqlWriter.correlationId envelope.CorrelationId
-            "@name", TransactionSqlWriter.name envelope.EventName
-            "@timestamp", TransactionSqlWriter.timestamp envelope.Timestamp
-            "@event", TransactionSqlWriter.event evt
-            "@categoryId", TransactionSqlWriter.categoryId None
+            "name", TransactionSqlWriter.name envelope.EventName
+            "timestamp", TransactionSqlWriter.timestamp envelope.Timestamp
+            "event", TransactionSqlWriter.event evt
          ]
 
          let amountOpt, moneyFlow =
@@ -298,8 +297,8 @@ let upsertReadModels
 
          sqlParams
          @ [
-            ("@amount", TransactionSqlWriter.amount amountOpt)
-            ("@moneyFlow", TransactionSqlWriter.moneyFlow moneyFlow)
+            ("amount", TransactionSqlWriter.amount amountOpt)
+            ("moneyFlow", TransactionSqlWriter.moneyFlow moneyFlow)
          ])
 
    pgTransaction [
@@ -384,8 +383,7 @@ let upsertReadModels
           {TransactionFields.timestamp},
           {TransactionFields.event},
           {TransactionFields.amount},
-          {TransactionFields.moneyFlow},
-          {TransactionFields.categoryId})
+          {TransactionFields.moneyFlow})
       VALUES
          (@transactionId,
           @accountId,
@@ -394,8 +392,7 @@ let upsertReadModels
           @timestamp,
           @event,
           @amount,
-          @moneyFlow::{TransactionTypeCast.moneyFlow},
-          @categoryId)
+          @moneyFlow::{TransactionTypeCast.moneyFlow})
       ON CONFLICT ({TransactionFields.transactionId})
       DO NOTHING;
       """,

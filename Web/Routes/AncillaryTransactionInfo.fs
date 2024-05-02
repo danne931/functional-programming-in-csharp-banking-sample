@@ -26,7 +26,7 @@ let startAncillaryTransactionInfoRoutes (app: WebApplication) =
    app.MapPost(
       AncillaryTransactionInfoPath.Category,
       Func<Guid, int, Task<IResult>>(fun txnId categoryId ->
-         updateTransactionCategory txnId categoryId
+         upsertTransactionCategory txnId categoryId
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -39,7 +39,7 @@ let startAncillaryTransactionInfoRoutes (app: WebApplication) =
             let! note = reader.ReadToEndAsync()
 
             return!
-               updateTransactionNote txnId note |> RouteUtil.unwrapTaskResult
+               upsertTransactionNote txnId note |> RouteUtil.unwrapTaskResult
          with e ->
             return Results.Problem e.Message
       })

@@ -16,8 +16,6 @@ module TransactionFields =
    let name = "name"
    let amount = "amount"
    let moneyFlow = "money_flow"
-   let categoryId = "category_id"
-   let note = "note"
    let timestamp = "timestamp"
    let event = "event"
 
@@ -37,11 +35,6 @@ module TransactionSqlReader =
       read.string TransactionFields.moneyFlow
       |> Serialization.deserializeUnsafe<MoneyFlow>
 
-   let categoryId (read: RowReader) =
-      read.intOrNone TransactionFields.categoryId
-
-   let note (read: RowReader) = read.textOrNone TransactionFields.note
-
    let timestamp (read: RowReader) =
       read.dateTime TransactionFields.timestamp
 
@@ -59,8 +52,6 @@ module TransactionSqlWriter =
    let moneyFlow (direction: MoneyFlow) =
       direction |> string |> _.ToLower() |> Sql.string
 
-   let categoryId = Sql.intOrNone
-   let note = Sql.text
    let timestamp (date: DateTime) = Sql.timestamptz date
 
    let event (event: AccountEvent) =

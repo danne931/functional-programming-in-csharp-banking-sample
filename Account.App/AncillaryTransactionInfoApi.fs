@@ -4,40 +4,49 @@ open System
 open FsToolkit.ErrorHandling
 
 open Lib.Postgres
-open TransactionSqlMapper
+open AncillaryTransactionInfoSqlMapper
 open Bank.Account.Domain
 
-let updateTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
+module Fields = AncillaryTransactionFields
+module Writer = AncillaryTransactionSqlWriter
+module Reader = AncillaryTransactionSqlReader
+
+let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
    let query =
       $"""
-      UPDATE transaction
-      SET {TransactionFields.categoryId} = @categoryId
-      WHERE {TransactionFields.transactionId} = @transactionId
+      INSERT INTO ancillarytransactioninfo
+         ({Fields.transactionId}, {Fields.categoryId})
+      VALUES
+         (@transactionId, @categoryId)
+      ON CONFLICT ({Fields.transactionId})
+      DO UPDATE SET {Fields.categoryId} = @categoryId
       """
 
    let! res =
       pgPersist query [
-         "transactionId", Sql.uuid transactionId
-         "categoryId", Sql.int categoryId
+         "transactionId", Writer.transactionId transactionId
+         "categoryId", Writer.categoryId (Some categoryId)
       ]
 
    return res
 }
 
-let updateTransactionNote (transactionId: Guid) (note: string) = taskResult {
+let upsertTransactionNote (transactionId: Guid) (note: string) = taskResult {
    let query =
       $"""
-      UPDATE transaction
-      SET {TransactionFields.note} = @note
-      WHERE {TransactionFields.transactionId} = @transactionId
+      INSERT INTO ancillarytransactioninfo
+         ({Fields.transactionId}, {Fields.note}, {Fields.categoryId})
+      VALUES
+         (@transactionId, @note, @categoryId)
+      ON CONFLICT ({Fields.transactionId})
+      DO UPDATE SET {Fields.note} = @note
       """
-
-   printfn "note %A" note
 
    let! res =
       pgPersist query [
-         "transactionId", TransactionSqlWriter.transactionId transactionId
-         "note", TransactionSqlWriter.note note
+         "transactionId", Writer.transactionId transactionId
+         "note", Writer.note note
+         "categoryId", Writer.categoryId None
       ]
 
    return res
@@ -56,29 +65,29 @@ let getTransactionInfo (txnId: Guid) = taskResult {
    let query =
       $"""
       SELECT
-         transaction.{TransactionFields.categoryId},
-         transaction.{TransactionFields.note},
+         ancillarytransactioninfo.{Fields.categoryId},
+         ancillarytransactioninfo.{Fields.note},
          category.name as category_name
-      FROM transaction
-         LEFT JOIN category using({TransactionFields.categoryId})
-      WHERE {TransactionFields.transactionId} = @transactionId
+      FROM ancillarytransactioninfo
+         LEFT JOIN category using({Fields.categoryId})
+      WHERE {Fields.transactionId} = @transactionId
       """
 
    let rowReader (read: RowReader) = {
       Id = txnId
       Category =
-         TransactionSqlReader.categoryId read
+         Reader.categoryId read
          |> Option.map (fun catId -> {
             Id = catId
             Name = read.string "category_name"
          })
-      Note = TransactionSqlReader.note read
+      Note = Reader.note read
    }
 
    let! infoOpt =
       pgQuery<AncillaryTransactionInfo>
          query
-         (Some [ "transactionId", Sql.uuid txnId ])
+         (Some [ "transactionId", Writer.transactionId txnId ])
          rowReader
 
    return
