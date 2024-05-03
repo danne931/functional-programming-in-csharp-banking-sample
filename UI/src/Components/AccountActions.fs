@@ -42,7 +42,7 @@ let private shouldRedirectToRegisterRecipient account selectedFormView =
    | _ -> false
 
 let private findEventCorrespondingToPendingAction
-   (account: AccountState)
+   (account: Account)
    (pendingAction: PendingAction)
    : AccountEvent option
    =
@@ -54,7 +54,7 @@ let private findEventCorrespondingToPendingAction
          envelope.Id = processingEvtId))
 
 type State = {
-   Account: AccountState
+   Account: Account
    FormView: FormView option
    PendingAction: PendingAction
 }
@@ -63,13 +63,13 @@ type Msg =
    | ShowForm of FormView
    | CancelForm
    | NetworkAckCommand of AccountCommand * AccountService.ProcessingEventId
-   | AccountEventReceived of AccountState
+   | AccountEventReceived of Account
    | CheckForEventConfirmation of
       AccountService.ProcessingEventId *
       accountId: Guid *
       attemptNumber: int
    | Noop
-   | Reset of AccountState * FormView option
+   | Reset of Account * FormView option
 
 let init account selectedFormView () =
    let redirect = shouldRedirectToRegisterRecipient account selectedFormView
@@ -242,7 +242,7 @@ let private renderMenuButton dispatch (form: FormView) =
 
 [<ReactComponent>]
 let AccountActionsComponent
-   (account: AccountState)
+   (account: Account)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
    (form: FormView option)
    (handleConfirmationReceivedViaPolling:

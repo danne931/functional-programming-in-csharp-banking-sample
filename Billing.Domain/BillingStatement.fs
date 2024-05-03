@@ -45,7 +45,7 @@ let billingTransactions = List.choose BillingTransaction.create
 open System.Text.Json
 
 let billingStatement
-   (account: AccountState)
+   (account: Account)
    (lastPersistedEventSequenceNumber: Int64)
    : BillingStatement
    =

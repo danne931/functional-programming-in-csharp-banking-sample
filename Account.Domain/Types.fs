@@ -118,7 +118,7 @@ type AccountStatus =
    | Closed
    | ReadyForDelete
 
-type AccountState = {
+type Account = {
    EntityId: Guid
    Email: Email
    FirstName: string
@@ -142,38 +142,6 @@ type AccountState = {
    CardLocked: bool
 } with
 
-   static member empty = {
-      EntityId = Guid.Empty
-      Email = Email.empty
-      FirstName = ""
-      LastName = ""
-      Currency = Currency.USD
-      Status = AccountStatus.Pending
-      Balance = 0m
-      DailyDebitLimit = 2000m
-      DailyDebitAccrued = 0m
-      DailyInternalTransferAccrued = 0m
-      DailyDomesticTransferAccrued = 0m
-      LastDebitDate = None
-      LastInternalTransferDate = None
-      LastDomesticTransferDate = None
-      LastBillingCycleDate = None
-      TransferRecipients = Map.empty
-      InProgressTransfers = Map.empty
-      InternalTransferSenders = Map.empty
-      MaintenanceFeeCriteria = {
-         QualifyingDepositFound = false
-         DailyBalanceThreshold = false
-      }
-      Events = []
-      CardLocked = false
-   }
-
-   static member recipientLookupKey(recipient: TransferRecipient) =
-      match recipient.RoutingNumber with
-      | None -> recipient.Identification
-      | Some routingNum -> $"{routingNum}_{recipient.Identification}"
-
    member x.Name = $"{x.FirstName} {x.LastName}"
 
 type AccountMessage =
@@ -186,7 +154,7 @@ type AccountMessage =
 
 type AccountEventPersistedConfirmation = {
    EventPersisted: AccountEvent
-   NewState: AccountState
+   NewState: Account
    Date: DateTime
 }
 
@@ -208,7 +176,7 @@ type AccountPersistence = {
 }
 
 type AccountBroadcast = {
-   accountEventPersisted: AccountEvent -> AccountState -> unit
+   accountEventPersisted: AccountEvent -> Account -> unit
    accountEventValidationFail: Guid -> Err -> unit
    accountEventPersistenceFail: Guid -> Err -> unit
    circuitBreaker: CircuitBreakerEvent -> unit
@@ -216,7 +184,7 @@ type AccountBroadcast = {
 
 [<RequireQualifiedAccess>]
 type AccountClosureMessage =
-   | Register of AccountState
+   | Register of Account
    | ScheduleDeleteAll
    | DeleteAll of Guid list
    | GetRegisteredAccounts

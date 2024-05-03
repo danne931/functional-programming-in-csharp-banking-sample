@@ -743,10 +743,10 @@ let tests =
             state with
                TransferRecipients =
                   Map [
-                     AccountState.recipientLookupKey Stub.internalRecipient,
+                     Account.recipientLookupKey Stub.internalRecipient,
                      Stub.internalRecipient
 
-                     AccountState.recipientLookupKey Stub.domesticRecipient,
+                     Account.recipientLookupKey Stub.domesticRecipient,
                      Stub.domesticRecipient
                   ]
          }

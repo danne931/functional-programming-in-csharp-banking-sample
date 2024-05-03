@@ -59,7 +59,7 @@ let getAccounts () : Async<AccountsMaybe> = async {
    else
       return
          responseText
-         |> Serialization.deserialize<AccountState list>
+         |> Serialization.deserialize<Account list>
          |> Result.map (fun accounts ->
             [ for account in accounts -> account.EntityId, account ]
             |> Map.ofList
@@ -75,9 +75,7 @@ let getAccount (id: Guid) : Async<AccountMaybe> = async {
       return Error <| Err.InvalidStatusCodeError("AccountService", code)
    else
       return
-         responseText
-         |> Serialization.deserialize<AccountState>
-         |> Result.map Some
+         responseText |> Serialization.deserialize<Account> |> Result.map Some
 }
 
 let getPaginatedTransactions
@@ -101,7 +99,7 @@ let getPaginatedTransactions
    }
 
 let submitCommand
-   (account: AccountState)
+   (account: Account)
    (command: AccountCommand)
    : Async<Result<ProcessingEventId, Err>>
    =

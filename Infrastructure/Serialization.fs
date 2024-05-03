@@ -51,18 +51,17 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.Manifest(o: obj) =
       match o with
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
-      | :? AccountEventConsumerActor.AccountEventConsumerState ->
-         "AccountEventConsumerState"
+      | :? ReadModelSyncActor.State -> "ReadModelSyncState"
       | :? AccountLoadTestTypes.AccountLoadTestMessage ->
          "AccountLoadTestMessage"
       | :? AccountSeederMessage -> "AccountSeederMessage"
       | :? SchedulingActor.Message -> "SchedulingActorMessage"
       | :? AccountClosureMessage -> "AccountClosureActorMessage"
       | :? List<AccountEvent> -> "AccountEventList"
-      | :? AccountState -> "AccountState"
-      | :? Option<AccountState> -> "AccountStateOption"
-      | :? List<AccountState> -> "AccountStateList"
-      | :? Map<Guid, AccountState> -> "AccountStateMap"
+      | :? Account -> "Account"
+      | :? Option<Account> -> "AccountOption"
+      | :? List<Account> -> "AccountList"
+      | :? Map<Guid, Account> -> "AccountMap"
       | :? AccountMessage as msg ->
          match msg with
          | AccountMessage.Event _ -> "AccountEvent"
@@ -105,8 +104,8 @@ type BankSerializer(system: ExtendedActorSystem) =
       // AccountEventPersisted messages sent over DistributedPubSub
       // from Account nodes to AccountLoadTestActor on Web node.
       | :? AccountLoadTestTypes.AccountLoadTestMessage
-      // AccountEventConsumerActor projection offset snapshot
-      | :? AccountEventConsumerActor.AccountEventConsumerState
+      // ReadModelSyncActor projection offset snapshot
+      | :? ReadModelSyncActor.State
       // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
@@ -126,10 +125,10 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? List<AccountEvent>
       // AccountMessage.GetAccount response serialized for message sent
       // from account cluster nodes to Web node.
-      | :? Option<AccountState>
+      | :? Option<Account>
       // AccountClosureActor persistence snapshot.
-      | :? Map<Guid, AccountState>
-      | :? List<AccountState>
+      | :? Map<Guid, Account>
+      | :? List<Account>
       | :? CircuitBreakerActorState
       // Messages sent over DistributedPubSub to CircuitBreakerActor.
       | :? CircuitBreakerMessage
@@ -138,7 +137,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // Messages sent over DistributedPubSub to SignalRActor on Web node.
       | :? SignalRMessage
       // AccountActor persistence snapshot.
-      | :? AccountState as o ->
+      | :? Account as o ->
          JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
       | :? AccountMessage as msg ->
          match msg with
@@ -168,12 +167,11 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "ConfirmableMessageEnvelope" -> typeof<ConfirmableMessageEnvelope>
          | "AccountLoadTestMessage" ->
             typeof<AccountLoadTestTypes.AccountLoadTestMessage>
-         | "AccountEventConsumerState" ->
-            typeof<AccountEventConsumerActor.AccountEventConsumerState>
-         | "AccountState" -> typeof<AccountState>
-         | "AccountStateOption" -> typeof<AccountState option>
-         | "AccountStateMap" -> typeof<Map<Guid, AccountState>>
-         | "AccountStateList" -> typeof<AccountState list>
+         | "ReadModelSyncState" -> typeof<ReadModelSyncActor.State>
+         | "Account" -> typeof<Account>
+         | "AccountOption" -> typeof<Account option>
+         | "AccountMap" -> typeof<Map<Guid, Account>>
+         | "AccountList" -> typeof<Account list>
          | "AccountEvent" -> typeof<AccountEvent>
          | "AccountEventList" -> typeof<AccountEvent list>
          | "AccountMessage" -> typeof<AccountMessage>

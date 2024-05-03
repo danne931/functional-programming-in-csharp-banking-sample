@@ -7,7 +7,7 @@
     <Compile Include="CircuitBreakerActor.fs" />
     <Compile Include="AccountBroadcaster.fs" />
     <Compile Include="AccountClosureApi.fs" />
-    <Compile Include="AccountEventConsumerActor.fs" />
+    <Compile Include="ReadModelSyncActor.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="AncillaryTransactionInfoApi.fs" />
@@ -33,7 +33,6 @@
     <ProjectReference Include="../Notifications.App/Notifications.App.fsproj" />
     <ProjectReference Include="../Transfer.App/Transfer.App.fsproj" />
     <ProjectReference Include="../Billing.App/Billing.App.fsproj" />
-    <ProjectReference Include="../User.App/User.App.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
 </Project>

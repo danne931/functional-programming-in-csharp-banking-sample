@@ -8,8 +8,10 @@ open MaintenanceFee
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
+let table = "account"
+
 module AccountFields =
-   let entityId = "id"
+   let entityId = "account_id"
    let email = "email"
    let firstName = "first_name"
    let lastName = "last_name"
@@ -108,7 +110,7 @@ module AccountSqlReader =
 
    let cardLocked (read: RowReader) = read.bool AccountFields.cardLocked
 
-   let account (read: RowReader) : AccountState = {
+   let account (read: RowReader) : Account = {
       EntityId = entityId read
       Email = email read
       FirstName = firstName read
@@ -126,7 +128,7 @@ module AccountSqlReader =
       LastBillingCycleDate = lastBillingCycleDate read
       TransferRecipients =
          transferRecipients read
-         |> List.map (fun o -> AccountState.recipientLookupKey o, o)
+         |> List.map (fun o -> Account.recipientLookupKey o, o)
          |> Map.ofList
       InternalTransferSenders =
          internalTransferSenders read

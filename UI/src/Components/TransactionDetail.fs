@@ -97,7 +97,7 @@ let update msg state =
 
 [<ReactComponent>]
 let TransactionDetailComponent
-   (account: AccountState)
+   (account: Account)
    (transaction: AccountEvent)
    =
    let _, envelope = AccountEnvelope.unwrap transaction

@@ -22,7 +22,7 @@ let actorProps
          let senderAccountRef = getAccountRef sender.AccountId
          let recipientAccountRef = getAccountRef recipientId
 
-         let! (accountOpt: AccountState option) =
+         let! (accountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
 
          match accountOpt with
@@ -67,7 +67,7 @@ let actorProps
          let senderAccountRef = getAccountRef txn.SenderAccountId
          let recipientAccountRef = getAccountRef recipientId
 
-         let! (accountOpt: AccountState option) =
+         let! (accountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
 
          match accountOpt with

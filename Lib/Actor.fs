@@ -80,7 +80,7 @@ module ClusterMetadata =
    |}
 
 module ActorMetadata =
-   type AccountEventConsumerMarker() =
+   type ReadModelSyncMarker() =
       class
       end
 

@@ -3,6 +3,9 @@ module BillingSqlMapper
 open Npgsql.FSharp
 
 open BillingStatement
+open AccountSqlMapper
+
+let table = "billingstatement"
 
 module BillingFields =
    let transactions = "transactions"
@@ -10,7 +13,7 @@ module BillingFields =
    let year = "year"
    let balance = "balance"
    let name = "name"
-   let accountId = "account_id"
+   let accountId = AccountFields.entityId
    let lastPersistedEventSequenceNumber = "last_persisted_event_sequence_number"
    let accountSnapshot = "account_snapshot"
 
@@ -26,7 +29,7 @@ module BillingSqlReader =
 
    let name (read: RowReader) = read.text BillingFields.name
 
-   let accountId (read: RowReader) = read.uuid BillingFields.accountId
+   let accountId = AccountSqlReader.entityId
 
    let lastPersistedEventSequenceNumber (read: RowReader) =
       read.int64 BillingFields.lastPersistedEventSequenceNumber
@@ -42,6 +45,6 @@ module BillingSqlWriter =
    let year = Sql.int
    let balance = Sql.money
    let name = Sql.text
-   let accountId = Sql.uuid
+   let accountId = AccountSqlWriter.entityId
    let lastPersistedEventSequenceNumber = Sql.int64
    let accountSnapshot = Sql.bytea

@@ -12,10 +12,7 @@ open FormContainer
 
 type Values = { Amount: string; Origin: string }
 
-let form
-   (account: AccountState)
-   : Form.Form<Values, Msg<Values>, IReactProperty>
-   =
+let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let amountField =
       Form.numberField {
          Parser =
@@ -68,8 +65,5 @@ let form
 
    Form.succeed onSubmit |> Form.append amountField |> Form.append originField
 
-let DebitFormComponent
-   (account: AccountState)
-   (onSubmit: ParentOnSubmitHandler)
-   =
+let DebitFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
    FormContainer account { Amount = ""; Origin = "" } (form account) onSubmit

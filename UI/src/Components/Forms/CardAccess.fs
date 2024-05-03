@@ -9,10 +9,7 @@ open FormContainer
 
 type Values = { Locked: bool }
 
-let form
-   (account: AccountState)
-   : Form.Form<Values, Msg<Values>, IReactProperty>
-   =
+let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let isLockedField =
       Form.checkboxField {
          Parser = Ok
@@ -36,7 +33,7 @@ let form
    Form.succeed onSubmit |> Form.append isLockedField
 
 let CardAccessFormComponent
-   (account: AccountState)
+   (account: Account)
    (onSubmit: ParentOnSubmitHandler)
    =
    FormContainer account { Locked = account.CardLocked } (form account) onSubmit

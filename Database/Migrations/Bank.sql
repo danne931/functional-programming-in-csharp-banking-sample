@@ -6,15 +6,14 @@ DROP TYPE IF EXISTS money_flow;
 
 DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
-DROP TABLE IF EXISTS billingstatements;
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS billingstatement;
 DROP TABLE IF EXISTS merchantalias;
 DROP TABLE IF EXISTS merchant;
-DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS account;
 DROP TABLE IF EXISTS category;
 
-CREATE TABLE accounts (
-    id UUID PRIMARY KEY,
+CREATE TABLE account (
+    account_id UUID PRIMARY KEY,
     email VARCHAR(255) UNIQUE,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
@@ -42,21 +41,12 @@ CREATE TABLE accounts (
     last_billing_cycle_at TIMESTAMPTZ
 );
 
-CREATE INDEX accounts_in_progress_transfers_count_idx ON accounts(in_progress_transfers_count);
-CREATE INDEX accounts_last_billing_cycle_at_idx ON accounts(last_billing_cycle_at);
+CREATE INDEX account_in_progress_transfers_count_idx ON account(in_progress_transfers_count);
+CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
 
-CREATE TABLE users (
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    email VARCHAR(255) UNIQUE,
-    account_id UUID UNIQUE REFERENCES accounts (id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
-);
-
-CREATE TABLE billingstatements (
+CREATE TABLE billingstatement (
     name VARCHAR(100) NOT NULL,
-    account_id UUID NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
     last_persisted_event_sequence_number BIGINT NOT NULL,
     transactions JSONB NOT NULL,
     balance MONEY NOT NULL,
@@ -122,15 +112,15 @@ CREATE TABLE transaction (
     money_flow money_flow,
     timestamp TIMESTAMPTZ NOT NULL,
     transaction_id UUID PRIMARY KEY,
-    account_id UUID NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
     correlation_id UUID NOT NULL,
     event JSONB NOT NULL
 );
 
 CREATE TABLE ancillarytransactioninfo (
     note TEXT,
-    category_id SMALLSERIAL REFERENCES category (category_id),
-    transaction_id UUID PRIMARY KEY REFERENCES transaction (transaction_id) ON DELETE CASCADE
+    category_id SMALLSERIAL REFERENCES category,
+    transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
 );
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;

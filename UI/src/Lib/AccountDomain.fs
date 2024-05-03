@@ -7,15 +7,15 @@ open Bank.Account.Domain
 open BillingStatement
 open Lib.SharedTypes
 
-type AccountsMaybe = Result<Map<Guid, AccountState> option, Err>
-type AccountMaybe = Result<AccountState option, Err>
+type AccountsMaybe = Result<Map<Guid, Account> option, Err>
+type AccountMaybe = Result<Account option, Err>
 type BillingTransactionsMaybe = Result<BillingTransaction list option, Err>
 
-type AccountTransform = AccountState -> AccountState
+type AccountTransform = Account -> Account
 
 let accountsFromDeferred
    (deferred: Deferred<AccountsMaybe>)
-   : Map<Guid, AccountState> option
+   : Map<Guid, Account> option
    =
    match deferred with
    | Deferred.Resolved(Ok(Some accounts)) -> Some accounts
@@ -24,7 +24,7 @@ let accountsFromDeferred
 let findAccount
    (deferred: Deferred<AccountsMaybe>)
    (accountId: Guid)
-   : AccountState option
+   : Account option
    =
    accountsFromDeferred deferred |> Option.bind (Map.tryFind accountId)
 
@@ -56,7 +56,7 @@ type TransactionUIFriendly = {
 }
 
 let transactionUIFriendly
-   (account: AccountState)
+   (account: Account)
    (txn: AccountEvent)
    : TransactionUIFriendly
    =
@@ -218,10 +218,10 @@ let transactionUIFriendly
    }
 
 type PotentialInternalTransferRecipients =
-   private | PotentialInternalTransferRecipients of Map<Guid, AccountState>
+   private | PotentialInternalTransferRecipients of Map<Guid, Account>
 
 module PotentialInternalTransferRecipients =
-   let create (account: AccountState) (accounts: Map<Guid, AccountState>) =
+   let create (account: Account) (accounts: Map<Guid, Account>) =
       let potentialRecipients =
          accounts
          |> Map.filter (fun id _ ->

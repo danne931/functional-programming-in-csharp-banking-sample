@@ -28,8 +28,9 @@ let processCommand
 
 let getAccount (id: Guid) = taskResultOption {
    let! accountList =
-      pgQuery<AccountState>
-         "SELECT * FROM accounts WHERE id = @accountId"
+      pgQuery<Account>
+         $"SELECT * FROM {AccountSqlMapper.table} 
+           WHERE {AccountFields.entityId} = @accountId"
          (Some [ "accountId", Sql.uuid id ])
          AccountSqlReader.account
 
@@ -37,11 +38,15 @@ let getAccount (id: Guid) = taskResultOption {
 }
 
 let getAccounts () =
-   pgQuery<AccountState> "SELECT * FROM accounts" None AccountSqlReader.account
+   pgQuery<Account>
+      $"SELECT * FROM {AccountSqlMapper.table}"
+      None
+      AccountSqlReader.account
 
 let getAccountsByIds (accountIds: Guid list) =
-   pgQuery<AccountState>
-      "SELECT * FROM accounts WHERE id = ANY(@accountIds)"
+   pgQuery<Account>
+      $"SELECT * FROM {AccountSqlMapper.table} 
+        WHERE {AccountFields.entityId} = ANY(@accountIds)"
       (Some [ "accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
       AccountSqlReader.account
 
@@ -60,7 +65,7 @@ let getAccountEventsFromAkka
 let getAccountFromAkka
    (sys: ActorSystem)
    (accountId: Guid)
-   : AccountState option Task
+   : Account option Task
    =
    let ref = AccountActor.get sys accountId
 

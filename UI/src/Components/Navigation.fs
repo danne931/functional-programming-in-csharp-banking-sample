@@ -8,7 +8,7 @@ open AccountSelection
 
 [<ReactComponent>]
 let NavigationComponent
-   (accounts: Map<Guid, AccountState> option)
+   (accounts: Map<Guid, Account> option)
    (selectedAccountId: Guid option)
    =
    classyNode Html.nav [ "container-fluid" ] [

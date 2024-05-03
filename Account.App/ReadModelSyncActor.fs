@@ -1,5 +1,5 @@
 [<RequireQualifiedAccess>]
-module AccountEventConsumerActor
+module ReadModelSyncActor
 
 open System
 open System.Threading.Tasks
@@ -22,16 +22,16 @@ open Lib.BulkWriteStreamFlow
 open AccountSqlMapper
 open TransactionSqlMapper
 
-type EventsGroupedByAccount = AccountState * AccountEvent list
+type EventsGroupedByAccount = Account * AccountEvent list
 
 type ReadModelUpsert =
-   AccountState list * AccountEvent list -> Result<List<int>, Err> Task
+   Account list * AccountEvent list -> Result<List<int>, Err> Task
 
-type AccountEventConsumerState = {
+type State = {
    Offset: Akka.Persistence.Query.Sequence
 }
 
-type AccountEventConsumerMessage = SaveOffset of Akka.Persistence.Query.Sequence
+type Message = SaveOffset of Akka.Persistence.Query.Sequence
 
 let initFailedWritesSource
    (system: ActorSystem)
@@ -44,7 +44,7 @@ let initFailedWritesSource
 
 let initReadJournalSource
    (mailbox: Eventsourced<obj>)
-   (state: AccountEventConsumerState)
+   (state: State)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    : Source<AccountEvent list, Akka.NotUsed>
@@ -73,7 +73,7 @@ let startProjection
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)
    (upsertReadModels: ReadModelUpsert)
-   (state: AccountEventConsumerState)
+   (state: State)
    =
    logInfo
       mailbox
@@ -118,8 +118,7 @@ let startProjection
       }
 
    let getAccount (accountId: Guid, accountEvents: AccountEvent list) = task {
-      let! (accountOpt: AccountState option) =
-         getAccountRef accountId <? GetAccount
+      let! (accountOpt: Account option) = getAccountRef accountId <? GetAccount
 
       return accountOpt |> Option.map (fun account -> account, accountEvents)
    }
@@ -168,12 +167,12 @@ let actorProps
    let handler (mailbox: Eventsourced<obj>) =
       let logInfo = logInfo mailbox
 
-      let rec loop (state: AccountEventConsumerState) = actor {
+      let rec loop (state: State) = actor {
          let! msg = mailbox.Receive()
 
          match box msg with
          | :? SnapshotOffer as o -> return! loop <| unbox o.Snapshot
-         | :? AccountEventConsumerMessage as msg ->
+         | :? Message as msg ->
             match msg with
             | SaveOffset offset ->
                logInfo $"Saving offset: {offset.Value}"
@@ -209,7 +208,7 @@ let actorProps
 
 let upsertReadModels
    (
-      accounts: AccountState list,
+      accounts: Account list,
       accountEvents: AccountEvent list
    )
    =
@@ -303,7 +302,7 @@ let upsertReadModels
 
    pgTransaction [
       $"""
-      INSERT into accounts
+      INSERT into {AccountSqlMapper.table}
          ({AccountFields.entityId},
           {AccountFields.email},
           {AccountFields.firstName},
@@ -375,7 +374,7 @@ let upsertReadModels
       accountSqlParams
 
       $"""
-      INSERT into transaction
+      INSERT into {TransactionSqlMapper.table}
          ({TransactionFields.transactionId},
           {TransactionFields.accountId},
           {TransactionFields.correlationId},

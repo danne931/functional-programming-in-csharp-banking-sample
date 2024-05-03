@@ -9,7 +9,7 @@ open BillingStatement
 open BillingSqlMapper
 
 let getBillingStatement () =
-   pgQuery<BillingStatement> "SELECT * FROM billingstatements" None
+   pgQuery<BillingStatement> $"SELECT * FROM {BillingSqlMapper.table}" None
    <| fun (read: RowReader) -> {
       Transactions = BillingSqlReader.transactions read
       Month = BillingSqlReader.month read
@@ -38,7 +38,7 @@ let getPaginatedTransactions
          pgQuery<BillingTransaction list>
             $"""
             SELECT {BillingFields.transactions}
-            FROM billingstatements
+            FROM {BillingSqlMapper.table}
             WHERE {BillingFields.accountId} = @accountId
             ORDER BY created_at DESC
             LIMIT 1

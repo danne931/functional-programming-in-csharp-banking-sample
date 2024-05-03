@@ -27,7 +27,7 @@ let getActiveAccounts () =
    pgQuery<Guid>
       $"""
       SELECT {AccountFields.entityId}
-      FROM accounts
+      FROM {AccountSqlMapper.table}
       WHERE
          {AccountFields.status} = '{string AccountStatus.Active}'
          AND ({prevCycle} IS NULL

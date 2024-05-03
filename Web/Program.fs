@@ -9,7 +9,6 @@ open Akka.HealthCheck.Hosting.Web
 open Serilog
 
 open Bank.Infrastructure
-open Bank.User.Routes
 open Bank.Account.Routes
 open Bank.Account.Domain
 open Bank.Transfer.Routes
@@ -51,7 +50,7 @@ builder.Services.AddAkka(
             BankSerializer.Name,
             [
                typedefof<AccountMessage>
-               typedefof<AccountState>
+               typedefof<Account>
                typedefof<CircuitBreakerMessage>
                typedefof<CircuitBreakerActorState>
                // NOTE: Akka ShardRegionProxy defined in Akka.Hosting below
@@ -123,7 +122,6 @@ app.MapAkkaHealthCheckRoutes(
 )
 |> ignore
 
-startUserRoutes app
 startTransferRoutes app
 startAccountRoutes app
 startDiagnosticRoutes app

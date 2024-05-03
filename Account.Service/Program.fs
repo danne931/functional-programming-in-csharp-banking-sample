@@ -109,11 +109,11 @@ builder.Services.AddAkka(
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
-         .WithSingleton<ActorMetadata.AccountEventConsumerMarker>(
+         .WithSingleton<ActorMetadata.ReadModelSyncMarker>(
             ActorMetadata.accountEventConsumer.Name,
             (fun system _ _ ->
                let typedProps =
-                  AccountEventConsumerActor.initProps
+                  ReadModelSyncActor.initProps
                      (AccountActor.get system)
                      Env.config.AccountEventProjectionChunking
                      Env.config.AccountEventReadModelPersistenceBackoffRestart

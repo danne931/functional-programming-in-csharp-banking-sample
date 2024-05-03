@@ -13,10 +13,7 @@ open FormContainer
 
 type Values = { Amount: string; RecipientId: string }
 
-let form
-   (account: AccountState)
-   : Form.Form<Values, Msg<Values>, IReactProperty>
-   =
+let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let options = [
       for recipientLookupKey, recipient in
          (Map.toList account.TransferRecipients) ->
@@ -70,17 +67,14 @@ let form
 
    Form.succeed onSubmit |> Form.append selectField |> Form.append amountField
 
-let TransferFormComponent
-   (account: AccountState)
-   (onSubmit: ParentOnSubmitHandler)
-   =
+let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
    let recipients = account.TransferRecipients.Values
 
    let selectedRecipient =
       if Seq.isEmpty recipients then
          ""
       else
-         AccountState.recipientLookupKey (Seq.head recipients)
+         Account.recipientLookupKey (Seq.head recipients)
 
    FormContainer
       account

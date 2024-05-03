@@ -14,7 +14,7 @@ module Reader = AncillaryTransactionSqlReader
 let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
    let query =
       $"""
-      INSERT INTO ancillarytransactioninfo
+      INSERT INTO {AncillaryTransactionInfoSqlMapper.table}
          ({Fields.transactionId}, {Fields.categoryId})
       VALUES
          (@transactionId, @categoryId)
@@ -34,7 +34,7 @@ let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResu
 let upsertTransactionNote (transactionId: Guid) (note: string) = taskResult {
    let query =
       $"""
-      INSERT INTO ancillarytransactioninfo
+      INSERT INTO {AncillaryTransactionInfoSqlMapper.table}
          ({Fields.transactionId}, {Fields.note}, {Fields.categoryId})
       VALUES
          (@transactionId, @note, @categoryId)
@@ -68,7 +68,7 @@ let getTransactionInfo (txnId: Guid) = taskResult {
          ancillarytransactioninfo.{Fields.categoryId},
          ancillarytransactioninfo.{Fields.note},
          category.name as category_name
-      FROM ancillarytransactioninfo
+      FROM {AncillaryTransactionInfoSqlMapper.table}
          LEFT JOIN category using({Fields.categoryId})
       WHERE {Fields.transactionId} = @transactionId
       """

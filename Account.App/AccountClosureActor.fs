@@ -22,7 +22,7 @@ let deleteAccounts
    (system: ActorSystem)
    (getAccountRef: EntityRefGetter<AccountMessage>)
    (throttle: StreamThrottle)
-   (accounts: Map<Guid, AccountState>)
+   (accounts: Map<Guid, Account>)
    =
    Source.ofSeq accounts.Values
    |> Source.throttle
@@ -33,7 +33,7 @@ let deleteAccounts
    |> Source.runForEach (system.Materializer()) (fun account ->
       getAccountRef account.EntityId <! AccountMessage.Delete)
 
-let initState: Map<Guid, AccountState> = Map.empty
+let initState: Map<Guid, Account> = Map.empty
 
 let actorProps
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
@@ -46,7 +46,7 @@ let actorProps
       let logInfo, logError = logInfo mailbox, logError mailbox
       let deleteAccounts = deleteAccounts mailbox.System getAccountRef throttle
 
-      let rec loop (accounts: Map<Guid, AccountState>) = actor {
+      let rec loop (accounts: Map<Guid, Account>) = actor {
          let! msg = mailbox.Receive()
 
          match box msg with

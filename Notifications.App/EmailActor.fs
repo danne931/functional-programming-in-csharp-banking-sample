@@ -19,11 +19,11 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 type EmailMessage =
-   | AccountOpen of AccountState
-   | AccountClose of AccountState
-   | BillingStatement of AccountState
-   | DebitDeclined of string * AccountState
-   | TransferDeposited of BankEvent<TransferDeposited> * AccountState
+   | AccountOpen of Account
+   | AccountClose of Account
+   | BillingStatement of Account
+   | DebitDeclined of string * Account
+   | TransferDeposited of BankEvent<TransferDeposited> * Account
    | ApplicationErrorRequiresSupport of string
 
 type private CircuitBreakerMessage =

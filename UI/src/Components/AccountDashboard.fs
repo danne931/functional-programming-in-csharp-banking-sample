@@ -67,7 +67,7 @@ type State = {
    SignalRCurrentAccountId: Guid option
 }
 
-let selectedAccount (state: State) : AccountState option =
+let selectedAccount (state: State) : Account option =
    Url.accountIdMaybe state.CurrentUrl
    |> Option.bind (findAccount state.Accounts)
 
@@ -228,11 +228,11 @@ let update msg state =
 
 let renderAccountActions state dispatch =
    let selectedAccountAndPotentialTransferRecipients
-      : (AccountState * PotentialInternalTransferRecipients) option =
+      : (Account * PotentialInternalTransferRecipients) option =
       Option.map2
          (fun accounts selectedId ->
             Map.tryFind selectedId accounts
-            |> Option.map (fun (found: AccountState) ->
+            |> Option.map (fun (found: Account) ->
                let potentialRecipients =
                   PotentialInternalTransferRecipients.create found accounts
 

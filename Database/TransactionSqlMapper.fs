@@ -5,13 +5,16 @@ open System
 
 open Bank.Account.Domain
 open Lib.SharedTypes
+open AccountSqlMapper
+
+let table = "transaction"
 
 module TransactionTypeCast =
    let moneyFlow = "money_flow"
 
 module TransactionFields =
    let transactionId = "transaction_id"
-   let accountId = "account_id"
+   let accountId = AccountFields.entityId
    let correlationId = "correlation_id"
    let name = "name"
    let amount = "amount"
@@ -23,7 +26,7 @@ module TransactionSqlReader =
    let transactionId (read: RowReader) =
       read.uuid TransactionFields.transactionId
 
-   let accountId (read: RowReader) = read.uuid TransactionFields.accountId
+   let accountId = AccountSqlReader.entityId
 
    let correlationId (read: RowReader) =
       read.uuid TransactionFields.correlationId
@@ -44,7 +47,7 @@ module TransactionSqlReader =
 
 module TransactionSqlWriter =
    let transactionId = Sql.uuid
-   let accountId = Sql.uuid
+   let accountId = AccountSqlWriter.entityId
    let correlationId = Sql.uuid
    let name = Sql.text
    let amount = Sql.moneyOrNone

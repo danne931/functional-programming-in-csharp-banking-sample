@@ -4,7 +4,7 @@ open Feliz
 
 open Bank.Account.Domain
 
-let render (account: AccountState) =
+let render (account: Account) =
    Html.footer [
       attr.classes [ "container-fluid grid" ]
 

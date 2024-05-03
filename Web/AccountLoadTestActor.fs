@@ -15,7 +15,7 @@ open AccountLoadTestTypes
 // NOTE:
 // Dev/staging facility to flood the system with
 // CreateAccount & Deposit commands.
-// Run to verify that AccountActors, AccountEventConsumerActor,
+// Run to verify that AccountActors, ReadModelSyncActor,
 // BillingCycleActor, BillingStatementActors, & AccountClosureActors
 // can handle increased throughput.
 //

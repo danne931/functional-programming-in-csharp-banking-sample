@@ -109,7 +109,7 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.equal
             (Stub.accountStateOmitEvents state)
@@ -148,7 +148,7 @@ let tests =
                Status = AccountStatus.Closed
          }
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.equal
             (Stub.accountStateOmitEvents state)
@@ -185,7 +185,7 @@ let tests =
 
          o.accountActor <! AccountMessage.GetAccount
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.equal
             (Stub.accountStateOmitEvents state)
@@ -237,7 +237,7 @@ let tests =
                DailyDebitLimit = 100m
          }
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.equal
             (Stub.accountStateOmitEvents state)
@@ -249,7 +249,7 @@ let tests =
          o.accountActor <! AccountMessage.StateChange debit1
          o.accountActor <! AccountMessage.StateChange debit2
          o.accountActor <! AccountMessage.GetAccount
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
@@ -290,7 +290,7 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.isTrue state.IsSome "account state is not None"
 
@@ -320,7 +320,7 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.isTrue state.IsSome "account state is not None"
 
@@ -359,7 +359,7 @@ let tests =
                   Stub.accountStateAfterCreate.Balance + deposit.Data.Amount
          }
 
-         let state = tck.ExpectMsg<Option<AccountState>>()
+         let state = tck.ExpectMsg<Option<Account>>()
 
          Expect.equal
             (Stub.accountStateOmitEvents state)
@@ -395,7 +395,7 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
 
          o.accountActor <! AccountMessage.GetAccount
-         let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
+         let initAccount = tck.ExpectMsg<Option<Account>>().Value
 
          let msg =
             StartBillingCycleCommand.create initAccount.EntityId {
@@ -450,8 +450,7 @@ let tests =
 
          o.accountActor <! AccountMessage.GetAccount
 
-         let accountAfterBillingCycle =
-            tck.ExpectMsg<Option<AccountState>>().Value
+         let accountAfterBillingCycle = tck.ExpectMsg<Option<Account>>().Value
 
          Expect.equal
             accountAfterBillingCycle.Balance
@@ -470,7 +469,7 @@ let tests =
 
          o.accountActor <! AccountMessage.GetAccount
 
-         let initAccount = tck.ExpectMsg<Option<AccountState>>().Value
+         let initAccount = tck.ExpectMsg<Option<Account>>().Value
 
          let msg =
             StartBillingCycleCommand.create initAccount.EntityId {
@@ -483,8 +482,7 @@ let tests =
 
          o.accountActor <! AccountMessage.GetAccount
 
-         let accountAfterBillingCycle =
-            tck.ExpectMsg<Option<AccountState>>().Value
+         let accountAfterBillingCycle = tck.ExpectMsg<Option<Account>>().Value
 
          Expect.equal
             accountAfterBillingCycle.Balance

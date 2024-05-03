@@ -21,12 +21,12 @@ type Values = {
 }
 
 type State = {
-   Account: AccountState
+   Account: Account
    PotentialInternalRecipients: PotentialInternalTransferRecipients
 }
 
 let internalRecipientForm
-   (account: AccountState)
+   (account: Account)
    (potentialInternalRecipients: PotentialInternalTransferRecipients)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
@@ -56,7 +56,7 @@ let internalRecipientForm
          }
       }
 
-   let onSubmit (recipient: AccountState) =
+   let onSubmit (recipient: Account) =
       let recipient = {
          LastName = recipient.LastName
          FirstName = recipient.FirstName
@@ -78,7 +78,7 @@ let internalRecipientForm
    Form.succeed onSubmit |> Form.append fieldEmail
 
 let domesticRecipientForm
-   (account: AccountState)
+   (account: Account)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let fieldFirstName =
@@ -204,7 +204,7 @@ let form (state: State) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
 [<ReactComponent>]
 let RegisterTransferRecipientFormComponent
-   (account: AccountState)
+   (account: Account)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
    (onSubmit: ParentOnSubmitHandler)
    =

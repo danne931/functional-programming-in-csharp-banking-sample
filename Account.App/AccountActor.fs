@@ -87,9 +87,9 @@ let actorProps
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
 
-      let rec loop (accountOpt: AccountState option) = actor {
+      let rec loop (accountOpt: Account option) = actor {
          let! msg = mailbox.Receive()
-         let account = Option.defaultValue AccountState.empty accountOpt
+         let account = Option.defaultValue Account.empty accountOpt
 
          match box msg with
          | Persisted mailbox e ->

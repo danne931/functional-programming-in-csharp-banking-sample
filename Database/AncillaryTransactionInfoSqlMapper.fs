@@ -2,6 +2,8 @@ module AncillaryTransactionInfoSqlMapper
 
 open TransactionSqlMapper
 
+let table = "ancillarytransactioninfo"
+
 module AncillaryTransactionFields =
    let transactionId = TransactionFields.transactionId
    let categoryId = "category_id"

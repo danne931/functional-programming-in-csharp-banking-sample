@@ -12,7 +12,7 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-let initMockAccountActor (tck: TestKit.Tck) (accountOpt: AccountState option) =
+let initMockAccountActor (tck: TestKit.Tck) (accountOpt: Account option) =
    let handler (ctx: Actor<_>) (msg: obj) =
       match msg with
       | :? ShardEnvelope as envelope ->
@@ -89,7 +89,7 @@ let tests =
       <| None
       <| fun tck ->
          let account = {
-            AccountState.empty with
+            Account.empty with
                Status = AccountStatus.Active
          }
 

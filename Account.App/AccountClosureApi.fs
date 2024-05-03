@@ -5,7 +5,6 @@ open FsToolkit.ErrorHandling
 
 open Lib.Postgres
 open Lib.SharedTypes
-open Bank.Account.Domain
 open AccountSqlMapper
 
 // These records are held onto for reporting and legal reasons
@@ -19,6 +18,8 @@ let deleteHistoricalRecords (accountIds: Guid list) =
       TaskResult.ok None
    else
       pgQuery<Email>
-         "DELETE FROM accounts WHERE id = ANY(@accountIds) RETURNING email"
+         $"DELETE FROM {AccountSqlMapper.table} 
+           WHERE id = ANY(@accountIds) 
+           RETURNING email"
          (Some [ "@accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
          AccountSqlReader.email

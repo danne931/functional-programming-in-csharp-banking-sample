@@ -212,13 +212,13 @@ let accountEvents = [
 ]
 
 let accountState = {
-   AccountState.empty with
+   Account.empty with
       Status = AccountStatus.Active
       Balance = 300m
 }
 
 let accountStateAfterCreate = {
-   AccountState.empty with
+   Account.empty with
       EntityId = command.createAccount.EntityId
       Email = Email.deserialize command.createAccount.Data.Email
       FirstName = command.createAccount.Data.FirstName
@@ -233,7 +233,7 @@ let accountStateAfterCreate = {
       Events = [ AccountEnvelope.wrap event.createdAccount ]
 }
 
-let accountStateOmitEvents (accountOpt: AccountState option) =
+let accountStateOmitEvents (accountOpt: Account option) =
    accountOpt
    |> Option.map (fun account -> {|
       EntityId = account.EntityId

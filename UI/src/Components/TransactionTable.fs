@@ -212,7 +212,7 @@ let renderControlPanel accountId state dispatch =
       ]
    ]
 
-let renderTableRow (account: AccountState) (txn: AccountEvent) =
+let renderTableRow (account: Account) (txn: AccountEvent) =
    let _, envelope = AccountEnvelope.unwrap txn
    let txn = transactionUIFriendly account txn
    let orDefaultValue opt = opt |> Option.defaultValue "-"
@@ -257,7 +257,7 @@ let renderTableRow (account: AccountState) (txn: AccountEvent) =
       ]
    ]
 
-let renderTable (account: AccountState) (txns: AccountEvent list) =
+let renderTable (account: Account) (txns: AccountEvent list) =
    Html.table [
       attr.classes [ "clickable-table" ]
       attr.role "grid"
@@ -283,7 +283,7 @@ let renderTable (account: AccountState) (txns: AccountEvent list) =
    ]
 
 [<ReactComponent>]
-let TransactionTableComponent (accountOpt: AccountState option) =
+let TransactionTableComponent (accountOpt: Account option) =
    let state, dispatch = React.useElmish (init, update, [||])
 
    let accountIdOpt = accountOpt |> Option.map _.EntityId

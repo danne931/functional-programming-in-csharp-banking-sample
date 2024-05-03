@@ -23,15 +23,21 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
    let recipientEnvironmentPath = "{Recipient,AccountEnvironment}"
    let statusPath = "{Status,0}"
 
+   let inProgressTransfersPath =
+      AccountSqlMapper.table + "." + AccountFields.inProgressTransfers
+
+   let inProgressTransfersCountPath =
+      AccountSqlMapper.table + "." + AccountFields.inProgressTransfersCount
+
    let! transfers =
       pgQuery<TransferTransaction>
          $"""
          SELECT txns
          FROM
-            accounts,
-            jsonb_array_elements(accounts.{AccountFields.inProgressTransfers}) as txns
+            {AccountSqlMapper.table},
+            jsonb_array_elements({inProgressTransfersPath}) as txns
          WHERE
-            accounts.{AccountFields.inProgressTransfersCount} > 0
+            {inProgressTransfersCountPath} > 0
             AND txns #>> '{recipientEnvironmentPath}' = 'Domestic'
             AND txns #>> '{statusPath}' = 'InProgress'
             AND (txns ->> 'Date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval

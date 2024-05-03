@@ -195,7 +195,7 @@ let seedAccountTransactions
 // Creates a new Map consisting of initial state of accounts to create
 // minus accounts created thus far.
 let rec getRemainingAccountsToCreate
-   (createdAccounts: AccountState list)
+   (createdAccounts: Account list)
    (accountsToCreate: CreateAccountsMap)
    : CreateAccountsMap
    =

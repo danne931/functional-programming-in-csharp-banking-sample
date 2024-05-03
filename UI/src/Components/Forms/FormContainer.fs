@@ -26,7 +26,7 @@ let init (values: 'Values) () =
    { FormModel = Form.View.idle values }, Cmd.none
 
 let update
-   (account: AccountState)
+   (account: Account)
    (onSubmit: ParentOnSubmitHandler)
    (msg: Msg<'Values>)
    (state: State<'Values>)
@@ -66,7 +66,7 @@ let update
 
 [<ReactComponent>]
 let FormContainer
-   (account: AccountState)
+   (account: Account)
    (values: 'Values)
    (form: Form.Form<'Values, Msg<'Values>, IReactProperty>)
    (onSubmit: ParentOnSubmitHandler)
