@@ -98,7 +98,7 @@ builder.Services.AddAkka(
          .WithCustomSerializer(
             QuartzSerializer.Name,
             [ typedefof<obj> ],
-            fun system -> QuartzSerializer(system)
+            (fun system -> QuartzSerializer(system))
          )
          .WithSingletonProxy<ActorMetadata.AccountClosureMarker>(
             ActorMetadata.accountClosure.Name,
@@ -134,6 +134,7 @@ builder.Services.AddAkka(
          .AddStartup(
             StartupTask(fun _ registry -> task {
                let schedulingActor = SchedulingActor.get registry
+
                schedulingActor <! SchedulingActor.BillingCycleCronJobSchedule
 
                schedulingActor

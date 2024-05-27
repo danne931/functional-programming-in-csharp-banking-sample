@@ -23,32 +23,22 @@ let getBillingStatement () =
    }
 
 /// Get AccountEvents for a past billing cycle.
-// Current account events are sourced from the account read model
-// and are displayed in the Transaction Table component.
-// If the user paginates for past transactions then the
-// the account events are sourced instead from historical billing
-// statement records as provided by this function.
-let getPaginatedTransactions
+let getTransactions
    (accountId: Guid)
-   (offset: int)
+   (page: int)
    : TaskResultOption<BillingTransaction list, Err>
    =
-   taskResultOption {
-      let! res =
-         pgQuery<BillingTransaction list>
-            $"""
-            SELECT {BillingFields.transactions}
-            FROM {BillingSqlMapper.table}
-            WHERE {BillingFields.accountId} = @accountId
-            ORDER BY created_at DESC
-            LIMIT 1
-            OFFSET @offset
-            """
-            (Some [
-               "@accountId", BillingSqlWriter.accountId accountId
-               "@offset", Sql.int offset
-            ])
-            BillingSqlReader.transactions
-
-      return res.Head
-   }
+   pgQuerySingle<BillingTransaction list>
+      $"""
+      SELECT {BillingFields.transactions}
+      FROM {BillingSqlMapper.table}
+      WHERE {BillingFields.accountId} = @accountId
+      ORDER BY created_at DESC
+      LIMIT 1
+      OFFSET @offset
+      """
+      (Some [
+         "@accountId", BillingSqlWriter.accountId accountId
+         "@offset", Sql.int <| Math.Max(page, 1) - 1
+      ])
+      BillingSqlReader.transactions

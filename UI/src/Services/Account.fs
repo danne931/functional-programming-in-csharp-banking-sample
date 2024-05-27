@@ -4,11 +4,12 @@ module AccountService
 open Fable.SimpleHttp
 open System
 open FsToolkit.ErrorHandling
+open Feliz.Router
 
 open Bank.Account.UIDomain
 open Bank.Account.Domain
-open BillingStatement
 open Lib.SharedTypes
+open Lib.TransactionQuery
 open RoutePaths
 
 type ProcessingEventId = Guid
@@ -49,7 +50,7 @@ let postJson (url: string) (command: AccountCommand) =
    |> Http.header (Headers.contentType "application/json")
    |> Http.send
 
-let getAccounts () : Async<AccountsMaybe> = async {
+let getAccountProfiles () : Async<AccountProfilesMaybe> = async {
    let! (code, responseText) = Http.get AccountPath.Base
 
    if code = 404 then
@@ -59,15 +60,17 @@ let getAccounts () : Async<AccountsMaybe> = async {
    else
       return
          responseText
-         |> Serialization.deserialize<Account list>
+         |> Serialization.deserialize<AccountProfile list>
          |> Result.map (fun accounts ->
             [ for account in accounts -> account.EntityId, account ]
             |> Map.ofList
             |> Some)
 }
 
-let getAccount (id: Guid) : Async<AccountMaybe> = async {
-   let! (code, responseText) = Http.get (AccountPath.account id)
+let getAccount (accountId: Guid) : Async<Result<Account option, Err>> = async {
+   let path = AccountPath.account accountId
+
+   let! (code, responseText) = Http.get path
 
    if code = 404 then
       return Ok None
@@ -78,14 +81,21 @@ let getAccount (id: Guid) : Async<AccountMaybe> = async {
          responseText |> Serialization.deserialize<Account> |> Result.map Some
 }
 
-let getPaginatedTransactions
-   (accountId: Guid)
-   (offset: int)
-   : Async<BillingTransactionsMaybe>
+let getAccountAndTransactions
+   (query: TransactionQuery)
+   : Async<AccountAndTransactionsMaybe>
    =
    async {
-      let! (code, responseText) =
-         Http.get (AccountPath.billingStatement accountId offset)
+      let basePath = AccountPath.accountAndTransactions query.AccountId
+
+      let queryParams =
+         query
+         |> TransactionService.transactionQueryParams
+         |> Router.encodeQueryString
+
+      let path = basePath + queryParams
+
+      let! (code, responseText) = Http.get path
 
       if code = 404 then
          return Ok None
@@ -94,7 +104,7 @@ let getPaginatedTransactions
       else
          return
             responseText
-            |> Serialization.deserialize<BillingTransaction list>
+            |> Serialization.deserialize<Account * AccountEvent list>
             |> Result.map Some
    }
 

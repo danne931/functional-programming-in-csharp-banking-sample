@@ -14,77 +14,53 @@ open AccountActions
 open TransactionDetail
 open Contexts
 
-type Url =
-   | Account
-   | AccountSelected of Guid
-   | AccountEdit of Guid
-   | AccountActionOpen of Guid * FormView
-   | AccountTransaction of accountId: Guid * transactionId: Guid
-   | NotFound
-
-module Url =
-   let parse =
-      function
-      // Matches /
-      | [] -> Url.Account
-      // Matches /{accountId:Guid}
-      | [ Route.Guid accountId ] -> Url.AccountSelected accountId
-      // Matches /{accountId:Guid}/deposit
-      | [ Route.Guid accountId; "deposit" ] ->
-         Url.AccountActionOpen(accountId, FormView.Deposit)
-      | [ Route.Guid accountId; "debit" ] ->
-         Url.AccountActionOpen(accountId, FormView.Debit)
-      | [ Route.Guid accountId; "transfer" ] ->
-         Url.AccountActionOpen(accountId, FormView.Transfer)
-      | [ Route.Guid accountId; "register-recipient" ] ->
-         Url.AccountActionOpen(accountId, FormView.RegisterTransferRecipient)
-      | [ Route.Guid accountId; "daily-debit-limit" ] ->
-         Url.AccountActionOpen(accountId, FormView.DailyDebitLimit)
-      | [ Route.Guid accountId; "card-access" ] ->
-         Url.AccountActionOpen(accountId, FormView.CardAccess)
-      | [ Route.Guid accountId; "transaction-detail"; Route.Guid transactionId ] ->
-         Url.AccountTransaction(accountId, transactionId)
-      | _ -> Url.NotFound
-
-   let accountIdMaybe (url: Url) : Guid option =
-      match url with
-      | AccountSelected id
-      | AccountEdit id -> Some id
-      | AccountActionOpen(id, _) -> Some id
-      | AccountTransaction(id, _) -> Some id
-      | _ -> None
-
-   let accountFormMaybe (url: Url) : FormView option =
-      match url with
-      | AccountActionOpen(_, form) -> Some form
-      | _ -> None
-
 type State = {
-   CurrentUrl: Url
-   Accounts: Deferred<AccountsMaybe>
+   CurrentUrl: Routes.AccountUrl
+   AccountProfiles: Deferred<AccountProfilesMaybe>
    CurrentAccountId: Guid option
+   CurrentAccountAndTransactions: Deferred<AccountAndTransactionsMaybe>
+   RealtimeTransactions: AccountEvent list
    SignalRConnection: SignalR.Connection option
    SignalRCurrentAccountId: Guid option
 }
 
+let accountProfiles (state: State) : Map<Guid, AccountProfile> option =
+   match state.AccountProfiles with
+   | Deferred.Resolved(Ok(Some accounts)) -> Some accounts
+   | _ -> None
+
+let selectedProfile (state: State) : AccountProfile option =
+   Option.map2
+      (fun accountId profiles -> Map.tryFind accountId profiles)
+      (Routes.AccountUrl.accountIdMaybe state.CurrentUrl)
+      (accountProfiles state)
+   |> Option.flatten
+
 let selectedAccount (state: State) : Account option =
-   Url.accountIdMaybe state.CurrentUrl
-   |> Option.bind (findAccount state.Accounts)
+   match state.CurrentAccountAndTransactions with
+   | Resolved(Ok(Some(account, _))) -> Some account
+   | _ -> None
+
+let updateAccountAndTransactions
+   (transform: Account * AccountEvent list -> Account * AccountEvent list)
+   (state: State)
+   : Deferred<AccountAndTransactionsMaybe>
+   =
+   (Deferred.map << Result.map << Option.map)
+      transform
+      state.CurrentAccountAndTransactions
 
 type Msg =
-   | UrlChanged of Url
-   | LoadAccounts of AsyncOperationStatus<AccountsMaybe>
-   | AccountRefreshed of AccountMaybe
+   | UrlChanged of Routes.AccountUrl
+   | LoadAccountProfiles of AsyncOperationStatus<AccountProfilesMaybe>
+   | LoadAccountAndTransactions of
+      Guid *
+      AsyncOperationStatus<AccountAndTransactionsMaybe>
    | SignalRConnected of SignalR.Connection
    | SignalRDisconnected
    | AddAccountToSignalRConnectionGroup of
       AsyncOperationStatus<Result<Guid, Err>>
    | AccountEventPersisted of AccountEventPersistedConfirmation
-
-let refreshAccount (accountId) = async {
-   let! res = AccountService.getAccount accountId
-   return AccountRefreshed(res)
-}
 
 let addAccountToSignalRConnectionGroup state : Async<Msg> =
    let opt =
@@ -109,15 +85,21 @@ let addAccountToSignalRConnectionGroup state : Async<Msg> =
       return Msg.AddAccountToSignalRConnectionGroup Started
      }
 
-let init (url: Url) (signalRConnection: SignalR.Connection option) () =
+let init
+   (url: Routes.AccountUrl)
+   (signalRConnection: SignalR.Connection option)
+   ()
+   =
    {
-      Accounts = Deferred.Idle
+      AccountProfiles = Deferred.Idle
       CurrentUrl = url
       CurrentAccountId = None
+      CurrentAccountAndTransactions = Deferred.Idle
+      RealtimeTransactions = []
       SignalRConnection = signalRConnection
       SignalRCurrentAccountId = None
    },
-   Cmd.ofMsg (LoadAccounts Started)
+   Cmd.ofMsg (LoadAccountProfiles Started)
 
 let update msg state =
    match msg with
@@ -128,28 +110,28 @@ let update msg state =
       },
       Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
    | SignalRDisconnected -> { state with SignalRConnection = None }, Cmd.none
-   | LoadAccounts Started ->
-      let loadAccounts = async {
-         let! res = AccountService.getAccounts ()
-         return LoadAccounts(Finished res)
+   | LoadAccountProfiles Started ->
+      let loadAccountProfiles = async {
+         let! res = AccountService.getAccountProfiles ()
+         return LoadAccountProfiles(Finished res)
       }
 
       {
          state with
-            Accounts = Deferred.InProgress
+            AccountProfiles = Deferred.InProgress
       },
-      Cmd.fromAsync loadAccounts
-   | LoadAccounts(Finished(Ok(Some accounts))) ->
+      Cmd.fromAsync loadAccountProfiles
+   | LoadAccountProfiles(Finished(Ok(Some accounts))) ->
       let state = {
          state with
-            Accounts = Deferred.Resolved(Ok(Some accounts))
+            AccountProfiles = Deferred.Resolved(Ok(Some accounts))
       }
 
       let firstAccount () =
          let selectedId = accounts |> Map.values |> Seq.head |> _.EntityId
          state, Cmd.navigate ("account", string selectedId)
 
-      match Url.accountIdMaybe state.CurrentUrl with
+      match Routes.AccountUrl.accountIdMaybe state.CurrentUrl with
       | None -> firstAccount ()
       | Some id ->
          let selected = accounts |> Map.tryFind id
@@ -161,31 +143,48 @@ let update msg state =
                state with
                   CurrentAccountId = Some id
             },
-            Cmd.none
-   | LoadAccounts(Finished(Ok None)) ->
+            Cmd.ofMsg <| Msg.LoadAccountAndTransactions(id, Started)
+   | LoadAccountProfiles(Finished(Ok None)) ->
       {
          state with
-            Accounts = Deferred.Resolved(Ok None)
+            AccountProfiles = Deferred.Resolved(Ok None)
       },
       Cmd.none
-   | LoadAccounts(Finished(Error err)) ->
+   | LoadAccountProfiles(Finished(Error err)) ->
       {
          state with
-            Accounts = Deferred.Resolved(Error err)
+            AccountProfiles = Deferred.Resolved(Error err)
       },
       Cmd.none
-   | AccountRefreshed(Ok(Some account)) ->
+   | LoadAccountAndTransactions(accountId, Started) ->
+      let query =
+         TransactionService.transactionQueryFromAccountBrowserQuery
+            accountId
+            (Routes.IndexUrl.accountBrowserQuery ())
+
+      let load = async {
+         let! res = AccountService.getAccountAndTransactions query
+         return Msg.LoadAccountAndTransactions(accountId, Finished res)
+      }
+
       {
          state with
-            Accounts =
-               updateAccount (fun _ -> account) state.Accounts account.EntityId
+            CurrentAccountAndTransactions = Deferred.Idle
+            RealtimeTransactions = []
+      },
+      Cmd.fromAsync load
+   | LoadAccountAndTransactions(_, Finished(Ok(Some(account, txns)))) ->
+      {
+         state with
+            CurrentAccountAndTransactions =
+               Deferred.Resolved(Ok(Some(account, txns)))
       },
       Cmd.none
-   | AccountRefreshed _ ->
-      Log.error "Issue refreshing account"
+   | LoadAccountAndTransactions _ ->
+      Log.error "Issue loading account + transactions."
       state, Cmd.none
    | UrlChanged url ->
-      let idFromUrl = Url.accountIdMaybe url
+      let idFromUrl = Routes.AccountUrl.accountIdMaybe url
       let previousAccountId = state.CurrentAccountId
 
       let state = {
@@ -194,13 +193,16 @@ let update msg state =
             CurrentAccountId = idFromUrl
       }
 
-      match previousAccountId, idFromUrl with
-      | Some previousId, Some currentId when currentId <> previousId ->
-         state,
+      let accountSelectedCmd currentId =
          Cmd.batch [
             Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
-            Cmd.fromAsync (refreshAccount (currentId))
+            Cmd.ofMsg (Msg.LoadAccountAndTransactions(currentId, Started))
          ]
+
+      match previousAccountId, idFromUrl with
+      | None, Some currentId -> state, accountSelectedCmd currentId
+      | Some previousId, Some currentId when currentId <> previousId ->
+         state, accountSelectedCmd currentId
       | _ -> state, Cmd.none
    | AddAccountToSignalRConnectionGroup Started ->
       state, Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
@@ -216,13 +218,16 @@ let update msg state =
       },
       Cmd.none
    | AccountEventPersisted data ->
+      let account = data.NewState
+      let evt = data.EventPersisted
+
       {
          state with
-            Accounts =
-               updateAccount
-                  (fun _ -> data.NewState)
-                  state.Accounts
-                  data.NewState.EntityId
+            RealtimeTransactions = evt :: state.RealtimeTransactions
+            CurrentAccountAndTransactions =
+               updateAccountAndTransactions
+                  (fun (_, txns) -> account, evt :: txns)
+                  state
       },
       Cmd.none
 
@@ -230,16 +235,15 @@ let renderAccountActions state dispatch =
    let selectedAccountAndPotentialTransferRecipients
       : (Account * PotentialInternalTransferRecipients) option =
       Option.map2
-         (fun accounts selectedId ->
-            Map.tryFind selectedId accounts
-            |> Option.map (fun (found: Account) ->
-               let potentialRecipients =
-                  PotentialInternalTransferRecipients.create found accounts
+         (fun accountProfiles account ->
+            let potentialRecipients =
+               PotentialInternalTransferRecipients.create
+                  account
+                  accountProfiles
 
-               found, potentialRecipients))
-         (accountsFromDeferred state.Accounts)
-         (Url.accountIdMaybe state.CurrentUrl)
-      |> Option.flatten
+            account, potentialRecipients)
+         (accountProfiles state)
+         (selectedAccount state)
 
    Html.article [
       match selectedAccountAndPotentialTransferRecipients with
@@ -248,12 +252,11 @@ let renderAccountActions state dispatch =
          AccountActionsComponent
             account
             potentialTransferRecipients
-            (Url.accountFormMaybe state.CurrentUrl)
             (AccountEventPersisted >> dispatch)
    ]
 
 [<ReactComponent>]
-let AccountDashboardComponent (url: Url) =
+let AccountDashboardComponent (url: Routes.AccountUrl) =
    let signalRContext = React.useContext signalRContext
    let signalRConnection = signalRContext.Connection
 
@@ -280,12 +283,13 @@ let AccountDashboardComponent (url: Url) =
    )
 
    let accountOpt = selectedAccount state
+   let profileOpt = selectedProfile state
 
    Html.div [
-      match accountsFromDeferred state.Accounts with
-      | None -> Navigation.NavigationComponent None None
+      match accountProfiles state with
       | Some accounts ->
          Navigation.NavigationComponent (Some accounts) state.CurrentAccountId
+      | None -> Navigation.NavigationComponent None None
 
       ServiceHealth.ServiceHealthComponent()
 
@@ -293,24 +297,24 @@ let AccountDashboardComponent (url: Url) =
          classyNode Html.div [ "grid" ] [
             Html.section [
                Html.h5 "Transactions"
-               TransactionTable.TransactionTableComponent accountOpt
+               match profileOpt with
+               | None -> ()
+               | Some profile ->
+                  TransactionTable.TransactionTableComponent
+                     profile
+                     state.CurrentAccountAndTransactions
+                     state.RealtimeTransactions
             ]
 
             Html.aside [
-               match state.CurrentUrl, accountOpt with
-               | Url.AccountTransaction(accountId, transactionId), Some account ->
+               match Routes.AccountUrl.transactionIdMaybe state.CurrentUrl with
+               | Some txnId ->
                   Html.h5 "Transaction Detail"
 
-                  let evtFound =
-                     account.Events
-                     |> List.tryFind (fun evt ->
-                        let _, envelope = AccountEnvelope.unwrap evt
-                        envelope.Id = transactionId)
-
-                  match evtFound with
-                  | None -> Html.p $"Transaction {transactionId} not found."
-                  | Some evt -> TransactionDetailComponent account evt
-               | _ ->
+                  match profileOpt with
+                  | Some profile -> TransactionDetailComponent profile txnId
+                  | _ -> Html.div [ attr.ariaBusy true ]
+               | None ->
                   Html.h5 "Actions"
                   renderAccountActions state dispatch
             ]

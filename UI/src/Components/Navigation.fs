@@ -8,7 +8,7 @@ open AccountSelection
 
 [<ReactComponent>]
 let NavigationComponent
-   (accounts: Map<Guid, Account> option)
+   (accounts: Map<Guid, AccountProfile> option)
    (selectedAccountId: Guid option)
    =
    classyNode Html.nav [ "container-fluid" ] [
@@ -16,7 +16,7 @@ let NavigationComponent
          Html.li [
             Html.a [
                attr.href ""
-               attr.onClick _.preventDefault()
+               attr.onClick (fun e -> e.preventDefault ())
                attr.children [ Html.strong "Bank" ]
             ]
          ]

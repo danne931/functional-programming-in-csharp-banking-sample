@@ -21,4 +21,8 @@ module AncillaryTransactionSqlReader =
 module AncillaryTransactionSqlWriter =
    let transactionId = TransactionSqlWriter.transactionId
    let categoryId = Sql.intOrNone
+
+   let categoryIds (ids: int list option) =
+      ids |> Option.map Array.ofList |> Sql.intArrayOrNone
+
    let note = Sql.text

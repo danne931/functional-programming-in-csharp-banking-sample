@@ -9,41 +9,25 @@ open Browser.Dom
 open SignalRConnectionProvider
 open TransactionCategoryProvider
 
-[<RequireQualifiedAccess>]
-type Url =
-   | Index
-   | Account of AccountDashboard.Url
-   | NotFound
-
-let parseUrl (segments: string list) =
-   // Temporarily redirect Index page to Accounts.
-   let segments = if segments.IsEmpty then [ "account" ] else segments
-
-   match segments with
-   | [] -> Url.Index
-   // Matches /account/{AccountDashboard.Url}
-   | "account" :: accountSegments ->
-      Url.Account(AccountDashboard.Url.parse accountSegments)
-   | _ -> Url.NotFound
-
 [<ReactComponent>]
 let App () =
-   let currentUrl, setUrl = React.useState (parseUrl <| Router.currentUrl ())
+   let currentUrl, setUrl =
+      React.useState (Routes.IndexUrl.parse <| Router.currentUrl ())
 
    let activePage =
       match currentUrl with
-      | Url.Index -> Html.h1 "Home"
-      | Url.Account url ->
+      | Routes.IndexUrl.Reporting -> Html.h1 "Reporting"
+      | Routes.IndexUrl.Account url ->
          AccountDashboard.AccountDashboardComponent url
          |> SignalRConnectionProvider
          |> TransactionCategoryProvider
-      | Url.NotFound -> Html.h1 "Not Found"
+      | Routes.IndexUrl.NotFound -> Html.h1 "Not Found"
 
    React.strictMode (
       [
          Html.div [
             React.router [
-               router.onUrlChanged (parseUrl >> setUrl)
+               router.onUrlChanged (Routes.IndexUrl.parse >> setUrl)
                router.children [ activePage ]
             ]
          ]

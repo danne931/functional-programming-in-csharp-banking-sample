@@ -1,7 +1,5 @@
 begin;
 
-SET timezone = 'America/Los_Angeles';
-
 DROP TYPE IF EXISTS money_flow;
 
 DROP TABLE IF EXISTS ancillarytransactioninfo;

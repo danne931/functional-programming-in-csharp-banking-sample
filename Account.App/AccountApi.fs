@@ -8,10 +8,76 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 open Validus
 
-open Lib.SharedTypes
+open Lib.TransactionQuery
 open Lib.Postgres
+open Lib.SharedTypes
 open Bank.Account.Domain
-open AccountSqlMapper
+
+module Fields = AccountSqlMapper.AccountFields
+module Reader = AccountSqlMapper.AccountSqlReader
+module Writer = AccountSqlMapper.AccountSqlWriter
+let accountTable = AccountSqlMapper.table
+
+let getAccount (id: Guid) =
+   pgQuerySingle<Account>
+      $"SELECT * FROM {accountTable} 
+        WHERE {Fields.entityId} = @accountId"
+      (Some [ "accountId", Writer.entityId id ])
+      Reader.account
+
+let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
+   let queryParams, txnQueryString =
+      Bank.Transaction.Api.transactionQuery txnQuery
+
+   let query =
+      $"""
+      SELECT
+         {accountTable}.*,
+         COALESCE(
+            (
+               SELECT jsonb_agg(event)
+               FROM ({txnQueryString})
+            ),
+            '[]'::jsonb
+         ) as txns
+      FROM {accountTable}
+      WHERE {Fields.entityId} = @accountId
+      """
+
+   return!
+      pgQuerySingle<Account * AccountEvent list>
+         query
+         (Some queryParams)
+         (fun read ->
+            Reader.account read,
+            read.text "txns"
+            |> Serialization.deserializeUnsafe<AccountEvent list>)
+}
+
+let getAccountProfiles () =
+   let query =
+      $"""
+      SELECT
+         {Fields.entityId},
+         {Fields.firstName},
+         {Fields.lastName},
+         {Fields.email}
+      FROM {accountTable}
+      """
+
+   pgQuery<AccountProfile> query None (fun read -> {
+      EntityId = Reader.entityId read
+      Email = Reader.email read
+      FirstName = Reader.firstName read
+      LastName = Reader.lastName read
+   })
+
+let getAccountsByIds (accountIds: Guid list) =
+   pgQuery<Account>
+      $"SELECT * FROM {accountTable} 
+        WHERE {Fields.entityId} = ANY(@accountIds)"
+      (Some [ "accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
+      Reader.account
 
 let processCommand
    (system: ActorSystem)
@@ -25,30 +91,6 @@ let processCommand
       ref <! AccountMessage.StateChange command
       return validation |> Result.map _.Id
    }
-
-let getAccount (id: Guid) = taskResultOption {
-   let! accountList =
-      pgQuery<Account>
-         $"SELECT * FROM {AccountSqlMapper.table} 
-           WHERE {AccountFields.entityId} = @accountId"
-         (Some [ "accountId", Sql.uuid id ])
-         AccountSqlReader.account
-
-   return accountList.Head
-}
-
-let getAccounts () =
-   pgQuery<Account>
-      $"SELECT * FROM {AccountSqlMapper.table}"
-      None
-      AccountSqlReader.account
-
-let getAccountsByIds (accountIds: Guid list) =
-   pgQuery<Account>
-      $"SELECT * FROM {AccountSqlMapper.table} 
-        WHERE {AccountFields.entityId} = ANY(@accountIds)"
-      (Some [ "accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
-      AccountSqlReader.account
 
 // Diagnostic
 let getAccountEventsFromAkka

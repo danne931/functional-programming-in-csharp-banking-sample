@@ -1,15 +1,18 @@
 [<AutoOpen>]
 module Util
 
-open System
 open Feliz
+open Fable.Core.JS
+open System
 
-module time =
-   let formatDate (date: DateTime) =
-      let dayAndMonth = date.ToLongDateString().Split(string date.Year)[0]
-      $"{dayAndMonth} {date.ToShortTimeString()}"
+module DateTime =
+   let toISOString (date: DateTime) : string =
+      Fable.Core.JsInterop.emitJsExpr (string date) "new Date($0).toISOString()"
 
-module money =
+   let rangeAsQueryString (startDate: DateTime) (endDate: DateTime) : string =
+      toISOString startDate + "," + toISOString endDate
+
+module Money =
    let format (amount: decimal) : string =
       Fable.Core.JsInterop.emitJsExpr
          amount
@@ -33,8 +36,7 @@ let classyNode
    elementGenerator [ attr.classes classes; attr.children children ]
 
 /// Pass latest value from input, after some delay, to provided function.
-/// Useful in input onChange handler.
-let throttleInput (delay: int) (func: string -> unit) =
+let throttleUncontrolledInput (delay: int) (func: string -> unit) =
    let mutable timeoutId = None
    let mutable state = ""
 
@@ -42,11 +44,21 @@ let throttleInput (delay: int) (func: string -> unit) =
       state <- input
 
       if timeoutId.IsNone then
-         timeoutId <-
-            Some
-            <| Browser.Dom.window.setTimeout (
-               fun () ->
-                  func state
-                  timeoutId <- None
-               , delay
-            )
+         let onTimer () =
+            func state
+            clearTimeout timeoutId.Value
+            timeoutId <- None
+
+         timeoutId <- Some <| setTimeout onTimer delay
+
+/// Prevents user from typing any character other than a positive
+/// number or backspace.
+/// Useful in input onKeyDown handler.
+let keepPositiveNumbers (e: Browser.Types.KeyboardEvent) : unit =
+   if
+      e.which = 8 // backspace
+      || (e.which >= 48 && e.which <= 57) // number
+   then
+      ()
+   else
+      e.preventDefault ()

@@ -159,6 +159,4 @@ let listener =
 
 app.Run()
 
-type Program() =
-   class
-   end
+type Program() = class end

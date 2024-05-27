@@ -10,7 +10,7 @@
     <Compile Include="ReadModelSyncActor.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="AccountActor.fs" />
-    <Compile Include="AncillaryTransactionInfoApi.fs" />
+    <Compile Include="TransactionApi.fs" />
     <Compile Include="AccountApi.fs" />
     <Compile Include="AccountSeederActor.fs" />
   </ItemGroup>

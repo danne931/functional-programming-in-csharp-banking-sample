@@ -56,7 +56,7 @@ let internalRecipientForm
          }
       }
 
-   let onSubmit (recipient: Account) =
+   let onSubmit (recipient: AccountProfile) =
       let recipient = {
          LastName = recipient.LastName
          FirstName = recipient.FirstName

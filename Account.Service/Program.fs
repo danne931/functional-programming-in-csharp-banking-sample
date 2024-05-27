@@ -51,7 +51,7 @@ builder.Services.AddAkka(
          .WithCustomSerializer(
             BankSerializer.Name,
             [ typedefof<obj> ],
-            fun system -> BankSerializer(system)
+            (fun system -> BankSerializer(system))
          )
          .WithDistributedPubSub(ClusterMetadata.roles.signalR)
          .WithSingletonProxy<ActorMetadata.SchedulingMarker>(

@@ -1,128 +1,196 @@
 module TransactionTable
 
+open System
 open Feliz
 open Feliz.UseElmish
 open Feliz.Router
 open Elmish
 open Fable.FontAwesome
-open System
 
 open Lib.SharedTypes
+open Lib.Time
 open Bank.Account.UIDomain
 open Bank.Account.Domain
-open BillingStatement
 open AsyncUtil
-
-type private Page = int
+open Lib.TransactionQuery
+open TransactionFilterViews
 
 type State = {
-   IsDiagnosticView: bool
-   PaginatedBillingTransactions: Map<Page, Deferred<BillingTransactionsMaybe>>
-   PageIndex: Page
-   BillingCycleStart: DateTime option
+   FilterView: TransactionFilterView option
+   Transactions: Map<int, Deferred<TransactionsMaybe>>
+   TransactionQuery: TransactionQuery
 }
 
 type Msg =
    | ToggleDiagnosticView
+   | ToggleFilterView
+   | UpdateFilter of TransactionFilter
+   | SelectFilterView of TransactionFilterView
    | ResetPageIndex
-   | LoadBillingTransactions of
-      accountId: Guid *
-      Page *
-      AsyncOperationStatus<BillingTransactionsMaybe>
-   | UpdateBillingCycleStart of DateTime
-   | Reset
+   | LoadTransactions of
+      TransactionQuery *
+      AsyncOperationStatus<TransactionsMaybe>
+   | TransactionPropsResolved of Deferred<TransactionsMaybe>
+   | ViewTransaction of txnId: Guid
 
-let init () =
+let init
+   (txnsDeferred: Deferred<TransactionsMaybe>)
+   (txnQuery: TransactionQuery)
+   ()
+   =
    {
-      IsDiagnosticView = true
-      PaginatedBillingTransactions = Map.empty
-      PageIndex = 0
-      BillingCycleStart = None
+      FilterView = None
+      Transactions = Map [ 1, txnsDeferred ]
+      TransactionQuery = txnQuery
    },
    Cmd.none
 
 let update msg state =
    match msg with
    | ToggleDiagnosticView ->
-      {
-         state with
-            IsDiagnosticView = not state.IsDiagnosticView
-      },
-      Cmd.none
-   | ResetPageIndex -> { state with PageIndex = 0 }, Cmd.none
-   | LoadBillingTransactions(accountId, page, Started) ->
-      let state = { state with PageIndex = page }
-
-      let load = async {
-         // UI page begins at 0 indicating events sourced from account state &
-         // provided by parent component.
-         // Page values >= 1 will be passed into this LoadBillingTransactions
-         // message and account events will be sourced from billing records.
-         // The billing statement postgres table expects offset values starting
-         // at 0 so subtract 1 from the page before passing it to the service.
-         let! res = AccountService.getPaginatedTransactions accountId (page - 1)
-         return LoadBillingTransactions(accountId, page, Finished res)
+      let query = {
+         state.TransactionQuery with
+            Page = 1
+            Diagnostic = not state.TransactionQuery.Diagnostic
       }
 
-      let deferredPageData = state.PaginatedBillingTransactions.TryFind page
+      {
+         state with
+            TransactionQuery = query
+            Transactions = Map [ 1, Deferred.Idle ]
+      },
+      Cmd.ofMsg (Msg.LoadTransactions(query, Started))
+   | ToggleFilterView ->
+      {
+         state with
+            FilterView =
+               match state.FilterView with
+               | None -> Some TransactionFilterView.Date
+               | Some _ -> None
+      },
+      Cmd.none
+   | UpdateFilter filter ->
+      let query = { state.TransactionQuery with Page = 1 }
+
+      let query =
+         match filter with
+         | TransactionFilter.Date filter -> {
+            query with
+               DateRange = filter |> Option.map DateFilter.toDateRange
+           }
+         | TransactionFilter.MoneyFlow direction -> {
+            query with
+               MoneyFlow = direction
+           }
+         | TransactionFilter.Amount amount -> { query with Amount = amount }
+         | TransactionFilter.Category cat -> { query with Category = cat }
+
+      let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
+
+      let browserQuery =
+         match filter with
+         | TransactionFilter.Date filter -> { browserQuery with Date = filter }
+         | TransactionFilter.MoneyFlow direction -> {
+            browserQuery with
+               MoneyFlow = direction
+           }
+         | TransactionFilter.Amount amount -> {
+            browserQuery with
+               Amount = amount
+           }
+         | TransactionFilter.Category cat -> {
+            browserQuery with
+               Category = cat
+           }
+
+      let browserQueryParams =
+         browserQuery
+         |> AccountBrowserQuery.toQueryParams
+         |> Router.encodeQueryString
+
+      {
+         state with
+            TransactionQuery = query
+            Transactions = Map [ 1, Deferred.Idle ]
+      },
+      Cmd.batch [
+         Cmd.ofMsg (Msg.LoadTransactions(query, Started))
+         Cmd.navigate ("account", string query.AccountId, browserQueryParams)
+      ]
+   | SelectFilterView view -> { state with FilterView = Some view }, Cmd.none
+   | ResetPageIndex ->
+      let query = {
+         state.TransactionQuery with
+            TransactionQuery.Page = 1
+      }
+
+      { state with TransactionQuery = query }, Cmd.none
+   | LoadTransactions(query, Started) ->
+      let load = async {
+         let! res = TransactionService.getTransactions query
+         return LoadTransactions(query, Finished res)
+      }
+
+      let page = query.Page
+      let deferredPageData = state.Transactions.TryFind page
+      let state = { state with TransactionQuery = query }
 
       match deferredPageData with
-      | (Some(Deferred.Resolved(Ok _))) -> state, Cmd.none
+      | Some(Deferred.Resolved(Ok _)) when page <> 1 -> state, Cmd.none
       | _ ->
          {
             state with
-               PaginatedBillingTransactions =
-                  state.PaginatedBillingTransactions
-                  |> Map.add page Deferred.InProgress
+               Transactions =
+                  state.Transactions |> Map.add page Deferred.InProgress
          },
          Cmd.fromAsync load
-   | LoadBillingTransactions(_, page, Finished(Ok billingTxnsOpt)) ->
-      let resolvedTxns = Deferred.Resolved(Ok billingTxnsOpt)
+   | LoadTransactions(query, Finished(Ok txnsOpt)) ->
+      let resolvedTxns = Deferred.Resolved(Ok txnsOpt)
 
       {
          state with
-            PaginatedBillingTransactions =
-               state.PaginatedBillingTransactions
-               |> Map.change page (Option.map (fun _ -> resolvedTxns))
+            Transactions =
+               state.Transactions
+               |> Map.change query.Page (Option.map (fun _ -> resolvedTxns))
       },
       Cmd.none
-   | LoadBillingTransactions(accountId, page, Finished(Error err)) ->
+   | LoadTransactions(query, Finished(Error err)) ->
       Log.error
-         $"Error loading billing transactions for {accountId} - Page {page}: {err}"
+         $"Error loading transactions for {query.AccountId} - Page {query.Page}: {err}"
 
       state, Cmd.none
-   | UpdateBillingCycleStart date ->
-      match state.BillingCycleStart with
-      | None ->
+   | TransactionPropsResolved txnsDeferred ->
+      {
+         state with
+            Transactions = Map [ 1, txnsDeferred ]
+      },
+      Cmd.none
+   | ViewTransaction(txnId) ->
+      let queryString =
          {
-            state with
-               BillingCycleStart = Some date
-         },
-         Cmd.none
-      | Some previousDate when previousDate < date ->
-         // New Billing Cycle detected.  Shift the page without disrupting
-         // the view to accommodate account.Events transitioning into a
-         // billing statement.
-         {
-            state with
-               BillingCycleStart = Some date
-               PageIndex =
-                  if state.PageIndex = 0 then 0 else state.PageIndex + 1
-               PaginatedBillingTransactions =
-                  state.PaginatedBillingTransactions
-                  |> Map.fold
-                        (fun acc page txns -> acc.Add(page + 1, txns))
-                        Map.empty
-         },
-         Cmd.none
-      | _ -> state, Cmd.none
-   | Reset -> init ()
+            Routes.IndexUrl.accountBrowserQuery () with
+               Action = None
+               Transaction = Some txnId
+         }
+         |> AccountBrowserQuery.toQueryParams
+         |> Router.encodeQueryString
 
-let renderControlPanel accountId state dispatch =
-   let currPageData = state.PaginatedBillingTransactions.TryFind state.PageIndex
+      state,
+      Cmd.navigate (
+         "account",
+         string state.TransactionQuery.AccountId,
+         queryString
+      )
 
-   let nextPageData =
-      state.PaginatedBillingTransactions.TryFind(state.PageIndex + 1)
+let renderControlPanel
+   state
+   dispatch
+   (categories: Map<int, TransactionCategory>)
+   =
+   let query = state.TransactionQuery
+   let page = query.Page
+   let currPageData = state.Transactions.TryFind page
+   let nextPageData = state.Transactions.TryFind(page + 1)
 
    let endOfPagination =
       match currPageData, nextPageData with
@@ -130,7 +198,101 @@ let renderControlPanel accountId state dispatch =
       | (Some(Deferred.Resolved(Ok None))), _ -> true
       | _, _ -> false
 
+   let onDatePillSelected () =
+      dispatch <| Msg.SelectFilterView TransactionFilterView.Date
+
+   let onDatePillDeleted () =
+      dispatch <| Msg.UpdateFilter(TransactionFilter.Date None)
+
+   let onCategoryPillSelected () =
+      dispatch <| Msg.SelectFilterView TransactionFilterView.Category
+
+   let onCategoryPillDeleted () =
+      dispatch <| Msg.UpdateFilter(TransactionFilter.Category None)
+
+   let onAmountPillSelected () =
+      dispatch <| Msg.SelectFilterView TransactionFilterView.Amount
+
+   let onAmountPillDeleted () =
+      dispatch <| Msg.UpdateFilter(TransactionFilter.Amount None)
+
+   let onMoneyFlowPillDeleted () =
+      dispatch <| Msg.UpdateFilter(TransactionFilter.MoneyFlow None)
+
    classyNode Html.div [ "transaction-table-control-panel" ] [
+      Html.button [
+         attr.children [ Fa.i [ Fa.Solid.Filter ] []; Html.span "Filter" ]
+
+         attr.onClick (fun e ->
+            e.preventDefault ()
+            dispatch Msg.ToggleFilterView)
+      ]
+
+      match query.DateRange with
+      | None -> ()
+      | Some(dateStart, dateEnd) ->
+         let dateStart, dateEnd = DateTime.formatRangeShort dateStart dateEnd
+
+         FilterPill.render
+            $"{dateStart} - {dateEnd}"
+            onDatePillSelected
+            onDatePillDeleted
+
+      match query.Category with
+      | None -> ()
+      | Some(CategoryFilter.IsCategorized isCat) ->
+         FilterPill.render
+            (if isCat then "Categorized" else "Uncategorized")
+            onCategoryPillSelected
+            onCategoryPillDeleted
+      | Some(CategoryFilter.CategoryIds catIds) ->
+         let size = catIds.Length
+
+         let content =
+            if size > 1 then
+               Some $"Categories ({size})"
+            else
+               categories |> Map.tryFind catIds.Head |> Option.map _.Name
+
+         match content with
+         | None -> ()
+         | Some content ->
+            FilterPill.render
+               content
+               onCategoryPillSelected
+               onCategoryPillDeleted
+
+      match query.MoneyFlow with
+      | Some MoneyFlow.In ->
+         FilterPill.render
+            "Money in"
+            onAmountPillSelected
+            onMoneyFlowPillDeleted
+      | Some MoneyFlow.Out ->
+         FilterPill.render
+            "Money out"
+            onAmountPillSelected
+            onMoneyFlowPillDeleted
+      | _ -> ()
+
+      match query.Amount with
+      | None -> ()
+      | Some(AmountFilter.GreaterThanOrEqualTo amount) ->
+         FilterPill.render
+            $"≥ ${amount}"
+            onAmountPillSelected
+            onAmountPillDeleted
+      | Some(AmountFilter.LessThanOrEqualTo amount) ->
+         FilterPill.render
+            $"≤ ${amount}"
+            onAmountPillSelected
+            onAmountPillDeleted
+      | Some(AmountFilter.Between(amountStart, amountEnd)) ->
+         FilterPill.render
+            $"${amountStart} - ${amountEnd}"
+            onAmountPillSelected
+            onAmountPillDeleted
+
       Html.a [
          attr.children [ Fa.i [ Fa.Solid.CaretRight ] [] ]
 
@@ -150,9 +312,8 @@ let renderControlPanel accountId state dispatch =
 
             if not endOfPagination then
                dispatch
-               <| Msg.LoadBillingTransactions(
-                  accountId,
-                  state.PageIndex + 1,
+               <| Msg.LoadTransactions(
+                  { query with Page = query.Page + 1 },
                   Started
                ))
       ]
@@ -164,23 +325,22 @@ let renderControlPanel accountId state dispatch =
 
          attr.classes [
             "pagination"
-            if state.PageIndex = 0 then
+            if page = 1 then
                "secondary"
          ]
 
-         if state.PageIndex = 0 then
+         if page = 1 then
             attr.ariaDisabled true
 
          attr.onClick (fun e ->
             e.preventDefault ()
 
-            if state.PageIndex = 1 then
+            if page = 2 then
                dispatch ResetPageIndex
-            elif state.PageIndex > 1 then
+            elif page > 2 then
                dispatch
-               <| LoadBillingTransactions(
-                  accountId,
-                  state.PageIndex - 1,
+               <| LoadTransactions(
+                  { query with Page = query.Page - 1 },
                   Started
                ))
       ]
@@ -188,7 +348,7 @@ let renderControlPanel accountId state dispatch =
       Html.a [
          attr.children [
             Fa.i [
-               if state.IsDiagnosticView then
+               if state.TransactionQuery.Diagnostic then
                   Fa.Solid.EyeSlash
                else
                   Fa.Solid.Eye
@@ -197,41 +357,50 @@ let renderControlPanel accountId state dispatch =
 
          attr.href ""
 
-         if state.PageIndex <> 0 then
-            attr.ariaDisabled true
-            attr.classes [ "secondary" ]
-
          attr.onClick (fun e ->
             e.preventDefault ()
+            dispatch ToggleDiagnosticView)
 
-            if state.PageIndex = 0 then
-               dispatch ToggleDiagnosticView)
-
-         attr.custom ("data-tooltip", "Toggle Diagnostic Display")
+         attr.custom (
+            "data-tooltip",
+            if state.TransactionQuery.Diagnostic then
+               "Hide Diagnostic Events"
+            else
+               "Show Diagnostic Events"
+         )
          attr.custom ("data-placement", "left")
       ]
    ]
 
-let renderTableRow (account: Account) (txn: AccountEvent) =
-   let _, envelope = AccountEnvelope.unwrap txn
-   let txn = transactionUIFriendly account txn
+let private canViewTransactionDetail =
+   function
+   | AccountEvent.DepositedCash _
+   | AccountEvent.TransferPending _
+   | AccountEvent.TransferDeposited _
+   | AccountEvent.DebitedAccount _ -> true
+   | _ -> false
+
+let renderTableRow
+   (profile: AccountProfile)
+   (evt: AccountEvent)
+   (selectedTxnId: Guid option)
+   dispatch
+   =
+   let _, envelope = AccountEnvelope.unwrap evt
+   let txn = transactionUIFriendly profile evt
    let orDefaultValue opt = opt |> Option.defaultValue "-"
 
    Html.tr [
       attr.key envelope.Id
 
-      // Allow opening transaction detail view for account events
-      // with money flow, i.e. not diagnostic events.
-      if txn.MoneyFlow = MoneyFlow.None then
-         attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
+      match selectedTxnId with
+      | Some txnId when txnId = envelope.Id -> attr.classes [ "selected" ]
+      | _ -> ()
+
+      if canViewTransactionDetail evt then
+         attr.onClick (fun _ -> dispatch (Msg.ViewTransaction envelope.Id))
       else
-         attr.onClick (fun _ ->
-            Router.navigate (
-               "account",
-               string envelope.EntityId,
-               "transaction-detail",
-               string envelope.Id
-            ))
+         attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
 
       attr.children [
          Html.th [ attr.scope "row" ]
@@ -257,7 +426,12 @@ let renderTableRow (account: Account) (txn: AccountEvent) =
       ]
    ]
 
-let renderTable (account: Account) (txns: AccountEvent list) =
+let renderTable
+   (profile: AccountProfile)
+   (txns: AccountEvent list)
+   (selectedTxnId: Guid option)
+   dispatch
+   =
    Html.table [
       attr.classes [ "clickable-table" ]
       attr.role "grid"
@@ -278,80 +452,98 @@ let renderTable (account: Account) (txns: AccountEvent list) =
             ]
          ]
 
-         Html.tbody [ for txn in txns -> renderTableRow account txn ]
+         Html.tbody [
+            for txn in txns -> renderTableRow profile txn selectedTxnId dispatch
+         ]
       ]
    ]
 
 [<ReactComponent>]
-let TransactionTableComponent (accountOpt: Account option) =
-   let state, dispatch = React.useElmish (init, update, [||])
+let TransactionTableComponent
+   (profile: AccountProfile)
+   (deferred: Deferred<AccountAndTransactionsMaybe>)
+   (realtimeTxns: AccountEvent list)
+   =
+   let txnsDeferred = (Deferred.map << Result.map << Option.map) snd deferred
+   let categories = React.useContext Contexts.transactionCategoryContext
+   let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
 
-   let accountIdOpt = accountOpt |> Option.map _.EntityId
-   React.useEffect ((fun _ -> dispatch Reset), [| box accountIdOpt |])
+   let txnQuery =
+      TransactionService.transactionQueryFromAccountBrowserQuery
+         profile.EntityId
+         browserQuery
+
+   let state, dispatch =
+      React.useElmish (
+         init txnsDeferred txnQuery,
+         update,
+         [| box profile.EntityId |]
+      )
+
+   let txns = Map.tryFind state.TransactionQuery.Page state.Transactions
+
+   let q = state.TransactionQuery
+
+   let noFilterSelected =
+      match q.Amount, q.Category, q.MoneyFlow, q.DateRange, q.Page with
+      | None, None, None, None, 1 -> true
+      | _ -> false
 
    React.useEffect (
       (fun _ ->
-         match accountOpt with
-         | Some account when
-            account.LastBillingCycleDate.IsSome
-            && account.LastBillingCycleDate <> state.BillingCycleStart
-            ->
-            dispatch
-            <| Msg.UpdateBillingCycleStart account.LastBillingCycleDate.Value
+         let txnsResolvedInState =
+            Map.tryFind state.TransactionQuery.Page state.Transactions
+            |> Option.map Deferred.resolved
+
+         let txnsResolvedInProps = Deferred.resolved txnsDeferred
+
+         match txnsResolvedInState, txnsResolvedInProps with
+         | Some false, true
+         | Some true, false ->
+            dispatch <| TransactionPropsResolved txnsDeferred
          | _ -> ()),
-      [| box accountOpt |]
+      [| box deferred |]
    )
-
-   let loaderFinished = attr.value 100
-
-   // Current account events are sourced from the account state.
-   // If the user paginates (PageIndex > 0) then the
-   // the events are sourced instead from historical billing
-   // statement records.
-   let showHistoricalBillingTxns = state.PageIndex > 0
 
    React.fragment [
       Html.progress [
          attr.style [ style.marginBottom 5 ]
          attr.custom ("data-transactions-loader", "")
 
-         if showHistoricalBillingTxns then
-            let deferredPageData =
-               state.PaginatedBillingTransactions.TryFind state.PageIndex
-
-            match deferredPageData with
-            | (Some(Deferred.Resolved(Ok _))) -> loaderFinished
-            | _ -> ()
-         elif accountOpt.IsSome then
-            loaderFinished
+         match txns with
+         | Some(Deferred.Resolved _) -> attr.value 100
+         | _ -> ()
       ]
 
-      match accountOpt with
-      | None -> ()
-      | Some account ->
-         let renderTable = renderTable account
+      classyNode Html.figure [ "control-panel-and-transaction-table-container" ] [
+         renderControlPanel state dispatch categories
 
-         Html.figure [
-            renderControlPanel account.EntityId state dispatch
+         match state.FilterView with
+         | None -> ()
+         | Some view ->
+            renderTransactionFilters
+               browserQuery
+               categories
+               view
+               (Msg.SelectFilterView >> dispatch)
+               (Msg.UpdateFilter >> dispatch)
+               (fun () -> dispatch Msg.ToggleFilterView)
 
-            if showHistoricalBillingTxns then
-               let deferredPageData =
-                  state.PaginatedBillingTransactions.TryFind state.PageIndex
+         match txns with
+         | Some(Resolved(Ok None)) -> Html.p "No transactions found."
+         | Some(Resolved(Ok(Some txns))) ->
+            // Combine txns matching query with txns received in real-time
+            // if no filters applied.
+            // TODO: Display real-time events separately & without regard to
+            //       applied filters.
+            let txns =
+               if noFilterSelected then
+                  realtimeTxns @ txns
+                  |> List.distinctBy (AccountEnvelope.unwrap >> snd >> _.Id)
+               else
+                  txns
 
-               match deferredPageData with
-               | (Some(Deferred.Resolved(Ok(Some billingTxns)))) ->
-                  billingTxns
-                  |> List.map BillingTransaction.value
-                  |> renderTable
-               | (Some(Deferred.Resolved(Ok None))) ->
-                  Html.small "No results found."
-               | _ -> Html.none
-            elif state.IsDiagnosticView then
-               renderTable account.Events
-            else
-               account.Events
-               |> billingTransactions
-               |> List.map BillingTransaction.value
-               |> renderTable
-         ]
+            renderTable profile txns browserQuery.Transaction dispatch
+         | _ -> ()
+      ]
    ]

@@ -12,6 +12,21 @@ type SqlParameter = string * SqlValue
 type SqlParameterList = SqlParameter list
 type SqlTransactionStatement = string * SqlParameterList list
 
+let pgQuerySingle<'t>
+   (query: string)
+   (parameters: SqlParameterList option)
+   (mapper: RowReader -> 't)
+   : Result<'t option, Err> Task
+   =
+   connString
+   |> Sql.connect
+   |> Sql.query query
+   |> Sql.parameters (Option.defaultValue [] parameters)
+   |> Sql.executeRowAsync mapper
+   |> Task.map Some
+   |> TaskResult.ofTask
+   |> TaskResult.catch DatabaseError
+
 let pgQuery<'t>
    (query: string)
    (parameters: SqlParameterList option)

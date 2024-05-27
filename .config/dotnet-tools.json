@@ -3,13 +3,13 @@
   "isRoot": true,
   "tools": {
     "fsautocomplete": {
-      "version": "0.70.1",
+      "version": "0.73.1",
       "commands": [
         "fsautocomplete"
       ]
     },
     "fantomas": {
-      "version": "6.2.3",
+      "version": "6.3.4",
       "commands": [
         "fantomas"
       ]

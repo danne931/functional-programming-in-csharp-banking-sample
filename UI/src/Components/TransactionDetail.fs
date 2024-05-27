@@ -5,7 +5,6 @@ open Feliz.UseElmish
 open Feliz.Router
 open Elmish
 open Fable.FontAwesome
-open Fable
 open System
 
 open Bank.Account.Domain
@@ -14,53 +13,51 @@ open AsyncUtil
 open Lib.SharedTypes
 
 type State = {
-   AccountId: Guid
-   Transaction: AncillaryTransactionInfo
+   TransactionId: Guid
+   Transaction: Deferred<TransactionWithAncillaryInfo>
 }
 
 type Msg =
-   | GetAncillaryTransactionInfo of
-      txnId: Guid *
-      AsyncOperationStatus<Result<AncillaryTransactionInfo, Err>>
+   | GetTransactionInfo of
+      AsyncOperationStatus<Result<TransactionWithAncillaryInfo, Err>>
    | CategorySelected of
-      category: TransactionCategory *
+      TransactionCategory option *
       AsyncOperationStatus<Result<int, Err>>
    | NoteUpdated of note: string * AsyncOperationStatus<Result<int, Err>>
-   | Close
 
-let init accountId transactionId () =
+let init txnId () =
    {
-      AccountId = accountId
-      Transaction = {
-         Id = transactionId
-         Note = None
-         Category = None
-      }
+      TransactionId = txnId
+      Transaction = Deferred.Idle
    },
-   Cmd.ofMsg (GetAncillaryTransactionInfo(transactionId, Started))
+   Cmd.ofMsg (GetTransactionInfo Started)
 
 let update msg state =
    match msg with
-   | GetAncillaryTransactionInfo(txnId, Started) ->
+   | GetTransactionInfo Started ->
       let getInfo = async {
-         let! res =
-            AncillaryTransactionInfoService.getAncillaryTransactionInfo txnId
+         let! res = TransactionService.getTransactionInfo state.TransactionId
 
-         return GetAncillaryTransactionInfo(txnId, Finished res)
+         return GetTransactionInfo(Finished res)
       }
 
       state, Cmd.fromAsync getInfo
-   | GetAncillaryTransactionInfo(txnId, Finished(Ok txn)) ->
-      { state with Transaction = txn }, Cmd.none
-   | GetAncillaryTransactionInfo(txnId, Finished(Error err)) ->
+   | GetTransactionInfo(Finished(Ok txn)) ->
+      {
+         state with
+            Transaction = Deferred.Resolved txn
+      },
+      Cmd.none
+   | GetTransactionInfo(Finished(Error err)) ->
       Log.error $"Error fetching ancillary txn info: {err}"
       state, Cmd.none
    | CategorySelected(category, Started) ->
       let updateCategory = async {
          let! res =
-            AncillaryTransactionInfoService.updateCategory
-               state.Transaction.Id
-               category.Id
+            match category with
+            | None -> TransactionService.deleteCategory state.TransactionId
+            | Some category ->
+               TransactionService.updateCategory state.TransactionId category.Id
 
          return CategorySelected(category, Finished res)
       }
@@ -69,7 +66,9 @@ let update msg state =
    | CategorySelected(category, Finished(Ok _)) ->
       {
          state with
-            Transaction.Category = Some category
+            Transaction =
+               state.Transaction
+               |> Deferred.map (fun txn -> { txn with Category = category })
       },
       Cmd.none
    | CategorySelected(_, Finished(Error err)) ->
@@ -77,8 +76,7 @@ let update msg state =
       state, Cmd.none
    | NoteUpdated(note, Started) ->
       let updateNote = async {
-         let! res =
-            AncillaryTransactionInfoService.updateNote state.Transaction.Id note
+         let! res = TransactionService.updateNote state.TransactionId note
 
          return NoteUpdated(note, Finished res)
       }
@@ -87,32 +85,22 @@ let update msg state =
    | NoteUpdated(note, Finished(Ok _)) ->
       {
          state with
-            Transaction.Note = Some note
+            Transaction =
+               state.Transaction
+               |> Deferred.map (fun txn -> { txn with Note = Some note })
       },
       Cmd.none
    | NoteUpdated(_, Finished(Error err)) ->
       Log.error $"Error updating note: {err}"
       state, Cmd.none
-   | Close -> state, Cmd.navigate ("account", string state.AccountId)
 
-[<ReactComponent>]
-let TransactionDetailComponent
-   (account: Account)
-   (transaction: AccountEvent)
+let renderTransactionInfo
+   (profile: AccountProfile)
+   (txnInfo: TransactionWithAncillaryInfo)
    =
-   let _, envelope = AccountEnvelope.unwrap transaction
-   let txnId = envelope.Id
+   let txn = transactionUIFriendly profile txnInfo.Event
 
-   let state, dispatch =
-      React.useElmish (init account.EntityId txnId, update, [| box txnId |])
-
-   let categories = React.useContext Contexts.transactionCategoryContext
-
-   let txn = transactionUIFriendly account transaction
-
-   classyNode Html.div [ "transaction-detail" ] [
-      CloseButton.render (fun _ -> dispatch Close)
-
+   React.fragment [
       Html.h6 txn.Name
 
       Html.section [
@@ -125,94 +113,185 @@ let TransactionDetailComponent
       ]
 
       Html.section [
-         Html.h6 [
-            attr.style [ style.margin 0 ]
-            attr.text account.Name
-            attr.text txn.Source
+         Html.div [
+            Html.small "From:"
+            Html.h6 [
+               attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
+               attr.text profile.Name
+               attr.text txn.Source
+            ]
          ]
 
-         Html.p [ attr.text "--->"; attr.style [ style.margin 0 ] ]
-
-         Html.h6 [ attr.style [ style.margin 0 ]; attr.text txn.Destination ]
+         Html.div [
+            Html.small "To:"
+            Html.h6 [
+               attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
+               attr.text txn.Destination
+            ]
+         ]
       ]
+   ]
 
-      Html.section [
-         Html.label [ Html.text "Category" ]
-         Html.select [
-            attr.onChange (fun (catId: string) ->
-               CategorySelected(categories[int catId], Started) |> dispatch)
+let renderCategorySelect
+   (categories: Map<int, TransactionCategory>)
+   (txnInfo: Deferred<TransactionWithAncillaryInfo>)
+   dispatch
+   =
+   React.fragment [
+      Html.label [ Html.text "Category" ]
+      Html.select [
+         attr.onChange (fun (catId: string) ->
+            Msg.CategorySelected(Map.tryFind (int catId) categories, Started)
+            |> dispatch)
 
+         match txnInfo with
+         | Deferred.Resolved txnInfo ->
             attr.children [
-               for category in categories.Values ->
+               Html.option [ attr.value 0; attr.text "None" ]
+
+               for category in categories.Values do
                   Html.option [
                      attr.value category.Id
                      attr.text category.Name
 
-                     match state.Transaction.Category with
+                     match txnInfo.Category with
                      | Some cat when cat.Id = category.Id -> attr.selected true
                      | _ -> ()
                   ]
             ]
+         | _ -> attr.disabled true
+      ]
+   ]
+
+let renderNoteInput (txnInfo: Deferred<TransactionWithAncillaryInfo>) dispatch =
+   React.fragment [
+      Html.label [ Html.text "Notes" ]
+      Html.input [
+         attr.type' "text"
+         attr.placeholder "Add a note"
+
+         match txnInfo with
+         | Deferred.Resolved txnInfo ->
+            attr.key txnInfo.Id
+
+            attr.defaultValue (txnInfo.Note |> Option.defaultValue "")
+         | _ -> attr.disabled true
+
+         attr.onChange (
+            throttleUncontrolledInput 2500 (fun note ->
+               NoteUpdated(note, Started) |> dispatch)
+         )
+      ]
+   ]
+
+let renderFooterMenuControls (txnInfo: Deferred<TransactionWithAncillaryInfo>) =
+   let evtOpt =
+      match txnInfo with
+      | Deferred.Resolved txnInfo ->
+         match txnInfo.Event with
+         | AccountEvent.TransferPending _
+         | AccountEvent.TransferDeposited _
+         | AccountEvent.DebitedAccount _ -> Some txnInfo.Event
+         | _ -> None
+      | _ -> None
+
+   React.fragment [
+      match evtOpt with
+      | None -> ()
+      | Some evt ->
+         Html.details [
+            attr.role "list"
+            attr.custom ("dir", "rtl")
+
+            attr.children [
+               Html.summary [
+                  attr.custom ("aria-haspopup", "listbox")
+                  attr.role "link"
+                  attr.classes [ "contrast" ]
+
+                  attr.children [ Fa.i [ Fa.Solid.EllipsisH ] [] ]
+               ]
+
+               Html.ul [
+                  attr.id "accounts-list"
+                  attr.role "listbox"
+                  attr.children [
+                     match evt with
+                     | AccountEvent.DebitedAccount evt ->
+                        Html.li [
+                           Html.a [
+                              attr.onClick (fun e -> e.preventDefault ())
+                              attr.text "Edit merchant nickname"
+                              attr.href ""
+                           ]
+                        ]
+                     | AccountEvent.TransferPending evt ->
+                        Html.li [
+                           Html.a [
+                              attr.onClick (fun e -> e.preventDefault ())
+                              attr.text "Nickname Recipient"
+                              attr.href ""
+                           ]
+                        ]
+
+                        Html.li [
+                           Html.a [
+                              attr.onClick (fun e -> e.preventDefault ())
+                              attr.text "View Recipient"
+                              attr.href ""
+                           ]
+                        ]
+                     | AccountEvent.TransferDeposited evt ->
+                        Html.li [
+                           Html.a [
+                              attr.onClick (fun e -> e.preventDefault ())
+                              attr.text "Nickname Sender"
+                              attr.href ""
+                           ]
+                        ]
+
+                        Html.li [
+                           Html.a [
+                              attr.onClick (fun e -> e.preventDefault ())
+                              attr.text "View Sender"
+                              attr.href ""
+                           ]
+                        ]
+                     | _ -> ()
+                  ]
+               ]
+            ]
          ]
+   ]
 
-         Html.label [ Html.text "Notes" ]
-         Html.input [
-            attr.type' "text"
-            attr.placeholder "Add a note"
-            attr.key txnId
+[<ReactComponent>]
+let TransactionDetailComponent (profile: AccountProfile) (txnId: Guid) =
+   let state, dispatch = React.useElmish (init txnId, update, [| box txnId |])
+   let categories = React.useContext Contexts.transactionCategoryContext
+   let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
 
-            attr.defaultValue (state.Transaction.Note |> Option.defaultValue "")
+   classyNode Html.div [ "transaction-detail" ] [
+      CloseButton.render (fun _ ->
+         let queryString =
+            { browserQuery with Transaction = None }
+            |> AccountBrowserQuery.toQueryParams
+            |> Router.encodeQueryString
 
-            attr.onChange (
-               throttleInput 2500 (fun note ->
-                  NoteUpdated(note, Started) |> dispatch)
-            )
-         ]
+         Router.navigate ("account", string profile.EntityId, queryString))
+
+      match state.Transaction with
+      | Deferred.Resolved transaction ->
+         renderTransactionInfo profile transaction
+      | _ -> Html.div [ attr.ariaBusy true ]
+
+      Html.section [
+         renderCategorySelect categories state.Transaction dispatch
+         renderNoteInput state.Transaction dispatch
       ]
 
       Html.section [
          attr.style [ style.position.relative ]
 
-         attr.children [
-            Html.a [
-               attr.href ""
-               attr.children [ Fa.i [ Fa.Solid.WindowClose ] [] ]
-               attr.onClick (fun e ->
-                  e.preventDefault ()
-                  dispatch Msg.Close)
-
-               attr.custom ("data-tooltip", "Close")
-               attr.custom ("data-placement", "right")
-            ]
-
-            Html.details [
-               attr.role "list"
-               attr.custom ("dir", "rtl")
-
-               attr.children [
-                  Html.summary [
-                     attr.custom ("aria-haspopup", "listbox")
-                     attr.role "link"
-                     attr.classes [ "contrast" ]
-
-                     attr.children [ Fa.i [ Fa.Solid.EllipsisH ] [] ]
-                  ]
-
-                  Html.ul [
-                     attr.id "accounts-list"
-                     attr.role "listbox"
-                     attr.children [
-                        Html.li [
-                           Html.a [
-                              attr.text "Edit merchant nickname"
-                              attr.href ""
-                              attr.onClick(_.preventDefault())
-                           ]
-                        ]
-                     ]
-                  ]
-               ]
-            ]
-         ]
+         attr.children [ renderFooterMenuControls state.Transaction ]
       ]
    ]

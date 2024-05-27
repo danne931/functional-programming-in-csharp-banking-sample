@@ -3,7 +3,12 @@ module Lib.SharedTypes
 open System
 open Validus
 
-let guid () = Guid.NewGuid()
+module Guid =
+   let parseOptional (id: string) =
+      try
+         Some <| Guid.Parse id
+      with _ ->
+         None
 
 type Command<'C> = {
    Id: Guid
@@ -15,7 +20,7 @@ type Command<'C> = {
 
 module Command =
    let create<'t> (entityId: Guid) (correlationId: Guid) (data) : Command<'t> = {
-      Id = guid ()
+      Id = Guid.NewGuid()
       EntityId = entityId
       Timestamp = DateTime.UtcNow
       CorrelationId = correlationId
@@ -133,6 +138,13 @@ type MoneyFlow =
    | None
    | In
    | Out
+
+module MoneyFlow =
+   let fromString (flow: string) : MoneyFlow option =
+      match flow with
+      | "In" -> Some MoneyFlow.In
+      | "Out" -> Some MoneyFlow.Out
+      | _ -> None
 
 [<RequireQualifiedAccess>]
 type Currency =

@@ -8,37 +8,19 @@ open System
 
 open Bank.Account.Domain
 open Bank.Account.UIDomain
-open Lib.SharedTypes
 open Bank.Account.Forms
-
-[<RequireQualifiedAccess>]
-type FormView =
-   | Debit
-   | Deposit
-   | Transfer
-   | RegisterTransferRecipient
-   | DailyDebitLimit
-   | CardAccess
 
 type private PendingAction =
    (AccountCommand * AccountService.ProcessingEventId) option
-
-let formToPath opt =
-   match opt with
-   | FormView.Debit -> "debit"
-   | FormView.Deposit -> "deposit"
-   | FormView.Transfer -> "transfer"
-   | FormView.RegisterTransferRecipient -> "register-recipient"
-   | FormView.DailyDebitLimit -> "daily-debit-limit"
-   | FormView.CardAccess -> "card-access"
 
 // If user wants to view the transfer form but hasn't already added
 // recipients, redirect them to the transfer recipients creation form
 // first.  Once they submit a recipient then transition the view to their
 // intended transfer form.
-let private shouldRedirectToRegisterRecipient account selectedFormView =
-   match selectedFormView with
-   | Some FormView.Transfer when account.TransferRecipients.IsEmpty -> true
+let private shouldRedirectToRegisterRecipient account selectedView =
+   match selectedView with
+   | Some AccountActionView.Transfer when account.TransferRecipients.IsEmpty ->
+      true
    | _ -> false
 
 let private findEventCorrespondingToPendingAction
@@ -53,14 +35,26 @@ let private findEventCorrespondingToPendingAction
          let _, envelope = AccountEnvelope.unwrap evt
          envelope.Id = processingEvtId))
 
+
+let private navigate (accountId: Guid) (view: AccountActionView option) =
+   let queryString =
+      {
+         Routes.IndexUrl.accountBrowserQuery () with
+            Action = view
+      }
+      |> AccountBrowserQuery.toQueryParams
+      |> Router.encodeQueryString
+
+   Cmd.navigate ("account", string accountId, queryString)
+
 type State = {
    Account: Account
-   FormView: FormView option
+   View: AccountActionView option
    PendingAction: PendingAction
 }
 
 type Msg =
-   | ShowForm of FormView
+   | ShowForm of AccountActionView
    | CancelForm
    | NetworkAckCommand of AccountCommand * AccountService.ProcessingEventId
    | AccountEventReceived of Account
@@ -69,32 +63,26 @@ type Msg =
       accountId: Guid *
       attemptNumber: int
    | Noop
-   | Reset of Account * FormView option
 
-let init account selectedFormView () =
-   let redirect = shouldRedirectToRegisterRecipient account selectedFormView
+let init account () =
+   let selectedView = Routes.IndexUrl.accountBrowserQuery().Action
+   let redirect = shouldRedirectToRegisterRecipient account selectedView
 
    let selected, cmd =
       if redirect then
-         let redirectTo = FormView.RegisterTransferRecipient
-
-         Some redirectTo,
-         Cmd.navigate (
-            "account",
-            string account.EntityId,
-            formToPath redirectTo
-         )
+         let redirectTo = Some AccountActionView.RegisterTransferRecipient
+         redirectTo, navigate account.EntityId redirectTo
       else
-         selectedFormView, Cmd.none
+         selectedView, Cmd.none
 
    {
       Account = account
-      FormView = selected
+      View = selected
       PendingAction = None
    },
    cmd
 
-let closeForm state = { state with FormView = None }
+let closeForm state = { state with View = None }
 
 let update
    (handleConfirmationReceivedViaPolling:
@@ -102,20 +90,20 @@ let update
    msg
    state
    =
+   let navigate = navigate state.Account.EntityId
+
    match msg with
    | ShowForm form ->
       let form =
          if shouldRedirectToRegisterRecipient state.Account (Some form) then
-            FormView.RegisterTransferRecipient
+            AccountActionView.RegisterTransferRecipient
          else
             form
 
       let view = Some form
 
-      { state with FormView = view },
-      Cmd.navigate ("account", string state.Account.EntityId, formToPath form)
-   | CancelForm ->
-      closeForm state, Cmd.navigate ("account", string state.Account.EntityId)
+      { state with View = view }, navigate view
+   | CancelForm -> closeForm state, navigate None
    | NetworkAckCommand(command, evtId) ->
       // HTTP request returned 200. Command accepted by network.  Wait
       // for account actor cluster to successfully process the command into
@@ -139,22 +127,17 @@ let update
 
       match found with
       | None -> state, Cmd.none
-      | Some correspondingEvt ->
+      | Some _ ->
          let state = { state with PendingAction = None }
-         let accountId = state.Account.EntityId
 
-         match state.FormView with
-         | Some FormView.RegisterTransferRecipient ->
-            let redirectTo = FormView.Transfer
+         match state.View with
+         | Some AccountActionView.RegisterTransferRecipient ->
+            let redirectTo = Some AccountActionView.Transfer
 
-            let state = {
-               state with
-                  FormView = Some redirectTo
-            }
+            let state = { state with View = redirectTo }
 
-            state,
-            Cmd.navigate ("account", string accountId, formToPath redirectTo)
-         | _ -> closeForm state, Cmd.navigate ("account", string accountId)
+            state, navigate redirectTo
+         | _ -> closeForm state, navigate None
    // Verify the PendingAction was persisted.
    // If a SignalR event doesn't dispatch a Msg.AccountEventReceived within
    // a few seconds of the initial network request to process the command then
@@ -219,23 +202,17 @@ let update
 
             state, Cmd.fromAsync getReadModel
    | Noop -> state, Cmd.none
-   | Reset(account, selectedFormView) ->
-      {
-         Account = account
-         FormView = selectedFormView
-         PendingAction = None
-      },
-      Cmd.none
 
-let private renderMenuButton dispatch (form: FormView) =
+let private renderMenuButton dispatch (form: AccountActionView) =
    Html.button [
       attr.classes [ "outline" ]
       attr.onClick (fun _ -> ShowForm form |> dispatch)
       attr.text (
          match form with
-         | FormView.RegisterTransferRecipient -> "Add a Transfer Recipient"
-         | FormView.DailyDebitLimit -> "Daily Debit Limit"
-         | FormView.CardAccess -> "Lock Debit Card"
+         | AccountActionView.RegisterTransferRecipient ->
+            "Add a Transfer Recipient"
+         | AccountActionView.DailyDebitLimit -> "Daily Debit Limit"
+         | AccountActionView.CardAccess -> "Lock Debit Card"
          | _ -> string form
       )
    ]
@@ -244,21 +221,15 @@ let private renderMenuButton dispatch (form: FormView) =
 let AccountActionsComponent
    (account: Account)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
-   (form: FormView option)
    (handleConfirmationReceivedViaPolling:
       AccountEventPersistedConfirmation -> unit)
    =
    let state, dispatch =
       React.useElmish (
-         init account form,
+         init account,
          update handleConfirmationReceivedViaPolling,
-         [||]
+         [| box account.EntityId |]
       )
-
-   React.useEffect (
-      (fun () -> dispatch <| Reset(account, form)),
-      [| box account.EntityId |]
-   )
 
    React.useEffect (
       (fun () ->
@@ -272,63 +243,68 @@ let AccountActionsComponent
 
    let renderMenuButton = renderMenuButton dispatch
 
-   match state.FormView with
+   match state.View with
    | None ->
       Html.div [
          classyNode Html.div [ "grid" ] [
-            renderMenuButton FormView.Debit
-            renderMenuButton FormView.Deposit
-         ]
-
-         classyNode Html.div [ "grid" ] [ renderMenuButton FormView.Transfer ]
-
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton FormView.RegisterTransferRecipient
+            renderMenuButton AccountActionView.Debit
+            renderMenuButton AccountActionView.Deposit
          ]
 
          classyNode Html.div [ "grid" ] [
-            renderMenuButton FormView.DailyDebitLimit
+            renderMenuButton AccountActionView.Transfer
          ]
 
-         classyNode Html.div [ "grid" ] [ renderMenuButton FormView.CardAccess ]
+         classyNode Html.div [ "grid" ] [
+            renderMenuButton AccountActionView.RegisterTransferRecipient
+         ]
+
+         classyNode Html.div [ "grid" ] [
+            renderMenuButton AccountActionView.DailyDebitLimit
+         ]
+
+         classyNode Html.div [ "grid" ] [
+            renderMenuButton AccountActionView.CardAccess
+         ]
       ]
    | Some form ->
       classyNode Html.div [ "form-wrapper" ] [
          Html.h6 (
             match form with
-            | FormView.RegisterTransferRecipient -> "Add a Transfer Recipient"
-            | FormView.Transfer -> "Transfer Money"
-            | FormView.Debit -> "Debit Purchase"
-            | FormView.Deposit -> "Deposit Cash"
-            | FormView.DailyDebitLimit -> "Set a Daily Allowance"
-            | FormView.CardAccess -> "Card Access"
+            | AccountActionView.RegisterTransferRecipient ->
+               "Add a Transfer Recipient"
+            | AccountActionView.Transfer -> "Transfer Money"
+            | AccountActionView.Debit -> "Debit Purchase"
+            | AccountActionView.Deposit -> "Deposit Cash"
+            | AccountActionView.DailyDebitLimit -> "Set a Daily Allowance"
+            | AccountActionView.CardAccess -> "Card Access"
          )
 
          CloseButton.render (fun _ -> dispatch CancelForm)
 
          match form with
-         | FormView.RegisterTransferRecipient ->
+         | AccountActionView.RegisterTransferRecipient ->
             RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
                state.Account
                potentialTransferRecipients
                (Msg.NetworkAckCommand >> dispatch)
-         | FormView.Transfer ->
+         | AccountActionView.Transfer ->
             TransferForm.TransferFormComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)
-         | FormView.DailyDebitLimit ->
+         | AccountActionView.DailyDebitLimit ->
             DailyDebitLimitForm.DailyDebitLimitFormComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)
-         | FormView.Deposit ->
+         | AccountActionView.Deposit ->
             DepositForm.DepositFormComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)
-         | FormView.Debit ->
+         | AccountActionView.Debit ->
             DebitForm.DebitFormComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)
-         | FormView.CardAccess ->
+         | AccountActionView.CardAccess ->
             CardAccess.CardAccessFormComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)

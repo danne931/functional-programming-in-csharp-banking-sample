@@ -80,57 +80,31 @@ module ClusterMetadata =
    |}
 
 module ActorMetadata =
-   type ReadModelSyncMarker() =
-      class
-      end
+   type ReadModelSyncMarker() = class end
 
-   type CircuitBreakerMarker() =
-      class
-      end
+   type CircuitBreakerMarker() = class end
 
-   type AccountLoadTestMarker() =
-      class
-      end
+   type AccountLoadTestMarker() = class end
 
-   type AuditorMarker() =
-      class
-      end
+   type AuditorMarker() = class end
 
-   type AccountSeederMarker() =
-      class
-      end
+   type AccountSeederMarker() = class end
 
-   type EmailMarker() =
-      class
-      end
+   type EmailMarker() = class end
 
-   type AccountClosureMarker() =
-      class
-      end
+   type AccountClosureMarker() = class end
 
-   type DomesticTransferMarker() =
-      class
-      end
+   type DomesticTransferMarker() = class end
 
-   type TransferProgressTrackingMarker() =
-      class
-      end
+   type TransferProgressTrackingMarker() = class end
 
-   type BillingCycleMarker() =
-      class
-      end
+   type BillingCycleMarker() = class end
 
-   type BillingStatementMarker() =
-      class
-      end
+   type BillingStatementMarker() = class end
 
-   type AccountMarker() =
-      class
-      end
+   type AccountMarker() = class end
 
-   type SchedulingMarker() =
-      class
-      end
+   type SchedulingMarker() = class end
 
    type ActorMetadata = {
       Name: string

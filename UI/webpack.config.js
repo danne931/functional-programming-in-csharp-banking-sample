@@ -7,6 +7,7 @@ const staticPath = path.resolve(__dirname, './dist')
 module.exports = (env, argv) => {
   const mode = argv.mode
   console.log(`Webpack building in ${mode} mode`)
+  const proxyUrl = 'http://localhost:3000'
 
   return {
     mode: mode,
@@ -18,10 +19,11 @@ module.exports = (env, argv) => {
 
     devServer: {
       proxy: {
-        '/accounts': 'http://localhost:3000',
-        '/transfers': 'http://localhost:3000',
-        '/diagnostic': 'http://localhost:3000',
-        '/ancillary-transaction-info': 'http://localhost:3000', 
+        '/accounts': proxyUrl,
+        '/transfers': proxyUrl,
+        '/diagnostic': proxyUrl,
+        '/transactions': proxyUrl,
+        '/transaction-categories': proxyUrl,
         '/accountHub': {
           target: 'ws://localhost:3000',
           ws: true

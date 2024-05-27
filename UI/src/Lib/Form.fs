@@ -27,8 +27,7 @@ module Form =
          | _ ->
             if showError then
                error
-               |> Option.map errorToString
-               |> Option.map errorMessage
+               |> Option.map (errorToString >> errorMessage)
                |> Option.defaultValue Html.none
             else
                Html.none
@@ -180,15 +179,18 @@ module Form =
                   attr.children [
                      yield! fields
 
-                     Html.button [
-                        attr.type' "submit"
-                        attr.style [ style.marginTop 15 ]
-                        match state with
-                        | Loading ->
-                           attr.text "Processing transaction..."
-                           attr.ariaBusy true
-                        | _ -> attr.text "Submit"
-                     ]
+                     match action with
+                     | Action.SubmitOnly buttonText ->
+                        Html.button [
+                           attr.type' "submit"
+                           attr.style [ style.marginTop 15 ]
+                           match state with
+                           | State.Loading ->
+                              attr.text "Processing..."
+                              attr.ariaBusy true
+                           | _ -> attr.text buttonText
+                        ]
+                     | Action.Custom customAction -> customAction state dispatch
                   ]
                ]
             ]

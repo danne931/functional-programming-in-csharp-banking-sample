@@ -9,7 +9,7 @@ let TransactionCategoryProvider (child: Fable.React.ReactElement) =
    React.useEffectOnce (fun () ->
       if categories.IsEmpty then
          async {
-            match! AncillaryTransactionInfoService.getCategories () with
+            match! TransactionService.getCategories () with
             | Ok categories ->
                [ for cat in categories -> cat.Id, cat ]
                |> Map.ofList

@@ -45,14 +45,17 @@ let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    // last debit event did not occur today...
    // -> Ignore the cached DailyDebitAccrued
    let accrued =
-      if state.LastDebitDate.IsSome && IsToday state.LastDebitDate.Value then
+      if
+         state.LastDebitDate.IsSome
+         && DateTime.isToday state.LastDebitDate.Value
+      then
          state.DailyDebitAccrued
       else
          0m
 
    // When accumulating events into Account aggregate...
    // -> Ignore debits older than a day
-   if IsToday evt.Data.Date then
+   if DateTime.isToday evt.Data.Date then
       accrued + evt.Data.DebitedAmount
    else
       accrued
@@ -70,10 +73,10 @@ module TransferLimits =
 
       match o.Recipient.AccountEnvironment with
       | RecipientAccountEnvironment.Internal ->
-         IsToday o.Date
+         DateTime.isToday o.Date
          && account.DailyInternalTransferAccrued + o.Amount > DailyInternalLimit
       | RecipientAccountEnvironment.Domestic ->
-         IsToday o.Date
+         DateTime.isToday o.Date
          && account.DailyDomesticTransferAccrued + o.Amount > DailyDomesticLimit
 
    let accruedDailyTransfers
@@ -91,10 +94,10 @@ module TransferLimits =
 
       let accrued =
          match lastTransferDate with
-         | Some date when IsToday date -> accrued
+         | Some date when DateTime.isToday date -> accrued
          | _ -> 0m
 
-      if IsToday evt.Data.Date then
+      if DateTime.isToday evt.Data.Date then
          accrued + evt.Data.DebitedAmount
       else
          accrued
@@ -228,7 +231,9 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                TransferRecipients = updatedRecipients
          }
 
-         match IsToday e.Data.Date, e.Data.Recipient.AccountEnvironment with
+         match
+            DateTime.isToday e.Data.Date, e.Data.Recipient.AccountEnvironment
+         with
          | true, RecipientAccountEnvironment.Internal -> {
             state with
                DailyInternalTransferAccrued =
@@ -352,7 +357,7 @@ module private StateTransition =
       elif state.Balance - input.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
       elif
-         IsToday input.Date
+         DateTime.isToday input.Date
          && state.DailyDebitAccrued + input.Amount > state.DailyDebitLimit
       then
          transitionErr <| ExceededDailyDebit state.DailyDebitLimit

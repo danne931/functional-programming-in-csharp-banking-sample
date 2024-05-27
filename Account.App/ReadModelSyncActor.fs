@@ -207,10 +207,7 @@ let actorProps
    propsPersist handler
 
 let upsertReadModels
-   (
-      accounts: Account list,
-      accountEvents: AccountEvent list
-   )
+   (accounts: Account list, accountEvents: AccountEvent list)
    =
    let accountSqlParams =
       accounts

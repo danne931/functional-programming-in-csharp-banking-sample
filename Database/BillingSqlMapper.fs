@@ -1,7 +1,5 @@
 module BillingSqlMapper
 
-open Npgsql.FSharp
-
 open BillingStatement
 open AccountSqlMapper
 

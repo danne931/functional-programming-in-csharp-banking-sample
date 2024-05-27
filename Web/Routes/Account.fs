@@ -14,22 +14,23 @@ open RoutePaths
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       AccountPath.Base,
-      Func<Task<IResult>>(getAccounts >> RouteUtil.unwrapTaskResultOption)
+      Func<Task<IResult>>(
+         getAccountProfiles >> RouteUtil.unwrapTaskResultOption
+      )
    )
    |> ignore
 
    app.MapGet(
       AccountPath.Account,
-      Func<Guid, Task<IResult>>(fun id ->
-         getAccount id |> RouteUtil.unwrapTaskResultOption)
+      Func<Guid, Task<IResult>>(getAccount >> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 
    app.MapGet(
-      AccountPath.BillingStatement,
-      Func<Guid, int, Task<IResult>>(fun accountId offset ->
-         getPaginatedTransactions accountId offset
-         |> RouteUtil.unwrapTaskResultOption)
+      AccountPath.AccountAndTransactions,
+      Bank.Transaction.Routes.withQueryParams<Task<IResult>> (
+         getAccountAndTransactions >> RouteUtil.unwrapTaskResultOption
+      )
    )
    |> ignore
 
@@ -114,5 +115,12 @@ let startAccountRoutes (app: WebApplication) =
             cmd.EntityId
             (CloseAccountCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore
+
+   app.MapGet(
+      AccountPath.BillingStatement,
+      Func<Guid, int, Task<IResult>>(fun accountId page ->
+         getTransactions accountId page |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore

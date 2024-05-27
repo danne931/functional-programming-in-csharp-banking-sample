@@ -144,6 +144,15 @@ type Account = {
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
+type AccountProfile = {
+   EntityId: Guid
+   Email: Email
+   FirstName: string
+   LastName: string
+} with
+
+   member x.Name = $"{x.FirstName} {x.LastName}"
+
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
    | GetAccount
@@ -216,8 +225,9 @@ module AccountLoadTestTypes =
 
 type TransactionCategory = { Id: int; Name: string }
 
-type AncillaryTransactionInfo = {
+type TransactionWithAncillaryInfo = {
    Id: Guid
+   Event: AccountEvent
    Category: TransactionCategory option
    Note: string option
 }

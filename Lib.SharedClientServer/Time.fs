@@ -25,6 +25,29 @@ type ComputedDuration = {
             Duration = endTime - x.Start
       }
 
-let IsToday (debitDate: DateTime) =
-   let today = DateTime.UtcNow
-   $"{today.Day}-{today.Month}-{today.Year}" = $"{debitDate.Day}-{debitDate.Month}-{debitDate.Year}"
+module DateTime =
+   let isToday (date: DateTime) =
+      DateTime.Today = DateTime(date.Year, date.Month, date.Day)
+
+   let parseOptional (date: string) =
+      try
+         Some
+         <| DateTime.Parse(
+            date,
+            null,
+            Globalization.DateTimeStyles.AdjustToUniversal
+         )
+      with _ ->
+         None
+
+   let formatRangeShort (dateStart: DateTime) (dateEnd: DateTime) =
+      let withYear =
+         dateStart.Year <> dateEnd.Year
+         || dateStart.Year <> DateTime.Today.Year
+         || dateEnd.Year <> DateTime.Today.Year
+
+      let format (date: DateTime) =
+         let formatted = $"{date.Month}/{date.Day}"
+         if withYear then $"{formatted}/{date.Year}" else formatted
+
+      format dateStart, format dateEnd

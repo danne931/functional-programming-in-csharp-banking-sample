@@ -6,7 +6,10 @@ open System
 
 open Bank.Account.Domain
 
-let renderAccountListItem (selectedAccountId: Guid option) (account: Account) =
+let renderAccountListItem
+   (selectedAccountId: Guid option)
+   (account: AccountProfile)
+   =
    Html.li [
       Html.a [
          attr.text $"{account.Name} - {account.Email}"
@@ -26,7 +29,7 @@ let renderAccountListItem (selectedAccountId: Guid option) (account: Account) =
 [<ReactComponent>]
 let AccountSelectionComponent
    (selectedAccountId: Guid option)
-   (accounts: Map<Guid, Account>)
+   (accounts: Map<Guid, AccountProfile>)
    =
    let isAccountSelectionOpen, setAccountSelectionOpen = React.useState false
 

@@ -19,7 +19,7 @@ type CreateAccountCommand = Command<CreateAccountInput>
 
 module CreateAccountCommand =
    let create accountId (data: CreateAccountInput) =
-      Command.create accountId (guid ()) data
+      Command.create accountId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: CreateAccountCommand)
@@ -55,7 +55,7 @@ type DepositCashCommand = Command<DepositCashInput>
 
 module DepositCashCommand =
    let create entityId (data: DepositCashInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: DepositCashCommand)
@@ -84,7 +84,7 @@ type DebitCommand = Command<DebitInput>
 
 module DebitCommand =
    let create entityId (data: DebitInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: DebitCommand)
@@ -110,7 +110,7 @@ type LimitDailyDebitsCommand = Command<LimitDailyDebitsInput>
 
 module LimitDailyDebitsCommand =
    let create entityId (data: LimitDailyDebitsInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: LimitDailyDebitsCommand)
@@ -131,7 +131,7 @@ type LockCardCommand = Command<LockCardInput>
 
 module LockCardCommand =
    let create entityId (data: LockCardInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: LockCardCommand)
@@ -147,7 +147,7 @@ type UnlockCardCommand = Command<UnlockCardInput>
 
 module UnlockCardCommand =
    let create entityId (data: UnlockCardInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: UnlockCardCommand)
@@ -163,7 +163,7 @@ type MaintenanceFeeCommand = Command<MaintenanceFeeInput>
 
 module MaintenanceFeeCommand =
    let create entityId =
-      Command.create entityId (guid ()) {
+      Command.create entityId (Guid.NewGuid()) {
          Amount = MaintenanceFee.RecurringDebitAmount
       }
 
@@ -182,7 +182,7 @@ type SkipMaintenanceFeeCommand = Command<SkipMaintenanceFeeInput>
 
 module SkipMaintenanceFeeCommand =
    let create entityId (data: SkipMaintenanceFeeInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: SkipMaintenanceFeeCommand)
@@ -198,7 +198,7 @@ type CloseAccountCommand = Command<CloseAccountInput>
 
 module CloseAccountCommand =
    let create entityId (data: CloseAccountInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: CloseAccountCommand)
@@ -214,7 +214,7 @@ type StartBillingCycleCommand = Command<StartBillingCycleInput>
 
 module StartBillingCycleCommand =
    let create entityId (data: StartBillingCycleInput) =
-      Command.create entityId (guid ()) data
+      Command.create entityId (Guid.NewGuid()) data
 
    let toEvent
       (cmd: StartBillingCycleCommand)

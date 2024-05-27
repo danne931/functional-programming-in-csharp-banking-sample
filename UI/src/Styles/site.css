@@ -21,6 +21,12 @@
   --switch-checked-background-color: var(--primary);
 }
 
+[data-tooltip]:not(a,button,input) {
+  border-bottom: none;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 nav [data-tooltip],
 footer [data-tooltip] {
   border-bottom: none;
@@ -135,21 +141,79 @@ footer p {
   display: inline;
 }
 
+.control-panel-and-transaction-table-container {
+  position: relative;
+  height: 100%;
+  min-height: 25rem;
+}
 .transaction-table-control-panel {
   padding: 1rem;
 }
+.transaction-table-control-panel button {
+  width: auto;
+  float: left;
+  padding: .3rem .8rem;
+  margin-right: .8rem;
+}
+.transaction-table-control-panel button:not(:first-child) {
+  font-size: .8rem;
+  border-radius: 2rem;
+  box-shadow: 3px 3px 5px 2px rgba(0, 0, 0, 0.8);
+  padding: .4rem 0;
+}
+.transaction-table-control-panel button:not(:first-child) span {
+  padding: .8rem .5rem .8rem 1rem;
+}
+.transaction-table-control-panel button b {
+  padding: .5rem .7rem;
+  background-color: black;
+  border-radius: 0 2rem 2rem 0;
+}
+.transaction-table-control-panel button b:hover {
+  box-shadow: -2px 0 4px 0 rgba(255, 255, 255, 0.8);
+  color: var(--del-color);
+}
+.transaction-table-control-panel i.fa-filter {
+  padding-left: 0;
+  padding-right: .4rem;
+}
 .transaction-table-control-panel a {
   float: right;
-  padding: 0 1rem 0 1rem;
+  padding: 0 1rem;
 }
 a.pagination {
-  padding: 0 .4rem 0 .4rem;
+  padding: 0 .4rem;
+}
+
+.filter-view {
+  position: absolute;
+  top: 3.5rem;
+  background-color: black;
+  width: 100%;
+  height: auto;
+  opacity: .9;
+  padding: 1.5rem 1rem;
+}
+
+.filter-view aside ul {
+  padding-left: 0;
+}
+
+.filter-view aside li {
+  padding: 0 1rem;
+  margin-bottom: 1.5rem;
+  border-left: .13rem solid var(--primary);
+}
+
+.filter-view aside button.close {
+  float: none;
 }
 
 table.clickable-table tbody tr {
   cursor: pointer;
   border-left: solid transparent 0.2rem;
 }
+table.clickable-table tbody tr.selected,
 table.clickable-table tbody tr:hover {
   border-color: var(--primary)
 }
