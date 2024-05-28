@@ -22,7 +22,7 @@ let startAccountRoutes (app: WebApplication) =
 
    app.MapGet(
       AccountPath.Account,
-      Func<Guid, Task<IResult>>(getAccount >> RouteUtil.unwrapTaskResultOption)
+      Func<Guid, Task<IResult>>(fun id -> getAccount id |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 

@@ -35,7 +35,6 @@ let private findEventCorrespondingToPendingAction
          let _, envelope = AccountEnvelope.unwrap evt
          envelope.Id = processingEvtId))
 
-
 let private navigate (accountId: Guid) (view: AccountActionView option) =
    let queryString =
       {
