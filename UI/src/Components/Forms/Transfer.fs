@@ -68,13 +68,11 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    Form.succeed onSubmit |> Form.append selectField |> Form.append amountField
 
 let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   let recipients = account.TransferRecipients.Values
-
    let selectedRecipient =
-      if Seq.isEmpty recipients then
-         ""
-      else
-         Account.recipientLookupKey (Seq.head recipients)
+      account.TransferRecipients.Values
+      |> Seq.tryHead
+      |> Option.map _.LookupKey
+      |> Option.defaultValue ""
 
    FormContainer
       account

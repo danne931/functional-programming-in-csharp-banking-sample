@@ -128,7 +128,7 @@ module AccountSqlReader =
       LastBillingCycleDate = lastBillingCycleDate read
       TransferRecipients =
          transferRecipients read
-         |> List.map (fun o -> Account.recipientLookupKey o, o)
+         |> List.map (fun recipient -> recipient.LookupKey, recipient)
          |> Map.ofList
       InternalTransferSenders =
          internalTransferSenders read

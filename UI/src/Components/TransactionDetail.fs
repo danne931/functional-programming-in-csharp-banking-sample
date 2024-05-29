@@ -9,26 +9,51 @@ open System
 
 open Bank.Account.Domain
 open Bank.Account.UIDomain
+open Bank.Transfer.Domain
 open AsyncUtil
 open Lib.SharedTypes
 
+type private TransactionMaybe =
+   Deferred<Result<TransactionWithAncillaryInfo, Err>>
+
 type State = {
    TransactionId: Guid
-   Transaction: Deferred<TransactionWithAncillaryInfo>
+   Transaction: TransactionMaybe
+   // Nickname may refer to transfer recipient or merchant
+   // depending on the AccountEvent rendered.
+   EditingNickname: bool
+   NicknamePersistence: Deferred<Result<AccountService.ProcessingEventId, Err>>
 }
+
+let private updateTransaction
+   (state: State)
+   (transform: TransactionWithAncillaryInfo -> TransactionWithAncillaryInfo)
+   =
+   {
+      state with
+         Transaction = (Deferred.map << Result.map) transform state.Transaction
+   }
 
 type Msg =
    | GetTransactionInfo of
       AsyncOperationStatus<Result<TransactionWithAncillaryInfo, Err>>
-   | CategorySelected of
+   | SaveCategory of
       TransactionCategory option *
       AsyncOperationStatus<Result<int, Err>>
-   | NoteUpdated of note: string * AsyncOperationStatus<Result<int, Err>>
+   | SaveNote of note: string * AsyncOperationStatus<Result<int, Err>>
+   | SaveRecipientNickname of
+      Account *
+      TransferRecipient *
+      nickname: string option *
+      AsyncOperationStatus<Result<AccountService.ProcessingEventId, Err>>
+   | ToggleNicknameEdit
 
 let init txnId () =
    {
       TransactionId = txnId
       Transaction = Deferred.Idle
+      EditingNickname = false
+      NicknamePersistence = Deferred.Idle
    },
    Cmd.ofMsg (GetTransactionInfo Started)
 
@@ -42,16 +67,21 @@ let update msg state =
       }
 
       state, Cmd.fromAsync getInfo
-   | GetTransactionInfo(Finished(Ok txn)) ->
+   | GetTransactionInfo(Finished(Ok res)) ->
       {
          state with
-            Transaction = Deferred.Resolved txn
+            Transaction = Deferred.Resolved(Ok res)
       },
       Cmd.none
    | GetTransactionInfo(Finished(Error err)) ->
       Log.error $"Error fetching ancillary txn info: {err}"
-      state, Cmd.none
-   | CategorySelected(category, Started) ->
+
+      {
+         state with
+            Transaction = Deferred.Resolved(Error err)
+      },
+      Alerts.toastCommand err
+   | SaveCategory(category, Started) ->
       let updateCategory = async {
          let! res =
             match category with
@@ -59,46 +89,168 @@ let update msg state =
             | Some category ->
                TransactionService.updateCategory state.TransactionId category.Id
 
-         return CategorySelected(category, Finished res)
+         return SaveCategory(category, Finished res)
       }
 
       state, Cmd.fromAsync updateCategory
-   | CategorySelected(category, Finished(Ok _)) ->
-      {
-         state with
-            Transaction =
-               state.Transaction
-               |> Deferred.map (fun txn -> { txn with Category = category })
-      },
+   | SaveCategory(category, Finished(Ok _)) ->
+      updateTransaction state (fun txn -> { txn with Category = category }),
       Cmd.none
-   | CategorySelected(_, Finished(Error err)) ->
+   | SaveCategory(_, Finished(Error err)) ->
       Log.error $"Error selecting txn category: {err}"
-      state, Cmd.none
-   | NoteUpdated(note, Started) ->
+      state, Alerts.toastCommand err
+   | SaveNote(note, Started) ->
       let updateNote = async {
          let! res = TransactionService.updateNote state.TransactionId note
 
-         return NoteUpdated(note, Finished res)
+         return SaveNote(note, Finished res)
       }
 
       state, Cmd.fromAsync updateNote
-   | NoteUpdated(note, Finished(Ok _)) ->
+   | SaveNote(note, Finished(Ok _)) ->
+      updateTransaction state (fun txn -> { txn with Note = Some note }),
+      Cmd.none
+   | SaveNote(_, Finished(Error err)) ->
+      Log.error $"Error updating note: {err}"
+      state, Alerts.toastCommand err
+   | ToggleNicknameEdit ->
       {
          state with
-            Transaction =
-               state.Transaction
-               |> Deferred.map (fun txn -> { txn with Note = Some note })
+            EditingNickname = not state.EditingNickname
       },
       Cmd.none
-   | NoteUpdated(_, Finished(Error err)) ->
-      Log.error $"Error updating note: {err}"
-      state, Cmd.none
+   | SaveRecipientNickname(account, recipient, nickname, Started) ->
+      let command =
+         NicknameRecipientCommand.create account.EntityId {
+            Nickname = nickname
+            Recipient = recipient
+         }
+         |> AccountCommand.NicknameRecipient
+
+      let submitCommand = async {
+         let! res = AccountService.submitCommand account command
+
+         return
+            Msg.SaveRecipientNickname(
+               account,
+               recipient,
+               nickname,
+               Finished res
+            )
+      }
+
+      {
+         state with
+            NicknamePersistence = Deferred.InProgress
+      },
+      Cmd.fromAsync submitCommand
+   | SaveRecipientNickname(_, _, _, Finished(Ok _)) ->
+      {
+         state with
+            EditingNickname = false
+            NicknamePersistence = Deferred.Idle
+      },
+      Cmd.none
+   | SaveRecipientNickname(_, _, _, Finished(Error err)) ->
+      {
+         state with
+            NicknamePersistence = Deferred.Resolved(Error err)
+      },
+      Alerts.toastCommand err
+
+[<ReactComponent>]
+let RecipientNicknameEditComponent
+   (account: Account)
+   (recipient: TransferRecipient)
+   dispatch
+   =
+   let recipientNickname =
+      account.TransferRecipients
+      |> Map.tryFind recipient.LookupKey
+      |> Option.bind _.Nickname
+
+   let pendingNickname, setNickname = React.useState recipientNickname
+
+   let nicknameInputRef = React.useInputRef ()
+
+   React.useEffectOnce (fun () ->
+      match nicknameInputRef.current with
+      | None -> ()
+      | Some input -> input.focus ())
+
+   let renderCancel msg =
+      Html.a [
+         attr.href ""
+         attr.text "Cancel"
+         attr.style [ style.padding 10 ]
+         attr.classes [ "secondary" ]
+         attr.onClick (fun e ->
+            e.preventDefault ()
+            dispatch msg)
+      ]
+
+   let renderSave msg =
+      Html.a [
+         attr.href ""
+         attr.text "Save"
+         attr.style [ style.padding 10 ]
+         attr.onClick (fun e ->
+            e.preventDefault ()
+            dispatch msg)
+      ]
+
+   let small (text: string) =
+      Html.small [ attr.style [ style.marginBottom 0 ]; attr.text text ]
+
+   Html.div [
+      Html.input [
+         attr.ref nicknameInputRef
+         attr.ariaLabel "Transfer Recipient Nickname"
+         attr.type' "text"
+         attr.placeholder "Edit recipient nickname"
+
+         attr.value (pendingNickname |> Option.defaultValue "")
+
+         attr.onChange (fun input ->
+            if String.IsNullOrWhiteSpace input then None else Some input
+            |> setNickname)
+      ]
+
+      if pendingNickname = (Some recipient.Name) then
+         small $"No change from original name {recipient.Name}."
+      elif pendingNickname <> recipientNickname then
+         match pendingNickname with
+         | None -> small $"Transactions will display as {recipient.Name}."
+         | Some name ->
+            small $"Transactions for {recipient.Name} will display as {name}."
+
+      Html.div [
+         attr.style [ style.textAlign.right ]
+
+         attr.children [
+            if pendingNickname = (Some recipient.Name) then
+               renderCancel Msg.ToggleNicknameEdit
+            elif pendingNickname <> recipientNickname then
+               renderCancel Msg.ToggleNicknameEdit
+
+               renderSave
+               <| Msg.SaveRecipientNickname(
+                  account,
+                  recipient,
+                  pendingNickname,
+                  Started
+               )
+         ]
+      ]
+   ]
 
 let renderTransactionInfo
-   (profile: AccountProfile)
+   (account: Account)
    (txnInfo: TransactionWithAncillaryInfo)
+   (isEditingNickname: bool)
+   dispatch
    =
-   let txn = transactionUIFriendly profile txnInfo.Event
+   let txn = transactionUIFriendly account txnInfo.Event
 
    React.fragment [
       Html.h6 txn.Name
@@ -117,35 +269,39 @@ let renderTransactionInfo
             Html.small "From:"
             Html.h6 [
                attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
-               attr.text profile.Name
+               attr.text account.Name
                attr.text txn.Source
             ]
          ]
 
-         Html.div [
-            Html.small "To:"
-            Html.h6 [
-               attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
-               attr.text txn.Destination
+         match txnInfo.Event with
+         | AccountEvent.TransferPending e when isEditingNickname ->
+            RecipientNicknameEditComponent account e.Data.Recipient dispatch
+         | _ ->
+            Html.div [
+               Html.small "To:"
+               Html.h6 [
+                  attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
+                  attr.text txn.Destination
+               ]
             ]
-         ]
       ]
    ]
 
 let renderCategorySelect
    (categories: Map<int, TransactionCategory>)
-   (txnInfo: Deferred<TransactionWithAncillaryInfo>)
+   (txnInfo: TransactionMaybe)
    dispatch
    =
    React.fragment [
       Html.label [ Html.text "Category" ]
       Html.select [
          attr.onChange (fun (catId: string) ->
-            Msg.CategorySelected(Map.tryFind (int catId) categories, Started)
+            Msg.SaveCategory(Map.tryFind (int catId) categories, Started)
             |> dispatch)
 
          match txnInfo with
-         | Deferred.Resolved txnInfo ->
+         | Deferred.Resolved(Ok txnInfo) ->
             attr.children [
                Html.option [ attr.value 0; attr.text "None" ]
 
@@ -163,7 +319,7 @@ let renderCategorySelect
       ]
    ]
 
-let renderNoteInput (txnInfo: Deferred<TransactionWithAncillaryInfo>) dispatch =
+let renderNoteInput (txnInfo: TransactionMaybe) dispatch =
    React.fragment [
       Html.label [ Html.text "Notes" ]
       Html.input [
@@ -171,7 +327,7 @@ let renderNoteInput (txnInfo: Deferred<TransactionWithAncillaryInfo>) dispatch =
          attr.placeholder "Add a note"
 
          match txnInfo with
-         | Deferred.Resolved txnInfo ->
+         | Deferred.Resolved(Ok txnInfo) ->
             attr.key txnInfo.Id
 
             attr.defaultValue (txnInfo.Note |> Option.defaultValue "")
@@ -179,15 +335,19 @@ let renderNoteInput (txnInfo: Deferred<TransactionWithAncillaryInfo>) dispatch =
 
          attr.onChange (
             throttleUncontrolledInput 2500 (fun note ->
-               NoteUpdated(note, Started) |> dispatch)
+               SaveNote(note, Started) |> dispatch)
          )
       ]
    ]
 
-let renderFooterMenuControls (txnInfo: Deferred<TransactionWithAncillaryInfo>) =
+let renderFooterMenuControls
+   (txnInfo: TransactionMaybe)
+   (isEditingNickname: bool)
+   dispatch
+   =
    let evtOpt =
       match txnInfo with
-      | Deferred.Resolved txnInfo ->
+      | Deferred.Resolved(Ok txnInfo) ->
          match txnInfo.Event with
          | AccountEvent.TransferPending _
          | AccountEvent.TransferDeposited _
@@ -217,7 +377,7 @@ let renderFooterMenuControls (txnInfo: Deferred<TransactionWithAncillaryInfo>) =
                   attr.role "listbox"
                   attr.children [
                      match evt with
-                     | AccountEvent.DebitedAccount evt ->
+                     | AccountEvent.DebitedAccount _ ->
                         Html.li [
                            Html.a [
                               attr.onClick (fun e -> e.preventDefault ())
@@ -225,12 +385,17 @@ let renderFooterMenuControls (txnInfo: Deferred<TransactionWithAncillaryInfo>) =
                               attr.href ""
                            ]
                         ]
-                     | AccountEvent.TransferPending evt ->
+                     | AccountEvent.TransferPending _ ->
                         Html.li [
                            Html.a [
-                              attr.onClick (fun e -> e.preventDefault ())
-                              attr.text "Nickname Recipient"
                               attr.href ""
+                              attr.text "Nickname Recipient"
+                              if isEditingNickname then
+                                 attr.classes [ "selected" ]
+
+                              attr.onClick (fun e ->
+                                 e.preventDefault ()
+                                 dispatch ToggleNicknameEdit)
                            ]
                         ]
 
@@ -265,7 +430,7 @@ let renderFooterMenuControls (txnInfo: Deferred<TransactionWithAncillaryInfo>) =
    ]
 
 [<ReactComponent>]
-let TransactionDetailComponent (profile: AccountProfile) (txnId: Guid) =
+let TransactionDetailComponent (account: Account) (txnId: Guid) =
    let state, dispatch = React.useElmish (init txnId, update, [| box txnId |])
    let categories = React.useContext Contexts.transactionCategoryContext
    let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
@@ -277,11 +442,11 @@ let TransactionDetailComponent (profile: AccountProfile) (txnId: Guid) =
             |> AccountBrowserQuery.toQueryParams
             |> Router.encodeQueryString
 
-         Router.navigate ("account", string profile.EntityId, queryString))
+         Router.navigate ("account", string account.EntityId, queryString))
 
       match state.Transaction with
-      | Deferred.Resolved transaction ->
-         renderTransactionInfo profile transaction
+      | Deferred.Resolved(Ok txn) ->
+         renderTransactionInfo account txn state.EditingNickname dispatch
       | _ -> Html.div [ attr.ariaBusy true ]
 
       Html.section [
@@ -292,6 +457,11 @@ let TransactionDetailComponent (profile: AccountProfile) (txnId: Guid) =
       Html.section [
          attr.style [ style.position.relative ]
 
-         attr.children [ renderFooterMenuControls state.Transaction ]
+         attr.children [
+            renderFooterMenuControls
+               state.Transaction
+               state.EditingNickname
+               dispatch
+         ]
       ]
    ]

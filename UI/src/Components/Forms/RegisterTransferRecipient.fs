@@ -60,6 +60,7 @@ let internalRecipientForm
       let recipient = {
          LastName = recipient.LastName
          FirstName = recipient.FirstName
+         Nickname = None
          Identification = string recipient.EntityId
          AccountEnvironment = RecipientAccountEnvironment.Internal
          IdentificationStrategy =
@@ -142,6 +143,7 @@ let domesticRecipientForm
       let recipient = {
          LastName = last
          FirstName = first
+         Nickname = None
          Identification = accountNum
          AccountEnvironment = RecipientAccountEnvironment.Domestic
          IdentificationStrategy =

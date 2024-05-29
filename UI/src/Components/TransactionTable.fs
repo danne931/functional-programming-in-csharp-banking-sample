@@ -381,13 +381,13 @@ let private canViewTransactionDetail =
    | _ -> false
 
 let renderTableRow
-   (profile: AccountProfile)
+   (account: Account)
    (evt: AccountEvent)
    (selectedTxnId: Guid option)
    dispatch
    =
    let _, envelope = AccountEnvelope.unwrap evt
-   let txn = transactionUIFriendly profile evt
+   let txn = transactionUIFriendly account evt
    let orDefaultValue opt = opt |> Option.defaultValue "-"
 
    Html.tr [
@@ -427,7 +427,7 @@ let renderTableRow
    ]
 
 let renderTable
-   (profile: AccountProfile)
+   (account: Account)
    (txns: AccountEvent list)
    (selectedTxnId: Guid option)
    dispatch
@@ -453,14 +453,14 @@ let renderTable
          ]
 
          Html.tbody [
-            for txn in txns -> renderTableRow profile txn selectedTxnId dispatch
+            for txn in txns -> renderTableRow account txn selectedTxnId dispatch
          ]
       ]
    ]
 
 [<ReactComponent>]
 let TransactionTableComponent
-   (profile: AccountProfile)
+   (account: Account)
    (deferred: Deferred<AccountAndTransactionsMaybe>)
    (realtimeTxns: AccountEvent list)
    =
@@ -470,14 +470,14 @@ let TransactionTableComponent
 
    let txnQuery =
       TransactionService.transactionQueryFromAccountBrowserQuery
-         profile.EntityId
+         account.EntityId
          browserQuery
 
    let state, dispatch =
       React.useElmish (
          init txnsDeferred txnQuery,
          update,
-         [| box profile.EntityId |]
+         [| box account.EntityId |]
       )
 
    let txns = Map.tryFind state.TransactionQuery.Page state.Transactions
@@ -543,7 +543,7 @@ let TransactionTableComponent
                else
                   txns
 
-            renderTable profile txns browserQuery.Transaction dispatch
+            renderTable account txns browserQuery.Transaction dispatch
          | _ -> ()
       ]
    ]

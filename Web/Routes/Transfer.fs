@@ -46,3 +46,15 @@ let startTransferRoutes (app: WebApplication) =
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
+
+   app.MapPost(
+      TransferPath.NicknameRecipient,
+      Func<ActorSystem, NicknameRecipientCommand, Task<IResult>>(fun sys cmd ->
+         processCommand
+            sys
+            (AccountCommand.NicknameRecipient cmd)
+            cmd.EntityId
+            (NicknameRecipientCommand.toEvent cmd)
+         |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore

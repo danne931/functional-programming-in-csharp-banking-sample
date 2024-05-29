@@ -168,6 +168,7 @@ let seedAccountTransactions
                   Recipient = {
                      LastName = createAccountCmd.Data.LastName
                      FirstName = createAccountCmd.Data.FirstName
+                     Nickname = None
                      AccountEnvironment = RecipientAccountEnvironment.Internal
                      Identification = string recipientId
                      IdentificationStrategy =

@@ -41,6 +41,7 @@ type RegisteredInternalTransferRecipient = {
    member x.toRecipient() = {
       FirstName = x.FirstName
       LastName = x.LastName
+      Nickname = None
       AccountEnvironment = RecipientAccountEnvironment.Internal
       Identification = x.AccountNumber
       IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
@@ -58,6 +59,7 @@ type RegisteredDomesticTransferRecipient = {
    member x.toRecipient() = {
       FirstName = x.FirstName
       LastName = x.LastName
+      Nickname = None
       AccountEnvironment = RecipientAccountEnvironment.Domestic
       Identification = x.AccountNumber
       IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
@@ -67,6 +69,7 @@ type RegisteredDomesticTransferRecipient = {
       Status = RecipientRegistrationStatus.Confirmed
    }
 
+// TODO: change RecipientId to VirtualId & add a VirtualId to TransferRecipient type
 type InternalRecipientDeactivated = {
    RecipientId: Guid
    RecipientName: string
@@ -80,6 +83,12 @@ type InternalSenderRegistered = {
 type TransferDeposited = {
    DepositedAmount: decimal
    Origin: string
+}
+
+// TODO: change RecipientLookuKey to VirtualId & add a VirtualId to TransferRecipient type
+type RecipientNicknamed = {
+   RecipientLookupKey: string
+   Nickname: string option
 }
 
 module TransferEventToTransaction =

@@ -66,10 +66,10 @@ type StateTransitionError =
    | ExceededDailyInternalTransferLimit of decimal
    | ExceededDailyDomesticTransferLimit of decimal
    | RecipientRegistrationRequired
-   | RecipientAlreadyRegistered
-   | RecipientAlreadyDeactivated
+   | RecipientRegistered
+   | RecipientDeactivated
    | RecipientNotFound
-   | SenderAlreadyRegistered
+   | SenderRegistered
    | TransferProgressNoChange
    | TransferAlreadyProgressedToApprovedOrRejected
 
@@ -119,12 +119,9 @@ type Err =
             $"Exceeded Daily Internal Transfer Limit ${limit}"
          | StateTransitionError.InsufficientBalance balance ->
             $"Insufficient Balance ${balance}"
-         | StateTransitionError.SenderAlreadyRegistered ->
-            "Sender Already Registered"
-         | StateTransitionError.RecipientAlreadyRegistered ->
-            "Recipient Already Registered"
-         | StateTransitionError.RecipientAlreadyDeactivated ->
-            "Recipient Already Deactivated"
+         | StateTransitionError.SenderRegistered -> "Sender Already Registered"
+         | StateTransitionError.RecipientRegistered -> "Recipient Registered"
+         | StateTransitionError.RecipientDeactivated -> "Recipient Deactivated"
          | StateTransitionError.RecipientNotFound -> "Recipient Not Found"
          | StateTransitionError.RecipientRegistrationRequired ->
             "Recipient Registration Required"

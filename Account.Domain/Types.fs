@@ -23,6 +23,7 @@ type AccountCommand =
    | RegisterTransferRecipient of RegisterTransferRecipientCommand
    | RegisterInternalSender of RegisterInternalSenderCommand
    | DeactivateInternalRecipient of DeactivateInternalRecipientCommand
+   | NicknameRecipient of NicknameRecipientCommand
    | CloseAccount of CloseAccountCommand
    | StartBillingCycle of StartBillingCycleCommand
 
@@ -43,6 +44,7 @@ type AccountEvent =
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | InternalRecipientDeactivated of BankEvent<InternalRecipientDeactivated>
+   | RecipientNicknamed of BankEvent<RecipientNicknamed>
    | InternalSenderRegistered of BankEvent<InternalSenderRegistered>
    | AccountClosed of BankEvent<AccountClosed>
    | BillingCycleStarted of BankEvent<BillingCycleStarted>
@@ -78,6 +80,8 @@ module AccountEnvelope =
          evt |> DomesticTransferRecipient
       | :? BankEvent<InternalRecipientDeactivated> as evt ->
          evt |> InternalRecipientDeactivated
+      | :? BankEvent<RecipientNicknamed> as evt ->
+         evt |> AccountEvent.RecipientNicknamed
       | :? BankEvent<InternalSenderRegistered> as evt ->
          evt |> InternalSenderRegistered
       | :? BankEvent<TransferPending> as evt -> evt |> TransferPending
@@ -102,6 +106,7 @@ module AccountEnvelope =
       | InternalTransferRecipient evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
       | InternalRecipientDeactivated evt -> wrap evt, get evt
+      | RecipientNicknamed evt -> wrap evt, get evt
       | InternalSenderRegistered evt -> wrap evt, get evt
       | TransferPending evt -> wrap evt, get evt
       | TransferProgress evt -> wrap evt, get evt

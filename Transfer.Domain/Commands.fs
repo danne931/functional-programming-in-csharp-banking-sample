@@ -256,6 +256,27 @@ module DeactivateInternalRecipientCommand =
          }
       |> Ok
 
+type NicknameRecipientInput = {
+   Recipient: TransferRecipient
+   Nickname: string option
+}
+
+type NicknameRecipientCommand = Command<NicknameRecipientInput>
+
+module NicknameRecipientCommand =
+   let create accountId (data: NicknameRecipientInput) =
+      Command.create accountId (Guid.NewGuid()) data
+
+   let toEvent
+      (cmd: NicknameRecipientCommand)
+      : ValidationResult<BankEvent<RecipientNicknamed>>
+      =
+      BankEvent.create<NicknameRecipientInput, RecipientNicknamed> cmd {
+         RecipientLookupKey = cmd.Data.Recipient.LookupKey
+         Nickname = cmd.Data.Nickname
+      }
+      |> Ok
+
 module TransferTransactionToCommand =
    let progress (txn: TransferTransaction) (status: TransferProgress) =
       UpdateTransferProgressCommand.create txn.SenderAccountId txn.TransactionId {

@@ -3,6 +3,7 @@ module Bank.Account.UIDomain
 open System
 
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.TransactionQuery
 
@@ -32,7 +33,7 @@ let dateUIFriendly (date: DateTime) =
    $"{dayAndMonth} {date.ToShortTimeString()}"
 
 let transactionUIFriendly
-   (profile: AccountProfile)
+   (account: Account)
    (txn: AccountEvent)
    : TransactionUIFriendly
    =
@@ -53,7 +54,13 @@ let transactionUIFriendly
    }
 
    let accountName =
-      profile.Name + " **" + (string profile.EntityId).Substring(-4)
+      account.Name + " **" + (string account.EntityId).Substring(-4)
+
+   let recipientName (recipient: TransferRecipient) : string =
+      account.TransferRecipients
+      |> Map.tryFind recipient.LookupKey
+      |> Option.bind _.Nickname
+      |> Option.defaultValue recipient.Name
 
    let props =
       match txn with
@@ -122,12 +129,12 @@ let transactionUIFriendly
       | TransferPending evt -> {
          props with
             Name = "Transfer Request"
-            Info = Some $"Recipient: {evt.Data.Recipient.Name}"
+            Info = Some $"Recipient: {recipientName evt.Data.Recipient}"
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.Out
             Source = accountName
             Destination =
-               evt.Data.Recipient.Name
+               recipientName evt.Data.Recipient
                + " **"
                + evt.Data.Recipient.Identification.Substring(-4)
         }
@@ -136,13 +143,13 @@ let transactionUIFriendly
             Name = "Transfer Progress Update"
             Info =
                Some
-                  $"Status {evt.Data.Status} Recipient: {evt.Data.Recipient.Name}"
+                  $"Status {evt.Data.Status} Recipient: {recipientName evt.Data.Recipient}"
             AmountNaked = Some evt.Data.DebitedAmount
         }
       | TransferApproved evt -> {
          props with
             Name = "Transfer Approved"
-            Info = Some $"Recipient: {evt.Data.Recipient.Name}"
+            Info = Some $"Recipient: {recipientName evt.Data.Recipient}"
             AmountNaked = Some evt.Data.DebitedAmount
         }
       | TransferRejected evt -> {
@@ -150,7 +157,7 @@ let transactionUIFriendly
             Name = "Transfer Rejected"
             Info =
                Some
-                  $"Recipient: {evt.Data.Recipient.Name} - Reason {evt.Data.Reason} - Acount refunded"
+                  $"Recipient: {recipientName evt.Data.Recipient} - Reason {evt.Data.Reason} - Acount refunded"
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.In
         }
@@ -175,6 +182,14 @@ let transactionUIFriendly
          props with
             Name = "Account Closed"
             Info = evt.Data.Reference
+        }
+      | RecipientNicknamed evt -> {
+         props with
+            Name = "Recipent Nickname Updated"
+            Info =
+               match evt.Data.Nickname with
+               | None -> Some "Nickname removed"
+               | Some name -> Some $"Nickname updated to {name}"
         }
 
    let sign =

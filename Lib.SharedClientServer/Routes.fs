@@ -28,6 +28,7 @@ module DiagnosticPath =
 module TransferPath =
    let Base = "/transfers"
    let TransferRecipient = Base + "/register-recipient"
+   let NicknameRecipient = Base + "/recipient-nickname"
 
 module TransactionPath =
    let Base = "/transactions"

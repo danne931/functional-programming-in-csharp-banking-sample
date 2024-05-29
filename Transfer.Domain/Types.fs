@@ -35,6 +35,7 @@ type RecipientRegistrationStatus =
 type TransferRecipient = {
    LastName: string
    FirstName: string
+   Nickname: string option
    Identification: string
    AccountEnvironment: RecipientAccountEnvironment
    IdentificationStrategy: RecipientAccountIdentificationStrategy
@@ -43,6 +44,12 @@ type TransferRecipient = {
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"
+
+   // TODO: remove & add a VirtualId GUID to TransferRecipient type
+   member x.LookupKey =
+      match x.RoutingNumber with
+      | None -> x.Identification
+      | Some routingNum -> $"{routingNum}_{x.Identification}"
 
 type InternalTransferSender = { Name: string; AccountId: Guid }
 

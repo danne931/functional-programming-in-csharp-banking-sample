@@ -35,11 +35,6 @@ let empty = {
    CardLocked = false
 }
 
-let recipientLookupKey (recipient: TransferRecipient) =
-   match recipient.RoutingNumber with
-   | None -> recipient.Identification
-   | Some routingNum -> $"{routingNum}_{recipient.Identification}"
-
 let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    // When applying a new event to the cached Account & the
    // last debit event did not occur today...
@@ -215,8 +210,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             | TransferDeclinedReason.InvalidAccountInfo
             | TransferDeclinedReason.AccountClosed ->
                let recipient = e.Data.Recipient
-               let key = recipientLookupKey recipient
-               state.TransferRecipients.Add(key, recipient)
+               state.TransferRecipients.Add(recipient.LookupKey, recipient)
             | _ -> state.TransferRecipients
 
          let state = {
@@ -256,20 +250,18 @@ let applyEvent (state: Account) (evt: AccountEvent) =
       | InternalTransferRecipient e ->
          let recipient = e.Data.toRecipient ()
 
-         let key = recipientLookupKey recipient
-
          {
             state with
-               TransferRecipients = state.TransferRecipients.Add(key, recipient)
+               TransferRecipients =
+                  state.TransferRecipients.Add(recipient.LookupKey, recipient)
          }
       | DomesticTransferRecipient e ->
          let recipient = e.Data.toRecipient ()
 
-         let key = recipientLookupKey recipient
-
          {
             state with
-               TransferRecipients = state.TransferRecipients.Add(key, recipient)
+               TransferRecipients =
+                  state.TransferRecipients.Add(recipient.LookupKey, recipient)
          }
       | InternalRecipientDeactivated e -> {
          state with
@@ -279,6 +271,17 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                <| Option.map (fun acct -> {
                   acct with
                      Status = RecipientRegistrationStatus.Closed
+               })
+               <| state.TransferRecipients
+        }
+      | RecipientNicknamed e -> {
+         state with
+            TransferRecipients =
+               Map.change
+               <| string e.Data.RecipientLookupKey
+               <| Option.map (fun acct -> {
+                  acct with
+                     Nickname = e.Data.Nickname
                })
                <| state.TransferRecipients
         }
@@ -387,7 +390,7 @@ module private StateTransition =
          transitionErr <| InsufficientBalance state.Balance
       elif
          state.TransferRecipients
-         |> Map.containsKey (recipientLookupKey input.Recipient)
+         |> Map.containsKey input.Recipient.LookupKey
          |> not
       then
          transitionErr RecipientRegistrationRequired
@@ -460,7 +463,7 @@ module private StateTransition =
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       elif state.TransferRecipients.ContainsKey recipient.Identification then
-         transitionErr RecipientAlreadyRegistered
+         transitionErr RecipientRegistered
       else
          match recipient.AccountEnvironment with
          | RecipientAccountEnvironment.Internal ->
@@ -479,7 +482,7 @@ module private StateTransition =
       elif
          state.InternalTransferSenders.ContainsKey cmd.Data.Sender.AccountId
       then
-         transitionErr SenderAlreadyRegistered
+         transitionErr SenderRegistered
       else
          map
             InternalSenderRegistered
@@ -502,7 +505,7 @@ module private StateTransition =
          let recipient = state.TransferRecipients[string recipientId]
 
          if recipient.Status = RecipientRegistrationStatus.Closed then
-            transitionErr RecipientAlreadyDeactivated
+            transitionErr RecipientDeactivated
          else
             map
                InternalRecipientDeactivated
@@ -517,6 +520,22 @@ module private StateTransition =
 
    let closeAccount (state: Account) (cmd: CloseAccountCommand) =
       map AccountEvent.AccountClosed state (CloseAccountCommand.toEvent cmd)
+
+   let nicknameRecipient (state: Account) (cmd: NicknameRecipientCommand) =
+      if state.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      elif
+         not
+         <| state.TransferRecipients.ContainsKey cmd.Data.Recipient.LookupKey
+      then
+         transitionErr RecipientNotFound
+      else
+         let recipient = state.TransferRecipients[cmd.Data.Recipient.LookupKey]
+
+         if recipient.Status = RecipientRegistrationStatus.Closed then
+            transitionErr RecipientDeactivated
+         else
+            map RecipientNicknamed state (NicknameRecipientCommand.toEvent cmd)
 
 let stateTransition (state: Account) (command: AccountCommand) =
    match command with
@@ -540,4 +559,5 @@ let stateTransition (state: Account) (command: AccountCommand) =
       StateTransition.registerInternalSender state cmd
    | DeactivateInternalRecipient cmd ->
       StateTransition.deactivateInternalRecipient state cmd
+   | NicknameRecipient cmd -> StateTransition.nicknameRecipient state cmd
    | CloseAccount cmd -> StateTransition.closeAccount state cmd

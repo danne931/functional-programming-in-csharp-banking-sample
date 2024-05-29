@@ -15,33 +15,29 @@ open RoutePaths
 type ProcessingEventId = Guid
 
 let private notImplemented (cmd: AccountCommand) =
-   let msg = $"Not implemented command: {cmd}"
+   let msg = $"Account Service: Not implemented command: {cmd}"
    Log.error msg
    failwith msg
 
-let private commandToUrl cmd =
-   match cmd with
-   | AccountCommand.Debit _ -> AccountPath.Debit
-   | AccountCommand.DepositCash _ -> AccountPath.Deposit
-   | AccountCommand.Transfer _ -> TransferPath.Base
-   | AccountCommand.RegisterTransferRecipient _ ->
-      TransferPath.TransferRecipient
-   | AccountCommand.LimitDailyDebits _ -> AccountPath.DailyDebitLimit
-   | AccountCommand.LockCard _ -> AccountPath.LockCard
-   | AccountCommand.UnlockCard _ -> AccountPath.UnlockCard
-   | other -> notImplemented other
-
-let postJson (url: string) (command: AccountCommand) =
-   let serialized =
+let postJson (command: AccountCommand) =
+   let serialized, url =
       match command with
-      | AccountCommand.Debit cmd -> Serialization.serialize cmd
-      | AccountCommand.DepositCash cmd -> Serialization.serialize cmd
-      | AccountCommand.Transfer cmd -> Serialization.serialize cmd
+      | AccountCommand.Debit cmd ->
+         Serialization.serialize cmd, AccountPath.Debit
+      | AccountCommand.DepositCash cmd ->
+         Serialization.serialize cmd, AccountPath.Deposit
+      | AccountCommand.Transfer cmd ->
+         Serialization.serialize cmd, TransferPath.Base
       | AccountCommand.RegisterTransferRecipient cmd ->
-         Serialization.serialize cmd
-      | AccountCommand.LimitDailyDebits cmd -> Serialization.serialize cmd
-      | AccountCommand.LockCard cmd -> Serialization.serialize cmd
-      | AccountCommand.UnlockCard cmd -> Serialization.serialize cmd
+         Serialization.serialize cmd, TransferPath.TransferRecipient
+      | AccountCommand.LimitDailyDebits cmd ->
+         Serialization.serialize cmd, AccountPath.DailyDebitLimit
+      | AccountCommand.LockCard cmd ->
+         Serialization.serialize cmd, AccountPath.LockCard
+      | AccountCommand.UnlockCard cmd ->
+         Serialization.serialize cmd, AccountPath.UnlockCard
+      | AccountCommand.NicknameRecipient cmd ->
+         Serialization.serialize cmd, TransferPath.NicknameRecipient
       | other -> notImplemented other
 
    Http.request (url)
@@ -121,8 +117,7 @@ let submitCommand
       // processing a command.
       let! _ = Account.stateTransition account command
 
-      let url = commandToUrl command
-      let! res = postJson url command
+      let! res = postJson command
       let code = res.statusCode
 
       if code <> 200 then

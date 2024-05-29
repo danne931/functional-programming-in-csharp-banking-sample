@@ -107,10 +107,10 @@ aside button.close {
   background-color: var(--card-background-color);
 }
 .transaction-detail details {
-  position: absolute;
-  right: 0;
-  width: 80%;
-  display: inline-block;
+  margin-bottom: 0;
+}
+.transaction-detail details i.fa-ellipsis-h {
+  margin-right: -1.2rem;
 }
 .transaction-detail details[role=list] summary::after {
   background-image: none;

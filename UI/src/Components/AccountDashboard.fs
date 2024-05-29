@@ -29,13 +29,6 @@ let accountProfiles (state: State) : Map<Guid, AccountProfile> option =
    | Deferred.Resolved(Ok(Some accounts)) -> Some accounts
    | _ -> None
 
-let selectedProfile (state: State) : AccountProfile option =
-   Option.map2
-      (fun accountId profiles -> Map.tryFind accountId profiles)
-      (Routes.AccountUrl.accountIdMaybe state.CurrentUrl)
-      (accountProfiles state)
-   |> Option.flatten
-
 let selectedAccount (state: State) : Account option =
    match state.CurrentAccountAndTransactions with
    | Resolved(Ok(Some(account, _))) -> Some account
@@ -283,7 +276,6 @@ let AccountDashboardComponent (url: Routes.AccountUrl) =
    )
 
    let accountOpt = selectedAccount state
-   let profileOpt = selectedProfile state
 
    Html.div [
       match accountProfiles state with
@@ -297,11 +289,11 @@ let AccountDashboardComponent (url: Routes.AccountUrl) =
          classyNode Html.div [ "grid" ] [
             Html.section [
                Html.h5 "Transactions"
-               match profileOpt with
+               match accountOpt with
                | None -> ()
-               | Some profile ->
+               | Some account ->
                   TransactionTable.TransactionTableComponent
-                     profile
+                     account
                      state.CurrentAccountAndTransactions
                      state.RealtimeTransactions
             ]
@@ -311,8 +303,8 @@ let AccountDashboardComponent (url: Routes.AccountUrl) =
                | Some txnId ->
                   Html.h5 "Transaction Detail"
 
-                  match profileOpt with
-                  | Some profile -> TransactionDetailComponent profile txnId
+                  match accountOpt with
+                  | Some account -> TransactionDetailComponent account txnId
                   | _ -> Html.div [ attr.ariaBusy true ]
                | None ->
                   Html.h5 "Actions"
