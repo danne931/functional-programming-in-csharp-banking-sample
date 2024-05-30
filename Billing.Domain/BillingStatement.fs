@@ -2,6 +2,7 @@ module BillingStatement
 
 open System
 
+open Lib.SharedTypes
 open Bank.Account.Domain
 
 type BillingTransaction = private BillingTransaction of AccountEvent
@@ -26,8 +27,8 @@ type BillingStatement = {
    Year: int
    Balance: decimal
    Name: string
-   AccountId: Guid
-   OrgId: Guid
+   AccountId: AccountId
+   OrgId: OrgId
    LastPersistedEventSequenceNumber: Int64
    AccountSnapshot: byte[]
 }

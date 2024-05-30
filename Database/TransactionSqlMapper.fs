@@ -25,14 +25,14 @@ module TransactionFields =
 
 module TransactionSqlReader =
    let transactionId (read: RowReader) =
-      read.uuid TransactionFields.transactionId
+      TransactionFields.transactionId |> read.uuid |> EventId
 
    let accountId = AccountSqlReader.entityId
 
    let orgId = OrgSqlReader.orgId
 
    let correlationId (read: RowReader) =
-      read.uuid TransactionFields.correlationId
+      TransactionFields.correlationId |> read.uuid |> CorrelationId
 
    let name (read: RowReader) = read.text TransactionFields.name
    let amount (read: RowReader) = read.decimal TransactionFields.amount
@@ -49,10 +49,16 @@ module TransactionSqlReader =
       |> Serialization.deserializeUnsafe<AccountEvent>
 
 module TransactionSqlWriter =
-   let transactionId = Sql.uuid
+   let transactionId (evtId: EventId) =
+      let (EventId id) = evtId
+      Sql.uuid id
+
+   let correlationId (corrId: CorrelationId) =
+      let (CorrelationId id) = corrId
+      Sql.uuid id
+
    let accountId = AccountSqlWriter.entityId
    let orgId = OrgSqlWriter.orgId
-   let correlationId = Sql.uuid
    let name = Sql.text
    let amount = Sql.moneyOrNone
 

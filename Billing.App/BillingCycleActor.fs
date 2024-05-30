@@ -1,12 +1,12 @@
 [<RequireQualifiedAccess>]
 module BillingCycleActor
 
-open System
 open Akka.Actor
 open Akka.Hosting
 open Akka.Streams
 open Akkling.Streams
 open Akkling
+open Akkling.Cluster.Sharding
 
 open BillingStatement
 open Bank.Account.Domain
@@ -14,6 +14,7 @@ open AccountSqlMapper
 open ActorUtil
 open Lib.Types
 open Lib.Postgres
+open Lib.SharedTypes
 
 let getActiveAccounts () =
    let prevCycle = AccountFields.lastBillingCycleDate
@@ -24,7 +25,7 @@ let getActiveAccounts () =
       else
          "'1 minutes'::interval"
 
-   pgQuery<Guid * Guid>
+   pgQuery<AccountId * OrgId>
       $"""
       SELECT {AccountFields.entityId}, {AccountFields.orgId}
       FROM {AccountSqlMapper.table}
@@ -39,7 +40,7 @@ let getActiveAccounts () =
 let private fanOutBillingCycleMessage
    (ctx: Actor<_>)
    (throttle: StreamThrottle)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    =
    task {
       let mat = ctx.System.Materializer()
@@ -79,7 +80,7 @@ let private fanOutBillingCycleMessage
 
 let actorProps
    (throttle: StreamThrottle)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    =
    let handler (ctx: Actor<BillingCycleMessage>) =
       function

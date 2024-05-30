@@ -1,7 +1,6 @@
 [<RequireQualifiedAccess>]
 module SchedulingActor
 
-open System
 open Akka.Hosting
 open Akka.Actor
 open Akka.Quartz.Actor.Commands
@@ -11,6 +10,7 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 open ActorUtil
+open Lib.SharedTypes
 
 // NOTE:
 // Using a QuartzMessageEnvelope type for messages serialized with
@@ -22,7 +22,7 @@ type QuartzMessageEnvelope = { Manifest: string; Message: obj }
 type Message =
    | AccountClosureCronJobSchedule
    | BillingCycleCronJobSchedule
-   | DeleteAccountsJobSchedule of Guid list
+   | DeleteAccountsJobSchedule of AccountId list
    | TransferProgressCronJobSchedule
 
 let actorProps (quartzPersistentActorRef: IActorRef) =

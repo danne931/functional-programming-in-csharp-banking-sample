@@ -20,7 +20,7 @@ let transactionQuery (query: TransactionQuery) =
 
    let agg =
       [
-         "accountId", Sql.uuid query.AccountId
+         "accountId", Writer.accountId query.AccountId
          "offset", Sql.int <| Math.Max(query.Page - 1, 0) * txnLimit
       ],
       $"{Fields.accountId} = @accountId",
@@ -151,7 +151,7 @@ module Writer = AncillaryTransactionSqlWriter
 module Reader = AncillaryTransactionSqlReader
 let private table = AncillaryTransactionInfoSqlMapper.table
 
-let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResult {
+let upsertTransactionCategory (transactionId: EventId) (categoryId: int) = taskResult {
    let query =
       $"""
       INSERT INTO {table}
@@ -171,7 +171,7 @@ let upsertTransactionCategory (transactionId: Guid) (categoryId: int) = taskResu
    return res
 }
 
-let deleteTransactionCategory (transactionId: Guid) =
+let deleteTransactionCategory (transactionId: EventId) =
    let query =
       $"""
       UPDATE {table}
@@ -181,7 +181,7 @@ let deleteTransactionCategory (transactionId: Guid) =
 
    pgPersist query [ "txnId", Writer.transactionId transactionId ]
 
-let upsertTransactionNote (transactionId: Guid) (note: string) = taskResult {
+let upsertTransactionNote (transactionId: EventId) (note: string) = taskResult {
    let query =
       $"""
       INSERT INTO {table}
@@ -211,7 +211,7 @@ let getCategories () =
          Name = read.string "name"
       })
 
-let getTransactionInfo (txnId: Guid) =
+let getTransactionInfo (txnId: EventId) =
    let query =
       $"""
       SELECT

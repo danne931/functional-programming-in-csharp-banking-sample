@@ -36,7 +36,7 @@ let initMockAccountActor (tck: TestKit.Tck) =
 
    spawn tck "account-mock" <| props (actorOf2 handler)
 
-let mockDeleteHistoricalRecords (_: Guid list) = taskResultOption {
+let mockDeleteHistoricalRecords (_: AccountId list) = taskResultOption {
    return [ Email.deserialize "jellyfish@gmail.com" ]
 }
 
@@ -76,12 +76,18 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          let account2 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          accountClosureActor <! AccountClosureMessage.Register account1
@@ -107,12 +113,18 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          let account2 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          accountClosureActor <! AccountClosureMessage.Register account1
@@ -145,12 +157,18 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          let account2 = {
             Stub.accountState with
-               EntityId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+               EntityId =
+                  "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
+                  |> Guid.Parse
+                  |> AccountId
          }
 
          accountClosureActor <! AccountClosureMessage.Register account1

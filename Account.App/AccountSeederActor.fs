@@ -9,6 +9,7 @@ open System.Threading.Tasks
 open Akka.Hosting
 open Akka.Cluster
 open Akkling
+open Akkling.Cluster.Sharding
 open FSharp.Control
 
 open Lib.SharedTypes
@@ -24,16 +25,16 @@ type Status =
    | AwaitingVerification
    | FinishedSeeding
 
-type CreateAccountsMap = Map<Guid, CreateAccountCommand>
+type CreateAccountsMap = Map<AccountId, CreateAccountCommand>
 
 type State = {
    Status: Status
    AccountsToCreate: CreateAccountsMap
-   AccountsToSeedWithTransactions: Map<Guid, bool>
+   AccountsToSeedWithTransactions: Map<AccountId, bool>
 }
 
 // TODO: Temporarily create org here until fleshed out
-let orgId = Guid(ORG_ID_REMOVE_SOON)
+let orgId = ORG_ID_REMOVE_SOON |> Guid.Parse |> OrgId
 
 let createOrg () =
    pgPersist $"""
@@ -52,56 +53,61 @@ let mockAccounts =
          Timestamp = command.Timestamp.AddMonths -1
    }
 
-   let account1 =
+   let cmd1 =
       CreateAccountCommand.create {
          FirstName = "Jelly"
          LastName = "Fish"
          Balance = 1300m
          Email = "jellyfish@gmail.com"
          Currency = Currency.USD
-         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         AccountId =
+            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
          OrgId = orgId
       }
       |> withModifiedTimestamp
 
-   let account2 =
+   let cmd2 =
       CreateAccountCommand.create {
          FirstName = "Star"
          LastName = "Fish"
          Balance = 1000m
          Email = "starfish@gmail.com"
          Currency = Currency.USD
-         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         AccountId =
+            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
          OrgId = orgId
       }
       |> withModifiedTimestamp
 
-   let account3 =
+   let cmd3 =
       CreateAccountCommand.create {
          FirstName = "Rainbow"
          LastName = "Trout"
          Balance = 850m
          Email = "rainbowtrout@gmail.com"
          Currency = Currency.USD
-         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6")
+         AccountId =
+            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
          OrgId = orgId
       }
       |> withModifiedTimestamp
 
    Map [
-      account1.EntityId, account1
+      cmd1.Data.AccountId, cmd1
 
-      account2.EntityId, account2
+      cmd2.Data.AccountId, cmd2
 
-      account3.EntityId, account3
+      cmd3.Data.AccountId, cmd3
    ]
 
 let seedAccountTransactions
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (command: CreateAccountCommand)
    =
    task {
-      let aref = getAccountRef command.EntityId
+      let accountId = AccountId.fromEntityId command.EntityId
+      let compositeId = accountId, command.OrgId
+      let aref = getAccountRef accountId
 
       let rnd = new Random()
 
@@ -117,8 +123,6 @@ let seedAccountTransactions
       ]
 
       let timestamp = command.Timestamp.AddDays(rnd.Next(1, 3))
-
-      let compositeId = command.EntityId, command.OrgId
 
       let command = {
          DepositCashCommand.create compositeId {
@@ -174,7 +178,9 @@ let seedAccountTransactions
 
             aref <! (StateChange << DepositCash) command
 
-      if command.EntityId = Seq.head mockAccounts.Keys then
+      if
+         (AccountId.fromEntityId command.EntityId) = Seq.head mockAccounts.Keys
+      then
          let lockCmd = LockCardCommand.create compositeId { Reference = None }
          aref <! (StateChange << LockCard) lockCmd
 
@@ -266,7 +272,7 @@ let private initState = {
       Map [ for acctId in mockAccounts.Keys -> acctId, true ]
 }
 
-let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
+let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
    let handler (ctx: Actor<AccountSeederMessage>) =
       let logInfo = logInfo ctx
 
@@ -308,7 +314,10 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                            state.AccountsToCreate
 
                      for command in remaining.Values do
-                        let aref = getAccountRef command.EntityId
+                        let aref =
+                           getAccountRef
+                           <| AccountId.fromEntityId command.EntityId
+
                         aref <! (StateChange << CreateAccount) command
 
                      scheduleVerification ctx 5.

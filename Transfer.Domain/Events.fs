@@ -71,7 +71,7 @@ type RegisteredDomesticTransferRecipient = {
 
 // TODO: change RecipientId to VirtualId & add a VirtualId to TransferRecipient type
 type InternalRecipientDeactivated = {
-   RecipientId: Guid
+   RecipientId: AccountId
    RecipientName: string
 //Reason: RecipientDeactivatedReason
 }
@@ -93,9 +93,9 @@ type RecipientNicknamed = {
 
 module TransferEventToTransaction =
    let fromPending (evt: BankEvent<TransferPending>) = {
-      SenderAccountId = evt.EntityId
+      SenderAccountId = AccountId.fromEntityId evt.EntityId
       SenderOrgId = evt.OrgId
-      TransactionId = evt.CorrelationId
+      TransferId = evt.CorrelationId
       Recipient = evt.Data.Recipient
       Amount = evt.Data.DebitedAmount
       Date = evt.Data.Date
@@ -103,9 +103,9 @@ module TransferEventToTransaction =
    }
 
    let fromProgressUpdate (evt: BankEvent<TransferProgressUpdate>) = {
-      SenderAccountId = evt.EntityId
+      SenderAccountId = AccountId.fromEntityId evt.EntityId
       SenderOrgId = evt.OrgId
-      TransactionId = evt.CorrelationId
+      TransferId = evt.CorrelationId
       Recipient = evt.Data.Recipient
       Amount = evt.Data.DebitedAmount
       Date = evt.Data.Date

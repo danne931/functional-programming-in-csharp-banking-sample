@@ -3,7 +3,6 @@ module SignalR
 open Fable.Core
 open Fable.Core.JS
 open Fable.Core.JsInterop
-open System
 open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
@@ -32,15 +31,19 @@ type Connection(conn: IPromiseConnection) =
       |> AsyncUtil.promiseToAsyncResult
       |> AsyncResult.mapError Err.SignalRError
 
-   member x.addAccountToConnectionGroup(accountId: Guid) =
-      conn.addAccountToConnectionGroup (string accountId)
-      |> AsyncUtil.promiseToAsyncResult
-      |> AsyncResult.mapError Err.SignalRError
+   member x.addAccountToConnectionGroup =
+      AccountId.get
+      >> string
+      >> conn.addAccountToConnectionGroup
+      >> AsyncUtil.promiseToAsyncResult
+      >> AsyncResult.mapError Err.SignalRError
 
-   member x.removeAccountFromConnectionGroup(accountId: Guid) =
-      conn.removeAccountFromConnectionGroup (string accountId)
-      |> AsyncUtil.promiseToAsyncResult
-      |> AsyncResult.mapError Err.SignalRError
+   member x.removeAccountFromConnectionGroup =
+      AccountId.get
+      >> string
+      >> conn.removeAccountFromConnectionGroup
+      >> AsyncUtil.promiseToAsyncResult
+      >> AsyncResult.mapError Err.SignalRError
 
    member x.on(eventName: string, eventHandler: string -> unit) =
       conn.on (eventName, eventHandler)

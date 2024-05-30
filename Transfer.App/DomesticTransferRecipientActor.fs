@@ -5,6 +5,7 @@ open System
 open System.Text
 open System.Text.Json
 open Akkling
+open Akkling.Cluster.Sharding
 open Akka.Hosting
 open Akka.Actor
 open FsToolkit.ErrorHandling
@@ -46,7 +47,7 @@ let transferRequest action (txn: TransferTransaction) = taskResult {
       RoutingNumber = txn.Recipient.RoutingNumber
       Amount = txn.Amount
       Date = txn.Date
-      TransactionId = string txn.TransactionId
+      TransactionId = string txn.TransferId
    |}
 
    let! response =
@@ -99,7 +100,7 @@ let handleTransfer
                   Ok = false
                   Status = ""
                   Reason = "CorruptData"
-                  TransactionId = string txn.TransactionId
+                  TransactionId = string txn.TransferId
                }
 
                DomesticTransferMessage.TransferResponse(res, action, txn)
@@ -109,7 +110,7 @@ let handleTransfer
 
 let actorProps
    (breaker: Akka.Pattern.CircuitBreaker)
-   (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailActor: unit -> IActorRef<EmailActor.EmailMessage>)
    (requestTransfer: TransferRequest)
    =
@@ -203,7 +204,7 @@ let actorProps
 let start
    (system: ActorSystem)
    (broadcaster: AccountBroadcast)
-   (getAccountRef: ActorUtil.EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (breaker: Akka.Pattern.CircuitBreaker)
    (router: Akka.Routing.Pool)
    =

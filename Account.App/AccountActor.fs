@@ -227,12 +227,12 @@ let actorProps
 
    propsPersist handler
 
-let get (sys: ActorSystem) (entityId: Guid) : IEntityRef<AccountMessage> =
-   getEntityRef sys ClusterMetadata.accountShardRegion entityId
+let get (sys: ActorSystem) (accountId: AccountId) : IEntityRef<AccountMessage> =
+   getEntityRef sys ClusterMetadata.accountShardRegion (AccountId.get accountId)
 
 let private getAccountEvents
    (actorSystem: ActorSystem)
-   (id: Guid)
+   (id: AccountId)
    : AccountEvent list Async
    =
    ActorUtil

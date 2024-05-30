@@ -24,8 +24,8 @@ let getBillingStatement () =
    }
 
 /// Get AccountEvents for a past billing cycle.
-let getTransactions
-   (accountId: Guid)
+let getBillingTransactions
+   (accountId: AccountId)
    (page: int)
    : TaskResultOption<BillingTransaction list, Err>
    =

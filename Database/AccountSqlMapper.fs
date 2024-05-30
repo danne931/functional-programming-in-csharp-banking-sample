@@ -42,7 +42,8 @@ module AccountFields =
    let cardLocked = "card_locked"
 
 module AccountSqlReader =
-   let entityId (read: RowReader) = read.uuid AccountFields.entityId
+   let entityId (read: RowReader) =
+      AccountFields.entityId |> read.uuid |> AccountId
 
    let orgId = OrgSqlReader.orgId
 
@@ -142,13 +143,13 @@ module AccountSqlReader =
       Events = events read
       InProgressTransfers =
          inProgressTransfers read
-         |> List.map (fun txn -> string txn.TransactionId, txn)
+         |> List.map (fun txn -> string txn.TransferId, txn)
          |> Map.ofList
       CardLocked = cardLocked read
    }
 
 module AccountSqlWriter =
-   let entityId = Sql.uuid
+   let entityId = AccountId.get >> Sql.uuid
    let orgId = OrgSqlWriter.orgId
    let email (email: Email) = Sql.string <| string email
    let firstName = Sql.string
@@ -173,7 +174,9 @@ module AccountSqlWriter =
    let transferRecipients (recipients: Map<string, TransferRecipient>) =
       recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
-   let internalTransferSenders (senders: Map<Guid, InternalTransferSender>) =
+   let internalTransferSenders
+      (senders: Map<AccountId, InternalTransferSender>)
+      =
       senders.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let events (events: AccountEvent list) =

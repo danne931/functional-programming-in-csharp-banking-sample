@@ -61,7 +61,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? Account -> "Account"
       | :? Option<Account> -> "AccountOption"
       | :? List<Account> -> "AccountList"
-      | :? Map<Guid, Account> -> "AccountMap"
+      | :? Map<AccountId, Account> -> "AccountMap"
       | :? AccountMessage as msg ->
          match msg with
          | AccountMessage.Event _ -> "AccountEvent"
@@ -127,7 +127,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // from account cluster nodes to Web node.
       | :? Option<Account>
       // AccountClosureActor persistence snapshot.
-      | :? Map<Guid, Account>
+      | :? Map<AccountId, Account>
       | :? List<Account>
       | :? CircuitBreakerActorState
       // Messages sent over DistributedPubSub to CircuitBreakerActor.
@@ -170,7 +170,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "ReadModelSyncState" -> typeof<ReadModelSyncActor.State>
          | "Account" -> typeof<Account>
          | "AccountOption" -> typeof<Account option>
-         | "AccountMap" -> typeof<Map<Guid, Account>>
+         | "AccountMap" -> typeof<Map<AccountId, Account>>
          | "AccountList" -> typeof<Account list>
          | "AccountEvent" -> typeof<AccountEvent>
          | "AccountEventList" -> typeof<AccountEvent list>

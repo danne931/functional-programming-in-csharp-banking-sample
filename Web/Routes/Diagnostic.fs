@@ -19,14 +19,14 @@ let startDiagnosticRoutes (app: WebApplication) =
    app.MapGet(
       DiagnosticPath.Account,
       Func<ActorSystem, Guid, Task<IResult>>(fun sys id ->
-         getAccountFromAkka sys id |> RouteUtil.unwrapTaskOption)
+         getAccountFromAkka sys (AccountId id) |> RouteUtil.unwrapTaskOption)
    )
    |> ignore
 
    app.MapGet(
       DiagnosticPath.AccountEvents,
       Func<ActorSystem, Guid, Task<IResult>>(fun sys id ->
-         getAccountEventsFromAkka sys id |> RouteUtil.unwrapTask)
+         getAccountEventsFromAkka sys (AccountId id) |> RouteUtil.unwrapTask)
    )
    |> ignore
 

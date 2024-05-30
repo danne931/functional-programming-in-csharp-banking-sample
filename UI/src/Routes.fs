@@ -5,12 +5,13 @@ open System
 open Feliz.Router
 
 open Bank.Account.UIDomain
+open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]
 type AccountUrl =
    | Account
-   | AccountSelected of Guid
-   | AccountSelectedWithQuery of Guid * AccountBrowserQuery
+   | AccountSelected of AccountId
+   | AccountSelectedWithQuery of AccountId * AccountBrowserQuery
    | NotFound
 
 module AccountUrl =
@@ -19,11 +20,12 @@ module AccountUrl =
       // Matches /
       | [] -> AccountUrl.Account
       // Matches /{accountId:Guid}
-      | [ Route.Guid accountId ] -> AccountUrl.AccountSelected accountId
+      | [ Route.Guid accountId ] ->
+         AccountUrl.AccountSelected(AccountId accountId)
       // /{accountId:Guid}?action=deposit&isCategorized=false&date=Last30Days
       | [ Route.Guid accountId; Route.Query queryParams ] ->
          let query = AccountBrowserQuery.fromQueryParams queryParams
-         AccountUrl.AccountSelectedWithQuery(accountId, query)
+         AccountUrl.AccountSelectedWithQuery(AccountId accountId, query)
       | _ -> AccountUrl.NotFound
 
    let accountIdMaybe =

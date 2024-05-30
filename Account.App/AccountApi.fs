@@ -18,7 +18,7 @@ module Reader = AccountSqlMapper.AccountSqlReader
 module Writer = AccountSqlMapper.AccountSqlWriter
 let accountTable = AccountSqlMapper.table
 
-let getAccount (id: Guid) =
+let getAccount (id: AccountId) =
    pgQuerySingle<Account>
       $"SELECT * FROM {accountTable} 
         WHERE {Fields.entityId} = @accountId"
@@ -54,7 +54,7 @@ let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
             |> Serialization.deserializeUnsafe<AccountEvent list>)
 }
 
-let getAccountProfiles (orgId: Guid) =
+let getAccountProfiles (orgId: OrgId) =
    let query =
       $"""
       SELECT
@@ -78,17 +78,20 @@ let getAccountProfiles (orgId: Guid) =
          LastName = Reader.lastName read
       })
 
-let getAccountsByIds (accountIds: Guid list) =
+let getAccountsByIds (accountIds: AccountId list) =
    pgQuery<Account>
       $"SELECT * FROM {accountTable} 
         WHERE {Fields.entityId} = ANY(@accountIds)"
-      (Some [ "accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
+      (Some [
+         "accountIds",
+         accountIds |> List.map AccountId.get |> List.toArray |> Sql.uuidArray
+      ])
       Reader.account
 
 let processCommand
    (system: ActorSystem)
    (command: AccountCommand)
-   (entityId: Guid)
+   (entityId: AccountId)
    (validation: ValidationResult<BankEvent<'E>>)
    =
    taskResult {
@@ -101,7 +104,7 @@ let processCommand
 // Diagnostic
 let getAccountEventsFromAkka
    (sys: ActorSystem)
-   (accountId: Guid)
+   (accountId: AccountId)
    : AccountEvent list Task
    =
    let ref = AccountActor.get sys accountId
@@ -112,7 +115,7 @@ let getAccountEventsFromAkka
 // Diagnostic
 let getAccountFromAkka
    (sys: ActorSystem)
-   (accountId: Guid)
+   (accountId: AccountId)
    : Account option Task
    =
    let ref = AccountActor.get sys accountId

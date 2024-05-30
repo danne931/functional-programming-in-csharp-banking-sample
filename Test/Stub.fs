@@ -8,10 +8,10 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 
-let entityId = Guid.NewGuid()
-let orgId = Guid.NewGuid()
+let entityId = Guid.NewGuid() |> AccountId
+let orgId = Guid.NewGuid() |> OrgId
 let compositeId = entityId, orgId
-let correlationId = Guid.NewGuid()
+let correlationId = Guid.NewGuid() |> CorrelationId
 
 let internalRecipient = {
    LastName = "fish"
@@ -225,7 +225,7 @@ let accountState = {
 
 let accountStateAfterCreate = {
    Account.empty with
-      EntityId = command.createAccount.EntityId
+      EntityId = command.createAccount.Data.AccountId
       OrgId = command.createAccount.OrgId
       Email = Email.deserialize command.createAccount.Data.Email
       FirstName = command.createAccount.Data.FirstName

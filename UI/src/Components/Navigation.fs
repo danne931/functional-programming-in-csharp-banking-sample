@@ -1,15 +1,15 @@
 module Navigation
 
 open Feliz
-open System
 
 open Bank.Account.Domain
 open AccountSelection
+open Lib.SharedTypes
 
 [<ReactComponent>]
 let NavigationComponent
-   (accounts: Map<Guid, AccountProfile> option)
-   (selectedAccountId: Guid option)
+   (accounts: Map<AccountId, AccountProfile> option)
+   (selectedAccountId: AccountId option)
    =
    classyNode Html.nav [ "container-fluid" ] [
       Html.ul [

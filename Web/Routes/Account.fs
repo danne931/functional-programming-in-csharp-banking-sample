@@ -10,19 +10,20 @@ open Bank.Account.Domain
 open Bank.Account.Api
 open Bank.BillingCycle.Api
 open RoutePaths
+open Lib.SharedTypes
 
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       AccountPath.Base,
-      Func<Guid, Task<IResult>>(fun ([<FromQuery>] orgId: Guid) ->
-         getAccountProfiles orgId |> RouteUtil.unwrapTaskResultOption)
+      Func<Guid, Task<IResult>>(fun ([<FromQuery>] orgId) ->
+         getAccountProfiles (OrgId orgId) |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 
    app.MapGet(
       AccountPath.Account,
       Func<Guid, Task<IResult>>(fun id ->
-         getAccount id |> RouteUtil.unwrapTaskResultOption)
+         getAccount (AccountId id) |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 
@@ -40,7 +41,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             system
             (AccountCommand.CreateAccount cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (CreateAccountCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -52,7 +53,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.DepositCash cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (DepositCashCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -64,7 +65,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.Debit cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (DebitCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -76,7 +77,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.LimitDailyDebits cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (LimitDailyDebitsCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -88,7 +89,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.LockCard cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (LockCardCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -100,7 +101,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.UnlockCard cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (UnlockCardCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -112,7 +113,7 @@ let startAccountRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.CloseAccount cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (CloseAccountCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -121,6 +122,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       AccountPath.BillingStatement,
       Func<Guid, int, Task<IResult>>(fun accountId page ->
-         getTransactions accountId page |> RouteUtil.unwrapTaskResultOption)
+         getBillingTransactions (AccountId accountId) page
+         |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore

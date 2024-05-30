@@ -53,8 +53,8 @@ type TransferRecipient = {
 
 type InternalTransferSender = {
    Name: string
-   AccountId: Guid
-   OrgId: Guid
+   AccountId: AccountId
+   OrgId: OrgId
 }
 
 type TransferServiceResponse = {
@@ -67,9 +67,9 @@ type TransferServiceResponse = {
 }
 
 type TransferTransaction = {
-   SenderOrgId: Guid
-   SenderAccountId: Guid
-   TransactionId: Guid
+   SenderOrgId: OrgId
+   SenderAccountId: AccountId
+   TransferId: CorrelationId
    Recipient: TransferRecipient
    Amount: decimal
    Date: DateTime

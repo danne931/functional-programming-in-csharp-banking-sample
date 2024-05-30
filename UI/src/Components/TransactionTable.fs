@@ -1,6 +1,5 @@
 module TransactionTable
 
-open System
 open Feliz
 open Feliz.UseElmish
 open Feliz.Router
@@ -31,7 +30,7 @@ type Msg =
       TransactionQuery *
       AsyncOperationStatus<TransactionsMaybe>
    | TransactionPropsResolved of Deferred<TransactionsMaybe>
-   | ViewTransaction of txnId: Guid
+   | ViewTransaction of EventId
 
 let init
    (txnsDeferred: Deferred<TransactionsMaybe>)
@@ -383,7 +382,7 @@ let private canViewTransactionDetail =
 let renderTableRow
    (account: Account)
    (evt: AccountEvent)
-   (selectedTxnId: Guid option)
+   (selectedTxnId: EventId option)
    dispatch
    =
    let _, envelope = AccountEnvelope.unwrap evt
@@ -391,7 +390,7 @@ let renderTableRow
    let orDefaultValue opt = opt |> Option.defaultValue "-"
 
    Html.tr [
-      attr.key envelope.Id
+      attr.key (string envelope.Id)
 
       match selectedTxnId with
       | Some txnId when txnId = envelope.Id -> attr.classes [ "selected" ]
@@ -429,7 +428,7 @@ let renderTableRow
 let renderTable
    (account: Account)
    (txns: AccountEvent list)
-   (selectedTxnId: Guid option)
+   (selectedTxnId: EventId option)
    dispatch
    =
    Html.table [

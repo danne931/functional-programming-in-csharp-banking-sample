@@ -7,7 +7,7 @@ open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.TransactionQuery
 
-type AccountProfilesMaybe = Result<Map<Guid, AccountProfile> option, Err>
+type AccountProfilesMaybe = Result<Map<AccountId, AccountProfile> option, Err>
 
 type AccountAndTransactionsMaybe =
    Result<(Account * AccountEvent list) option, Err>
@@ -207,10 +207,11 @@ let transactionUIFriendly
    }
 
 type PotentialInternalTransferRecipients =
-   private | PotentialInternalTransferRecipients of Map<Guid, AccountProfile>
+   private | PotentialInternalTransferRecipients of
+      Map<AccountId, AccountProfile>
 
 module PotentialInternalTransferRecipients =
-   let create (account: Account) (accounts: Map<Guid, AccountProfile>) =
+   let create (account: Account) (accounts: Map<AccountId, AccountProfile>) =
       let potentialRecipients =
          accounts
          |> Map.filter (fun id _ ->
@@ -274,7 +275,7 @@ type AccountBrowserQuery = {
    Amount: AmountFilter option
    Date: DateFilter option
    Action: AccountActionView option
-   Transaction: Guid option
+   Transaction: EventId option
 }
 
 module AccountBrowserQuery =
@@ -383,5 +384,5 @@ module AccountBrowserQuery =
                   None)
          Transaction =
             Map.tryFind "transaction" queryParams
-            |> Option.bind Guid.parseOptional
+            |> Option.bind (Guid.parseOptional >> Option.map EventId)
       }

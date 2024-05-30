@@ -7,6 +7,7 @@ open Akka.Cluster.Hosting
 open Akka.HealthCheck.Hosting
 open Akka.HealthCheck.Hosting.Web
 open Serilog
+open System.Text.Json.Serialization
 
 open Bank.Infrastructure
 open Bank.Account.Routes
@@ -24,7 +25,13 @@ LogInfra.start builder
 
 // Endpoint serialization
 builder.Services.ConfigureHttpJsonOptions(fun opts ->
-   Serialization.withInjectedOptions opts.SerializerOptions
+   JsonFSharpOptions
+      .ThothLike()
+      .WithUnwrapOption()
+      .AddToJsonSerializerOptions(
+         Serialization.mergeDefaultJsonOptions opts.SerializerOptions
+      )
+
    ())
 |> ignore
 

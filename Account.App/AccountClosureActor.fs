@@ -1,12 +1,12 @@
 [<RequireQualifiedAccess>]
 module AccountClosureActor
 
-open System
 open Akka.Hosting
 open Akka.Actor
 open Akka.Persistence
 open Akkling
 open Akkling.Persistence
+open Akkling.Cluster.Sharding
 open Akka.Streams
 open Akkling.Streams
 open FsToolkit.ErrorHandling
@@ -14,15 +14,14 @@ open FsToolkit.ErrorHandling
 open Lib.SharedTypes
 open Lib.Types
 open ActorUtil
-open Bank.AccountClosure.Api
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 let deleteAccounts
    (system: ActorSystem)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (throttle: StreamThrottle)
-   (accounts: Map<Guid, Account>)
+   (accounts: Map<AccountId, Account>)
    =
    Source.ofSeq accounts.Values
    |> Source.throttle
@@ -33,20 +32,20 @@ let deleteAccounts
    |> Source.runForEach (system.Materializer()) (fun account ->
       getAccountRef account.EntityId <! AccountMessage.Delete)
 
-let initState: Map<Guid, Account> = Map.empty
+let initState: Map<AccountId, Account> = Map.empty
 
 let actorProps
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailRef: unit -> IActorRef<EmailActor.EmailMessage>)
-   (deleteHistoricalRecords: Guid list -> TaskResultOption<Email list, Err>)
+   (deleteHistoricalRecords: AccountId list -> TaskResultOption<Email list, Err>)
    (throttle: StreamThrottle)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logInfo, logError = logInfo mailbox, logError mailbox
       let deleteAccounts = deleteAccounts mailbox.System getAccountRef throttle
 
-      let rec loop (accounts: Map<Guid, Account>) = actor {
+      let rec loop (accounts: Map<AccountId, Account>) = actor {
          let! msg = mailbox.Receive()
 
          match box msg with
@@ -132,10 +131,36 @@ let actorProps
 
    supervisorProps spawnChild <| Strategy.OneForOne(fun _ -> Directive.Resume)
 
+open Lib.Postgres
+open AccountSqlMapper
+
+// These records are held onto for reporting and legal reasons
+// for 3 months following an account closure.
+//
+// ON CASCADE DELETE is configured (see Infrastructure/Migrations/Bank.sql).
+// Deletion of an account with a given ID deletes corresponding
+// user & billing statements in the same transaction.
+let deleteHistoricalRecords (accountIds: AccountId list) =
+   if accountIds.IsEmpty then
+      TaskResult.ok None
+   else
+      pgQuery<Email>
+         $"DELETE FROM {AccountSqlMapper.table} 
+           WHERE {AccountFields.entityId} = ANY(@accountIds) 
+           RETURNING {AccountFields.email}"
+         (Some [
+            "@accountIds",
+            accountIds
+            |> List.map AccountId.get
+            |> List.toArray
+            |> Sql.uuidArray
+         ])
+         AccountSqlReader.email
+
 let initProps
    (system: ActorSystem)
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (throttle: StreamThrottle)
    =
    actorProps

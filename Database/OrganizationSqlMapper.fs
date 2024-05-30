@@ -1,5 +1,7 @@
 module OrganizationSqlMapper
 
+open Lib.SharedTypes
+
 let table = "organization"
 
 module OrgFields =
@@ -7,9 +9,12 @@ module OrgFields =
    let name = "name"
 
 module OrgSqlReader =
-   let orgId (read: RowReader) = read.uuid OrgFields.orgId
+   let orgId (read: RowReader) = OrgFields.orgId |> read.uuid |> OrgId
    let name (read: RowReader) = read.string OrgFields.name
 
 module OrgSqlWriter =
-   let orgId = Sql.uuid
+   let orgId (orgId: OrgId) =
+      let (OrgId id) = orgId
+      Sql.uuid id
+
    let name = Sql.string

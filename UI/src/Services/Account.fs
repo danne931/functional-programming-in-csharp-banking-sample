@@ -2,7 +2,6 @@
 module AccountService
 
 open Fable.SimpleHttp
-open System
 open FsToolkit.ErrorHandling
 open Feliz.Router
 
@@ -11,8 +10,7 @@ open Bank.Account.Domain
 open Lib.SharedTypes
 open Lib.TransactionQuery
 open RoutePaths
-
-type ProcessingEventId = Guid
+open Thoth.Json
 
 let private notImplemented (cmd: AccountCommand) =
    let msg = $"Account Service: Not implemented command: {cmd}"
@@ -67,7 +65,7 @@ let getAccountProfiles () : Async<AccountProfilesMaybe> = async {
             |> Some)
 }
 
-let getAccount (accountId: Guid) : Async<Result<Account option, Err>> = async {
+let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = async {
    let path = AccountPath.account accountId
 
    let! (code, responseText) = Http.get path
@@ -111,7 +109,7 @@ let getAccountAndTransactions
 let submitCommand
    (account: Account)
    (command: AccountCommand)
-   : Async<Result<ProcessingEventId, Err>>
+   : Async<Result<EventId, Err>>
    =
    asyncResult {
       // Pre-network request validation checks the command itself
@@ -128,16 +126,16 @@ let submitCommand
          return! Error <| Err.InvalidStatusCodeError("AccountService", code)
       else
          let! deserialized =
-            Serialization.deserialize<Result<Guid, Err>> res.responseText
+            Serialization.deserialize<Result<EventId, Err>> res.responseText
 
          return! deserialized
    }
 
 let addAccountToSignalRConnectionGroup
    (connection: SignalR.Connection)
-   (existingAccountId: Guid option)
-   (accountIdToAdd: Guid)
-   : Async<Result<Guid, Err>>
+   (existingAccountId: AccountId option)
+   (accountIdToAdd: AccountId)
+   : Async<Result<AccountId, Err>>
    =
    asyncResult {
       if

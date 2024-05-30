@@ -4,8 +4,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Routes.fs" />
     <Compile Include="Types.fs" />
+    <Compile Include="Routes.fs" />
     <Compile Include="ActivePatterns.fs" />
     <Compile Include="Time.fs" />
     <Compile Include="Validators.fs" />

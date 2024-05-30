@@ -10,25 +10,76 @@ module Guid =
       with _ ->
          None
 
+type OrgId =
+   | OrgId of Guid
+
+   override x.ToString() =
+      let (OrgId id) = x
+      string id
+
+type EntityId =
+   | EntityId of Guid
+
+   override x.ToString() =
+      let (EntityId id) = x
+      string id
+
+type CorrelationId =
+   | CorrelationId of Guid
+
+   override x.ToString() =
+      let (CorrelationId id) = x
+      string id
+
+type EventId =
+   | EventId of Guid
+
+   override x.ToString() =
+      let (EventId id) = x
+      string id
+
+type AccountId =
+   | AccountId of Guid
+
+   override x.ToString() =
+      let (AccountId id) = x
+      string id
+
+module AccountId =
+   let get (accountId: AccountId) : Guid =
+      let (AccountId id) = accountId
+      id
+
+   let toEntityId (accountId: AccountId) : EntityId =
+      let (AccountId id) = accountId
+      EntityId id
+
+   let fromEntityId (entityId: EntityId) : AccountId =
+      let (EntityId id) = entityId
+      AccountId id
+
+module CorrelationId =
+   let create () = CorrelationId <| Guid.NewGuid()
+
 type Command<'C> = {
-   Id: Guid
-   EntityId: Guid
-   OrgId: Guid
+   Id: EventId
+   EntityId: EntityId
+   OrgId: OrgId
    Timestamp: DateTime
-   CorrelationId: Guid
+   CorrelationId: CorrelationId
    Data: 'C
 }
 
 module Command =
    let create<'t>
-      (entityId: Guid)
-      (orgId: Guid)
-      (correlationId: Guid)
+      (entityId: EntityId)
+      (orgId: OrgId)
+      (correlationId: CorrelationId)
       (data)
       : Command<'t>
       =
       {
-         Id = Guid.NewGuid()
+         Id = EventId <| Guid.NewGuid()
          EntityId = entityId
          OrgId = orgId
          Timestamp = DateTime.UtcNow
@@ -37,12 +88,12 @@ module Command =
       }
 
 type BankEvent<'E> = {
-   Id: Guid
-   EntityId: Guid
-   OrgId: Guid
+   Id: EventId
+   EntityId: EntityId
+   OrgId: OrgId
    Timestamp: DateTime
    Data: 'E
-   CorrelationId: Guid
+   CorrelationId: CorrelationId
 } with
 #if FABLE_COMPILER
    member x.EventName = ""
@@ -61,12 +112,12 @@ module BankEvent =
    }
 
 type Envelope = {
-   Id: Guid
-   EntityId: Guid
-   OrgId: Guid
+   Id: EventId
+   EntityId: EntityId
+   OrgId: OrgId
    Timestamp: DateTime
    EventName: string
-   CorrelationId: Guid
+   CorrelationId: CorrelationId
 }
 
 type StateTransitionError =

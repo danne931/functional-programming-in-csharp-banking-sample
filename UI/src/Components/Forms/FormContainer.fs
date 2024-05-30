@@ -10,16 +10,13 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open AsyncUtil
 
-type ParentOnSubmitHandler =
-   AccountCommand * AccountService.ProcessingEventId -> unit
+type ParentOnSubmitHandler = AccountCommand * EventId -> unit
 
 type State<'Values> = { FormModel: Form.View.Model<'Values> }
 
 type Msg<'Values> =
    | FormChanged of Form.View.Model<'Values>
-   | Submit of
-      AccountCommand *
-      AsyncOperationStatus<Result<AccountService.ProcessingEventId, Err>>
+   | Submit of AccountCommand * AsyncOperationStatus<Result<EventId, Err>>
    | ErrorReceivedViaSignalR of Err
 
 let init (values: 'Values) () =

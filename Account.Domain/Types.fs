@@ -53,7 +53,7 @@ type OpenEventEnvelope = AccountEvent * Envelope
 
 [<RequireQualifiedAccess>]
 module AccountEnvelope =
-   let private get (evt: BankEvent<'E>) = {
+   let private get (evt: BankEvent<'E>) : Envelope = {
       Id = evt.Id
       EntityId = evt.EntityId
       OrgId = evt.OrgId
@@ -125,8 +125,8 @@ type AccountStatus =
    | ReadyForDelete
 
 type Account = {
-   EntityId: Guid
-   OrgId: Guid
+   EntityId: AccountId
+   OrgId: OrgId
    Email: Email
    FirstName: string
    LastName: string
@@ -141,7 +141,7 @@ type Account = {
    LastInternalTransferDate: DateTime option
    LastDomesticTransferDate: DateTime option
    LastBillingCycleDate: DateTime option
-   InternalTransferSenders: Map<Guid, InternalTransferSender>
+   InternalTransferSenders: Map<AccountId, InternalTransferSender>
    TransferRecipients: Map<string, TransferRecipient>
    InProgressTransfers: Map<string, TransferTransaction>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
@@ -154,8 +154,8 @@ type Account = {
    member x.CompositeId = x.EntityId, x.OrgId
 
 type AccountProfile = {
-   EntityId: Guid
-   OrgId: Guid
+   EntityId: AccountId
+   OrgId: OrgId
    Email: Email
    FirstName: string
    LastName: string
@@ -180,7 +180,7 @@ type AccountEventPersistedConfirmation = {
 }
 
 type AccountEventRejected = {
-   AccountId: Guid
+   AccountId: AccountId
    Error: Err
    Date: DateTime
 }
@@ -193,13 +193,13 @@ type SignalRMessage =
    | CircuitBreaker of CircuitBreakerEvent
 
 type AccountPersistence = {
-   getEvents: Guid -> AccountEvent list Async
+   getEvents: AccountId -> AccountEvent list Async
 }
 
 type AccountBroadcast = {
    accountEventPersisted: AccountEvent -> Account -> unit
-   accountEventValidationFail: Guid -> Err -> unit
-   accountEventPersistenceFail: Guid -> Err -> unit
+   accountEventValidationFail: AccountId -> Err -> unit
+   accountEventPersistenceFail: AccountId -> Err -> unit
    circuitBreaker: CircuitBreakerEvent -> unit
 }
 
@@ -207,7 +207,7 @@ type AccountBroadcast = {
 type AccountClosureMessage =
    | Register of Account
    | ScheduleDeleteAll
-   | DeleteAll of Guid list
+   | DeleteAll of AccountId list
    | GetRegisteredAccounts
 
 [<RequireQualifiedAccess>]
@@ -222,7 +222,7 @@ module AccountLoadTestTypes =
    }
 
    type LoadTestEventPersisted = {
-      AccountId: Guid
+      AccountId: AccountId
       AccountBalance: decimal
       Event: AccountEvent
    }
@@ -238,7 +238,7 @@ module AccountLoadTestTypes =
 type TransactionCategory = { Id: int; Name: string }
 
 type TransactionWithAncillaryInfo = {
-   Id: Guid
+   Id: EventId
    Event: AccountEvent
    Category: TransactionCategory option
    Note: string option

@@ -11,6 +11,7 @@ open Akka.Streams.Dsl
 open Akkling
 open Akkling.Persistence
 open Akkling.Streams
+open Akkling.Cluster.Sharding
 open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
@@ -68,7 +69,7 @@ let initReadJournalSource
 
 let startProjection
    (mailbox: Eventsourced<obj>)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)
@@ -117,7 +118,7 @@ let startProjection
                logInfo mailbox $"Saved account read models {response}"
       }
 
-   let getAccount (accountId: Guid, accountEvents: AccountEvent list) = task {
+   let getAccount (accountId: AccountId, accountEvents: AccountEvent list) = task {
       let! (accountOpt: Account option) = getAccountRef accountId <? GetAccount
 
       return accountOpt |> Option.map (fun account -> account, accountEvents)
@@ -131,7 +132,7 @@ let startProjection
             |> List.fold
                   (fun acc accountEvent ->
                      let _, envelope = AccountEnvelope.unwrap accountEvent
-                     let accountId = envelope.EntityId
+                     let accountId = AccountId.fromEntityId envelope.EntityId
 
                      match Map.tryFind accountId acc with
                      | None -> Map.add accountId [ accountEvent ] acc
@@ -141,7 +142,7 @@ let startProjection
                            (Option.map (fun accountEvents ->
                               accountEvent :: accountEvents))
                            acc)
-                  Map.empty<Guid, AccountEvent list>
+                  Map.empty<AccountId, AccountEvent list>
             |> Map.toArray
             |> Array.map getAccount
 
@@ -158,7 +159,7 @@ let startProjection
    |> Source.runWith (system.Materializer()) Sink.ignore
 
 let actorProps
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)
@@ -266,10 +267,17 @@ let upsertReadModels
 
          let sqlParams = [
             "transactionId", TransactionSqlWriter.transactionId envelope.Id
-            "accountId", TransactionSqlWriter.accountId envelope.EntityId
+
+            "accountId",
+            envelope.EntityId
+            |> AccountId.fromEntityId
+            |> TransactionSqlWriter.accountId
+
             "orgId", TransactionSqlWriter.orgId envelope.OrgId
+
             "correlationId",
             TransactionSqlWriter.correlationId envelope.CorrelationId
+
             "name", TransactionSqlWriter.name envelope.EventName
             "timestamp", TransactionSqlWriter.timestamp envelope.Timestamp
             "event", TransactionSqlWriter.event evt
@@ -402,7 +410,7 @@ let upsertReadModels
    ]
 
 let initProps
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (chunking: StreamChunking)
    (restartSettings: Akka.Streams.RestartSettings)
    (retryPersistenceAfter: TimeSpan)

@@ -13,15 +13,19 @@ type CreateAccountInput = {
    FirstName: string
    LastName: string
    Currency: Currency
-   AccountId: Guid
-   OrgId: Guid
+   AccountId: AccountId
+   OrgId: OrgId
 }
 
 type CreateAccountCommand = Command<CreateAccountInput>
 
 module CreateAccountCommand =
    let create (data: CreateAccountInput) =
-      Command.create data.AccountId data.OrgId (Guid.NewGuid()) data
+      Command.create
+         (AccountId.toEntityId data.AccountId)
+         data.OrgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: CreateAccountCommand)
@@ -56,8 +60,12 @@ type DepositCashInput = {
 type DepositCashCommand = Command<DepositCashInput>
 
 module DepositCashCommand =
-   let create (entityId, orgId) (data: DepositCashInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: DepositCashInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: DepositCashCommand)
@@ -85,8 +93,12 @@ type DebitInput = {
 type DebitCommand = Command<DebitInput>
 
 module DebitCommand =
-   let create (entityId, orgId) (data: DebitInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: DebitInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: DebitCommand)
@@ -111,8 +123,15 @@ type LimitDailyDebitsInput = { DebitLimit: decimal }
 type LimitDailyDebitsCommand = Command<LimitDailyDebitsInput>
 
 module LimitDailyDebitsCommand =
-   let create (entityId, orgId) (data: LimitDailyDebitsInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: LimitDailyDebitsInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: LimitDailyDebitsCommand)
@@ -132,8 +151,12 @@ type LockCardInput = { Reference: string option }
 type LockCardCommand = Command<LockCardInput>
 
 module LockCardCommand =
-   let create (entityId, orgId) (data: LockCardInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: LockCardInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: LockCardCommand)
@@ -148,8 +171,12 @@ type UnlockCardInput = { Reference: string option }
 type UnlockCardCommand = Command<UnlockCardInput>
 
 module UnlockCardCommand =
-   let create (entityId, orgId) (data: UnlockCardInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: UnlockCardInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: UnlockCardCommand)
@@ -164,10 +191,14 @@ type MaintenanceFeeInput = { Amount: decimal }
 type MaintenanceFeeCommand = Command<MaintenanceFeeInput>
 
 module MaintenanceFeeCommand =
-   let create (entityId, orgId) =
-      Command.create entityId orgId (Guid.NewGuid()) {
-         Amount = MaintenanceFee.RecurringDebitAmount
-      }
+   let create (accountId: AccountId, orgId: OrgId) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         {
+            Amount = MaintenanceFee.RecurringDebitAmount
+         }
 
    let toEvent
       (cmd: MaintenanceFeeCommand)
@@ -183,8 +214,15 @@ type SkipMaintenanceFeeInput = { Reason: MaintenanceFeeCriteria }
 type SkipMaintenanceFeeCommand = Command<SkipMaintenanceFeeInput>
 
 module SkipMaintenanceFeeCommand =
-   let create (entityId, orgId) (data: SkipMaintenanceFeeInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: SkipMaintenanceFeeInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: SkipMaintenanceFeeCommand)
@@ -199,8 +237,12 @@ type CloseAccountInput = { Reference: string option }
 type CloseAccountCommand = Command<CloseAccountInput>
 
 module CloseAccountCommand =
-   let create (entityId, orgId) (data: CloseAccountInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: CloseAccountInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: CloseAccountCommand)
@@ -215,8 +257,15 @@ type StartBillingCycleInput = { Reference: string option }
 type StartBillingCycleCommand = Command<StartBillingCycleInput>
 
 module StartBillingCycleCommand =
-   let create (entityId, orgId) (data: StartBillingCycleInput) =
-      Command.create entityId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: StartBillingCycleInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: StartBillingCycleCommand)

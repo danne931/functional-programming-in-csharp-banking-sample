@@ -16,8 +16,12 @@ type TransferInput = {
 type TransferCommand = Command<TransferInput>
 
 module TransferCommand =
-   let create (accountId, orgId) (data: TransferInput) =
-      Command.create accountId orgId (Guid.NewGuid()) data
+   let create (accountId: AccountId, orgId: OrgId) (data: TransferInput) =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: TransferCommand)
@@ -48,8 +52,12 @@ type TransferProgressInput = {
 type UpdateTransferProgressCommand = Command<TransferProgressInput>
 
 module UpdateTransferProgressCommand =
-   let create (accountId, orgId) correlationId (data: TransferProgressInput) =
-      Command.create accountId orgId correlationId data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: TransferProgressInput)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
       (cmd: UpdateTransferProgressCommand)
@@ -74,8 +82,12 @@ type ApproveTransferInput = {
 type ApproveTransferCommand = Command<ApproveTransferInput>
 
 module ApproveTransferCommand =
-   let create (accountId, orgId) correlationId (data: ApproveTransferInput) =
-      Command.create accountId orgId correlationId data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: ApproveTransferInput)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
       (cmd: ApproveTransferCommand)
@@ -100,8 +112,12 @@ type RejectTransferInput = {
 type RejectTransferCommand = Command<RejectTransferInput>
 
 module RejectTransferCommand =
-   let create (accountId, orgId) correlationId (data: RejectTransferInput) =
-      Command.create accountId orgId correlationId data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: RejectTransferInput)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
       (cmd: RejectTransferCommand)
@@ -133,8 +149,12 @@ type DepositTransferInput = { Amount: decimal; Origin: string }
 type DepositTransferCommand = Command<DepositTransferInput>
 
 module DepositTransferCommand =
-   let create (accountId, orgId) correlationId (data: DepositTransferInput) =
-      Command.create accountId orgId correlationId data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: DepositTransferInput)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
       (cmd: DepositTransferCommand)
@@ -150,8 +170,15 @@ type RegisterTransferRecipientInput = { Recipient: TransferRecipient }
 type RegisterTransferRecipientCommand = Command<RegisterTransferRecipientInput>
 
 module RegisterTransferRecipientCommand =
-   let create (accountId, orgId) (data: RegisterTransferRecipientInput) =
-      Command.create accountId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: RegisterTransferRecipientInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
 module TransferRecipientEvent =
    let recipientValidation (cmd: RegisterTransferRecipientCommand) = validate {
@@ -217,8 +244,15 @@ type RegisterInternalSenderInput = { Sender: InternalTransferSender }
 type RegisterInternalSenderCommand = Command<RegisterInternalSenderInput>
 
 module RegisterInternalSenderCommand =
-   let create (accountId, orgId) (data: RegisterInternalSenderInput) =
-      Command.create accountId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: RegisterInternalSenderInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: RegisterInternalSenderCommand)
@@ -230,7 +264,7 @@ module RegisterInternalSenderCommand =
       |> Ok
 
 type DeactivateInternalRecipientInput = {
-   RecipientId: Guid
+   RecipientId: AccountId
    RecipientName: string
 }
 
@@ -242,7 +276,11 @@ module DeactivateInternalRecipientCommand =
       (sender: InternalTransferSender)
       (data: DeactivateInternalRecipientInput)
       =
-      Command.create sender.AccountId sender.OrgId (Guid.NewGuid()) data
+      Command.create
+         (AccountId.toEntityId sender.AccountId)
+         sender.OrgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: DeactivateInternalRecipientCommand)
@@ -267,8 +305,15 @@ type NicknameRecipientInput = {
 type NicknameRecipientCommand = Command<NicknameRecipientInput>
 
 module NicknameRecipientCommand =
-   let create (accountId, orgId) (data: NicknameRecipientInput) =
-      Command.create accountId orgId (Guid.NewGuid()) data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: NicknameRecipientInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
 
    let toEvent
       (cmd: NicknameRecipientCommand)
@@ -284,7 +329,7 @@ module TransferTransactionToCommand =
    let progress (txn: TransferTransaction) (status: TransferProgress) =
       UpdateTransferProgressCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
-         txn.TransactionId
+         txn.TransferId
          {
             Recipient = txn.Recipient
             Date = txn.Date
@@ -295,7 +340,7 @@ module TransferTransactionToCommand =
    let approve (txn: TransferTransaction) =
       ApproveTransferCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
-         txn.TransactionId
+         txn.TransferId
          {
             Recipient = txn.Recipient
             Date = txn.Date
@@ -305,7 +350,7 @@ module TransferTransactionToCommand =
    let reject (txn: TransferTransaction) (reason: TransferDeclinedReason) =
       RejectTransferCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
-         txn.TransactionId
+         txn.TransferId
          {
             Recipient = txn.Recipient
             Date = txn.Date

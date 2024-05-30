@@ -4,6 +4,7 @@ open System
 open Expecto
 open Akkling
 open Akkling.Cluster.Sharding
+open Lib.SharedTypes
 
 let akkaTest
    (testDescription: string)
@@ -17,7 +18,7 @@ let akkaTest
 
    testCase testDescription <| fun () -> akkaTester <| testBody
 
-let getAccountEntityRef (actorRef: IActorRef<_>) (entityId: Guid) =
+let getAccountEntityRef (actorRef: IActorRef<_>) (accountId: AccountId) =
    let shardRegionName = "mock-account-shard"
 
    let fac = {
@@ -25,4 +26,5 @@ let getAccountEntityRef (actorRef: IActorRef<_>) (entityId: Guid) =
       ShardRegion = untyped actorRef
    }
 
-   fac.RefFor shardRegionName <| string entityId
+   let (AccountId id) = accountId
+   fac.RefFor shardRegionName <| string id

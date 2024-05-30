@@ -61,7 +61,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
             | _ -> None
 
          func {
-            AccountId = id
+            AccountId = AccountId id
             Diagnostic = diagnostic
             Page = page
             MoneyFlow = MoneyFlow.fromString moneyFlow
@@ -88,14 +88,14 @@ let startTransactionRoutes (app: WebApplication) =
    app.MapGet(
       TransactionPath.TransactionInfo,
       Func<Guid, Task<IResult>>(fun txnId ->
-         getTransactionInfo txnId |> RouteUtil.unwrapTaskResultOption)
+         getTransactionInfo (EventId txnId) |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 
    app.MapPost(
       TransactionPath.Category,
       Func<Guid, int, Task<IResult>>(fun txnId categoryId ->
-         upsertTransactionCategory txnId categoryId
+         upsertTransactionCategory (EventId txnId) categoryId
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -103,7 +103,8 @@ let startTransactionRoutes (app: WebApplication) =
    app.MapDelete(
       TransactionPath.CategoryDelete,
       Func<Guid, Task<IResult>>(fun txnId ->
-         deleteTransactionCategory txnId |> RouteUtil.unwrapTaskResult)
+         deleteTransactionCategory (EventId txnId)
+         |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
@@ -115,7 +116,8 @@ let startTransactionRoutes (app: WebApplication) =
             let! note = reader.ReadToEndAsync()
 
             return!
-               upsertTransactionNote txnId note |> RouteUtil.unwrapTaskResult
+               upsertTransactionNote (EventId txnId) note
+               |> RouteUtil.unwrapTaskResult
          with e ->
             return Results.Problem e.Message
       })

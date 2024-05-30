@@ -17,12 +17,12 @@ type private TransactionMaybe =
    Deferred<Result<TransactionWithAncillaryInfo, Err>>
 
 type State = {
-   TransactionId: Guid
+   TransactionId: EventId
    Transaction: TransactionMaybe
    // Nickname may refer to transfer recipient or merchant
    // depending on the AccountEvent rendered.
    EditingNickname: bool
-   NicknamePersistence: Deferred<Result<AccountService.ProcessingEventId, Err>>
+   NicknamePersistence: Deferred<Result<EventId, Err>>
 }
 
 let private updateTransaction
@@ -45,7 +45,7 @@ type Msg =
       Account *
       TransferRecipient *
       nickname: string option *
-      AsyncOperationStatus<Result<AccountService.ProcessingEventId, Err>>
+      AsyncOperationStatus<Result<EventId, Err>>
    | ToggleNicknameEdit
 
 let init txnId () =
@@ -328,7 +328,7 @@ let renderNoteInput (txnInfo: TransactionMaybe) dispatch =
 
          match txnInfo with
          | Deferred.Resolved(Ok txnInfo) ->
-            attr.key txnInfo.Id
+            attr.key (string txnInfo.Id)
 
             attr.defaultValue (txnInfo.Note |> Option.defaultValue "")
          | _ -> attr.disabled true
@@ -430,7 +430,7 @@ let renderFooterMenuControls
    ]
 
 [<ReactComponent>]
-let TransactionDetailComponent (account: Account) (txnId: Guid) =
+let TransactionDetailComponent (account: Account) (txnId: EventId) =
    let state, dispatch = React.useElmish (init txnId, update, [| box txnId |])
    let categories = React.useContext Contexts.transactionCategoryContext
    let browserQuery = Routes.IndexUrl.accountBrowserQuery ()

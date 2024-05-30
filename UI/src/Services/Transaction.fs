@@ -2,7 +2,6 @@
 module TransactionService
 
 open Fable.SimpleHttp
-open System
 open FsToolkit.ErrorHandling
 open Feliz.Router
 
@@ -15,7 +14,7 @@ open Lib.TransactionQuery
 let private serviceName = "TransactionService"
 
 let transactionQueryFromAccountBrowserQuery
-   (accountId: Guid)
+   (accountId: AccountId)
    (query: AccountBrowserQuery)
    : TransactionQuery
    =
@@ -76,7 +75,7 @@ let getCategories () : Async<Result<TransactionCategory list, Err>> = async {
 }
 
 let getTransactionInfo
-   (txnId: Guid)
+   (txnId: EventId)
    : Async<Result<TransactionWithAncillaryInfo, Err>>
    =
    async {
@@ -91,17 +90,24 @@ let getTransactionInfo
             |> Serialization.deserialize<TransactionWithAncillaryInfo>
    }
 
-let updateCategory (txnId: Guid) (categoryId: int) : Async<Result<int, Err>> = asyncResult {
-   let! code, responseText =
-      Http.post (TransactionPath.category txnId categoryId) (string categoryId)
+let updateCategory
+   (txnId: EventId)
+   (categoryId: int)
+   : Async<Result<int, Err>>
+   =
+   asyncResult {
+      let! code, responseText =
+         Http.post
+            (TransactionPath.category txnId categoryId)
+            (string categoryId)
 
-   if code <> 200 then
-      return! Error <| Err.InvalidStatusCodeError(serviceName, code)
-   else
-      return! Serialization.deserialize<int> responseText
-}
+      if code <> 200 then
+         return! Error <| Err.InvalidStatusCodeError(serviceName, code)
+      else
+         return! Serialization.deserialize<int> responseText
+   }
 
-let deleteCategory (txnId: Guid) : Async<Result<int, Err>> = asyncResult {
+let deleteCategory (txnId: EventId) : Async<Result<int, Err>> = asyncResult {
    let! code, responseText = Http.delete (TransactionPath.categoryDelete txnId)
 
    if code <> 200 then
@@ -110,7 +116,7 @@ let deleteCategory (txnId: Guid) : Async<Result<int, Err>> = asyncResult {
       return! Serialization.deserialize<int> responseText
 }
 
-let updateNote (txnId: Guid) (note: string) : Async<Result<int, Err>> = asyncResult {
+let updateNote (txnId: EventId) (note: string) : Async<Result<int, Err>> = asyncResult {
    let! code, responseText = Http.post (TransactionPath.note txnId) note
 
    if code <> 200 then

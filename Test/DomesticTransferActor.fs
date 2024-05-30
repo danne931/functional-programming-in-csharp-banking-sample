@@ -132,7 +132,7 @@ let initCircuitBreaker (tck: TestKit.Tck) =
 let initDomesticTransferActor
    (tck: TestKit.Tck)
    (breaker: Akka.Pattern.CircuitBreaker)
-   (getAccountActor: EntityRefGetter<AccountMessage>)
+   (getAccountActor: AccountId -> IEntityRef<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
    (transferRequest: TransferRequest)
    =
@@ -181,7 +181,7 @@ let tests =
          let cmd = tck.ExpectMsg<UpdateTransferProgressCommand>()
 
          Expect.equal
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             txn.SenderAccountId
             $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting UpdateTransferProgressCommand"
@@ -202,7 +202,7 @@ let tests =
          let cmd = tck.ExpectMsg<ApproveTransferCommand>()
 
          Expect.equal
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             txn.SenderAccountId
             $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting ApproveTransferCommand"
@@ -227,7 +227,7 @@ let tests =
          let msg = tck.ExpectMsg<RejectTransferCommand>()
 
          Expect.equal
-            msg.EntityId
+            (AccountId.fromEntityId msg.EntityId)
             txn.SenderAccountId
             $"SenderAccountId from Transaction should be
               EntityId of resulting RejectTransferCommand"

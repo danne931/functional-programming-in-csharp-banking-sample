@@ -2,21 +2,22 @@ module AccountSelection
 
 open Feliz
 open Feliz.Router
-open System
 
 open Bank.Account.Domain
+open Lib.SharedTypes
 
 let renderAccountListItem
-   (selectedAccountId: Guid option)
+   (selectedAccountId: AccountId option)
    (account: AccountProfile)
    =
    Html.li [
       Html.a [
          attr.text $"{account.Name} - {account.Email}"
          attr.href ""
-         attr.value account.EntityId
+         attr.value (AccountId.get account.EntityId)
          attr.onClick (fun e ->
             e.preventDefault ()
+
             Router.navigate ("account", string account.EntityId))
 
          match selectedAccountId with
@@ -28,8 +29,8 @@ let renderAccountListItem
 
 [<ReactComponent>]
 let AccountSelectionComponent
-   (selectedAccountId: Guid option)
-   (accounts: Map<Guid, AccountProfile>)
+   (selectedAccountId: AccountId option)
+   (accounts: Map<AccountId, AccountProfile>)
    =
    let isAccountSelectionOpen, setAccountSelectionOpen = React.useState false
 

@@ -2,11 +2,13 @@ module RoutePaths
 
 open System
 
+open Lib.SharedTypes
+
 module AccountPath =
    let Base = "/accounts"
-   let account (id: Guid) = $"{Base}/{id}"
+   let account (id: AccountId) = $"{Base}/{AccountId.get id}"
    let Account = Base + "/{id}"
-   let accountAndTransactions (id: Guid) = $"{account id}/transactions"
+   let accountAndTransactions (id: AccountId) = $"{account id}/transactions"
    let AccountAndTransactions = Account + "/transactions"
    let Deposit = Base + "/deposit"
    let Debit = Base + "/debit"
@@ -33,19 +35,23 @@ module TransferPath =
 module TransactionPath =
    let Base = "/transactions"
    let AccountTransactions = Base + "/{id}"
-   let accountTransactions (id: Guid) = $"{Base}/{id}"
+   let accountTransactions (id: AccountId) = $"{Base}/{AccountId.get id}"
    let Categories = "/transaction-categories"
    let TransactionInfo = Base + "/transaction/{txnId}"
-   let transactionInfo (txnId: Guid) = $"{Base}/transaction/{txnId}"
+
+   let transactionInfo (txnId: EventId) =
+      let (EventId id) = txnId
+      $"{Base}/transaction/{id}"
+
    let Category = TransactionInfo + "/category/{categoryId}"
    let CategoryDelete = TransactionInfo + "/category"
 
-   let category (txnId: Guid) (categoryId: int) =
+   let category (txnId: EventId) (categoryId: int) =
       transactionInfo txnId + $"/category/{categoryId}"
 
-   let categoryDelete (txnId: Guid) = transactionInfo txnId + "/category"
+   let categoryDelete (txnId: EventId) = transactionInfo txnId + "/category"
    let Note = TransactionInfo + "/note"
-   let note (txnId: Guid) = transactionInfo txnId + "/note"
+   let note (txnId: EventId) = transactionInfo txnId + "/note"
 
 module UserPath =
    let Base = "/users"

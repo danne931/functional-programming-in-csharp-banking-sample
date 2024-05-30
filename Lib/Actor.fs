@@ -14,10 +14,7 @@ open Akka.Persistence.Query
 open Akka.Persistence.Extras
 open Akka.Persistence.Sql.Query
 open Akka.Cluster.Tools.PublishSubscribe
-
 open Lib.Types
-
-type EntityRefGetter<'t> = Guid -> IEntityRef<'t>
 
 module SystemLog =
    let info (sys: ActorSystem) (msg: string) =

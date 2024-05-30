@@ -9,8 +9,8 @@ open Lib.SharedTypes
 open Lib.Time
 
 let empty = {
-   EntityId = System.Guid.Empty
-   OrgId = System.Guid.Empty
+   EntityId = AccountId System.Guid.Empty
+   OrgId = OrgId System.Guid.Empty
    Email = Email.empty
    FirstName = ""
    LastName = ""
@@ -108,7 +108,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
         }
       | CreatedAccount e -> {
          empty with
-            EntityId = e.EntityId
+            EntityId = AccountId.fromEntityId e.EntityId
             OrgId = e.OrgId
             Email = e.Data.Email
             FirstName = e.Data.FirstName

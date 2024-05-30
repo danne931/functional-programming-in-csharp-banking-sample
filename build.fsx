@@ -113,7 +113,7 @@ Target.create "Publish" (fun o ->
       else
          List.toArray paths
 
-   Array.Parallel.iter publishProject sources)
+   Array.iter publishProject sources)
 
 Target.create "BuildDockerImages" (fun o ->
    let paths = o.Context.Arguments

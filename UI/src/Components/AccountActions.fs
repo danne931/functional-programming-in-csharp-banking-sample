@@ -9,9 +9,9 @@ open System
 open Bank.Account.Domain
 open Bank.Account.UIDomain
 open Bank.Account.Forms
+open Lib.SharedTypes
 
-type private PendingAction =
-   (AccountCommand * AccountService.ProcessingEventId) option
+type private PendingAction = (AccountCommand * EventId) option
 
 // If user wants to view the transfer form but hasn't already added
 // recipients, redirect them to the transfer recipients creation form
@@ -35,7 +35,7 @@ let private findEventCorrespondingToPendingAction
          let _, envelope = AccountEnvelope.unwrap evt
          envelope.Id = processingEvtId))
 
-let private navigate (accountId: Guid) (view: AccountActionView option) =
+let private navigate (accountId: AccountId) (view: AccountActionView option) =
    let queryString =
       {
          Routes.IndexUrl.accountBrowserQuery () with
@@ -55,12 +55,9 @@ type State = {
 type Msg =
    | ShowForm of AccountActionView
    | CancelForm
-   | NetworkAckCommand of AccountCommand * AccountService.ProcessingEventId
+   | NetworkAckCommand of AccountCommand * EventId
    | AccountEventReceived of Account
-   | CheckForEventConfirmation of
-      AccountService.ProcessingEventId *
-      accountId: Guid *
-      attemptNumber: int
+   | CheckForEventConfirmation of EventId * AccountId * attemptNumber: int
    | Noop
 
 let init account () =

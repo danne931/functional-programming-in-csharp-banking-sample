@@ -8,7 +8,6 @@ open Akka.Hosting
 open Akkling
 open Akka.Streams
 open Akkling.Streams
-open FsToolkit.ErrorHandling
 
 open BillingStatement
 open BillingSqlMapper

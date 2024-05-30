@@ -5,7 +5,6 @@ open System.Text.Json
 open System.Runtime.Serialization
 open Akka.Serialization
 open Akka.Actor
-open Akka.Cluster.Sharding
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain

@@ -7,6 +7,7 @@ open System
 open System.Threading.Tasks
 open Akka.Actor
 
+open Lib.SharedTypes
 open Bank.Transfer.Domain
 open Bank.Account.Api
 open Bank.Account.Domain
@@ -23,14 +24,14 @@ let startTransferRoutes (app: WebApplication) =
                |> processCommand
                      sys
                      (AccountCommand.RegisterTransferRecipient cmd)
-                     cmd.EntityId
+                     (AccountId.fromEntityId cmd.EntityId)
                |> RouteUtil.unwrapTaskResult
             | RecipientAccountEnvironment.Domestic ->
                TransferRecipientEvent.domestic cmd
                |> processCommand
                      sys
                      (AccountCommand.RegisterTransferRecipient cmd)
-                     cmd.EntityId
+                     (AccountId.fromEntityId cmd.EntityId)
                |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -41,7 +42,7 @@ let startTransferRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.Transfer cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (TransferCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )
@@ -53,7 +54,7 @@ let startTransferRoutes (app: WebApplication) =
          processCommand
             sys
             (AccountCommand.NicknameRecipient cmd)
-            cmd.EntityId
+            (AccountId.fromEntityId cmd.EntityId)
             (NicknameRecipientCommand.toEvent cmd)
          |> RouteUtil.unwrapTaskResult)
    )

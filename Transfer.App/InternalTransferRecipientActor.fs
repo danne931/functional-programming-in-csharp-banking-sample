@@ -3,6 +3,7 @@ module InternalTransferRecipientActor
 
 open System
 open Akkling
+open Akkling.Cluster.Sharding
 
 open ActorUtil
 open Bank.Account.Domain
@@ -10,7 +11,7 @@ open Bank.Transfer.Domain
 open Lib.SharedTypes
 
 let actorProps
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    : Props<InternalTransferMessage>
    =
    let handler (ctx: Actor<_>) (msg: InternalTransferMessage) = actor {
@@ -18,7 +19,7 @@ let actorProps
 
       match msg with
       | InternalTransferMessage.ConfirmRecipient(sender, recipient) ->
-         let recipientId = Guid recipient.Identification
+         let recipientId = recipient.Identification |> Guid.Parse |> AccountId
          let senderAccountRef = getAccountRef sender.AccountId
          let recipientAccountRef = getAccountRef recipientId
 
@@ -62,7 +63,7 @@ let actorProps
                recipientAccountRef <! msg
       | InternalTransferMessage.TransferRequest txn ->
          let recipient = txn.Recipient
-         let recipientId = Guid recipient.Identification
+         let recipientId = recipient.Identification |> Guid.Parse |> AccountId
 
          let senderAccountRef = getAccountRef txn.SenderAccountId
          let recipientAccountRef = getAccountRef recipientId
@@ -109,7 +110,7 @@ let actorProps
                let msg =
                   DepositTransferCommand.create
                      recipientAccount.CompositeId
-                     txn.TransactionId
+                     txn.TransferId
                      {
                         Amount = txn.Amount
                         Origin =
@@ -123,7 +124,10 @@ let actorProps
 
    props <| actorOf2 handler
 
-let getOrStart mailbox (getAccountRef: EntityRefGetter<AccountMessage>) =
+let getOrStart
+   mailbox
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   =
    ActorMetadata.internalTransfer.Name
    |> getChildActorRef<_, InternalTransferMessage> mailbox
    |> Option.defaultWith (fun _ ->

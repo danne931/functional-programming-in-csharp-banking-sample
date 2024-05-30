@@ -3,6 +3,7 @@ module Lib.TransactionQuery
 open System
 
 open Lib.Time
+open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]
 type CategoryFilter =
@@ -16,7 +17,7 @@ type AmountFilter =
    | Between of decimal * decimal
 
 type TransactionQuery = {
-   AccountId: Guid
+   AccountId: AccountId
    Diagnostic: bool
    Page: int
    MoneyFlow: Lib.SharedTypes.MoneyFlow option

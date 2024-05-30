@@ -5,6 +5,7 @@ open System
 open Akka.Hosting
 open Akka.Actor
 open Akkling
+open Akkling.Cluster.Sharding
 
 open ActorUtil
 open Lib.SharedTypes
@@ -25,7 +26,7 @@ open AccountLoadTestTypes
 type UnexpectedBalance = { Expected: decimal; Actual: decimal }
 
 type AccountTest = {
-   AccountId: Guid
+   AccountId: AccountId
    UnexpectedBalance: UnexpectedBalance option
    DepositsRemaining: int
 }
@@ -39,15 +40,15 @@ type AccountLoadTestStateMessage = {
    Progress: ProgressIndicator
    ProcessedCount: int
    RemainingCount: int
-   UnexpectedBalances: Map<Guid, UnexpectedBalance>
+   UnexpectedBalances: Map<AccountId, UnexpectedBalance>
 }
 
 type AccountLoadTestState = {
    Progress: ProgressIndicator
-   AccountTests: Map<Guid, AccountTest>
+   AccountTests: Map<AccountId, AccountTest>
    ProcessedCount: int
    RemainingCount: int
-   UnexpectedBalances: Map<Guid, UnexpectedBalance>
+   UnexpectedBalances: Map<AccountId, UnexpectedBalance>
 } with
 
    member x.asMessage() = {
@@ -61,7 +62,7 @@ module private Stub =
    let startBalance = 101m
    let depositAmount = 3m
    let balanceAfter3Deposits = startBalance + (depositAmount * 3m)
-   let orgId = Guid.NewGuid()
+   let orgId = Guid.NewGuid() |> OrgId
 
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
@@ -101,7 +102,7 @@ let private prepareTestData () = {
    AccountTests =
       [ 1 .. config.NumberOfAccountTests ]
       |> List.map (fun _ ->
-         let accountId = Guid.NewGuid()
+         let accountId = Guid.NewGuid() |> AccountId
 
          accountId,
          {
@@ -113,7 +114,7 @@ let private prepareTestData () = {
    UnexpectedBalances = Map.empty
 }
 
-let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
+let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
    let handler (mailbox: Actor<AccountLoadTestMessage>) =
       let logInfo, logError = logInfo mailbox, logError mailbox
       registerSelfForPubSub mailbox

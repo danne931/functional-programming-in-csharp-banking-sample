@@ -42,7 +42,7 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: Account option) =
 
 let initInternalTransferActor
    (tck: TestKit.Tck)
-   (getAccountRef: EntityRefGetter<AccountMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    =
    spawn tck ActorMetadata.internalTransfer.Name
    <| InternalTransferRecipientActor.actorProps getAccountRef
@@ -104,7 +104,7 @@ let tests =
          let msg = tck.ExpectMsg<ApproveTransferCommand>()
 
          Expect.equal
-            msg.EntityId
+            (AccountId.fromEntityId msg.EntityId)
             txn.SenderAccountId
             $"EntityId from Transfer Transaction should be
             EntityId of resulting ApproveTransferCommand"

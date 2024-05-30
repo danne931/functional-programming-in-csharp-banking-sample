@@ -17,14 +17,14 @@ open Contexts
 type State = {
    CurrentUrl: Routes.AccountUrl
    AccountProfiles: Deferred<AccountProfilesMaybe>
-   CurrentAccountId: Guid option
+   CurrentAccountId: AccountId option
    CurrentAccountAndTransactions: Deferred<AccountAndTransactionsMaybe>
    RealtimeTransactions: AccountEvent list
    SignalRConnection: SignalR.Connection option
-   SignalRCurrentAccountId: Guid option
+   SignalRCurrentAccountId: AccountId option
 }
 
-let accountProfiles (state: State) : Map<Guid, AccountProfile> option =
+let accountProfiles (state: State) : Map<AccountId, AccountProfile> option =
    match state.AccountProfiles with
    | Deferred.Resolved(Ok(Some accounts)) -> Some accounts
    | _ -> None
@@ -47,12 +47,12 @@ type Msg =
    | UrlChanged of Routes.AccountUrl
    | LoadAccountProfiles of AsyncOperationStatus<AccountProfilesMaybe>
    | LoadAccountAndTransactions of
-      Guid *
+      AccountId *
       AsyncOperationStatus<AccountAndTransactionsMaybe>
    | SignalRConnected of SignalR.Connection
    | SignalRDisconnected
    | AddAccountToSignalRConnectionGroup of
-      AsyncOperationStatus<Result<Guid, Err>>
+      AsyncOperationStatus<Result<AccountId, Err>>
    | AccountEventPersisted of AccountEventPersistedConfirmation
 
 let addAccountToSignalRConnectionGroup state : Async<Msg> =

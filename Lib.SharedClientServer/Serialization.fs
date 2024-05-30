@@ -16,13 +16,10 @@ let private baseConfig =
 let mergeDefaultJsonOptions (options: JsonSerializerOptions) =
    options.Converters.Add(JsonStringEnumConverter())
    options.PropertyNamingPolicy <- JsonNamingPolicy.CamelCase
+   options
 
 let jsonOptions = baseConfig.ToJsonSerializerOptions()
-mergeDefaultJsonOptions jsonOptions
-
-let withInjectedOptions opts =
-   mergeDefaultJsonOptions opts
-   baseConfig.AddToJsonSerializerOptions opts
+mergeDefaultJsonOptions jsonOptions |> ignore
 #endif
 
 let coders = Extra.empty |> Extra.withDecimal
