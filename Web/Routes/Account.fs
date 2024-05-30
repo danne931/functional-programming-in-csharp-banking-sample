@@ -14,9 +14,8 @@ open RoutePaths
 let startAccountRoutes (app: WebApplication) =
    app.MapGet(
       AccountPath.Base,
-      Func<Task<IResult>>(
-         getAccountProfiles >> RouteUtil.unwrapTaskResultOption
-      )
+      Func<Guid, Task<IResult>>(fun ([<FromQuery>] orgId: Guid) ->
+         getAccountProfiles orgId |> RouteUtil.unwrapTaskResultOption)
    )
    |> ignore
 

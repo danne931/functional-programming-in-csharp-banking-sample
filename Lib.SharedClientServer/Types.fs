@@ -13,23 +13,33 @@ module Guid =
 type Command<'C> = {
    Id: Guid
    EntityId: Guid
+   OrgId: Guid
    Timestamp: DateTime
    CorrelationId: Guid
    Data: 'C
 }
 
 module Command =
-   let create<'t> (entityId: Guid) (correlationId: Guid) (data) : Command<'t> = {
-      Id = Guid.NewGuid()
-      EntityId = entityId
-      Timestamp = DateTime.UtcNow
-      CorrelationId = correlationId
-      Data = data
-   }
+   let create<'t>
+      (entityId: Guid)
+      (orgId: Guid)
+      (correlationId: Guid)
+      (data)
+      : Command<'t>
+      =
+      {
+         Id = Guid.NewGuid()
+         EntityId = entityId
+         OrgId = orgId
+         Timestamp = DateTime.UtcNow
+         CorrelationId = correlationId
+         Data = data
+      }
 
 type BankEvent<'E> = {
    Id: Guid
    EntityId: Guid
+   OrgId: Guid
    Timestamp: DateTime
    Data: 'E
    CorrelationId: Guid
@@ -44,6 +54,7 @@ module BankEvent =
    let create<'C, 'E> (command: Command<'C>) (evtData: 'E) : BankEvent<'E> = {
       Id = command.Id
       EntityId = command.EntityId
+      OrgId = command.OrgId
       CorrelationId = command.CorrelationId
       Timestamp = command.Timestamp
       Data = evtData
@@ -52,6 +63,7 @@ module BankEvent =
 type Envelope = {
    Id: Guid
    EntityId: Guid
+   OrgId: Guid
    Timestamp: DateTime
    EventName: string
    CorrelationId: Guid
@@ -209,3 +221,6 @@ type CircuitBreakerActorState = {
    DomesticTransfer: CircuitBreakerStatus
    Email: CircuitBreakerStatus
 }
+
+[<Literal>]
+let ORG_ID_REMOVE_SOON = "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9"

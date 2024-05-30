@@ -29,7 +29,9 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount =
       let cmd =
-         LimitDailyDebitsCommand.create account.EntityId { DebitLimit = amount }
+         LimitDailyDebitsCommand.create account.CompositeId {
+            DebitLimit = amount
+         }
 
       Msg.Submit(AccountCommand.LimitDailyDebits cmd, Started)
 

@@ -94,6 +94,7 @@ type RecipientNicknamed = {
 module TransferEventToTransaction =
    let fromPending (evt: BankEvent<TransferPending>) = {
       SenderAccountId = evt.EntityId
+      SenderOrgId = evt.OrgId
       TransactionId = evt.CorrelationId
       Recipient = evt.Data.Recipient
       Amount = evt.Data.DebitedAmount
@@ -103,6 +104,7 @@ module TransferEventToTransaction =
 
    let fromProgressUpdate (evt: BankEvent<TransferProgressUpdate>) = {
       SenderAccountId = evt.EntityId
+      SenderOrgId = evt.OrgId
       TransactionId = evt.CorrelationId
       Recipient = evt.Data.Recipient
       Amount = evt.Data.DebitedAmount

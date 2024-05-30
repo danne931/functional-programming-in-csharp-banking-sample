@@ -17,6 +17,7 @@ let getBillingStatement () =
       Balance = BillingSqlReader.balance read
       Name = BillingSqlReader.name read
       AccountId = BillingSqlReader.accountId read
+      OrgId = BillingSqlReader.orgId read
       LastPersistedEventSequenceNumber =
          BillingSqlReader.lastPersistedEventSequenceNumber read
       AccountSnapshot = BillingSqlReader.accountSnapshot read

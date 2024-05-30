@@ -19,7 +19,7 @@ let deleteHistoricalRecords (accountIds: Guid list) =
    else
       pgQuery<Email>
          $"DELETE FROM {AccountSqlMapper.table} 
-           WHERE id = ANY(@accountIds) 
+           WHERE {AccountFields.entityId} = ANY(@accountIds) 
            RETURNING email"
          (Some [ "@accountIds", accountIds |> List.toArray |> Sql.uuidArray ])
          AccountSqlReader.email

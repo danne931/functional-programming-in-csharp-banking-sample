@@ -56,7 +56,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit selectedId amount =
       let cmd =
-         TransferCommand.create account.EntityId {
+         TransferCommand.create account.CompositeId {
             Date = DateTime.UtcNow
             Amount = amount
             Recipient = account.TransferRecipients |> Map.find selectedId

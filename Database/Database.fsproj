@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <Compile Include="Postgres.fs" />
+    <Compile Include="OrganizationSqlMapper.fs" />
     <Compile Include="AccountSqlMapper.fs" />
     <Compile Include="TransactionSqlMapper.fs" />
     <Compile Include="AncillaryTransactionInfoSqlMapper.fs" /> 

@@ -51,7 +51,11 @@ type TransferRecipient = {
       | None -> x.Identification
       | Some routingNum -> $"{routingNum}_{x.Identification}"
 
-type InternalTransferSender = { Name: string; AccountId: Guid }
+type InternalTransferSender = {
+   Name: string
+   AccountId: Guid
+   OrgId: Guid
+}
 
 type TransferServiceResponse = {
    AccountNumber: string
@@ -63,6 +67,7 @@ type TransferServiceResponse = {
 }
 
 type TransferTransaction = {
+   SenderOrgId: Guid
    SenderAccountId: Guid
    TransactionId: Guid
    Recipient: TransferRecipient

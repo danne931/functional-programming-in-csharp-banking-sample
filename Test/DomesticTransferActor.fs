@@ -6,7 +6,6 @@ open Akka.Actor
 open Akkling
 open Akkling.Cluster.Sharding
 open Expecto
-open FsToolkit.ErrorHandling
 
 open Util
 open ActorUtil

@@ -5,7 +5,6 @@ open System
 open Akka.Hosting
 open Akka.Actor
 open Akkling
-open FsToolkit.ErrorHandling
 
 open ActorUtil
 open Lib.SharedTypes
@@ -62,20 +61,23 @@ module private Stub =
    let startBalance = 101m
    let depositAmount = 3m
    let balanceAfter3Deposits = startBalance + (depositAmount * 3m)
+   let orgId = Guid.NewGuid()
 
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
-      <| CreateAccountCommand.create accountId {
+      <| CreateAccountCommand.create {
          Email = $"{string accountId}@gmail.com"
          Balance = startBalance
          FirstName = "Small"
          LastName = "Fish"
          Currency = Currency.EUR
+         AccountId = accountId
+         OrgId = orgId
       }
 
    let depositMessage accountId =
       AccountMessage.StateChange << AccountCommand.DepositCash
-      <| DepositCashCommand.create accountId {
+      <| DepositCashCommand.create (accountId, orgId) {
          Date = DateTime.UtcNow
          Amount = depositAmount
          Origin = Some "load-test"
@@ -83,7 +85,7 @@ module private Stub =
 
    let closeAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CloseAccount
-      <| CloseAccountCommand.create accountId {
+      <| CloseAccountCommand.create (accountId, orgId) {
          Reference = Some "load test - clean up"
       }
 
@@ -260,7 +262,6 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                         mailbox.Self <! Finish
 
                      loop newState
-
       }
 
       loop <| prepareTestData ()

@@ -1,11 +1,11 @@
 module TransactionSqlMapper
 
-open Npgsql.FSharp
 open System
 
 open Bank.Account.Domain
 open Lib.SharedTypes
 open AccountSqlMapper
+open OrganizationSqlMapper
 
 let table = "transaction"
 
@@ -15,6 +15,7 @@ module TransactionTypeCast =
 module TransactionFields =
    let transactionId = "transaction_id"
    let accountId = AccountFields.entityId
+   let orgId = OrgFields.orgId
    let correlationId = "correlation_id"
    let name = "name"
    let amount = "amount"
@@ -27,6 +28,8 @@ module TransactionSqlReader =
       read.uuid TransactionFields.transactionId
 
    let accountId = AccountSqlReader.entityId
+
+   let orgId = OrgSqlReader.orgId
 
    let correlationId (read: RowReader) =
       read.uuid TransactionFields.correlationId
@@ -48,6 +51,7 @@ module TransactionSqlReader =
 module TransactionSqlWriter =
    let transactionId = Sql.uuid
    let accountId = AccountSqlWriter.entityId
+   let orgId = OrgSqlWriter.orgId
    let correlationId = Sql.uuid
    let name = Sql.text
    let amount = Sql.moneyOrNone

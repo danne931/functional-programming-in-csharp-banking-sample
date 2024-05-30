@@ -27,6 +27,7 @@ type BillingStatement = {
    Balance: decimal
    Name: string
    AccountId: Guid
+   OrgId: Guid
    LastPersistedEventSequenceNumber: Int64
    AccountSnapshot: byte[]
 }
@@ -56,6 +57,7 @@ let billingStatement
       Balance = account.Balance
       Name = account.Name
       AccountId = account.EntityId
+      OrgId = account.OrgId
       LastPersistedEventSequenceNumber = lastPersistedEventSequenceNumber
       AccountSnapshot =
          JsonSerializer.SerializeToUtf8Bytes(

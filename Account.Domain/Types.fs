@@ -56,6 +56,7 @@ module AccountEnvelope =
    let private get (evt: BankEvent<'E>) = {
       Id = evt.Id
       EntityId = evt.EntityId
+      OrgId = evt.OrgId
       CorrelationId = evt.CorrelationId
       Timestamp = evt.Timestamp
       EventName = evt.EventName
@@ -125,6 +126,7 @@ type AccountStatus =
 
 type Account = {
    EntityId: Guid
+   OrgId: Guid
    Email: Email
    FirstName: string
    LastName: string
@@ -149,14 +151,19 @@ type Account = {
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
+   member x.CompositeId = x.EntityId, x.OrgId
+
 type AccountProfile = {
    EntityId: Guid
+   OrgId: Guid
    Email: Email
    FirstName: string
    LastName: string
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"
+
+   member x.Id = x.EntityId, x.OrgId
 
 type AccountMessage =
    | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>

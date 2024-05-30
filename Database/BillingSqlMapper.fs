@@ -2,6 +2,7 @@ module BillingSqlMapper
 
 open BillingStatement
 open AccountSqlMapper
+open OrganizationSqlMapper
 
 let table = "billingstatement"
 
@@ -12,6 +13,7 @@ module BillingFields =
    let balance = "balance"
    let name = "name"
    let accountId = AccountFields.entityId
+   let orgId = OrgFields.orgId
    let lastPersistedEventSequenceNumber = "last_persisted_event_sequence_number"
    let accountSnapshot = "account_snapshot"
 
@@ -29,6 +31,8 @@ module BillingSqlReader =
 
    let accountId = AccountSqlReader.entityId
 
+   let orgId = OrgSqlReader.orgId
+
    let lastPersistedEventSequenceNumber (read: RowReader) =
       read.int64 BillingFields.lastPersistedEventSequenceNumber
 
@@ -44,5 +48,6 @@ module BillingSqlWriter =
    let balance = Sql.money
    let name = Sql.text
    let accountId = AccountSqlWriter.entityId
+   let orgId = OrgSqlWriter.orgId
    let lastPersistedEventSequenceNumber = Sql.int64
    let accountSnapshot = Sql.bytea

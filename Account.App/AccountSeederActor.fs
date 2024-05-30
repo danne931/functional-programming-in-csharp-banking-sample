@@ -10,9 +10,10 @@ open Akka.Hosting
 open Akka.Cluster
 open Akkling
 open FSharp.Control
-open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
+open Lib.Postgres
+open OrganizationSqlMapper
 open Bank.Account.Api
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -31,6 +32,20 @@ type State = {
    AccountsToSeedWithTransactions: Map<Guid, bool>
 }
 
+// TODO: Temporarily create org here until fleshed out
+let orgId = Guid(ORG_ID_REMOVE_SOON)
+
+let createOrg () =
+   pgPersist $"""
+      INSERT into {OrganizationSqlMapper.table} ({OrgFields.orgId}, {OrgFields.name})
+      VALUES (@orgId, @name)
+      ON CONFLICT ({OrgFields.name})
+      DO NOTHING;
+      """ [
+      "orgId", OrgSqlWriter.orgId orgId
+      "name", OrgSqlWriter.name "test-org"
+   ]
+
 let mockAccounts =
    let withModifiedTimestamp (command: CreateAccountCommand) = {
       command with
@@ -38,32 +53,38 @@ let mockAccounts =
    }
 
    let account1 =
-      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")) {
+      CreateAccountCommand.create {
          FirstName = "Jelly"
          LastName = "Fish"
          Balance = 1300m
          Email = "jellyfish@gmail.com"
          Currency = Currency.USD
+         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4")
+         OrgId = orgId
       }
       |> withModifiedTimestamp
 
    let account2 =
-      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")) {
+      CreateAccountCommand.create {
          FirstName = "Star"
          LastName = "Fish"
          Balance = 1000m
          Email = "starfish@gmail.com"
          Currency = Currency.USD
+         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5")
+         OrgId = orgId
       }
       |> withModifiedTimestamp
 
    let account3 =
-      CreateAccountCommand.create (Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6")) {
+      CreateAccountCommand.create {
          FirstName = "Rainbow"
          LastName = "Trout"
          Balance = 850m
          Email = "rainbowtrout@gmail.com"
          Currency = Currency.USD
+         AccountId = Guid("ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6")
+         OrgId = orgId
       }
       |> withModifiedTimestamp
 
@@ -80,8 +101,7 @@ let seedAccountTransactions
    (command: CreateAccountCommand)
    =
    task {
-      let accountId = command.EntityId
-      let aref = getAccountRef accountId
+      let aref = getAccountRef command.EntityId
 
       let rnd = new Random()
 
@@ -98,8 +118,10 @@ let seedAccountTransactions
 
       let timestamp = command.Timestamp.AddDays(rnd.Next(1, 3))
 
+      let compositeId = command.EntityId, command.OrgId
+
       let command = {
-         DepositCashCommand.create accountId {
+         DepositCashCommand.create compositeId {
             Date = timestamp
             Amount = randomAmount ()
             Origin = None
@@ -113,7 +135,7 @@ let seedAccountTransactions
          let timestamp = timestamp.AddDays((double num) * 2.3)
 
          let command = {
-            DebitCommand.create accountId {
+            DebitCommand.create compositeId {
                Date = timestamp
                Amount = randomAmount ()
                Origin = txnOrigins[num]
@@ -125,7 +147,7 @@ let seedAccountTransactions
          aref <! (StateChange << Debit) command
 
       let command =
-         StartBillingCycleCommand.create command.EntityId { Reference = None }
+         StartBillingCycleCommand.create compositeId { Reference = None }
 
       aref <! (StateChange << StartBillingCycle) command
 
@@ -133,7 +155,7 @@ let seedAccountTransactions
 
       for num in [ 1..7 ] do
          let command =
-            DebitCommand.create accountId {
+            DebitCommand.create compositeId {
                Date = DateTime.UtcNow
                Amount = randomAmount ()
                Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
@@ -144,7 +166,7 @@ let seedAccountTransactions
 
          if num = 2 || num = 5 then
             let command =
-               DepositCashCommand.create accountId {
+               DepositCashCommand.create compositeId {
                   Date = timestamp
                   Amount = randomAmount ()
                   Origin = None
@@ -152,11 +174,13 @@ let seedAccountTransactions
 
             aref <! (StateChange << DepositCash) command
 
-      if accountId = Seq.head mockAccounts.Keys then
-         let lockCmd = LockCardCommand.create accountId { Reference = None }
+      if command.EntityId = Seq.head mockAccounts.Keys then
+         let lockCmd = LockCardCommand.create compositeId { Reference = None }
          aref <! (StateChange << LockCard) lockCmd
 
-         let unlockCmd = UnlockCardCommand.create accountId { Reference = None }
+         let unlockCmd =
+            UnlockCardCommand.create compositeId { Reference = None }
+
          aref <! (StateChange << UnlockCard) unlockCmd
 
          for num in [ 1..2 ] do
@@ -164,7 +188,7 @@ let seedAccountTransactions
             let recipientId = createAccountCmd.EntityId
 
             let registerRecipientCmd =
-               RegisterTransferRecipientCommand.create accountId {
+               RegisterTransferRecipientCommand.create compositeId {
                   Recipient = {
                      LastName = createAccountCmd.Data.LastName
                      FirstName = createAccountCmd.Data.FirstName
@@ -182,7 +206,7 @@ let seedAccountTransactions
             <! (StateChange << RegisterTransferRecipient) registerRecipientCmd
 
             let transferCmd =
-               TransferCommand.create accountId {
+               TransferCommand.create compositeId {
                   Recipient = registerRecipientCmd.Data.Recipient
                   Amount = randomAmount ()
                   Date = DateTime.UtcNow
@@ -269,22 +293,31 @@ let actorProps (getAccountRef: EntityRefGetter<AccountMessage>) =
                else
                   logInfo "Seed postgres with accounts"
 
-                  let remaining =
-                     getRemainingAccountsToCreate
-                        verified
-                        state.AccountsToCreate
+                  match! createOrg () with
+                  | Error err ->
+                     logError
+                        ctx
+                        $"Seed accounts: Error creating organization. {err}"
 
-                  for command in remaining.Values do
-                     let aref = getAccountRef command.EntityId
-                     aref <! (StateChange << CreateAccount) command
+                     scheduleInitialization ctx
+                     return! loop state
+                  | Ok _ ->
+                     let remaining =
+                        getRemainingAccountsToCreate
+                           verified
+                           state.AccountsToCreate
 
-                  scheduleVerification ctx 5.
+                     for command in remaining.Values do
+                        let aref = getAccountRef command.EntityId
+                        aref <! (StateChange << CreateAccount) command
 
-                  return!
-                     loop {
-                        state with
-                           Status = AwaitingVerification
-                     }
+                     scheduleVerification ctx 5.
+
+                     return!
+                        loop {
+                           state with
+                              Status = AwaitingVerification
+                        }
          | AccountSeederMessage.VerifyAccountsCreated ->
             let! verified = getVerifiedAccounts state.AccountsToCreate
 

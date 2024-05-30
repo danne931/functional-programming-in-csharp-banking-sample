@@ -9,7 +9,6 @@ open Akka.Streams
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
-open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
 open Lib.Types
@@ -55,18 +54,19 @@ let private billingCycle
    getBillingStatementActor mailbox.System <! RegisterBillingStatement billing
 
    let criteria = account.MaintenanceFeeCriteria
-   let accountId = account.EntityId
 
    if criteria.CanSkipFee then
       let msg =
-         SkipMaintenanceFeeCommand.create accountId { Reason = criteria }
+         SkipMaintenanceFeeCommand.create account.CompositeId {
+            Reason = criteria
+         }
          |> AccountCommand.SkipMaintenanceFee
          |> AccountMessage.StateChange
 
       mailbox.Parent() <! msg
    else
       let msg =
-         MaintenanceFeeCommand.create accountId
+         MaintenanceFeeCommand.create account.CompositeId
          |> AccountCommand.MaintenanceFee
          |> AccountMessage.StateChange
 
@@ -101,6 +101,7 @@ let actorProps
             | InternalTransferRecipient e ->
                let sender = {
                   Name = newState.Name
+                  OrgId = newState.OrgId
                   AccountId = newState.EntityId
                }
 

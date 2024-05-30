@@ -213,6 +213,7 @@ let upsertReadModels
       accounts
       |> List.map (fun account -> [
          "id", AccountSqlWriter.entityId account.EntityId
+         "orgId", AccountSqlWriter.orgId account.OrgId
          "email", AccountSqlWriter.email account.Email
          "firstName", AccountSqlWriter.firstName account.FirstName
          "lastName", AccountSqlWriter.lastName account.LastName
@@ -266,6 +267,7 @@ let upsertReadModels
          let sqlParams = [
             "transactionId", TransactionSqlWriter.transactionId envelope.Id
             "accountId", TransactionSqlWriter.accountId envelope.EntityId
+            "orgId", TransactionSqlWriter.orgId envelope.OrgId
             "correlationId",
             TransactionSqlWriter.correlationId envelope.CorrelationId
             "name", TransactionSqlWriter.name envelope.EventName
@@ -301,6 +303,7 @@ let upsertReadModels
       $"""
       INSERT into {AccountSqlMapper.table}
          ({AccountFields.entityId},
+          {AccountFields.orgId},
           {AccountFields.email},
           {AccountFields.firstName},
           {AccountFields.lastName},
@@ -325,6 +328,7 @@ let upsertReadModels
           {AccountFields.cardLocked})
       VALUES
          (@id,
+          @orgId,
           @email,
           @firstName,
           @lastName,
@@ -374,6 +378,7 @@ let upsertReadModels
       INSERT into {TransactionSqlMapper.table}
          ({TransactionFields.transactionId},
           {TransactionFields.accountId},
+          {TransactionFields.orgId},
           {TransactionFields.correlationId},
           {TransactionFields.name},
           {TransactionFields.timestamp},
@@ -383,6 +388,7 @@ let upsertReadModels
       VALUES
          (@transactionId,
           @accountId,
+          @orgId,
           @correlationId,
           @name,
           @timestamp,

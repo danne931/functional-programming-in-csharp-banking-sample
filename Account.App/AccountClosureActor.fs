@@ -68,7 +68,7 @@ let actorProps
                // TransferRecipients Map.
                for sender in account.InternalTransferSenders.Values do
                   let msg =
-                     DeactivateInternalRecipientCommand.create sender.AccountId {
+                     DeactivateInternalRecipientCommand.create sender {
                         RecipientId = account.EntityId
                         RecipientName = account.Name
                      }
@@ -104,7 +104,7 @@ let actorProps
 
                match res with
                | Error e ->
-                  logError $"Error deleting users & billing history {e}"
+                  logError $"Error deleting billing history {e}"
                   return unhandled ()
                | Ok opt ->
                   match opt with

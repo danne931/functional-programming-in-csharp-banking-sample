@@ -22,15 +22,15 @@ let actorProps
          let senderAccountRef = getAccountRef sender.AccountId
          let recipientAccountRef = getAccountRef recipientId
 
-         let! (accountOpt: Account option) =
+         let! (recipientAccountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
 
-         match accountOpt with
+         match recipientAccountOpt with
          | None ->
             logWarning $"Transfer recipient not found {recipientId}"
 
             let msg =
-               DeactivateInternalRecipientCommand.create sender.AccountId {
+               DeactivateInternalRecipientCommand.create sender {
                   RecipientName = recipient.Name
                   RecipientId = recipientId
                }
@@ -38,12 +38,12 @@ let actorProps
                |> AccountMessage.StateChange
 
             senderAccountRef <! msg
-         | Some account ->
-            if account.Status = AccountStatus.Closed then
+         | Some recipientAccount ->
+            if recipientAccount.Status = AccountStatus.Closed then
                logWarning $"Transfer recipient account closed"
 
                let msg =
-                  DeactivateInternalRecipientCommand.create sender.AccountId {
+                  DeactivateInternalRecipientCommand.create sender {
                      RecipientId = recipientId
                      RecipientName = recipient.Name
                   }
@@ -53,9 +53,9 @@ let actorProps
                senderAccountRef <! msg
             else
                let msg =
-                  RegisterInternalSenderCommand.create recipientId {
-                     Sender = sender
-                  }
+                  RegisterInternalSenderCommand.create
+                     recipientAccount.CompositeId
+                     { Sender = sender }
                   |> AccountCommand.RegisterInternalSender
                   |> AccountMessage.StateChange
 
@@ -67,10 +67,10 @@ let actorProps
          let senderAccountRef = getAccountRef txn.SenderAccountId
          let recipientAccountRef = getAccountRef recipientId
 
-         let! (accountOpt: Account option) =
+         let! (recipientAccountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
 
-         match accountOpt with
+         match recipientAccountOpt with
          | None ->
             logWarning $"Transfer recipient not found {recipientId}"
 
@@ -82,8 +82,8 @@ let actorProps
                |> AccountMessage.StateChange
 
             senderAccountRef <! msg
-         | Some account ->
-            if account.Status = AccountStatus.Closed then
+         | Some recipientAccount ->
+            if recipientAccount.Status = AccountStatus.Closed then
                logWarning $"Transfer recipient account closed"
 
                let msg =
@@ -107,10 +107,14 @@ let actorProps
                // CorrelationId (here as txn.TransactionId) from sender
                // transfer request traced to receiver's deposit.
                let msg =
-                  DepositTransferCommand.create recipientId txn.TransactionId {
-                     Amount = txn.Amount
-                     Origin = $"Account ({origin.Substring(origin.Length - 4)})"
-                  }
+                  DepositTransferCommand.create
+                     recipientAccount.CompositeId
+                     txn.TransactionId
+                     {
+                        Amount = txn.Amount
+                        Origin =
+                           $"Account ({origin.Substring(origin.Length - 4)})"
+                     }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange
 

@@ -47,7 +47,11 @@ let postJson (command: AccountCommand) =
    |> Http.send
 
 let getAccountProfiles () : Async<AccountProfilesMaybe> = async {
-   let! (code, responseText) = Http.get AccountPath.Base
+   let path =
+      AccountPath.Base
+      + Router.encodeQueryString [ "orgId", ORG_ID_REMOVE_SOON ]
+
+   let! (code, responseText) = Http.get path
 
    if code = 404 then
       return Ok None

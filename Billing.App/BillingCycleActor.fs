@@ -24,9 +24,9 @@ let getActiveAccounts () =
       else
          "'1 minutes'::interval"
 
-   pgQuery<Guid>
+   pgQuery<Guid * Guid>
       $"""
-      SELECT {AccountFields.entityId}
+      SELECT {AccountFields.entityId}, {AccountFields.orgId}
       FROM {AccountSqlMapper.table}
       WHERE
          {AccountFields.status} = '{string AccountStatus.Active}'
@@ -34,7 +34,7 @@ let getActiveAccounts () =
               OR {prevCycle} < current_timestamp - {lookback})
       """
       None
-   <| fun read -> AccountSqlReader.entityId read
+   <| fun read -> AccountSqlReader.entityId read, AccountSqlReader.orgId read
 
 let private fanOutBillingCycleMessage
    (ctx: Actor<_>)
@@ -64,9 +64,11 @@ let private fanOutBillingCycleMessage
 
                opt)
          |> Source.collect id
-         |> Source.runForEach mat (fun (accountId) ->
+         |> Source.runForEach mat (fun (accountId, orgId) ->
             let msg =
-               StartBillingCycleCommand.create accountId { Reference = None }
+               StartBillingCycleCommand.create (accountId, orgId) {
+                  Reference = None
+               }
                |> AccountCommand.StartBillingCycle
                |> AccountMessage.StateChange
 

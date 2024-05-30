@@ -398,7 +398,7 @@ let tests =
          let initAccount = tck.ExpectMsg<Option<Account>>().Value
 
          let msg =
-            StartBillingCycleCommand.create initAccount.EntityId {
+            StartBillingCycleCommand.create initAccount.CompositeId {
                Reference = None
             }
             |> AccountCommand.StartBillingCycle
@@ -472,7 +472,7 @@ let tests =
          let initAccount = tck.ExpectMsg<Option<Account>>().Value
 
          let msg =
-            StartBillingCycleCommand.create initAccount.EntityId {
+            StartBillingCycleCommand.create initAccount.CompositeId {
                Reference = None
             }
             |> AccountCommand.StartBillingCycle

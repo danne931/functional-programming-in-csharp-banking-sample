@@ -9,6 +9,8 @@ open Bank.Transfer.Domain
 open BillingStatement
 
 let entityId = Guid.NewGuid()
+let orgId = Guid.NewGuid()
+let compositeId = entityId, orgId
 let correlationId = Guid.NewGuid()
 
 let internalRecipient = {
@@ -35,17 +37,19 @@ let domesticRecipient = {
 
 let command = {|
    createAccount =
-      CreateAccountCommand.create entityId {
+      CreateAccountCommand.create {
          Email = "smallfish@gmail.com"
          Balance = 2000m
          FirstName = "small"
          LastName = "fish"
          Currency = Currency.VND
+         AccountId = entityId
+         OrgId = orgId
       }
-   closeAccount = CloseAccountCommand.create entityId { Reference = None }
+   closeAccount = CloseAccountCommand.create compositeId { Reference = None }
    debit =
       fun amount ->
-         DebitCommand.create entityId {
+         DebitCommand.create compositeId {
             Date = DateTime.UtcNow
             Amount = amount
             Origin = "Groceries"
@@ -53,7 +57,7 @@ let command = {|
          }
    debitWithDate =
       fun amount date ->
-         DebitCommand.create entityId {
+         DebitCommand.create compositeId {
             Date = date
             Amount = amount
             Origin = "Groceries"
@@ -61,26 +65,26 @@ let command = {|
          }
    depositCash =
       fun amount ->
-         DepositCashCommand.create entityId {
+         DepositCashCommand.create compositeId {
             Date = DateTime.UtcNow
             Amount = amount
             Origin = None
          }
    limitDailyDebits =
       fun amount ->
-         LimitDailyDebitsCommand.create entityId { DebitLimit = amount }
+         LimitDailyDebitsCommand.create compositeId { DebitLimit = amount }
    registerInternalRecipient =
-      RegisterTransferRecipientCommand.create entityId {
+      RegisterTransferRecipientCommand.create compositeId {
          Recipient = internalRecipient
       }
    registerDomesticRecipient =
-      RegisterTransferRecipientCommand.create entityId {
+      RegisterTransferRecipientCommand.create compositeId {
          Recipient = domesticRecipient
       }
    domesticTransfer =
       fun amount ->
          let transferCmd =
-            TransferCommand.create entityId {
+            TransferCommand.create compositeId {
                Recipient = domesticRecipient
                Date = DateTime.UtcNow
                Amount = amount
@@ -94,7 +98,7 @@ let command = {|
    internalTransfer =
       fun amount ->
          let transferCmd =
-            TransferCommand.create entityId {
+            TransferCommand.create compositeId {
                Recipient = internalRecipient
                Date = DateTime.UtcNow
                Amount = amount
@@ -106,14 +110,14 @@ let command = {|
                CorrelationId = correlationId
          }
    approveTransfer =
-      ApproveTransferCommand.create entityId correlationId {
+      ApproveTransferCommand.create compositeId correlationId {
          Recipient = internalRecipient
          Date = DateTime.UtcNow
          Amount = 33m
       }
    rejectTransfer =
       fun amount ->
-         RejectTransferCommand.create entityId correlationId {
+         RejectTransferCommand.create compositeId correlationId {
             Recipient = internalRecipient
             Date = DateTime.UtcNow
             Amount = amount
@@ -121,15 +125,15 @@ let command = {|
          }
    depositTransfer =
       fun amount ->
-         DepositTransferCommand.create entityId correlationId {
+         DepositTransferCommand.create compositeId correlationId {
             Amount = amount
             Origin = "Account (9289)"
          }
-   lockCard = LockCardCommand.create entityId { Reference = None }
-   unlockCard = UnlockCardCommand.create entityId { Reference = None }
-   maintenanceFee = MaintenanceFeeCommand.create entityId
+   lockCard = LockCardCommand.create compositeId { Reference = None }
+   unlockCard = UnlockCardCommand.create compositeId { Reference = None }
+   maintenanceFee = MaintenanceFeeCommand.create compositeId
    skipMaintenanceFee =
-      SkipMaintenanceFeeCommand.create entityId {
+      SkipMaintenanceFeeCommand.create compositeId {
          Reason = {
             DailyBalanceThreshold = true
             QualifyingDepositFound = false
@@ -222,6 +226,7 @@ let accountState = {
 let accountStateAfterCreate = {
    Account.empty with
       EntityId = command.createAccount.EntityId
+      OrgId = command.createAccount.OrgId
       Email = Email.deserialize command.createAccount.Data.Email
       FirstName = command.createAccount.Data.FirstName
       LastName = command.createAccount.Data.LastName
@@ -252,30 +257,35 @@ let accountStateOmitEvents (accountOpt: Account option) =
    |})
 
 let billingTransactions: BillingTransaction list = [
-   (event.createdAccount
-    |> AccountEvent.CreatedAccount
-    |> BillingTransaction.create)
-      .Value
-   (event.depositedCash
-    |> AccountEvent.DepositedCash
-    |> BillingTransaction.create)
-      .Value
-   (event.debitedAccount
-    |> AccountEvent.DebitedAccount
-    |> BillingTransaction.create)
-      .Value
-   (event.maintenanceFeeDebited
-    |> AccountEvent.MaintenanceFeeDebited
-    |> BillingTransaction.create)
-      .Value
-   (event.internalTransferPending
-    |> AccountEvent.TransferPending
-    |> BillingTransaction.create)
-      .Value
-   (event.transferRejected
-    |> AccountEvent.TransferRejected
-    |> BillingTransaction.create)
-      .Value
+   event.createdAccount
+   |> AccountEvent.CreatedAccount
+   |> BillingTransaction.create
+   |> _.Value
+
+   event.depositedCash
+   |> AccountEvent.DepositedCash
+   |> BillingTransaction.create
+   |> _.Value
+
+   event.debitedAccount
+   |> AccountEvent.DebitedAccount
+   |> BillingTransaction.create
+   |> _.Value
+
+   event.maintenanceFeeDebited
+   |> AccountEvent.MaintenanceFeeDebited
+   |> BillingTransaction.create
+   |> _.Value
+
+   event.internalTransferPending
+   |> AccountEvent.TransferPending
+   |> BillingTransaction.create
+   |> _.Value
+
+   event.transferRejected
+   |> AccountEvent.TransferRejected
+   |> BillingTransaction.create
+   |> _.Value
 ]
 
 let billingStatement =

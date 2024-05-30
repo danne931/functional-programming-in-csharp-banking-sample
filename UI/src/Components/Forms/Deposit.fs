@@ -30,7 +30,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount =
       let command =
-         DepositCashCommand.create account.EntityId {
+         DepositCashCommand.create account.CompositeId {
             Amount = amount
             Origin = Some "ATM"
             Date = DateTime.UtcNow

@@ -140,6 +140,7 @@ let private billingStatementSqlParams (bill: BillingStatement) = [
    "@balance", BillingSqlWriter.balance bill.Balance
    "@name", BillingSqlWriter.name bill.Name
    "@accountId", BillingSqlWriter.accountId bill.AccountId
+   "@orgId", BillingSqlWriter.orgId bill.OrgId
    "@lastPersistedEventSequenceNumber",
    BillingSqlWriter.lastPersistedEventSequenceNumber
       bill.LastPersistedEventSequenceNumber
@@ -192,6 +193,7 @@ let private saveBillingStatements (statements: BillingStatement list) =
           {BillingFields.balance},
           {BillingFields.name},
           {BillingFields.accountId},
+          {BillingFields.orgId},
           {BillingFields.lastPersistedEventSequenceNumber},
           {BillingFields.accountSnapshot})
       VALUES
@@ -201,6 +203,7 @@ let private saveBillingStatements (statements: BillingStatement list) =
           @balance,
           @name,
           @accountId,
+          @orgId,
           @lastPersistedEventSequenceNumber,
           @accountSnapshot)
       """,

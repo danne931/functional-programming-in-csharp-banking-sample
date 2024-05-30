@@ -54,23 +54,29 @@ let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
             |> Serialization.deserializeUnsafe<AccountEvent list>)
 }
 
-let getAccountProfiles () =
+let getAccountProfiles (orgId: Guid) =
    let query =
       $"""
       SELECT
          {Fields.entityId},
+         {Fields.orgId},
          {Fields.firstName},
          {Fields.lastName},
          {Fields.email}
       FROM {accountTable}
+      WHERE {Fields.orgId} = @orgId
       """
 
-   pgQuery<AccountProfile> query None (fun read -> {
-      EntityId = Reader.entityId read
-      Email = Reader.email read
-      FirstName = Reader.firstName read
-      LastName = Reader.lastName read
-   })
+   pgQuery<AccountProfile>
+      query
+      (Some [ "orgId", Writer.orgId orgId ])
+      (fun read -> {
+         EntityId = Reader.entityId read
+         OrgId = Reader.orgId read
+         Email = Reader.email read
+         FirstName = Reader.firstName read
+         LastName = Reader.lastName read
+      })
 
 let getAccountsByIds (accountIds: Guid list) =
    pgQuery<Account>

@@ -22,10 +22,10 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let onSubmit isLocked =
       let cmd =
          if isLocked then
-            LockCardCommand.create account.EntityId { Reference = None }
+            LockCardCommand.create account.CompositeId { Reference = None }
             |> AccountCommand.LockCard
          else
-            UnlockCardCommand.create account.EntityId { Reference = None }
+            UnlockCardCommand.create account.CompositeId { Reference = None }
             |> AccountCommand.UnlockCard
 
       Msg.Submit(cmd, Started)

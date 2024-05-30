@@ -121,7 +121,7 @@ let update msg state =
       Cmd.none
    | SaveRecipientNickname(account, recipient, nickname, Started) ->
       let command =
-         NicknameRecipientCommand.create account.EntityId {
+         NicknameRecipientCommand.create account.CompositeId {
             Nickname = nickname
             Recipient = recipient
          }

@@ -54,7 +54,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount origin =
       let cmd =
-         DebitCommand.create account.EntityId {
+         DebitCommand.create account.CompositeId {
             Amount = amount
             Origin = origin
             Reference = None

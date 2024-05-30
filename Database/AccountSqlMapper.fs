@@ -1,17 +1,18 @@
 module AccountSqlMapper
 
 open System
-open Npgsql.FSharp
 
 open Lib.SharedTypes
 open MaintenanceFee
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open OrganizationSqlMapper
 
 let table = "account"
 
 module AccountFields =
    let entityId = "account_id"
+   let orgId = OrgFields.orgId
    let email = "email"
    let firstName = "first_name"
    let lastName = "last_name"
@@ -42,6 +43,8 @@ module AccountFields =
 
 module AccountSqlReader =
    let entityId (read: RowReader) = read.uuid AccountFields.entityId
+
+   let orgId = OrgSqlReader.orgId
 
    let email (read: RowReader) =
       read.string AccountFields.email |> Email.deserialize
@@ -112,6 +115,7 @@ module AccountSqlReader =
 
    let account (read: RowReader) : Account = {
       EntityId = entityId read
+      OrgId = orgId read
       Email = email read
       FirstName = firstName read
       LastName = lastName read
@@ -145,6 +149,7 @@ module AccountSqlReader =
 
 module AccountSqlWriter =
    let entityId = Sql.uuid
+   let orgId = OrgSqlWriter.orgId
    let email (email: Email) = Sql.string <| string email
    let firstName = Sql.string
    let lastName = Sql.string

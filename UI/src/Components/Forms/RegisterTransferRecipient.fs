@@ -70,7 +70,7 @@ let internalRecipientForm
       }
 
       let cmd =
-         RegisterTransferRecipientCommand.create account.EntityId {
+         RegisterTransferRecipientCommand.create account.CompositeId {
             Recipient = recipient
          }
 
@@ -153,7 +153,7 @@ let domesticRecipientForm
       }
 
       let cmd =
-         RegisterTransferRecipientCommand.create account.EntityId {
+         RegisterTransferRecipientCommand.create account.CompositeId {
             Recipient = recipient
          }
 
