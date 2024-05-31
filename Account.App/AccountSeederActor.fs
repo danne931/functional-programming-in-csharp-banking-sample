@@ -34,15 +34,18 @@ type State = {
 }
 
 // TODO: Temporarily create org here until fleshed out
-let orgId = ORG_ID_REMOVE_SOON |> Guid.Parse |> OrgId
+let orgId = ORG_ID_REMOVE_SOON
 
 let createOrg () =
-   pgPersist $"""
+   let query =
+      $"""
       INSERT into {OrganizationSqlMapper.table} ({OrgFields.orgId}, {OrgFields.name})
       VALUES (@orgId, @name)
       ON CONFLICT ({OrgFields.name})
       DO NOTHING;
-      """ [
+      """
+
+   pgPersist query [
       "orgId", OrgSqlWriter.orgId orgId
       "name", OrgSqlWriter.name "test-org"
    ]

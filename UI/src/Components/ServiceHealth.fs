@@ -7,7 +7,6 @@ open Elmish
 open Lib.SharedTypes
 open AsyncUtil
 open DiagnosticsService
-open Contexts
 
 type Msg =
    | Load of AsyncOperationStatus<Result<ServiceDiagnostics, Err>>
@@ -61,7 +60,7 @@ let update msg (state: State) =
 let ServiceHealthComponent () =
    let state, dispatch = React.useElmish (init, update, [||])
 
-   let signalRContext = React.useContext signalRContext
+   let signalRContext = React.useContext SignalRConnectionProvider.context
    let signalRConnection = signalRContext.Connection
 
    React.useEffect (

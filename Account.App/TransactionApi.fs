@@ -7,8 +7,10 @@ open Lib.SharedTypes
 open Lib.TransactionQuery
 open Lib.Postgres
 open Bank.Account.Domain
+open CategorySqlMapper
 open AncillaryTransactionInfoSqlMapper
 open TransactionSqlMapper
+open TransactionMerchantSqlMapper
 
 module Fields = TransactionFields
 module Writer = TransactionSqlWriter
@@ -181,7 +183,7 @@ let deleteTransactionCategory (transactionId: EventId) =
 
    pgPersist query [ "txnId", Writer.transactionId transactionId ]
 
-let upsertTransactionNote (transactionId: EventId) (note: string) = taskResult {
+let upsertTransactionNote (transactionId: EventId) (note: string) =
    let query =
       $"""
       INSERT INTO {table}
@@ -192,15 +194,11 @@ let upsertTransactionNote (transactionId: EventId) (note: string) = taskResult {
       DO UPDATE SET {Fields.note} = @note
       """
 
-   let! res =
-      pgPersist query [
-         "transactionId", Writer.transactionId transactionId
-         "note", Writer.note note
-         "categoryId", Writer.categoryId None
-      ]
-
-   return res
-}
+   pgPersist query [
+      "transactionId", Writer.transactionId transactionId
+      "note", Writer.note note
+      "categoryId", Writer.categoryId None
+   ]
 
 let getCategories () =
    pgQuery<TransactionCategory>
@@ -219,10 +217,10 @@ let getTransactionInfo (txnId: EventId) =
          {TransactionSqlMapper.table}.{Fields.event},
          {table}.{Fields.categoryId},
          {table}.{Fields.note},
-         category.name as category_name
+         {CategorySqlMapper.table}.{CategoryFields.name} as category_name
       FROM {TransactionSqlMapper.table}
          LEFT JOIN {table} using({Fields.transactionId})
-         LEFT JOIN category using({Fields.categoryId})
+         LEFT JOIN {CategorySqlMapper.table} using({Fields.categoryId})
       WHERE {Fields.transactionId} = @transactionId
       """
 
@@ -242,3 +240,37 @@ let getTransactionInfo (txnId: EventId) =
       query
       (Some [ "transactionId", Writer.transactionId txnId ])
       rowReader
+
+module Fields = MerchantFields
+module Writer = MerchantSqlWriter
+module Reader = MerchantSqlReader
+
+let getMerchants (orgId: OrgId) =
+   let query =
+      $"""
+      SELECT {Fields.orgId}, {Fields.name}, {Fields.alias}
+      FROM {TransactionMerchantSqlMapper.table}
+      WHERE {Fields.orgId} = @orgId
+      """
+
+   pgQuery<Merchant>
+      query
+      (Some [ "@orgId", Writer.orgId orgId ])
+      Reader.merchant
+
+let upsertMerchant (merchant: Merchant) =
+   let query =
+      $"""
+      INSERT INTO {TransactionMerchantSqlMapper.table}
+         ({Fields.orgId}, {Fields.name}, {Fields.alias})
+      VALUES
+         (@orgId, @name, @alias)
+      ON CONFLICT ({Fields.orgId}, {Fields.name})
+      DO UPDATE SET {Fields.alias} = @alias
+      """
+
+   pgPersist query [
+      "orgId", Writer.orgId merchant.OrgId
+      "name", Writer.name <| merchant.Name.ToLower()
+      "alias", Writer.alias merchant.Alias
+   ]

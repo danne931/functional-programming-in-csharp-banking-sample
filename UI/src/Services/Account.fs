@@ -10,7 +10,6 @@ open Bank.Account.Domain
 open Lib.SharedTypes
 open Lib.TransactionQuery
 open RoutePaths
-open Thoth.Json
 
 let private notImplemented (cmd: AccountCommand) =
    let msg = $"Account Service: Not implemented command: {cmd}"
@@ -38,16 +37,11 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, TransferPath.NicknameRecipient
       | other -> notImplemented other
 
-   Http.request (url)
-   |> Http.method HttpMethod.POST
-   |> Http.content (BodyContent.Text serialized)
-   |> Http.header (Headers.contentType "application/json")
-   |> Http.send
+   Http.postJson url serialized
 
-let getAccountProfiles () : Async<AccountProfilesMaybe> = async {
+let getAccountProfiles (orgId: OrgId) : Async<AccountProfilesMaybe> = async {
    let path =
-      AccountPath.Base
-      + Router.encodeQueryString [ "orgId", ORG_ID_REMOVE_SOON ]
+      AccountPath.Base + Router.encodeQueryString [ "orgId", string orgId ]
 
    let! (code, responseText) = Http.get path
 

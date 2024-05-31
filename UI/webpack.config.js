@@ -23,7 +23,6 @@ module.exports = (env, argv) => {
         '/transfers': proxyUrl,
         '/diagnostic': proxyUrl,
         '/transactions': proxyUrl,
-        '/transaction-categories': proxyUrl,
         '/accountHub': {
           target: 'ws://localhost:3000',
           ws: true

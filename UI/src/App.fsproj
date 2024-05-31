@@ -12,13 +12,13 @@
     <Compile Include="Lib/FelizExtensions.fs" />
     <Compile Include="Lib/Util.fs" />
     <Compile Include="Lib/AccountDomain.fs" />
-    <Compile Include="Context/Contexts.fs" />
     <Compile Include="Lib/Form.fs" />
-    <Compile Include="Context/SignalRConnectionProvider.fs" />
     <Compile Include="Services/Diagnostics.fs" />
     <Compile Include="Services/Transaction.fs" />
     <Compile Include="Services/Account.fs" />
+    <Compile Include="Context/SignalRConnectionProvider.fs" />
     <Compile Include="Context/TransactionCategoryProvider.fs" />
+    <Compile Include="Context/MerchantProvider.fs" />
     <Compile Include="Routes.fs" />
     <Compile Include="Components/Forms/FormContainer.fs" />
     <Compile Include="Components/Forms/CardAccess.fs" />

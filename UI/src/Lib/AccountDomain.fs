@@ -32,6 +32,28 @@ let dateUIFriendly (date: DateTime) =
    let dayAndMonth = date.ToLongDateString().Split(string date.Year)[0]
    $"{dayAndMonth} {date.ToShortTimeString()}"
 
+let debitWithMerchantAlias
+   (evt: BankEvent<DebitedAccount>)
+   (merchants: Map<string, Merchant>)
+   =
+   {
+      evt with
+         Data.Origin =
+            merchants
+            |> Map.tryFind (evt.Data.Origin.ToLower())
+            |> Option.bind _.Alias
+            |> Option.defaultValue evt.Data.Origin
+   }
+
+let eventWithMerchantAlias
+   (evt: AccountEvent)
+   (merchants: Map<string, Merchant>)
+   =
+   match evt with
+   | AccountEvent.DebitedAccount e ->
+      AccountEvent.DebitedAccount(debitWithMerchantAlias e merchants)
+   | _ -> evt
+
 let transactionUIFriendly
    (account: Account)
    (txn: AccountEvent)

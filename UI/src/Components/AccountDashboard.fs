@@ -4,7 +4,6 @@ open Feliz
 open Feliz.UseElmish
 open Elmish
 open Feliz.Router
-open System
 
 open AsyncUtil
 open Bank.Account.Domain
@@ -12,7 +11,6 @@ open Bank.Account.UIDomain
 open Lib.SharedTypes
 open AccountActions
 open TransactionDetail
-open Contexts
 
 type State = {
    CurrentUrl: Routes.AccountUrl
@@ -105,7 +103,8 @@ let update msg state =
    | SignalRDisconnected -> { state with SignalRConnection = None }, Cmd.none
    | LoadAccountProfiles Started ->
       let loadAccountProfiles = async {
-         let! res = AccountService.getAccountProfiles ()
+         // TODO: Get OrgId from user session.
+         let! res = AccountService.getAccountProfiles ORG_ID_REMOVE_SOON
          return LoadAccountProfiles(Finished res)
       }
 
@@ -250,7 +249,7 @@ let renderAccountActions state dispatch =
 
 [<ReactComponent>]
 let AccountDashboardComponent (url: Routes.AccountUrl) =
-   let signalRContext = React.useContext signalRContext
+   let signalRContext = React.useContext SignalRConnectionProvider.context
    let signalRConnection = signalRContext.Connection
 
    let state, dispatch =

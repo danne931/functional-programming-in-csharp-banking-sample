@@ -3,7 +3,7 @@ begin;
 DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
 DROP TABLE IF EXISTS billingstatement;
-DROP TABLE IF EXISTS merchantalias;
+DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS account;
 DROP TABLE IF EXISTS organization;
 DROP TABLE IF EXISTS category;
@@ -65,8 +65,17 @@ CREATE TABLE billingstatement (
 
 CREATE TABLE category (
    category_id SMALLSERIAL PRIMARY KEY,
-   name VARCHAR(100) NOT NULL,
+   name VARCHAR(100) UNIQUE NOT NULL,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE merchant (
+   org_id UUID NOT NULL REFERENCES organization,
+   name VARCHAR(100) NOT NULL,
+   alias VARCHAR(100),
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+   PRIMARY KEY (org_id, name)
 );
 
 INSERT INTO category (name)

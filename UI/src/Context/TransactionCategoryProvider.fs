@@ -2,25 +2,25 @@ module TransactionCategoryProvider
 
 open Feliz
 
+open Bank.Account.Domain
+
+let context =
+   React.createContext<Map<int, TransactionCategory>> (
+      name = "TransactionCategoryContext",
+      defaultValue = Map.empty
+   )
+
 [<ReactComponent>]
 let TransactionCategoryProvider (child: Fable.React.ReactElement) =
    let categories, setCategories = React.useState Map.empty
 
    React.useEffectOnce (fun () ->
-      if categories.IsEmpty then
-         async {
-            match! TransactionService.getCategories () with
-            | Ok categories ->
-               [ for cat in categories -> cat.Id, cat ]
-               |> Map.ofList
-               |> setCategories
-            | Error err ->
-               Log.error $"Error fetching transaction categories: {err}"
-         }
-         |> Async.StartImmediate)
+      async {
+         match! TransactionService.getCategories () with
+         | Ok cats -> setCategories cats
+         | Error err ->
+            Log.error $"Error fetching transaction categories: {err}"
+      }
+      |> Async.StartImmediate)
 
-   React.contextProvider (
-      Contexts.transactionCategoryContext,
-      categories,
-      child
-   )
+   React.contextProvider (context, categories, child)

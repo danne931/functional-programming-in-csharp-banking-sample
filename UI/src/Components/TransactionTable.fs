@@ -383,11 +383,14 @@ let renderTableRow
    (account: Account)
    (evt: AccountEvent)
    (selectedTxnId: EventId option)
+   (merchants: Map<string, Merchant>)
    dispatch
    =
-   let _, envelope = AccountEnvelope.unwrap evt
-   let txn = transactionUIFriendly account evt
+   let txn =
+      eventWithMerchantAlias evt merchants |> transactionUIFriendly account
+
    let orDefaultValue opt = opt |> Option.defaultValue "-"
+   let _, envelope = AccountEnvelope.unwrap evt
 
    Html.tr [
       attr.key (string envelope.Id)
@@ -429,6 +432,7 @@ let renderTable
    (account: Account)
    (txns: AccountEvent list)
    (selectedTxnId: EventId option)
+   (merchants: Map<string, Merchant>)
    dispatch
    =
    Html.table [
@@ -452,7 +456,8 @@ let renderTable
          ]
 
          Html.tbody [
-            for txn in txns -> renderTableRow account txn selectedTxnId dispatch
+            for txn in txns ->
+               renderTableRow account txn selectedTxnId merchants dispatch
          ]
       ]
    ]
@@ -464,7 +469,8 @@ let TransactionTableComponent
    (realtimeTxns: AccountEvent list)
    =
    let txnsDeferred = (Deferred.map << Result.map << Option.map) snd deferred
-   let categories = React.useContext Contexts.transactionCategoryContext
+   let categories = React.useContext TransactionCategoryProvider.context
+   let merchants = React.useContext MerchantProvider.stateContext
    let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
 
    let txnQuery =
@@ -542,7 +548,7 @@ let TransactionTableComponent
                else
                   txns
 
-            renderTable account txns browserQuery.Transaction dispatch
+            renderTable account txns browserQuery.Transaction merchants dispatch
          | _ -> ()
       ]
    ]

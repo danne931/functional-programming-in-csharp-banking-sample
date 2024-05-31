@@ -2,7 +2,6 @@
 module TransactionService
 
 open Fable.SimpleHttp
-open FsToolkit.ErrorHandling
 open Feliz.Router
 
 open Bank.Account.Domain
@@ -65,13 +64,45 @@ let getTransactions (query: TransactionQuery) : Async<TransactionsMaybe> = async
          |> Result.map Some
 }
 
-let getCategories () : Async<Result<TransactionCategory list, Err>> = async {
+let getCategories () : Async<Result<Map<int, TransactionCategory>, Err>> = async {
    let! (code, responseText) = Http.get TransactionPath.Categories
 
    if code <> 200 then
       return Error <| Err.InvalidStatusCodeError(serviceName, code)
    else
-      return responseText |> Serialization.deserialize<TransactionCategory list>
+      return
+         responseText
+         |> Serialization.deserialize<TransactionCategory list>
+         |> Result.map (List.map (fun o -> o.Id, o) >> Map.ofList)
+}
+
+
+let getMerchants (orgId: OrgId) : Async<Result<Map<string, Merchant>, Err>> = async {
+   let! (code, responseText) = Http.get <| TransactionPath.merchants orgId
+
+   if code = 404 then
+      return Ok Map.empty
+   elif code <> 200 then
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
+   else
+      return
+         responseText
+         |> Serialization.deserialize<Merchant list>
+         |> Result.map (List.map (fun o -> o.Name, o) >> Map.ofList)
+}
+
+let updateMerchant (merchant: Merchant) : Async<Result<int, Err>> = async {
+   let! res =
+      Http.postJson
+         (TransactionPath.merchants merchant.OrgId)
+         (Serialization.serialize merchant)
+
+   let code = res.statusCode
+
+   if code <> 200 then
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
+   else
+      return Serialization.deserialize<int> res.responseText
 }
 
 let getTransactionInfo
@@ -95,32 +126,32 @@ let updateCategory
    (categoryId: int)
    : Async<Result<int, Err>>
    =
-   asyncResult {
+   async {
       let! code, responseText =
          Http.post
             (TransactionPath.category txnId categoryId)
             (string categoryId)
 
       if code <> 200 then
-         return! Error <| Err.InvalidStatusCodeError(serviceName, code)
+         return Error <| Err.InvalidStatusCodeError(serviceName, code)
       else
-         return! Serialization.deserialize<int> responseText
+         return Serialization.deserialize<int> responseText
    }
 
-let deleteCategory (txnId: EventId) : Async<Result<int, Err>> = asyncResult {
+let deleteCategory (txnId: EventId) : Async<Result<int, Err>> = async {
    let! code, responseText = Http.delete (TransactionPath.categoryDelete txnId)
 
    if code <> 200 then
-      return! Error <| Err.InvalidStatusCodeError(serviceName, code)
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
    else
-      return! Serialization.deserialize<int> responseText
+      return Serialization.deserialize<int> responseText
 }
 
-let updateNote (txnId: EventId) (note: string) : Async<Result<int, Err>> = asyncResult {
+let updateNote (txnId: EventId) (note: string) : Async<Result<int, Err>> = async {
    let! code, responseText = Http.post (TransactionPath.note txnId) note
 
    if code <> 200 then
-      return! Error <| Err.InvalidStatusCodeError(serviceName, code)
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
    else
-      return! Serialization.deserialize<int> responseText
+      return Serialization.deserialize<int> responseText
 }

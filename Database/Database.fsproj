@@ -7,6 +7,8 @@
     <Compile Include="Postgres.fs" />
     <Compile Include="OrganizationSqlMapper.fs" />
     <Compile Include="AccountSqlMapper.fs" />
+    <Compile Include="CategorySqlMapper.fs" />
+    <Compile Include="TransactionMerchantSqlMapper.fs" />
     <Compile Include="TransactionSqlMapper.fs" />
     <Compile Include="AncillaryTransactionInfoSqlMapper.fs" /> 
     <Compile Include="BillingSqlMapper.fs" />

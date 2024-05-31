@@ -8,6 +8,8 @@ open Feliz.Router
 open Browser.Dom
 open SignalRConnectionProvider
 open TransactionCategoryProvider
+open MerchantProvider
+open Lib.SharedTypes
 
 [<ReactComponent>]
 let App () =
@@ -21,6 +23,8 @@ let App () =
          AccountDashboard.AccountDashboardComponent url
          |> SignalRConnectionProvider
          |> TransactionCategoryProvider
+         // TODO: Get OrgId from user session.
+         |> MerchantProvider ORG_ID_REMOVE_SOON
       | Routes.IndexUrl.NotFound -> Html.h1 "Not Found"
 
    React.strictMode (

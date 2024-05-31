@@ -5,8 +5,18 @@ open Feliz.UseElmish
 open Elmish
 
 open AsyncUtil
-open Contexts
 open Bank.Account.Domain
+
+type SignalRContext = {
+   Connection: SignalR.Connection option
+   Errors: AccountEventRejected list
+}
+
+let context =
+   React.createContext<SignalRContext> (
+      name = "SignalRContext",
+      defaultValue = { Connection = None; Errors = [] }
+   )
 
 type State = {
    SignalRConnection: SignalR.Connection option
@@ -87,7 +97,7 @@ let SignalRConnectionProvider (child: Fable.React.ReactElement) =
    )
 
    React.contextProvider (
-      signalRContext,
+      context,
       {
          Connection = state.SignalRConnection
          Errors = state.SignalRErrors

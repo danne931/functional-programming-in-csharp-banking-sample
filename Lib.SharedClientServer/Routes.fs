@@ -6,7 +6,7 @@ open Lib.SharedTypes
 
 module AccountPath =
    let Base = "/accounts"
-   let account (id: AccountId) = $"{Base}/{AccountId.get id}"
+   let account (id: AccountId) = $"{Base}/{id}"
    let Account = Base + "/{id}"
    let accountAndTransactions (id: AccountId) = $"{account id}/transactions"
    let AccountAndTransactions = Account + "/transactions"
@@ -35,8 +35,11 @@ module TransferPath =
 module TransactionPath =
    let Base = "/transactions"
    let AccountTransactions = Base + "/{id}"
-   let accountTransactions (id: AccountId) = $"{Base}/{AccountId.get id}"
-   let Categories = "/transaction-categories"
+   let accountTransactions (id: AccountId) = $"{Base}/{id}"
+   let Categories = Base + "/categories"
+   let Merchants = Base + "/merchants/{orgId}"
+   let merchants (orgId: OrgId) = $"{Base}/merchants/{orgId}"
+
    let TransactionInfo = Base + "/transaction/{txnId}"
 
    let transactionInfo (txnId: EventId) =

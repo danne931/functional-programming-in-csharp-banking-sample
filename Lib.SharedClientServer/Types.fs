@@ -273,5 +273,5 @@ type CircuitBreakerActorState = {
    Email: CircuitBreakerStatus
 }
 
-[<Literal>]
-let ORG_ID_REMOVE_SOON = "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9"
+let ORG_ID_REMOVE_SOON =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9" |> Guid.Parse |> OrgId

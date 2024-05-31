@@ -1,12 +1,13 @@
 module AncillaryTransactionInfoSqlMapper
 
 open TransactionSqlMapper
+open CategorySqlMapper
 
 let table = "ancillarytransactioninfo"
 
 module AncillaryTransactionFields =
    let transactionId = TransactionFields.transactionId
-   let categoryId = "category_id"
+   let categoryId = CategoryFields.catId
    let note = "note"
 
 module AncillaryTransactionSqlReader =

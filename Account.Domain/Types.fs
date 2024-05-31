@@ -243,3 +243,9 @@ type TransactionWithAncillaryInfo = {
    Category: TransactionCategory option
    Note: string option
 }
+
+type Merchant = {
+   OrgId: OrgId
+   Name: string
+   Alias: string option
+}

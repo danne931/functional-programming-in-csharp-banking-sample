@@ -6,6 +6,7 @@ open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Builder
 
+open Bank.Account.Domain
 open Bank.Transaction.Api
 open RoutePaths
 open Lib.TransactionQuery
@@ -121,5 +122,19 @@ let startTransactionRoutes (app: WebApplication) =
          with e ->
             return Results.Problem e.Message
       })
+   )
+   |> ignore
+
+   app.MapGet(
+      TransactionPath.Merchants,
+      Func<Guid, Task<IResult>>(fun orgId ->
+         getMerchants (OrgId orgId) |> RouteUtil.unwrapTaskResultOption)
+   )
+   |> ignore
+
+   app.MapPost(
+      TransactionPath.Merchants,
+      Func<Merchant, Task<IResult>>(fun merchant ->
+         upsertMerchant merchant |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

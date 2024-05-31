@@ -2,8 +2,17 @@
 module Util
 
 open Feliz
+open Fable.SimpleHttp
 open Fable.Core.JS
 open System
+
+module Http =
+   let postJson (url: string) (json: string) =
+      Http.request url
+      |> Http.method HttpMethod.POST
+      |> Http.content (BodyContent.Text json)
+      |> Http.header (Headers.contentType "application/json")
+      |> Http.send
 
 module DateTime =
    let toISOString (date: DateTime) : string =

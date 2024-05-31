@@ -144,7 +144,7 @@ footer p {
 .control-panel-and-transaction-table-container {
   position: relative;
   height: 100%;
-  min-height: 25rem;
+  min-height: 30rem;
 }
 .transaction-table-control-panel {
   padding: 1rem;

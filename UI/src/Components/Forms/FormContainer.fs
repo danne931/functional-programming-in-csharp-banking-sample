@@ -71,7 +71,7 @@ let FormContainer
    let state, dispatch =
       React.useElmish (init values, update account onSubmit, [||])
 
-   let signalRContext = React.useContext Contexts.signalRContext
+   let signalRContext = React.useContext SignalRConnectionProvider.context
    let errors = signalRContext.Errors
 
    React.useEffect (
