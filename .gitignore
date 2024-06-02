@@ -2,7 +2,11 @@
 **/*obj
 UI/dist
 UI/node_modules
-Web/wwwroot
+
+# Ensure an empty wwwroot directory exists in git but not the contents.
+Web/wwwroot/*
+!Web/wwwroot/.gitkeep
+
 Web/logs.json
 Web/snapshots/*
 Account.Service/ddata-*
