@@ -1,7 +1,7 @@
 module App
 
 open Fable.Core.JsInterop
-importSideEffects "./Styles/site.css"
+importSideEffects "./Styles/site.sass"
 
 open Feliz
 open Feliz.Router

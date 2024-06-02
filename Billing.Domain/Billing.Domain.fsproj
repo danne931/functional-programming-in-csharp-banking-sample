@@ -8,10 +8,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
   </ItemGroup>
