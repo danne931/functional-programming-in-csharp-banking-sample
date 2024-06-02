@@ -103,8 +103,6 @@ let actorProps
 
                senderAccountRef <! msg
 
-               let origin = string txn.SenderAccountId
-
                // CorrelationId (here as txn.TransactionId) from sender
                // transfer request traced to receiver's deposit.
                let msg =
@@ -113,8 +111,7 @@ let actorProps
                      txn.TransferId
                      {
                         Amount = txn.Amount
-                        Origin =
-                           $"Account ({origin.Substring(origin.Length - 4)})"
+                        Origin = txn.SenderAccountId
                      }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange

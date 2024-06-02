@@ -75,8 +75,9 @@ let transactionUIFriendly
       Destination = ""
    }
 
-   let accountName =
-      account.Name + " **" + (string account.EntityId).Substring(-4)
+   let accountIdLast4 (id: AccountId) = id |> string |> _.Substring(-4)
+
+   let accountName = account.Name + " **" + accountIdLast4 account.EntityId
 
    let recipientName (recipient: TransferRecipient) : string =
       account.TransferRecipients
@@ -152,6 +153,7 @@ let transactionUIFriendly
          props with
             Name = "Transfer Request"
             Info = Some $"Recipient: {recipientName evt.Data.Recipient}"
+            Origin = Some account.Name
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.Out
             Source = accountName
@@ -163,6 +165,7 @@ let transactionUIFriendly
       | TransferProgress evt -> {
          props with
             Name = "Transfer Progress Update"
+            Origin = Some account.Name
             Info =
                Some
                   $"Status {evt.Data.Status} Recipient: {recipientName evt.Data.Recipient}"
@@ -171,27 +174,36 @@ let transactionUIFriendly
       | TransferApproved evt -> {
          props with
             Name = "Transfer Approved"
+            Origin = Some account.Name
             Info = Some $"Recipient: {recipientName evt.Data.Recipient}"
             AmountNaked = Some evt.Data.DebitedAmount
         }
       | TransferRejected evt -> {
          props with
             Name = "Transfer Rejected"
+            Origin = Some account.Name
             Info =
                Some
                   $"Recipient: {recipientName evt.Data.Recipient} - Reason {evt.Data.Reason} - Acount refunded"
             AmountNaked = Some evt.Data.DebitedAmount
             MoneyFlow = MoneyFlow.In
         }
-      | TransferDeposited evt -> {
-         props with
-            Name = "Transfer Received"
-            AmountNaked = Some evt.Data.DepositedAmount
-            Origin = Some evt.Data.Origin
-            MoneyFlow = MoneyFlow.In
-            Source = evt.Data.Origin
-            Destination = string evt.EntityId
-        }
+      | TransferDeposited evt ->
+         let sender =
+            account.InternalTransferSenders
+            |> Map.tryFind evt.Data.Origin
+            |> Option.map _.Name
+            |> Option.defaultValue (accountIdLast4 evt.Data.Origin)
+
+         {
+            props with
+               Name = "Transfer Received"
+               AmountNaked = Some evt.Data.DepositedAmount
+               Origin = Some sender
+               MoneyFlow = MoneyFlow.In
+               Source = sender
+               Destination = accountName
+         }
       | LockedCard _ -> { props with Name = "Card Locked" }
       | UnlockedCard _ -> { props with Name = "Card Unlocked" }
       | BillingCycleStarted _ -> {

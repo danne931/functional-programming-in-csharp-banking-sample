@@ -82,7 +82,7 @@ type InternalSenderRegistered = {
 
 type TransferDeposited = {
    DepositedAmount: decimal
-   Origin: string
+   Origin: AccountId
 }
 
 // TODO: change RecipientLookuKey to VirtualId & add a VirtualId to TransferRecipient type

@@ -145,7 +145,7 @@ module RejectTransferCommand =
       }
       |> Ok
 
-type DepositTransferInput = { Amount: decimal; Origin: string }
+type DepositTransferInput = { Amount: decimal; Origin: AccountId }
 type DepositTransferCommand = Command<DepositTransferInput>
 
 module DepositTransferCommand =

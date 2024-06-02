@@ -119,6 +119,12 @@ aside button.close {
   margin-top: 1.5rem;
   margin-bottom: 0;
 }
+.transaction-destination-nickname small {
+  margin-bottom: 0;
+}
+.transaction-nickname-controls {
+  text-align: right;
+}
 
 footer {
   text-align: center;

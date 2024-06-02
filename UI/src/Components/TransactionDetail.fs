@@ -207,9 +207,6 @@ let private nicknameSaveButton dispatch msg =
          dispatch msg)
    ]
 
-let private small (text: string) =
-   Html.small [ attr.style [ style.marginBottom 0 ]; attr.text text ]
-
 [<ReactComponent>]
 let RecipientNicknameEditComponent
    (account: Account)
@@ -230,7 +227,7 @@ let RecipientNicknameEditComponent
       | None -> ()
       | Some input -> input.focus ())
 
-   Html.div [
+   classyNode Html.div [ "transaction-destination-nickname" ] [
       Html.input [
          attr.ref nicknameInputRef
          attr.ariaLabel "Transfer Recipient Nickname"
@@ -245,31 +242,30 @@ let RecipientNicknameEditComponent
       ]
 
       if pendingNickname = (Some recipient.Name) then
-         small $"No change from original name {recipient.Name}."
+         Html.small $"No change from original name {recipient.Name}."
       elif pendingNickname <> recipientNickname then
          match pendingNickname with
-         | None -> small $"Transactions will display as {recipient.Name}."
+         | None ->
+            Html.small
+               $"Transactions will display as {recipient.Name} for past and future transactions."
          | Some name ->
-            small $"Transactions for {recipient.Name} will display as {name}."
+            Html.small
+               $"Transactions for {recipient.Name} will display as {name} for past and future transactions."
 
-      Html.div [
-         attr.style [ style.textAlign.right ]
+      classyNode Html.div [ "transaction-nickname-controls" ] [
+         if pendingNickname = (Some recipient.Name) then
+            nicknameCancelButton dispatch
+         elif pendingNickname <> recipientNickname then
+            nicknameCancelButton dispatch
 
-         attr.children [
-            if pendingNickname = (Some recipient.Name) then
-               nicknameCancelButton dispatch
-            elif pendingNickname <> recipientNickname then
-               nicknameCancelButton dispatch
-
-               nicknameSaveButton
-               <| dispatch
-               <| Msg.SaveRecipientNickname(
-                  account,
-                  recipient,
-                  pendingNickname,
-                  Started
-               )
-         ]
+            nicknameSaveButton
+            <| dispatch
+            <| Msg.SaveRecipientNickname(
+               account,
+               recipient,
+               pendingNickname,
+               Started
+            )
       ]
    ]
 
@@ -293,7 +289,7 @@ let MerchantNicknameEditComponent
       | None -> ()
       | Some input -> input.focus ())
 
-   Html.div [
+   classyNode Html.div [ "transaction-destination-nickname" ] [
       Html.input [
          attr.ref nicknameInputRef
          attr.ariaLabel "Merchant Recipient Nickname"
@@ -308,35 +304,32 @@ let MerchantNicknameEditComponent
       ]
 
       if pendingNickname = (Some debitOrigin) then
-         small $"No change from original name {debitOrigin}."
+         Html.small $"No change from original name {debitOrigin}."
       elif pendingNickname <> merchantAlias then
          match pendingNickname with
          | None ->
-            small
-               $"Transactions will display with the original name {debitOrigin}."
+            Html.small
+               $"Transactions will display with the original name {debitOrigin} for past and future transactions."
          | Some name ->
-            small $"Transactions for {debitOrigin} will display as {name}."
+            Html.small
+               $"Transactions for {debitOrigin} will display as {name} for past and future transactions."
 
-      Html.div [
-         attr.style [ style.textAlign.right ]
+      classyNode Html.div [ "transaction-nickname-controls" ] [
+         if pendingNickname = (Some debitOrigin) then
+            nicknameCancelButton dispatch
+         elif pendingNickname <> merchantAlias then
+            nicknameCancelButton dispatch
 
-         attr.children [
-            if pendingNickname = (Some debitOrigin) then
-               nicknameCancelButton dispatch
-            elif pendingNickname <> merchantAlias then
-               nicknameCancelButton dispatch
-
-               nicknameSaveButton
-               <| dispatch
-               <| Msg.SaveMerchantNickname(
-                  {
-                     OrgId = debit.OrgId
-                     Name = debitOrigin.ToLower()
-                     Alias = pendingNickname
-                  },
-                  Started
-               )
-         ]
+            nicknameSaveButton
+            <| dispatch
+            <| Msg.SaveMerchantNickname(
+               {
+                  OrgId = debit.OrgId
+                  Name = debitOrigin.ToLower()
+                  Alias = pendingNickname
+               },
+               Started
+            )
       ]
    ]
 
