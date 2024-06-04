@@ -100,7 +100,7 @@ let tests =
 
          let res =
             update initAccount
-            <| AccountCommand.RegisterTransferRecipient(
+            <| AccountCommand.RegisterInternalTransferRecipient(
                Stub.command.registerInternalRecipient
             )
 
@@ -110,7 +110,7 @@ let tests =
 
          let res =
             update account
-            <| AccountCommand.Transfer(
+            <| AccountCommand.InternalTransfer(
                Stub.command.internalTransfer transferAmount
             )
 
@@ -122,7 +122,10 @@ let tests =
             (initAccount.Balance - transferAmount)
             "A pending transfer decrements balance"
 
-         let cmd = AccountCommand.ApproveTransfer Stub.command.approveTransfer
+         let cmd =
+            AccountCommand.ApproveInternalTransfer
+               Stub.command.approveInternalTransfer
+
          let res = update account cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
@@ -137,7 +140,7 @@ let tests =
 
          let res =
             update initAccount
-            <| AccountCommand.RegisterTransferRecipient(
+            <| AccountCommand.RegisterInternalTransferRecipient(
                Stub.command.registerInternalRecipient
             )
 
@@ -145,13 +148,16 @@ let tests =
 
          let res =
             update account
-            <| AccountCommand.Transfer(Stub.command.internalTransfer 101m)
+            <| AccountCommand.InternalTransfer(
+               Stub.command.internalTransfer 101m
+            )
 
          let _, account = Expect.wantOk res "should be Result.Ok"
 
-         let command = Stub.command.rejectTransfer 101m
+         let command = Stub.command.rejectInternalTransfer 101m
 
-         let res = update account <| AccountCommand.RejectTransfer command
+         let res =
+            update account <| AccountCommand.RejectInternalTransfer command
 
          let _, account = Expect.wantOk res "should be Result.Ok"
 
@@ -172,14 +178,15 @@ let tests =
          let command = Stub.command.registerInternalRecipient
 
          let res =
-            update initState <| AccountCommand.RegisterTransferRecipient command
+            update initState
+            <| AccountCommand.RegisterInternalTransferRecipient command
 
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          let amount = 101m
 
          let command = Stub.command.internalTransfer amount
-         let res = update account <| AccountCommand.Transfer command
+         let res = update account <| AccountCommand.InternalTransfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -187,8 +194,11 @@ let tests =
             false
             "the transfer should invalidate the daily balance threshold"
 
-         let command = Stub.command.rejectTransfer amount
-         let res = update account <| AccountCommand.RejectTransfer command
+         let command = Stub.command.rejectInternalTransfer amount
+
+         let res =
+            update account <| AccountCommand.RejectInternalTransfer command
+
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -209,12 +219,13 @@ let tests =
          let command = Stub.command.registerInternalRecipient
 
          let res =
-            update initState <| AccountCommand.RegisterTransferRecipient command
+            update initState
+            <| AccountCommand.RegisterInternalTransferRecipient command
 
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          let command = Stub.command.internalTransfer 90m
-         let res = update account <| AccountCommand.Transfer command
+         let res = update account <| AccountCommand.InternalTransfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isTrue
@@ -222,7 +233,7 @@ let tests =
             "Balance is still above threshold."
 
          let command = Stub.command.internalTransfer 11m
-         let res = update account <| AccountCommand.Transfer command
+         let res = update account <| AccountCommand.InternalTransfer command
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.isFalse
@@ -394,17 +405,27 @@ let tests =
          let res =
             update
                initState
-               (AccountCommand.RegisterTransferRecipient
+               (AccountCommand.RegisterInternalTransferRecipient
                   Stub.command.registerInternalRecipient)
 
-         let _, account = Expect.wantOk res "should be Result.Ok"
+         let (AccountEvent.InternalTransferRecipient evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         let recipientStubIdOverride = evt.Data.Recipient.AccountId
 
          let updates =
             List.fold
                (fun acc amount ->
                   let account, total = acc
                   let cmd = Stub.command.internalTransfer amount
-                  let res = update account <| AccountCommand.Transfer cmd
+
+                  let cmd = {
+                     cmd with
+                        Data.RecipientId = recipientStubIdOverride
+                  }
+
+                  let res =
+                     update account <| AccountCommand.InternalTransfer cmd
 
                   let _, newState = Expect.wantOk res "should be Result.Ok"
 
@@ -423,10 +444,11 @@ let tests =
 
          let command = {
             command with
-               Data.Date = DateTime.UtcNow.AddDays(-1)
+               Data.TransferRequestDate = DateTime.UtcNow.AddDays(-1)
+               Data.RecipientId = recipientStubIdOverride
          }
 
-         let res = update newState <| AccountCommand.Transfer command
+         let res = update newState <| AccountCommand.InternalTransfer command
          let _, newState = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -444,16 +466,25 @@ let tests =
          let res =
             update
                initState
-               (AccountCommand.RegisterTransferRecipient
+               (AccountCommand.RegisterInternalTransferRecipient
                   Stub.command.registerInternalRecipient)
 
-         let _, account = Expect.wantOk res "should be Result.Ok"
+         let (AccountEvent.InternalTransferRecipient evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         let recipientStubIdOverride = evt.Data.Recipient.AccountId
 
          let transferAmount = 100m
          let command = Stub.command.internalTransfer transferAmount
-         let res = update account <| AccountCommand.Transfer command
 
-         let (AccountEvent.TransferPending evt), account =
+         let command = {
+            command with
+               Data.RecipientId = recipientStubIdOverride
+         }
+
+         let res = update account <| AccountCommand.InternalTransfer command
+
+         let (AccountEvent.InternalTransferPending transferPendingEvt), account =
             Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -461,14 +492,19 @@ let tests =
             transferAmount
             "DailyInternalTransferAccrued should accrue transfers for the day"
 
-         let txn = TransferEventToTransaction.fromPending evt
-
          let cmd =
-            TransferTransactionToCommand.reject
-               txn
-               TransferDeclinedReason.AccountClosed
+            RejectInternalTransferCommand.create
+               account.CompositeId
+               transferPendingEvt.CorrelationId
+               {
+                  RecipientId = recipientStubIdOverride
+                  Reason = TransferDeclinedReason.AccountClosed
+                  Amount = transferPendingEvt.Data.Amount
+                  TransferRequestDate =
+                     transferPendingEvt.Data.TransferRequestDate
+               }
 
-         let res = update account <| AccountCommand.RejectTransfer cmd
+         let res = update account <| AccountCommand.RejectInternalTransfer cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -486,17 +522,27 @@ let tests =
          let res =
             update
                initState
-               (AccountCommand.RegisterTransferRecipient
+               (AccountCommand.RegisterDomesticTransferRecipient
                   Stub.command.registerDomesticRecipient)
 
-         let _, account = Expect.wantOk res "should be Result.Ok"
+         let (AccountEvent.DomesticTransferRecipient evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         let recipientStubIdOverride = evt.Data.Recipient.VirtualId
 
          let updates =
             List.fold
                (fun acc amount ->
                   let account, total = acc
                   let cmd = Stub.command.domesticTransfer amount
-                  let res = update account <| AccountCommand.Transfer cmd
+
+                  let cmd = {
+                     cmd with
+                        Data.Recipient.VirtualId = recipientStubIdOverride
+                  }
+
+                  let res =
+                     update account <| AccountCommand.DomesticTransfer cmd
 
                   let _, newState = Expect.wantOk res "should be Result.Ok"
 
@@ -515,10 +561,11 @@ let tests =
 
          let command = {
             command with
-               Data.Date = DateTime.UtcNow.AddDays(-1)
+               Data.TransferRequestDate = DateTime.UtcNow.AddDays(-1)
+               Data.Recipient.VirtualId = recipientStubIdOverride
          }
 
-         let res = update newState <| AccountCommand.Transfer command
+         let res = update newState <| AccountCommand.DomesticTransfer command
          let _, newState = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -536,16 +583,25 @@ let tests =
          let res =
             update
                initState
-               (AccountCommand.RegisterTransferRecipient
+               (AccountCommand.RegisterDomesticTransferRecipient
                   Stub.command.registerDomesticRecipient)
 
-         let _, account = Expect.wantOk res "should be Result.Ok"
+         let (AccountEvent.DomesticTransferRecipient evt), account =
+            Expect.wantOk res "should be Result.Ok"
+
+         let recipientStubIdOverride = evt.Data.Recipient.VirtualId
 
          let transferAmount = 100m
          let command = Stub.command.domesticTransfer transferAmount
-         let res = update account <| AccountCommand.Transfer command
 
-         let (AccountEvent.TransferPending evt), account =
+         let command = {
+            command with
+               Data.Recipient.VirtualId = recipientStubIdOverride
+         }
+
+         let res = update account <| AccountCommand.DomesticTransfer command
+
+         let (AccountEvent.DomesticTransferPending transferPendingEvt), account =
             Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -553,14 +609,19 @@ let tests =
             transferAmount
             "DailyDomesticTransferAccrued should accrue transfers for the day"
 
-         let txn = TransferEventToTransaction.fromPending evt
-
          let cmd =
-            TransferTransactionToCommand.reject
-               txn
-               TransferDeclinedReason.AccountClosed
+            RejectDomesticTransferCommand.create
+               account.CompositeId
+               transferPendingEvt.CorrelationId
+               {
+                  Recipient = transferPendingEvt.Data.Recipient
+                  Reason = TransferDeclinedReason.AccountClosed
+                  Amount = transferPendingEvt.Data.Amount
+                  TransferRequestDate =
+                     transferPendingEvt.Data.TransferRequestDate
+               }
 
-         let res = update account <| AccountCommand.RejectTransfer cmd
+         let res = update account <| AccountCommand.RejectDomesticTransfer cmd
          let _, account = Expect.wantOk res "should be Result.Ok"
 
          Expect.equal
@@ -663,13 +724,13 @@ let tests =
 
          let (commands: AccountCommand list) = [
             AccountCommand.DepositCash <| Stub.command.depositCash 10m
-            AccountCommand.Transfer <| Stub.command.internalTransfer 33m
-            AccountCommand.Transfer <| Stub.command.domesticTransfer 31m
+            AccountCommand.InternalTransfer <| Stub.command.internalTransfer 33m
+            AccountCommand.DomesticTransfer <| Stub.command.domesticTransfer 31m
             AccountCommand.LimitDailyDebits
             <| Stub.command.limitDailyDebits 101m
-            AccountCommand.RegisterTransferRecipient
+            AccountCommand.RegisterInternalTransferRecipient
             <| Stub.command.registerInternalRecipient
-            AccountCommand.RegisterTransferRecipient
+            AccountCommand.RegisterDomesticTransferRecipient
             <| Stub.command.registerDomesticRecipient
             AccountCommand.DepositTransfer <| Stub.command.depositTransfer 931m
             AccountCommand.LockCard Stub.command.lockCard
@@ -724,9 +785,9 @@ let tests =
             AccountCommand.DepositCash <| Stub.command.depositCash 10m
             AccountCommand.LimitDailyDebits
             <| Stub.command.limitDailyDebits 101m
-            AccountCommand.RegisterTransferRecipient
+            AccountCommand.RegisterInternalTransferRecipient
                Stub.command.registerInternalRecipient
-            AccountCommand.RegisterTransferRecipient
+            AccountCommand.RegisterDomesticTransferRecipient
                Stub.command.registerDomesticRecipient
             AccountCommand.DepositTransfer <| Stub.command.depositTransfer 931m
             AccountCommand.LockCard Stub.command.lockCard
@@ -741,17 +802,19 @@ let tests =
 
          let state = {
             state with
-               TransferRecipients =
+               InternalTransferRecipients =
                   Map [
-                     Stub.internalRecipient.LookupKey, Stub.internalRecipient
-
-                     Stub.domesticRecipient.LookupKey, Stub.domesticRecipient
+                     Stub.internalRecipient.AccountId, Stub.internalRecipient
+                  ]
+               DomesticTransferRecipients =
+                  Map [
+                     Stub.domesticRecipient.VirtualId, Stub.domesticRecipient
                   ]
          }
 
          let (commands: AccountCommand list) = [
-            AccountCommand.Transfer <| Stub.command.internalTransfer 33m
-            AccountCommand.Transfer <| Stub.command.domesticTransfer 31m
+            AccountCommand.InternalTransfer <| Stub.command.internalTransfer 33m
+            AccountCommand.DomesticTransfer <| Stub.command.domesticTransfer 31m
          ]
 
          for command in commands do

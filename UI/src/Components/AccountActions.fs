@@ -17,7 +17,7 @@ type private PendingAction = (AccountCommand * EventId) option
 // recipients, redirect them to the transfer recipients creation form
 // first.  Once they submit a recipient then transition the view to their
 // intended transfer form.
-let private shouldRedirectToRegisterRecipient account selectedView =
+let private shouldRedirectToRegisterRecipient (account: Account) selectedView =
    match selectedView with
    | Some AccountActionView.Transfer when account.TransferRecipients.IsEmpty ->
       true
@@ -60,14 +60,14 @@ type Msg =
    | CheckForEventConfirmation of EventId * AccountId * attemptNumber: int
    | Noop
 
-let init account () =
+let init (account: Account) () =
    let selectedView = Routes.IndexUrl.accountBrowserQuery().Action
    let redirect = shouldRedirectToRegisterRecipient account selectedView
 
    let selected, cmd =
       if redirect then
          let redirectTo = Some AccountActionView.RegisterTransferRecipient
-         redirectTo, navigate account.EntityId redirectTo
+         redirectTo, navigate account.AccountId redirectTo
       else
          selectedView, Cmd.none
 
@@ -86,7 +86,7 @@ let update
    msg
    state
    =
-   let navigate = navigate state.Account.EntityId
+   let navigate = navigate state.Account.AccountId
 
    match msg with
    | ShowForm form ->
@@ -110,7 +110,7 @@ let update
       }
 
       let delayedMsg =
-         Msg.CheckForEventConfirmation(evtId, state.Account.EntityId, 1)
+         Msg.CheckForEventConfirmation(evtId, state.Account.AccountId, 1)
 
       state, Cmd.fromTimeout 3000 delayedMsg
    | AccountEventReceived updatedAccount when state.PendingAction.IsNone ->
@@ -147,7 +147,7 @@ let update
             attemptNumber + 1
          )
 
-      if accountId <> state.Account.EntityId then
+      if accountId <> state.Account.AccountId then
          Log.info
             "A different account was selected. Discard event confirmation check."
 
@@ -224,13 +224,13 @@ let AccountActionsComponent
       React.useElmish (
          init account,
          update handleConfirmationReceivedViaPolling,
-         [| box account.EntityId |]
+         [| box account.AccountId |]
       )
 
    React.useEffect (
       (fun () ->
          if
-            account.EntityId = state.Account.EntityId
+            account.AccountId = state.Account.AccountId
             && account.Events.Length > state.Account.Events.Length
          then
             dispatch <| AccountEventReceived account),

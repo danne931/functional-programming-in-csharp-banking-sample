@@ -19,7 +19,7 @@ let actorProps (hub: IHubContext<AccountHub, IAccountClient>) =
       match msg with
       | SignalRMessage.AccountEventPersisted msg ->
          hub.Clients
-            .Group(string msg.NewState.EntityId)
+            .Group(string msg.NewState.AccountId)
             .AccountEventPersistenceConfirmation(Serialization.serialize msg)
          |> ignore
       | SignalRMessage.AccountEventValidationFail msg ->

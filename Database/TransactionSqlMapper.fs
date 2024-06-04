@@ -14,7 +14,7 @@ module TransactionTypeCast =
 
 module TransactionFields =
    let transactionId = "transaction_id"
-   let accountId = AccountFields.entityId
+   let accountId = AccountFields.accountId
    let orgId = OrgFields.orgId
    let correlationId = "correlation_id"
    let name = "name"
@@ -27,7 +27,7 @@ module TransactionSqlReader =
    let transactionId (read: RowReader) =
       TransactionFields.transactionId |> read.uuid |> EventId
 
-   let accountId = AccountSqlReader.entityId
+   let accountId = AccountSqlReader.accountId
 
    let orgId = OrgSqlReader.orgId
 
@@ -57,7 +57,7 @@ module TransactionSqlWriter =
       let (CorrelationId id) = corrId
       Sql.uuid id
 
-   let accountId = AccountSqlWriter.entityId
+   let accountId = AccountSqlWriter.accountId
    let orgId = OrgSqlWriter.orgId
    let name = Sql.text
    let amount = Sql.moneyOrNone

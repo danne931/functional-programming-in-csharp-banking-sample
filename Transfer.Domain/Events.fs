@@ -4,110 +4,90 @@ open System
 
 open Lib.SharedTypes
 
-type TransferPending = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   DebitedAmount: decimal
+type InternalTransferPending = {
+   RecipientId: AccountId
+   Amount: decimal
    Reference: string option
-   Status: TransferProgress
+   TransferRequestDate: DateTime
 }
 
-type TransferProgressUpdate = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   DebitedAmount: decimal
-   Status: TransferProgress
+type InternalTransferApproved = {
+   RecipientId: AccountId
+   Amount: decimal
+   TransferRequestDate: DateTime
 }
 
-type TransferApproved = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   DebitedAmount: decimal
-}
-
-type TransferRejected = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   DebitedAmount: decimal
+type InternalTransferRejected = {
+   RecipientId: AccountId
+   Amount: decimal
    Reason: TransferDeclinedReason
+   TransferRequestDate: DateTime
+}
+
+type DomesticTransferPending = {
+   Recipient: DomesticTransferRecipient
+   TransferRequestDate: DateTime
+   Amount: decimal
+   Reference: string option
+   Status: DomesticTransferProgress
+}
+
+type DomesticTransferProgressUpdate = {
+   Recipient: DomesticTransferRecipient
+   Amount: decimal
+   Status: DomesticTransferProgress
+   TransferRequestDate: DateTime
+}
+
+type DomesticTransferApproved = {
+   Recipient: DomesticTransferRecipient
+   Amount: decimal
+   Status: DomesticTransferProgress
+   TransferRequestDate: DateTime
+}
+
+type DomesticTransferRejected = {
+   Recipient: DomesticTransferRecipient
+   Amount: decimal
+   Reason: TransferDeclinedReason
+   TransferRequestDate: DateTime
 }
 
 type RegisteredInternalTransferRecipient = {
-   LastName: string
-   FirstName: string
-   AccountNumber: string
-} with
-
-   member x.toRecipient() = {
-      FirstName = x.FirstName
-      LastName = x.LastName
-      Nickname = None
-      AccountEnvironment = RecipientAccountEnvironment.Internal
-      Identification = x.AccountNumber
-      IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-      RoutingNumber = None
-      Status = RecipientRegistrationStatus.Confirmed
-   }
+   Recipient: InternalTransferRecipient
+}
 
 type RegisteredDomesticTransferRecipient = {
-   LastName: string
-   FirstName: string
-   RoutingNumber: string option
-   AccountNumber: string
-} with
+   Recipient: DomesticTransferRecipient
+}
 
-   member x.toRecipient() = {
-      FirstName = x.FirstName
-      LastName = x.LastName
-      Nickname = None
-      AccountEnvironment = RecipientAccountEnvironment.Domestic
-      Identification = x.AccountNumber
-      IdentificationStrategy = RecipientAccountIdentificationStrategy.AccountId
-      RoutingNumber = x.RoutingNumber
-      // Domestic recipients are assumed valid until a failed transfer
-      // request (with status AccountClosed/InvalidAccountInfo) proves otherwise.
-      Status = RecipientRegistrationStatus.Confirmed
-   }
-
-// TODO: change RecipientId to VirtualId & add a VirtualId to TransferRecipient type
 type InternalRecipientDeactivated = {
    RecipientId: AccountId
    RecipientName: string
 //Reason: RecipientDeactivatedReason
 }
 
-type InternalSenderRegistered = {
-   TransferSender: InternalTransferSender
-}
+type InternalSenderRegistered = { Sender: InternalTransferSender }
 
-type TransferDeposited = {
-   DepositedAmount: decimal
-   Origin: AccountId
-}
+type TransferDeposited = { Amount: decimal; Origin: AccountId }
 
-// TODO: change RecipientLookuKey to VirtualId & add a VirtualId to TransferRecipient type
 type RecipientNicknamed = {
-   RecipientLookupKey: string
+   RecipientId: AccountId
+   RecipientAccountEnvironment: RecipientAccountEnvironment
    Nickname: string option
 }
 
-module TransferEventToTransaction =
-   let fromPending (evt: BankEvent<TransferPending>) = {
-      SenderAccountId = AccountId.fromEntityId evt.EntityId
-      SenderOrgId = evt.OrgId
-      TransferId = evt.CorrelationId
-      Recipient = evt.Data.Recipient
-      Amount = evt.Data.DebitedAmount
-      Date = evt.Data.Date
-      Status = evt.Data.Status
-   }
-
-   let fromProgressUpdate (evt: BankEvent<TransferProgressUpdate>) = {
-      SenderAccountId = AccountId.fromEntityId evt.EntityId
-      SenderOrgId = evt.OrgId
-      TransferId = evt.CorrelationId
-      Recipient = evt.Data.Recipient
-      Amount = evt.Data.DebitedAmount
-      Date = evt.Data.Date
-      Status = evt.Data.Status
-   }
+module TransferEventToDomesticTransfer =
+   let fromPending
+      (evt: BankEvent<DomesticTransferPending>)
+      : DomesticTransfer
+      =
+      {
+         SenderAccountId = AccountId.fromEntityId evt.EntityId
+         SenderOrgId = evt.OrgId
+         TransferId = evt.CorrelationId
+         Recipient = evt.Data.Recipient
+         Amount = evt.Data.Amount
+         Date = evt.Data.TransferRequestDate
+         Status = evt.Data.Status
+      }

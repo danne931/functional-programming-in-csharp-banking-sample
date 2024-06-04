@@ -17,21 +17,18 @@ type LockedCard = { Reference: string option }
 
 type UnlockedCard = { Reference: string option }
 
-type DepositedCash = {
-   DepositedAmount: decimal
-   Origin: string
-}
+type DepositedCash = { Amount: decimal; Origin: string }
 
 type DebitedAccount = {
    Date: DateTime
-   DebitedAmount: decimal
+   Amount: decimal
    Origin: string
    Reference: string option
 }
 
 type DailyDebitLimitUpdated = { DebitLimit: decimal }
 
-type MaintenanceFeeDebited = { DebitedAmount: decimal }
+type MaintenanceFeeDebited = { Amount: decimal }
 type MaintenanceFeeSkipped = { Reason: MaintenanceFeeCriteria }
 
 type AccountClosed = { Reference: string option }

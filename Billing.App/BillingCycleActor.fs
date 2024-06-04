@@ -27,7 +27,7 @@ let getActiveAccounts () =
 
    pgQuery<AccountId * OrgId>
       $"""
-      SELECT {AccountFields.entityId}, {AccountFields.orgId}
+      SELECT {AccountFields.accountId}, {AccountFields.orgId}
       FROM {AccountSqlMapper.table}
       WHERE
          {AccountFields.status} = '{string AccountStatus.Active}'
@@ -35,7 +35,7 @@ let getActiveAccounts () =
               OR {prevCycle} < current_timestamp - {lookback})
       """
       None
-   <| fun read -> AccountSqlReader.entityId read, AccountSqlReader.orgId read
+   <| fun read -> AccountSqlReader.accountId read, AccountSqlReader.orgId read
 
 let private fanOutBillingCycleMessage
    (ctx: Actor<_>)

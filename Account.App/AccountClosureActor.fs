@@ -30,7 +30,7 @@ let deleteAccounts
          throttle.Count
          throttle.Duration
    |> Source.runForEach (system.Materializer()) (fun account ->
-      getAccountRef account.EntityId <! AccountMessage.Delete)
+      getAccountRef account.AccountId <! AccountMessage.Delete)
 
 let initState: Map<AccountId, Account> = Map.empty
 
@@ -55,11 +55,11 @@ let actorProps
             | AccountClosureMessage.GetRegisteredAccounts ->
                mailbox.Sender() <! accounts
             | AccountClosureMessage.Register account ->
-               let newState = Map.add account.EntityId account accounts
+               let newState = Map.add account.AccountId account accounts
 
                logInfo
                   $"""
-                  Account scheduled for deletion - {account.EntityId}.
+                  Account scheduled for deletion - {account.AccountId}.
                   Total scheduled: {newState.Count}.
                   """
 
@@ -68,7 +68,7 @@ let actorProps
                for sender in account.InternalTransferSenders.Values do
                   let msg =
                      DeactivateInternalRecipientCommand.create sender {
-                        RecipientId = account.EntityId
+                        RecipientId = account.AccountId
                         RecipientName = account.Name
                      }
                      |> AccountCommand.DeactivateInternalRecipient
@@ -146,7 +146,7 @@ let deleteHistoricalRecords (accountIds: AccountId list) =
    else
       pgQuery<Email>
          $"DELETE FROM {AccountSqlMapper.table} 
-           WHERE {AccountFields.entityId} = ANY(@accountIds) 
+           WHERE {AccountFields.accountId} = ANY(@accountIds) 
            RETURNING {AccountFields.email}"
          (Some [
             "@accountIds",

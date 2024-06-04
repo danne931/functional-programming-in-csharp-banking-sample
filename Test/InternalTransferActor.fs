@@ -12,6 +12,9 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
+type private InternalTransferMessage =
+   InternalTransferRecipientActor.InternalTransferMessage
+
 let initMockAccountActor (tck: TestKit.Tck) (accountOpt: Account option) =
    let handler (ctx: Actor<_>) (msg: obj) =
       match msg with
@@ -27,10 +30,10 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: Account option) =
                | DepositTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
-               | RejectTransfer cmd ->
+               | RejectInternalTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
-               | ApproveTransfer cmd ->
+               | ApproveInternalTransfer cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
                | msg -> unhandled msg
@@ -59,13 +62,11 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         let txn =
-            TransferEventToTransaction.fromPending
+         ref
+         <! InternalTransferMessage.TransferRequest
                Stub.event.internalTransferPending
 
-         ref <! InternalTransferMessage.TransferRequest txn
-
-         tck.ExpectMsg<RejectTransferCommand>() |> ignore
+         tck.ExpectMsg<RejectInternalTransferCommand>() |> ignore
 
       akkaTest
          "Issuing a transfer to a closed account should reject the transfer"
@@ -76,13 +77,12 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         let txn =
-            TransferEventToTransaction.fromPending
+         ref
+         <! InternalTransferMessage.TransferRequest
                Stub.event.internalTransferPending
 
-         ref <! InternalTransferMessage.TransferRequest txn
 
-         tck.ExpectMsg<RejectTransferCommand>() |> ignore
+         tck.ExpectMsg<RejectInternalTransferCommand>() |> ignore
 
       akkaTest
          "Issuing a transfer to an active account should approve the transfer"
@@ -95,17 +95,14 @@ let tests =
          let ref =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
-         let txn =
-            TransferEventToTransaction.fromPending
-               Stub.event.internalTransferPending
+         let transferRequest = Stub.event.internalTransferPending
+         ref <! InternalTransferMessage.TransferRequest transferRequest
 
-         ref <! InternalTransferMessage.TransferRequest txn
-
-         let msg = tck.ExpectMsg<ApproveTransferCommand>()
+         let msg = tck.ExpectMsg<ApproveInternalTransferCommand>()
 
          Expect.equal
             (AccountId.fromEntityId msg.EntityId)
-            txn.SenderAccountId
+            (AccountId.fromEntityId transferRequest.EntityId)
             $"EntityId from Transfer Transaction should be
             EntityId of resulting ApproveTransferCommand"
 
@@ -121,7 +118,7 @@ let tests =
 
          Expect.equal
             msg.Data.Amount
-            txn.Amount
+            transferRequest.Data.Amount
             $"Debit amount from TransferPending event should
             equal deposit amount of resulting DepositTransferCommand"
    ]

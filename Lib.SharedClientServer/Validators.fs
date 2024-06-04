@@ -23,7 +23,7 @@ let accountNumberValidator =
 
 // TODO: ++ validation
 let routingNumberValidator =
-   Check.required (Check.String.betweenLen 3 40) "Recipient routing number"
+   Check.String.betweenLen 3 40 "Recipient routing number"
 
 let originValidator = Check.String.greaterThanLen 2 "Origin"
 

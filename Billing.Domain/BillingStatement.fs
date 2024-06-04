@@ -14,8 +14,10 @@ module BillingTransaction =
       | DepositedCash _
       | DebitedAccount _
       | MaintenanceFeeDebited _
-      | TransferPending _
-      | TransferRejected _
+      | InternalTransferPending _
+      | InternalTransferRejected _
+      | DomesticTransferPending _
+      | DomesticTransferRejected _
       | TransferDeposited _ -> Some(BillingTransaction evt)
       | _ -> None
 
@@ -53,11 +55,11 @@ let billingStatement
    =
    {
       Transactions = billingTransactions account.Events
-      Month = DateTime.Today.Month
-      Year = DateTime.Today.Year
+      Month = DateTime.UtcNow.Month
+      Year = DateTime.UtcNow.Year
       Balance = account.Balance
       Name = account.Name
-      AccountId = account.EntityId
+      AccountId = account.AccountId
       OrgId = account.OrgId
       LastPersistedEventSequenceNumber = lastPersistedEventSequenceNumber
       AccountSnapshot =

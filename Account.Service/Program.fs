@@ -9,7 +9,6 @@ open Akka.Routing
 open Akkling
 
 open Bank.Account.Domain
-open Bank.Transfer.Api
 open Bank.Infrastructure
 open ActorUtil
 
@@ -87,12 +86,9 @@ builder.Services.AddAkka(
             ActorMetadata.transferProgressTracking.Name,
             (fun system _ _ ->
                let typedProps =
-                  TransferProgressTrackingActor.actorProps
+                  TransferProgressTrackingActor.initProps
                      system
                      DomesticTransferRecipientActor.get
-                     (getProgressCheckReadyDomesticTransfers
-                        EnvTransfer.config.TransferProgressLookbackMinutes)
-                     EnvTransfer.config.TransferProgressTrackingThrottle
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)

@@ -76,7 +76,7 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
                   |> Guid.Parse
                   |> AccountId
@@ -84,7 +84,7 @@ let tests =
 
          let account2 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
                   |> Guid.Parse
                   |> AccountId
@@ -95,7 +95,7 @@ let tests =
          accountClosureActor <! AccountClosureMessage.GetRegisteredAccounts
 
          let expectedState =
-            Map [ account1.EntityId, account1; account2.EntityId, account2 ]
+            Map [ account1.AccountId, account1; account2.AccountId, account2 ]
 
          TestKit.expectMsg tck expectedState |> ignore
 
@@ -113,7 +113,7 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
                   |> Guid.Parse
                   |> AccountId
@@ -121,7 +121,7 @@ let tests =
 
          let account2 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
                   |> Guid.Parse
                   |> AccountId
@@ -157,7 +157,7 @@ let tests =
 
          let account1 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4"
                   |> Guid.Parse
                   |> AccountId
@@ -165,7 +165,7 @@ let tests =
 
          let account2 = {
             Stub.accountState with
-               EntityId =
+               AccountId =
                   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5"
                   |> Guid.Parse
                   |> AccountId
@@ -177,7 +177,7 @@ let tests =
 
          let msg = quartzSchedulerProbe.ExpectMsg<SchedulingActor.Message>()
 
-         let expectedAccountIds = [ account1.EntityId; account2.EntityId ]
+         let expectedAccountIds = [ account1.AccountId; account2.AccountId ]
 
          match msg with
          | SchedulingActor.DeleteAccountsJobSchedule accountIds ->

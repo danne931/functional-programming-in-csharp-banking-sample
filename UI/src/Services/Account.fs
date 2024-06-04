@@ -23,10 +23,14 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, AccountPath.Debit
       | AccountCommand.DepositCash cmd ->
          Serialization.serialize cmd, AccountPath.Deposit
-      | AccountCommand.Transfer cmd ->
-         Serialization.serialize cmd, TransferPath.Base
-      | AccountCommand.RegisterTransferRecipient cmd ->
-         Serialization.serialize cmd, TransferPath.TransferRecipient
+      | AccountCommand.InternalTransfer cmd ->
+         Serialization.serialize cmd, TransferPath.Internal
+      | AccountCommand.DomesticTransfer cmd ->
+         Serialization.serialize cmd, TransferPath.Domestic
+      | AccountCommand.RegisterInternalTransferRecipient cmd ->
+         Serialization.serialize cmd, TransferPath.InternalTransferRecipient
+      | AccountCommand.RegisterDomesticTransferRecipient cmd ->
+         Serialization.serialize cmd, TransferPath.DomesticTransferRecipient
       | AccountCommand.LimitDailyDebits cmd ->
          Serialization.serialize cmd, AccountPath.DailyDebitLimit
       | AccountCommand.LockCard cmd ->
@@ -54,7 +58,7 @@ let getAccountProfiles (orgId: OrgId) : Async<AccountProfilesMaybe> = async {
          responseText
          |> Serialization.deserialize<AccountProfile list>
          |> Result.map (fun accounts ->
-            [ for account in accounts -> account.EntityId, account ]
+            [ for account in accounts -> account.AccountId, account ]
             |> Map.ofList
             |> Some)
 }

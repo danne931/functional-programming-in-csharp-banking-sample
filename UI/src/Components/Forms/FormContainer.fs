@@ -82,7 +82,7 @@ let FormContainer
          then
             let err = errors.Head
 
-            if account.EntityId = err.AccountId then
+            if account.AccountId = err.AccountId then
                dispatch <| Msg.ErrorReceivedViaSignalR err.Error),
       [| box errors.Length |]
    )

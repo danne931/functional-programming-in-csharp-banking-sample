@@ -12,6 +12,12 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 
+type private InternalTransferMsg =
+   InternalTransferRecipientActor.InternalTransferMessage
+
+type private DomesticTransferMsg =
+   DomesticTransferRecipientActor.DomesticTransferMessage
+
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
 let config =
@@ -60,10 +66,10 @@ let init (tck: TestKit.Tck) (accountPersistence: AccountPersistence) =
    let billingProbe = tck.CreateTestProbe()
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
-      typed internalTransferProbe :> IActorRef<InternalTransferMessage>
+      typed internalTransferProbe :> IActorRef<InternalTransferMsg>
 
    let getDomesticTransferActor (_: ActorSystem) =
-      typed domesticTransferProbe :> IActorRef<DomesticTransferMessage>
+      typed domesticTransferProbe :> IActorRef<DomesticTransferMsg>
 
    let getEmailActor (_: ActorSystem) =
       (typed emailProbe :> IActorRef<EmailActor.EmailMessage>)
@@ -280,13 +286,13 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
 
          let cmd =
-            AccountCommand.RegisterTransferRecipient
+            AccountCommand.RegisterInternalTransferRecipient
                Stub.command.registerInternalRecipient
 
          o.accountActor <! AccountMessage.StateChange cmd
 
          let transfer = Stub.command.internalTransfer 33m
-         let cmd = AccountCommand.Transfer transfer
+         let cmd = AccountCommand.InternalTransfer transfer
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
@@ -299,7 +305,7 @@ let tests =
             (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
-         o.internalTransferProbe.ExpectMsg<InternalTransferMessage>() |> ignore
+         o.internalTransferProbe.ExpectMsg<InternalTransferMsg>() |> ignore
 
       akkaTest
          "A domestic transfer should message the DomesticTransferRecipientActor"
@@ -309,14 +315,29 @@ let tests =
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
 
-         let cmd =
-            AccountCommand.RegisterTransferRecipient
-               Stub.command.registerDomesticRecipient
+         let msg =
+            Stub.command.registerDomesticRecipient
+            |> AccountCommand.RegisterDomesticTransferRecipient
+            |> AccountMessage.StateChange
 
-         o.accountActor <! AccountMessage.StateChange cmd
+         o.accountActor <! msg
+
+         o.accountActor <! AccountMessage.GetAccount
+         let state = tck.ExpectMsg<Option<Account>>()
+         let account = Expect.wantSome state ""
+
+         let recipientStubIdOverride =
+            account.DomesticTransferRecipients.Head().Key
 
          let transfer = Stub.command.domesticTransfer 31m
-         let cmd = AccountCommand.Transfer transfer
+
+         let transfer = {
+            transfer with
+               Data.Recipient.VirtualId = recipientStubIdOverride
+         }
+
+         let cmd = AccountCommand.DomesticTransfer transfer
+
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
@@ -329,10 +350,10 @@ let tests =
             (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
-         let msg = o.domesticTransferProbe.ExpectMsg<DomesticTransferMessage>()
+         let msg = o.domesticTransferProbe.ExpectMsg<DomesticTransferMsg>()
 
          match msg with
-         | DomesticTransferMessage.TransferRequest(action, evt) ->
+         | DomesticTransferMsg.TransferRequest(action, evt) ->
             Expect.isTrue true ""
          | msg ->
             Expect.isTrue
@@ -416,8 +437,8 @@ let tests =
 
          Expect.equal
             statement.AccountId
-            initAccount.EntityId
-            "Billing statement AccountId should = account EntityId"
+            initAccount.AccountId
+            "Billing statement AccountId should = account AccountId"
 
          let getEventName =
             BillingTransaction.value

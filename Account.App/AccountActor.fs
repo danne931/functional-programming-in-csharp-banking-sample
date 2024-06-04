@@ -17,27 +17,11 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 
-let private dispatchTransfer
-   (getOrStartInternalTransferActor:
-      Actor<_> -> IActorRef<InternalTransferMessage>)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
-   mailbox
-   evt
-   =
-   let txn = TransferEventToTransaction.fromPending evt
+type private InternalTransferMsg =
+   InternalTransferRecipientActor.InternalTransferMessage
 
-   match evt.Data.Recipient.AccountEnvironment with
-   | RecipientAccountEnvironment.Internal ->
-      getOrStartInternalTransferActor mailbox
-      <! InternalTransferMessage.TransferRequest txn
-   | RecipientAccountEnvironment.Domestic ->
-      let msg =
-         DomesticTransferMessage.TransferRequest(
-            TransferServiceAction.TransferRequest,
-            txn
-         )
-
-      getDomesticTransferActor mailbox.System <! msg
+type private DomesticTransferMsg =
+   DomesticTransferRecipientActor.DomesticTransferMessage
 
 // Pass monthly billing statement to BillingStatementActor.
 // Conditionally apply monthly maintenance fee.
@@ -77,9 +61,8 @@ let private billingCycle
 let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
-   (getOrStartInternalTransferActor:
-      Actor<_> -> IActorRef<InternalTransferMessage>)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
+   (getOrStartInternalTransferActor: Actor<_> -> IActorRef<InternalTransferMsg>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
@@ -99,23 +82,30 @@ let actorProps
 
             match evt with
             | InternalTransferRecipient e ->
-               let sender = {
-                  Name = newState.Name
-                  OrgId = newState.OrgId
-                  AccountId = newState.EntityId
-               }
+               let msg =
+                  InternalTransferMsg.ConfirmRecipient(
+                     {
+                        Name = newState.Name
+                        OrgId = newState.OrgId
+                        AccountId = newState.AccountId
+                     },
+                     e.Data.Recipient
+                  )
 
+               getOrStartInternalTransferActor mailbox <! msg
+            | InternalTransferPending e ->
                getOrStartInternalTransferActor mailbox
-               <! InternalTransferMessage.ConfirmRecipient(
-                  sender,
-                  e.Data.toRecipient ()
-               )
-            | TransferPending e ->
-               dispatchTransfer
-                  getOrStartInternalTransferActor
-                  getDomesticTransferActor
-                  mailbox
-                  e
+               <! InternalTransferMsg.TransferRequest e
+            | DomesticTransferPending e ->
+               let txn = TransferEventToDomesticTransfer.fromPending e
+
+               let msg =
+                  DomesticTransferMsg.TransferRequest(
+                     DomesticTransferServiceAction.TransferRequest,
+                     txn
+                  )
+
+               getDomesticTransferActor mailbox.System <! msg
             | TransferDeposited e ->
                getEmailActor mailbox.System
                <! EmailActor.TransferDeposited(e, newState)
@@ -153,7 +143,7 @@ let actorProps
 
                      let signalRBroadcastValidationErr () =
                         broadcaster.accountEventValidationFail
-                           account.EntityId
+                           account.AccountId
                            err
 
                      match err with
@@ -162,7 +152,8 @@ let actorProps
                         // NOOP
                         | TransferProgressNoChange
                         | TransferAlreadyProgressedToApprovedOrRejected
-                        | AccountNotReadyToActivate -> ()
+                        | AccountNotReadyToActivate ->
+                           logDebug mailbox $"AccountTransferActor NOOP msg {e}"
                         // Send email for declined debit.
                         // Broadcast validation errors to UI.
                         | InsufficientBalance _
@@ -188,7 +179,7 @@ let actorProps
                match accountOpt with
                | None -> mailbox.Sender() <! []
                | Some account ->
-                  mailbox.Sender() <!| persistence.getEvents account.EntityId
+                  mailbox.Sender() <!| persistence.getEvents account.AccountId
             | Delete ->
                let newState = {
                   account with
@@ -213,7 +204,7 @@ let actorProps
                      PersistFailed =
                         fun _ err evt sequenceNr ->
                            broadcaster.accountEventPersistenceFail
-                              account.EntityId
+                              account.AccountId
                               (Err.DatabaseError err)
                            |> ignore
 

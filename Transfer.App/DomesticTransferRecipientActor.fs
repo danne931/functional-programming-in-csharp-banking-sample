@@ -4,6 +4,7 @@ module DomesticTransferRecipientActor
 open System
 open System.Text
 open System.Text.Json
+open System.Threading.Tasks
 open Akkling
 open Akkling.Cluster.Sharding
 open Akka.Hosting
@@ -15,21 +16,40 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
-module Command = TransferTransactionToCommand
+module Command = DomesticTransferToCommand
+
+[<RequireQualifiedAccess>]
+type DomesticTransferMessage =
+   | TransferRequest of DomesticTransferServiceAction * DomesticTransfer
+   | TransferResponse of
+      DomesticTransferServiceResponse *
+      DomesticTransferServiceAction *
+      DomesticTransfer
+   | BreakerHalfOpen
+   | BreakerClosed
+
+type DomesticTransferRequest =
+   DomesticTransferServiceAction
+      -> DomesticTransfer
+      -> Task<Result<DomesticTransferServiceResponse, Err>>
 
 module private Msg =
    let progress =
-      AccountMessage.StateChange << AccountCommand.UpdateTransferProgress
+      AccountMessage.StateChange
+      << AccountCommand.UpdateDomesticTransferProgress
 
-   let approve = AccountMessage.StateChange << AccountCommand.ApproveTransfer
-   let reject = AccountMessage.StateChange << AccountCommand.RejectTransfer
+   let approve =
+      AccountMessage.StateChange << AccountCommand.ApproveDomesticTransfer
+
+   let reject =
+      AccountMessage.StateChange << AccountCommand.RejectDomesticTransfer
 
 let private actorName = ActorUtil.ActorMetadata.domesticTransfer.Name
 
-let private progressFromResponse (response: TransferServiceResponse) =
+let private progressFromResponse (response: DomesticTransferServiceResponse) =
    match response.Status with
-   | "Complete" -> TransferProgress.Complete
-   | status -> TransferProgress.InProgress status
+   | "Complete" -> DomesticTransferProgress.Complete
+   | status -> DomesticTransferProgress.InProgress status
 
 let private declinedReasonFromError (err: string) : TransferDeclinedReason =
    match err with
@@ -40,31 +60,11 @@ let private declinedReasonFromError (err: string) : TransferDeclinedReason =
    | Contains "InactiveAccount" -> TransferDeclinedReason.AccountClosed
    | e -> TransferDeclinedReason.Unknown e
 
-let transferRequest action (txn: TransferTransaction) = taskResult {
-   let msg = {|
-      Action = string action
-      AccountNumber = txn.Recipient.Identification
-      RoutingNumber = txn.Recipient.RoutingNumber
-      Amount = txn.Amount
-      Date = txn.Date
-      TransactionId = string txn.TransferId
-   |}
-
-   let! response =
-      TCP.request
-         EnvTransfer.config.MockThirdPartyBank.Host
-         EnvTransfer.config.MockThirdPartyBank.Port
-         Encoding.UTF8
-         (JsonSerializer.SerializeToUtf8Bytes msg)
-
-   return! Serialization.deserialize<TransferServiceResponse> response
-}
-
 let handleTransfer
    (mailbox: Actor<obj>)
-   (requestTransfer: TransferRequest)
-   (action: TransferServiceAction)
-   (txn: TransferTransaction)
+   (requestTransfer: DomesticTransferRequest)
+   (action: DomesticTransferServiceAction)
+   (txn: DomesticTransfer)
    =
    task {
       let! result = requestTransfer action txn
@@ -75,7 +75,7 @@ let handleTransfer
       // receive those on a recurring basis.
       let reprocessLater (errMsg: string) =
          match action with
-         | TransferServiceAction.TransferRequest ->
+         | DomesticTransferServiceAction.TransferRequest ->
             mailbox.Schedule
             <| TimeSpan.FromSeconds 15.
             <| mailbox.Self
@@ -95,7 +95,7 @@ let handleTransfer
                logError mailbox errMsg
 
                let res = {
-                  AccountNumber = txn.Recipient.Identification
+                  AccountNumber = txn.Recipient.AccountNumber
                   RoutingNumber = txn.Recipient.RoutingNumber
                   Ok = false
                   Status = ""
@@ -112,7 +112,7 @@ let actorProps
    (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailActor: unit -> IActorRef<EmailActor.EmailMessage>)
-   (requestTransfer: TransferRequest)
+   (requestTransfer: DomesticTransferRequest)
    =
    let handler (mailbox: Actor<obj>) (message: obj) =
       let logError, logInfo = logError mailbox, logInfo mailbox
@@ -131,10 +131,10 @@ let actorProps
          | DomesticTransferMessage.TransferRequest(action, txn) ->
             if breaker.IsOpen then
                match action with
-               | TransferServiceAction.TransferRequest ->
+               | DomesticTransferServiceAction.TransferRequest ->
                   logInfo "Domestic transfer breaker Open - stashing message"
                   mailbox.Stash()
-               | TransferServiceAction.ProgressCheck ->
+               | DomesticTransferServiceAction.ProgressCheck ->
                   logInfo
                      "Domestic transfer breaker Open - ignore progress check"
 
@@ -155,15 +155,16 @@ let actorProps
                let progress = progressFromResponse res
 
                match progress with
-               | TransferProgress.Complete ->
+               | DomesticTransferProgress.Complete ->
                   let msg = Msg.approve <| Command.approve txn
                   accountRef <! msg
                | progress ->
                   let msg = Msg.progress <| Command.progress txn progress
 
                   match action with
-                  | TransferServiceAction.TransferRequest -> accountRef <! msg
-                  | TransferServiceAction.ProgressCheck ->
+                  | DomesticTransferServiceAction.TransferRequest ->
+                     accountRef <! msg
+                  | DomesticTransferServiceAction.ProgressCheck ->
                      let previousProgress = txn.Status
 
                      if progress <> previousProgress then
@@ -200,6 +201,26 @@ let actorProps
          Unhandled
 
    props <| actorOf2 handler
+
+let transferRequest action (txn: DomesticTransfer) = taskResult {
+   let msg = {|
+      Action = string action
+      AccountNumber = txn.Recipient.AccountNumber
+      RoutingNumber = txn.Recipient.RoutingNumber
+      Amount = txn.Amount
+      Date = txn.Date
+      TransactionId = string txn.TransferId
+   |}
+
+   let! response =
+      TCP.request
+         EnvTransfer.config.MockThirdPartyBank.Host
+         EnvTransfer.config.MockThirdPartyBank.Port
+         Encoding.UTF8
+         (JsonSerializer.SerializeToUtf8Bytes msg)
+
+   return! Serialization.deserialize<DomesticTransferServiceResponse> response
+}
 
 let start
    (system: ActorSystem)

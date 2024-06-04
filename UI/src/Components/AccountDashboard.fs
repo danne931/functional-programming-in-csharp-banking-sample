@@ -120,7 +120,7 @@ let update msg state =
       }
 
       let firstAccount () =
-         let selectedId = accounts |> Map.values |> Seq.head |> _.EntityId
+         let selectedId = accounts |> Map.values |> Seq.head |> _.AccountId
          state, Cmd.navigate ("account", string selectedId)
 
       match Routes.AccountUrl.accountIdMaybe state.CurrentUrl with

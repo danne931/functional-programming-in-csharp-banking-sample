@@ -12,7 +12,7 @@ module BillingFields =
    let year = "year"
    let balance = "balance"
    let name = "name"
-   let accountId = AccountFields.entityId
+   let accountId = AccountFields.accountId
    let orgId = OrgFields.orgId
    let lastPersistedEventSequenceNumber = "last_persisted_event_sequence_number"
    let accountSnapshot = "account_snapshot"
@@ -29,7 +29,7 @@ module BillingSqlReader =
 
    let name (read: RowReader) = read.text BillingFields.name
 
-   let accountId = AccountSqlReader.entityId
+   let accountId = AccountSqlReader.accountId
 
    let orgId = OrgSqlReader.orgId
 
@@ -47,7 +47,7 @@ module BillingSqlWriter =
    let year = Sql.int
    let balance = Sql.money
    let name = Sql.text
-   let accountId = AccountSqlWriter.entityId
+   let accountId = AccountSqlWriter.accountId
    let orgId = OrgSqlWriter.orgId
    let lastPersistedEventSequenceNumber = Sql.int64
    let accountSnapshot = Sql.bytea

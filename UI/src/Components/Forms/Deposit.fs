@@ -33,7 +33,6 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
          DepositCashCommand.create account.CompositeId {
             Amount = amount
             Origin = Some "ATM"
-            Date = DateTime.UtcNow
          }
 
       Msg.Submit(AccountCommand.DepositCash command, Started)

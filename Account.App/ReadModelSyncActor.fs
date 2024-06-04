@@ -213,7 +213,7 @@ let upsertReadModels
    let accountSqlParams =
       accounts
       |> List.map (fun account -> [
-         "id", AccountSqlWriter.entityId account.EntityId
+         "id", AccountSqlWriter.accountId account.AccountId
          "orgId", AccountSqlWriter.orgId account.OrgId
          "email", AccountSqlWriter.email account.Email
          "firstName", AccountSqlWriter.firstName account.FirstName
@@ -221,42 +221,72 @@ let upsertReadModels
          "balance", AccountSqlWriter.balance account.Balance
          "currency", AccountSqlWriter.currency account.Currency
          "status", AccountSqlWriter.status account.Status
+
          "dailyDebitLimit",
          AccountSqlWriter.dailyDebitLimit account.DailyDebitLimit
+
          "dailyDebitAccrued",
          AccountSqlWriter.dailyDebitAccrued account.DailyDebitAccrued
+
          "dailyInternalTransferAccrued",
          AccountSqlWriter.dailyInternalTransferAccrued
             account.DailyInternalTransferAccrued
+
          "dailyDomesticTransferAccrued",
          AccountSqlWriter.dailyDomesticTransferAccrued
             account.DailyDomesticTransferAccrued
+
          "lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
+
          "lastInternalTransferDate",
          AccountSqlWriter.lastInternalTransferDate
             account.LastInternalTransferDate
+
          "lastDomesticTransferDate",
          AccountSqlWriter.lastDomesticTransferDate
             account.LastDomesticTransferDate
+
          "lastBillingCycleDate",
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
-         "transferRecipients",
-         AccountSqlWriter.transferRecipients account.TransferRecipients
+
+         "internalTransferRecipients",
+         AccountSqlWriter.internalTransferRecipients
+            account.InternalTransferRecipients
+
+         "domesticTransferRecipients",
+         AccountSqlWriter.domesticTransferRecipients
+            account.DomesticTransferRecipients
+
          "internalTransferSenders",
          AccountSqlWriter.internalTransferSenders
             account.InternalTransferSenders
+
          "events", AccountSqlWriter.events account.Events
+
          "maintenanceFeeQualifyingDepositFound",
          AccountSqlWriter.maintenanceFeeQualifyingDepositFound
             account.MaintenanceFeeCriteria.QualifyingDepositFound
+
          "maintenanceFeeDailyBalanceThreshold",
          AccountSqlWriter.maintenanceFeeDailyBalanceThreshold
             account.MaintenanceFeeCriteria.DailyBalanceThreshold
-         "inProgressTransfers",
-         AccountSqlWriter.inProgressTransfers account.InProgressTransfers
-         "inProgressTransfersCount",
+
+         "inProgressInternalTransfers",
+         AccountSqlWriter.inProgressInternalTransfers
+            account.InProgressInternalTransfers
+
+         "inProgressInternalTransfersCount",
          AccountSqlWriter.inProgressTransfersCount
-            account.InProgressTransfers.Count
+            account.InProgressInternalTransfers.Count
+
+         "inProgressDomesticTransfers",
+         AccountSqlWriter.inProgressDomesticTransfers
+            account.InProgressDomesticTransfers
+
+         "inProgressDomesticTransfersCount",
+         AccountSqlWriter.inProgressTransfersCount
+            account.InProgressDomesticTransfers.Count
+
          "cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
 
@@ -288,17 +318,21 @@ let upsertReadModels
             | AccountEvent.CreatedAccount evt ->
                Some evt.Data.Balance, MoneyFlow.In
             | AccountEvent.DepositedCash evt ->
-               Some evt.Data.DepositedAmount, MoneyFlow.In
+               Some evt.Data.Amount, MoneyFlow.In
             | AccountEvent.DebitedAccount evt ->
-               Some evt.Data.DebitedAmount, MoneyFlow.Out
-            | AccountEvent.TransferPending evt ->
-               Some evt.Data.DebitedAmount, MoneyFlow.Out
-            | AccountEvent.TransferRejected evt ->
-               Some evt.Data.DebitedAmount, MoneyFlow.In
+               Some evt.Data.Amount, MoneyFlow.Out
+            | AccountEvent.InternalTransferPending evt ->
+               Some evt.Data.Amount, MoneyFlow.Out
+            | AccountEvent.InternalTransferRejected evt ->
+               Some evt.Data.Amount, MoneyFlow.In
             | AccountEvent.TransferDeposited evt ->
-               Some evt.Data.DepositedAmount, MoneyFlow.In
+               Some evt.Data.Amount, MoneyFlow.In
+            | AccountEvent.DomesticTransferPending evt ->
+               Some evt.Data.Amount, MoneyFlow.Out
+            | AccountEvent.DomesticTransferRejected evt ->
+               Some evt.Data.Amount, MoneyFlow.In
             | AccountEvent.MaintenanceFeeDebited evt ->
-               Some evt.Data.DebitedAmount, MoneyFlow.Out
+               Some evt.Data.Amount, MoneyFlow.Out
             | _ -> None, MoneyFlow.None
 
          sqlParams
@@ -310,7 +344,7 @@ let upsertReadModels
    pgTransaction [
       $"""
       INSERT into {AccountSqlMapper.table}
-         ({AccountFields.entityId},
+         ({AccountFields.accountId},
           {AccountFields.orgId},
           {AccountFields.email},
           {AccountFields.firstName},
@@ -326,13 +360,16 @@ let upsertReadModels
           {AccountFields.lastInternalTransferDate},
           {AccountFields.lastDomesticTransferDate},
           {AccountFields.lastBillingCycleDate},
-          {AccountFields.transferRecipients},
+          {AccountFields.internalTransferRecipients},
+          {AccountFields.domesticTransferRecipients},
           {AccountFields.internalTransferSenders},
           {AccountFields.events},
           {AccountFields.maintenanceFeeQualifyingDepositFound},
           {AccountFields.maintenanceFeeDailyBalanceThreshold},
-          {AccountFields.inProgressTransfers},
-          {AccountFields.inProgressTransfersCount},
+          {AccountFields.inProgressInternalTransfers},
+          {AccountFields.inProgressInternalTransfersCount},
+          {AccountFields.inProgressDomesticTransfers},
+          {AccountFields.inProgressDomesticTransfersCount},
           {AccountFields.cardLocked})
       VALUES
          (@id,
@@ -351,15 +388,18 @@ let upsertReadModels
           @lastInternalTransferDate,
           @lastDomesticTransferDate,
           @lastBillingCycleDate,
-          @transferRecipients,
+          @internalTransferRecipients,
+          @domesticTransferRecipients,
           @internalTransferSenders,
           @events,
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold,
-          @inProgressTransfers,
-          @inProgressTransfersCount,
+          @inProgressInternalTransfers,
+          @inProgressInternalTransfersCount,
+          @inProgressDomesticTransfers,
+          @inProgressDomesticTransfersCount,
           @cardLocked)
-      ON CONFLICT ({AccountFields.entityId})
+      ON CONFLICT ({AccountFields.accountId})
       DO UPDATE SET
          {AccountFields.balance} = @balance,
          {AccountFields.status} = @status,
@@ -371,13 +411,16 @@ let upsertReadModels
          {AccountFields.lastInternalTransferDate} = @lastInternalTransferDate,
          {AccountFields.lastDomesticTransferDate} = @lastDomesticTransferDate,
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
-         {AccountFields.transferRecipients} = @transferRecipients,
+         {AccountFields.internalTransferRecipients} = @internalTransferRecipients,
+         {AccountFields.domesticTransferRecipients} = @domesticTransferRecipients,
          {AccountFields.internalTransferSenders} = @internalTransferSenders,
          {AccountFields.events} = @events,
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,
          {AccountFields.maintenanceFeeDailyBalanceThreshold} = @maintenanceFeeDailyBalanceThreshold,
-         {AccountFields.inProgressTransfers} = @inProgressTransfers,
-         {AccountFields.inProgressTransfersCount} = @inProgressTransfersCount,
+         {AccountFields.inProgressInternalTransfers} = @inProgressInternalTransfers,
+         {AccountFields.inProgressInternalTransfersCount} = @inProgressInternalTransfersCount,
+         {AccountFields.inProgressDomesticTransfers} = @inProgressDomesticTransfers,
+         {AccountFields.inProgressDomesticTransfersCount} = @inProgressDomesticTransfersCount,
          {AccountFields.cardLocked} = @cardLocked;
       """,
       accountSqlParams

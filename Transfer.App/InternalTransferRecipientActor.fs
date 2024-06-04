@@ -1,7 +1,6 @@
 [<RequireQualifiedAccess>]
 module InternalTransferRecipientActor
 
-open System
 open Akkling
 open Akkling.Cluster.Sharding
 
@@ -9,6 +8,11 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
+
+[<RequireQualifiedAccess>]
+type InternalTransferMessage =
+   | TransferRequest of BankEvent<InternalTransferPending>
+   | ConfirmRecipient of InternalTransferSender * InternalTransferRecipient
 
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
@@ -19,21 +23,20 @@ let actorProps
 
       match msg with
       | InternalTransferMessage.ConfirmRecipient(sender, recipient) ->
-         let recipientId = recipient.Identification |> Guid.Parse |> AccountId
          let senderAccountRef = getAccountRef sender.AccountId
-         let recipientAccountRef = getAccountRef recipientId
+         let recipientAccountRef = getAccountRef recipient.AccountId
 
          let! (recipientAccountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
 
          match recipientAccountOpt with
          | None ->
-            logWarning $"Transfer recipient not found {recipientId}"
+            logWarning $"Transfer recipient not found {recipient.AccountId}"
 
             let msg =
                DeactivateInternalRecipientCommand.create sender {
                   RecipientName = recipient.Name
-                  RecipientId = recipientId
+                  RecipientId = recipient.AccountId
                }
                |> AccountCommand.DeactivateInternalRecipient
                |> AccountMessage.StateChange
@@ -45,7 +48,7 @@ let actorProps
 
                let msg =
                   DeactivateInternalRecipientCommand.create sender {
-                     RecipientId = recipientId
+                     RecipientId = recipient.AccountId
                      RecipientName = recipient.Name
                   }
                   |> AccountCommand.DeactivateInternalRecipient
@@ -61,44 +64,55 @@ let actorProps
                   |> AccountMessage.StateChange
 
                recipientAccountRef <! msg
-      | InternalTransferMessage.TransferRequest txn ->
-         let recipient = txn.Recipient
-         let recipientId = recipient.Identification |> Guid.Parse |> AccountId
-
-         let senderAccountRef = getAccountRef txn.SenderAccountId
+      | InternalTransferMessage.TransferRequest evt ->
+         let recipientId = evt.Data.RecipientId
+         let senderId = AccountId.fromEntityId evt.EntityId
          let recipientAccountRef = getAccountRef recipientId
+         let senderAccountRef = getAccountRef senderId
+         let amount = evt.Data.Amount
 
          let! (recipientAccountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
+
+         let declineTransferMsg (reason: TransferDeclinedReason) =
+            RejectInternalTransferCommand.create
+               (senderId, evt.OrgId)
+               evt.CorrelationId
+               {
+                  RecipientId = recipientId
+                  Amount = amount
+                  Reason = reason
+                  TransferRequestDate = evt.Data.TransferRequestDate
+               }
+            |> AccountCommand.RejectInternalTransfer
+            |> AccountMessage.StateChange
 
          match recipientAccountOpt with
          | None ->
             logWarning $"Transfer recipient not found {recipientId}"
 
             let msg =
-               TransferTransactionToCommand.reject
-                  txn
-                  TransferDeclinedReason.InvalidAccountInfo
-               |> AccountCommand.RejectTransfer
-               |> AccountMessage.StateChange
+               declineTransferMsg TransferDeclinedReason.InvalidAccountInfo
 
             senderAccountRef <! msg
          | Some recipientAccount ->
             if recipientAccount.Status = AccountStatus.Closed then
                logWarning $"Transfer recipient account closed"
 
-               let msg =
-                  TransferTransactionToCommand.reject
-                     txn
-                     TransferDeclinedReason.AccountClosed
-                  |> AccountCommand.RejectTransfer
-                  |> AccountMessage.StateChange
+               let msg = declineTransferMsg TransferDeclinedReason.AccountClosed
 
                senderAccountRef <! msg
             else
                let msg =
-                  TransferTransactionToCommand.approve txn
-                  |> AccountCommand.ApproveTransfer
+                  ApproveInternalTransferCommand.create
+                     (senderId, evt.OrgId)
+                     evt.CorrelationId
+                     {
+                        RecipientId = recipientId
+                        Amount = amount
+                        TransferRequestDate = evt.Data.TransferRequestDate
+                     }
+                  |> AccountCommand.ApproveInternalTransfer
                   |> AccountMessage.StateChange
 
                senderAccountRef <! msg
@@ -108,11 +122,8 @@ let actorProps
                let msg =
                   DepositTransferCommand.create
                      recipientAccount.CompositeId
-                     txn.TransferId
-                     {
-                        Amount = txn.Amount
-                        Origin = txn.SenderAccountId
-                     }
+                     evt.CorrelationId
+                     { Amount = amount; Origin = senderId }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange
 

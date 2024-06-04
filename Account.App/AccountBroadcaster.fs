@@ -39,7 +39,7 @@ let init (system: ActorSystem) : AccountBroadcast =
                   Send(
                      loadTestPath,
                      AccountLoadTestMessage.AccountEventPersisted {
-                        AccountId = account.EntityId
+                        AccountId = account.AccountId
                         Event = event
                         AccountBalance = account.Balance
                      }

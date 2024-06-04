@@ -11,7 +11,7 @@ open OrganizationSqlMapper
 let table = "account"
 
 module AccountFields =
-   let entityId = "account_id"
+   let accountId = "account_id"
    let orgId = OrgFields.orgId
    let email = "email"
    let firstName = "first_name"
@@ -27,7 +27,8 @@ module AccountFields =
    let lastInternalTransferDate = "last_internal_transfer_at"
    let lastDomesticTransferDate = "last_domestic_transfer_at"
    let lastBillingCycleDate = "last_billing_cycle_at"
-   let transferRecipients = "transfer_recipients"
+   let internalTransferRecipients = "internal_transfer_recipients"
+   let domesticTransferRecipients = "domestic_transfer_recipients"
    let internalTransferSenders = "internal_transfer_senders"
    let events = "events"
 
@@ -37,13 +38,17 @@ module AccountFields =
    let maintenanceFeeDailyBalanceThreshold =
       "maintenance_fee_daily_balance_threshold"
 
-   let inProgressTransfers = "in_progress_transfers"
-   let inProgressTransfersCount = "in_progress_transfers_count"
+   let inProgressInternalTransfers = "in_progress_internal_transfers"
+   let inProgressInternalTransfersCount = "in_progress_internal_transfers_count"
+
+   let inProgressDomesticTransfers = "in_progress_domestic_transfers"
+   let inProgressDomesticTransfersCount = "in_progress_domestic_transfers_count"
+
    let cardLocked = "card_locked"
 
 module AccountSqlReader =
-   let entityId (read: RowReader) =
-      AccountFields.entityId |> read.uuid |> AccountId
+   let accountId (read: RowReader) =
+      AccountFields.accountId |> read.uuid |> AccountId
 
    let orgId = OrgSqlReader.orgId
 
@@ -89,9 +94,13 @@ module AccountSqlReader =
    let lastBillingCycleDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastBillingCycleDate
 
-   let transferRecipients (read: RowReader) =
-      read.text AccountFields.transferRecipients
-      |> Serialization.deserializeUnsafe<TransferRecipient list>
+   let internalTransferRecipients (read: RowReader) =
+      read.text AccountFields.internalTransferRecipients
+      |> Serialization.deserializeUnsafe<InternalTransferRecipient list>
+
+   let domesticTransferRecipients (read: RowReader) =
+      read.text AccountFields.domesticTransferRecipients
+      |> Serialization.deserializeUnsafe<DomesticTransferRecipient list>
 
    let internalTransferSenders (read: RowReader) =
       read.text AccountFields.internalTransferSenders
@@ -108,14 +117,18 @@ module AccountSqlReader =
       read.text AccountFields.events
       |> Serialization.deserializeUnsafe<AccountEvent list>
 
-   let inProgressTransfers (read: RowReader) =
-      read.text AccountFields.inProgressTransfers
-      |> Serialization.deserializeUnsafe<TransferTransaction list>
+   let inProgressInternalTransfers (read: RowReader) =
+      read.text AccountFields.inProgressInternalTransfers
+      |> Serialization.deserializeUnsafe<BankEvent<InternalTransferPending> list>
+
+   let inProgressDomesticTransfers (read: RowReader) =
+      read.text AccountFields.inProgressDomesticTransfers
+      |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
    let cardLocked (read: RowReader) = read.bool AccountFields.cardLocked
 
    let account (read: RowReader) : Account = {
-      EntityId = entityId read
+      AccountId = accountId read
       OrgId = orgId read
       Email = email read
       FirstName = firstName read
@@ -131,9 +144,13 @@ module AccountSqlReader =
       LastInternalTransferDate = lastInternalTransferDate read
       LastDomesticTransferDate = lastDomesticTransferDate read
       LastBillingCycleDate = lastBillingCycleDate read
-      TransferRecipients =
-         transferRecipients read
-         |> List.map (fun recipient -> recipient.LookupKey, recipient)
+      InternalTransferRecipients =
+         internalTransferRecipients read
+         |> List.map (fun recipient -> recipient.AccountId, recipient)
+         |> Map.ofList
+      DomesticTransferRecipients =
+         domesticTransferRecipients read
+         |> List.map (fun recipient -> recipient.VirtualId, recipient)
          |> Map.ofList
       InternalTransferSenders =
          internalTransferSenders read
@@ -141,15 +158,19 @@ module AccountSqlReader =
          |> Map.ofList
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
       Events = events read
-      InProgressTransfers =
-         inProgressTransfers read
-         |> List.map (fun txn -> string txn.TransferId, txn)
+      InProgressInternalTransfers =
+         inProgressInternalTransfers read
+         |> List.map (fun evt -> evt.CorrelationId, evt)
+         |> Map.ofList
+      InProgressDomesticTransfers =
+         inProgressDomesticTransfers read
+         |> List.map (fun txn -> txn.TransferId, txn)
          |> Map.ofList
       CardLocked = cardLocked read
    }
 
 module AccountSqlWriter =
-   let entityId = AccountId.get >> Sql.uuid
+   let accountId = AccountId.get >> Sql.uuid
    let orgId = OrgSqlWriter.orgId
    let email (email: Email) = Sql.string <| string email
    let firstName = Sql.string
@@ -171,7 +192,14 @@ module AccountSqlWriter =
 
    let lastBillingCycleDate (date: DateTime option) = Sql.timestamptzOrNone date
 
-   let transferRecipients (recipients: Map<string, TransferRecipient>) =
+   let internalTransferRecipients
+      (recipients: Map<AccountId, InternalTransferRecipient>)
+      =
+      recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
+
+   let domesticTransferRecipients
+      (recipients: Map<AccountId, DomesticTransferRecipient>)
+      =
       recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let internalTransferSenders
@@ -185,13 +213,15 @@ module AccountSqlWriter =
    let maintenanceFeeQualifyingDepositFound = Sql.bool
    let maintenanceFeeDailyBalanceThreshold = Sql.bool
 
-   let inProgressTransfers
-      (inProgressTransfers: Map<string, TransferTransaction>)
+   let inProgressInternalTransfers
+      (transfers: Map<CorrelationId, BankEvent<InternalTransferPending>>)
       =
-      inProgressTransfers.Values
-      |> Seq.toList
-      |> Serialization.serialize
-      |> Sql.jsonb
+      transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
+
+   let inProgressDomesticTransfers
+      (transfers: Map<CorrelationId, DomesticTransfer>)
+      =
+      transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let inProgressTransfersCount = Sql.int
    let cardLocked = Sql.bool

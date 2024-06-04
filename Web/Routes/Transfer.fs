@@ -7,7 +7,6 @@ open System
 open System.Threading.Tasks
 open Akka.Actor
 
-open Lib.SharedTypes
 open Bank.Transfer.Domain
 open Bank.Account.Api
 open Bank.Account.Domain
@@ -15,35 +14,39 @@ open RoutePaths
 
 let startTransferRoutes (app: WebApplication) =
    app.MapPost(
-      TransferPath.TransferRecipient,
-      Func<ActorSystem, RegisterTransferRecipientCommand, Task<IResult>>
+      TransferPath.InternalTransferRecipient,
+      Func<ActorSystem, RegisterInternalTransferRecipientCommand, Task<IResult>>
          (fun sys cmd ->
-            match cmd.Data.Recipient.AccountEnvironment with
-            | RecipientAccountEnvironment.Internal ->
-               TransferRecipientEvent.local cmd
-               |> processCommand
-                     sys
-                     (AccountCommand.RegisterTransferRecipient cmd)
-                     (AccountId.fromEntityId cmd.EntityId)
-               |> RouteUtil.unwrapTaskResult
-            | RecipientAccountEnvironment.Domestic ->
-               TransferRecipientEvent.domestic cmd
-               |> processCommand
-                     sys
-                     (AccountCommand.RegisterTransferRecipient cmd)
-                     (AccountId.fromEntityId cmd.EntityId)
-               |> RouteUtil.unwrapTaskResult)
+            processCommand
+               sys
+               (AccountCommand.RegisterInternalTransferRecipient cmd)
+            |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
 
    app.MapPost(
-      TransferPath.Base,
-      Func<ActorSystem, TransferCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.Transfer cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (TransferCommand.toEvent cmd)
+      TransferPath.DomesticTransferRecipient,
+      Func<ActorSystem, RegisterDomesticTransferRecipientCommand, Task<IResult>>
+         (fun sys cmd ->
+            processCommand
+               sys
+               (AccountCommand.RegisterDomesticTransferRecipient cmd)
+            |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore
+
+   app.MapPost(
+      TransferPath.Internal,
+      Func<ActorSystem, InternalTransferCommand, Task<IResult>>(fun sys cmd ->
+         processCommand sys (AccountCommand.InternalTransfer cmd)
+         |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore
+
+   app.MapPost(
+      TransferPath.Domestic,
+      Func<ActorSystem, DomesticTransferCommand, Task<IResult>>(fun sys cmd ->
+         processCommand sys (AccountCommand.DomesticTransfer cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -51,11 +54,7 @@ let startTransferRoutes (app: WebApplication) =
    app.MapPost(
       TransferPath.NicknameRecipient,
       Func<ActorSystem, NicknameRecipientCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.NicknameRecipient cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (NicknameRecipientCommand.toEvent cmd)
+         processCommand sys (AccountCommand.NicknameRecipient cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

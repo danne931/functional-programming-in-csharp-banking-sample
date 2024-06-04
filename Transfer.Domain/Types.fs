@@ -1,18 +1,8 @@
 namespace Bank.Transfer.Domain
 
 open System
-open System.Threading.Tasks
 
 open Lib.SharedTypes
-
-[<RequireQualifiedAccess>]
-type TransferProgressTrackingMessage = | ProgressCheck
-
-[<RequireQualifiedAccess>]
-type TransferProgress =
-   | Outgoing
-   | InProgress of string
-   | Complete
 
 [<RequireQualifiedAccess>]
 type RecipientAccountEnvironment =
@@ -20,36 +10,20 @@ type RecipientAccountEnvironment =
    | Domestic
 
 [<RequireQualifiedAccess>]
-type RecipientAccountIdentificationStrategy =
-   | AccountId
-   | SwiftBIC
-   | IBAN
-   | NationalID
-
-[<RequireQualifiedAccess>]
 type RecipientRegistrationStatus =
    | Confirmed
    | InvalidAccount
    | Closed
 
-type TransferRecipient = {
+type InternalTransferRecipient = {
    LastName: string
    FirstName: string
    Nickname: string option
-   Identification: string
-   AccountEnvironment: RecipientAccountEnvironment
-   IdentificationStrategy: RecipientAccountIdentificationStrategy
-   RoutingNumber: string option
+   AccountId: AccountId
    Status: RecipientRegistrationStatus
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"
-
-   // TODO: remove & add a VirtualId GUID to TransferRecipient type
-   member x.LookupKey =
-      match x.RoutingNumber with
-      | None -> x.Identification
-      | Some routingNum -> $"{routingNum}_{x.Identification}"
 
 type InternalTransferSender = {
    Name: string
@@ -57,44 +31,26 @@ type InternalTransferSender = {
    OrgId: OrgId
 }
 
-type TransferServiceResponse = {
+type DomesticTransferRecipient = {
+   LastName: string
+   FirstName: string
+   Nickname: string option
+   // TODO: Make types for account/routing number with validus validation
    AccountNumber: string
-   RoutingNumber: string option
-   Ok: bool
-   Status: string
-   Reason: string
-   TransactionId: string
-}
+   RoutingNumber: string
+   Status: RecipientRegistrationStatus
+   VirtualId: AccountId
+} with
 
-type TransferTransaction = {
-   SenderOrgId: OrgId
-   SenderAccountId: AccountId
-   TransferId: CorrelationId
-   Recipient: TransferRecipient
-   Amount: decimal
-   Date: DateTime
-   Status: TransferProgress
-}
+   member x.Name = $"{x.FirstName} {x.LastName}"
 
 [<RequireQualifiedAccess>]
-type TransferServiceAction =
-   | TransferRequest
-   | ProgressCheck
+type TransferRecipient =
+   | Internal of InternalTransferRecipient
+   | Domestic of DomesticTransferRecipient
 
 [<RequireQualifiedAccess>]
-type InternalTransferMessage =
-   | TransferRequest of TransferTransaction
-   | ConfirmRecipient of InternalTransferSender * TransferRecipient
-
-[<RequireQualifiedAccess>]
-type DomesticTransferMessage =
-   | TransferRequest of TransferServiceAction * TransferTransaction
-   | TransferResponse of
-      TransferServiceResponse *
-      TransferServiceAction *
-      TransferTransaction
-   | BreakerHalfOpen
-   | BreakerClosed
+type TransferProgressTrackingMessage = | ProgressCheck
 
 [<RequireQualifiedAccess>]
 type TransferDeclinedReason =
@@ -105,10 +61,32 @@ type TransferDeclinedReason =
    | InvalidAccountInfo
    | Unknown of string
 
-type TransferRequest =
-   TransferServiceAction
-      -> TransferTransaction
-      -> Task<Result<TransferServiceResponse, Err>>
+[<RequireQualifiedAccess>]
+type DomesticTransferProgress =
+   | Outgoing
+   | InProgress of string
+   | Complete
 
-type GetInProgressTransfers =
-   unit -> Result<Option<TransferTransaction list>, Err> Async
+type DomesticTransfer = {
+   SenderOrgId: OrgId
+   SenderAccountId: AccountId
+   TransferId: CorrelationId
+   Recipient: DomesticTransferRecipient
+   Amount: decimal
+   Date: DateTime
+   Status: DomesticTransferProgress
+}
+
+[<RequireQualifiedAccess>]
+type DomesticTransferServiceAction =
+   | TransferRequest
+   | ProgressCheck
+
+type DomesticTransferServiceResponse = {
+   AccountNumber: string
+   RoutingNumber: string
+   Ok: bool
+   Status: string
+   Reason: string
+   TransactionId: string
+}

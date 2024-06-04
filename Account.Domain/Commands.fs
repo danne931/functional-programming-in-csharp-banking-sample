@@ -1,11 +1,9 @@
 namespace Bank.Account.Domain
 
-open System
 open Validus
 
 open Lib.SharedTypes
 open Lib.Validators
-open MaintenanceFee
 
 type CreateAccountInput = {
    Email: string
@@ -42,7 +40,7 @@ module CreateAccountCommand =
          and! email = Email.ofString "Create account email" input.Email
 
          return
-            BankEvent.create<CreateAccountInput, CreatedAccount> cmd {
+            BankEvent.create2<CreateAccountInput, CreatedAccount> cmd {
                Email = email
                FirstName = input.FirstName
                LastName = input.LastName
@@ -52,7 +50,6 @@ module CreateAccountCommand =
       }
 
 type DepositCashInput = {
-   Date: DateTime
    Amount: decimal
    Origin: string option
 }
@@ -74,26 +71,18 @@ module DepositCashCommand =
       validate {
          let input = cmd.Data
          let! _ = amountValidator "Deposit amount" input.Amount
-         let! _ = dateNotDefaultValidator "Date" input.Date
 
          return
-            BankEvent.create<DepositCashInput, DepositedCash> cmd {
-               DepositedAmount = input.Amount
+            BankEvent.create2<DepositCashInput, DepositedCash> cmd {
+               Amount = input.Amount
                Origin = input.Origin |> Option.defaultValue "ATM"
             }
       }
 
-type DebitInput = {
-   Date: DateTime
-   Amount: decimal
-   Origin: string
-   Reference: string option
-}
-
-type DebitCommand = Command<DebitInput>
+type DebitCommand = Command<DebitedAccount>
 
 module DebitCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: DebitInput) =
+   let create (accountId: AccountId, orgId: OrgId) (data: DebitedAccount) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -110,22 +99,15 @@ module DebitCommand =
          let! _ = dateNotDefaultValidator "Date" input.Date
          let! _ = originValidator input.Origin
 
-         return
-            BankEvent.create<DebitInput, DebitedAccount> cmd {
-               DebitedAmount = input.Amount
-               Origin = input.Origin
-               Date = input.Date
-               Reference = input.Reference
-            }
+         return BankEvent.create<DebitedAccount> cmd
       }
 
-type LimitDailyDebitsInput = { DebitLimit: decimal }
-type LimitDailyDebitsCommand = Command<LimitDailyDebitsInput>
+type LimitDailyDebitsCommand = Command<DailyDebitLimitUpdated>
 
 module LimitDailyDebitsCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
-      (data: LimitDailyDebitsInput)
+      (data: DailyDebitLimitUpdated)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -141,17 +123,13 @@ module LimitDailyDebitsCommand =
          let input = cmd.Data
          let! _ = amountValidator "Debit limit" input.DebitLimit
 
-         return
-            BankEvent.create<LimitDailyDebitsInput, DailyDebitLimitUpdated> cmd {
-               DebitLimit = input.DebitLimit
-            }
+         return BankEvent.create<DailyDebitLimitUpdated> cmd
       }
 
-type LockCardInput = { Reference: string option }
-type LockCardCommand = Command<LockCardInput>
+type LockCardCommand = Command<LockedCard>
 
 module LockCardCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: LockCardInput) =
+   let create (accountId: AccountId, orgId: OrgId) (data: LockedCard) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -162,16 +140,12 @@ module LockCardCommand =
       (cmd: LockCardCommand)
       : ValidationResult<BankEvent<LockedCard>>
       =
-      Ok
-      <| BankEvent.create<LockCardInput, LockedCard> cmd {
-         Reference = cmd.Data.Reference
-      }
+      Ok <| BankEvent.create<LockedCard> cmd
 
-type UnlockCardInput = { Reference: string option }
-type UnlockCardCommand = Command<UnlockCardInput>
+type UnlockCardCommand = Command<UnlockedCard>
 
 module UnlockCardCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: UnlockCardInput) =
+   let create (accountId: AccountId, orgId: OrgId) (data: UnlockedCard) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -182,13 +156,9 @@ module UnlockCardCommand =
       (cmd: UnlockCardCommand)
       : ValidationResult<BankEvent<UnlockedCard>>
       =
-      Ok
-      <| BankEvent.create<UnlockCardInput, UnlockedCard> cmd {
-         Reference = cmd.Data.Reference
-      }
+      Ok <| BankEvent.create<UnlockedCard> cmd
 
-type MaintenanceFeeInput = { Amount: decimal }
-type MaintenanceFeeCommand = Command<MaintenanceFeeInput>
+type MaintenanceFeeCommand = Command<MaintenanceFeeDebited>
 
 module MaintenanceFeeCommand =
    let create (accountId: AccountId, orgId: OrgId) =
@@ -204,19 +174,15 @@ module MaintenanceFeeCommand =
       (cmd: MaintenanceFeeCommand)
       : ValidationResult<BankEvent<MaintenanceFeeDebited>>
       =
-      Ok
-      <| BankEvent.create<MaintenanceFeeInput, MaintenanceFeeDebited> cmd {
-         DebitedAmount = cmd.Data.Amount
-      }
+      Ok <| BankEvent.create<MaintenanceFeeDebited> cmd
 
 
-type SkipMaintenanceFeeInput = { Reason: MaintenanceFeeCriteria }
-type SkipMaintenanceFeeCommand = Command<SkipMaintenanceFeeInput>
+type SkipMaintenanceFeeCommand = Command<MaintenanceFeeSkipped>
 
 module SkipMaintenanceFeeCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
-      (data: SkipMaintenanceFeeInput)
+      (data: MaintenanceFeeSkipped)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -228,16 +194,12 @@ module SkipMaintenanceFeeCommand =
       (cmd: SkipMaintenanceFeeCommand)
       : ValidationResult<BankEvent<MaintenanceFeeSkipped>>
       =
-      Ok
-      <| BankEvent.create<SkipMaintenanceFeeInput, MaintenanceFeeSkipped> cmd {
-         Reason = cmd.Data.Reason
-      }
+      Ok <| BankEvent.create<MaintenanceFeeSkipped> cmd
 
-type CloseAccountInput = { Reference: string option }
-type CloseAccountCommand = Command<CloseAccountInput>
+type CloseAccountCommand = Command<AccountClosed>
 
 module CloseAccountCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: CloseAccountInput) =
+   let create (accountId: AccountId, orgId: OrgId) (data: AccountClosed) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -248,19 +210,12 @@ module CloseAccountCommand =
       (cmd: CloseAccountCommand)
       : ValidationResult<BankEvent<AccountClosed>>
       =
-      Ok
-      <| BankEvent.create<CloseAccountInput, AccountClosed> cmd {
-         Reference = cmd.Data.Reference
-      }
+      Ok <| BankEvent.create<AccountClosed> cmd
 
-type StartBillingCycleInput = { Reference: string option }
-type StartBillingCycleCommand = Command<StartBillingCycleInput>
+type StartBillingCycleCommand = Command<BillingCycleStarted>
 
 module StartBillingCycleCommand =
-   let create
-      (accountId: AccountId, orgId: OrgId)
-      (data: StartBillingCycleInput)
-      =
+   let create (accountId: AccountId, orgId: OrgId) (data: BillingCycleStarted) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -271,7 +226,4 @@ module StartBillingCycleCommand =
       (cmd: StartBillingCycleCommand)
       : ValidationResult<BankEvent<BillingCycleStarted>>
       =
-      Ok
-      <| BankEvent.create<StartBillingCycleInput, BillingCycleStarted> cmd {
-         Reference = cmd.Data.Reference
-      }
+      Ok <| BankEvent.create<BillingCycleStarted> cmd

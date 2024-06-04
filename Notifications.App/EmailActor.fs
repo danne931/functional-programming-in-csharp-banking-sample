@@ -86,7 +86,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
       email = string account.Email
       data = {|
          firstName = account.FirstName
-         amount = $"${evt.Data.DepositedAmount}"
+         amount = $"${evt.Data.Amount}"
          origin = evt.Data.Origin
       |}
      }

@@ -108,7 +108,7 @@ let seedAccountTransactions
    (command: CreateAccountCommand)
    =
    task {
-      let accountId = AccountId.fromEntityId command.EntityId
+      let accountId = command.Data.AccountId
       let compositeId = accountId, command.OrgId
       let aref = getAccountRef accountId
 
@@ -129,7 +129,6 @@ let seedAccountTransactions
 
       let command = {
          DepositCashCommand.create compositeId {
-            Date = timestamp
             Amount = randomAmount ()
             Origin = None
          } with
@@ -174,7 +173,6 @@ let seedAccountTransactions
          if num = 2 || num = 5 then
             let command =
                DepositCashCommand.create compositeId {
-                  Date = timestamp
                   Amount = randomAmount ()
                   Origin = None
                }
@@ -194,35 +192,27 @@ let seedAccountTransactions
 
          for num in [ 1..2 ] do
             let createAccountCmd = mockAccounts.Values |> Seq.item num
-            let recipientId = createAccountCmd.EntityId
 
             let registerRecipientCmd =
-               RegisterTransferRecipientCommand.create compositeId {
-                  Recipient = {
-                     LastName = createAccountCmd.Data.LastName
-                     FirstName = createAccountCmd.Data.FirstName
-                     Nickname = None
-                     AccountEnvironment = RecipientAccountEnvironment.Internal
-                     Identification = string recipientId
-                     IdentificationStrategy =
-                        RecipientAccountIdentificationStrategy.AccountId
-                     RoutingNumber = None
-                     Status = RecipientRegistrationStatus.Confirmed
-                  }
+               RegisterInternalTransferRecipientCommand.create compositeId {
+                  AccountId = createAccountCmd.Data.AccountId
+                  LastName = createAccountCmd.Data.LastName
+                  FirstName = createAccountCmd.Data.FirstName
                }
 
             aref
-            <! (StateChange << RegisterTransferRecipient) registerRecipientCmd
+            <! (StateChange << RegisterInternalTransferRecipient)
+                  registerRecipientCmd
 
             let transferCmd =
-               TransferCommand.create compositeId {
-                  Recipient = registerRecipientCmd.Data.Recipient
+               InternalTransferCommand.create compositeId {
+                  RecipientId = registerRecipientCmd.Data.AccountId
                   Amount = randomAmount ()
-                  Date = DateTime.UtcNow
+                  TransferRequestDate = DateTime.UtcNow
                   Reference = None
                }
 
-            aref <! (StateChange << Transfer) transferCmd
+            aref <! (StateChange << InternalTransfer) transferCmd
 
    }
 
@@ -235,10 +225,10 @@ let rec getRemainingAccountsToCreate
    =
    match createdAccounts with
    | [] -> accountsToCreate
-   | [ account ] -> Map.remove account.EntityId accountsToCreate
+   | [ account ] -> Map.remove account.AccountId accountsToCreate
    | account :: rest ->
       getRemainingAccountsToCreate rest
-      <| Map.remove account.EntityId accountsToCreate
+      <| Map.remove account.AccountId accountsToCreate
 
 let private scheduleVerification
    (ctx: Actor<AccountSeederMessage>)
@@ -317,10 +307,7 @@ let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
                            state.AccountsToCreate
 
                      for command in remaining.Values do
-                        let aref =
-                           getAccountRef
-                           <| AccountId.fromEntityId command.EntityId
-
+                        let aref = getAccountRef command.Data.AccountId
                         aref <! (StateChange << CreateAccount) command
 
                      scheduleVerification ctx 5.
@@ -336,20 +323,20 @@ let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
             let accountsToSeedWithTxns, seeded =
                verified
                |> List.partition (fun account ->
-                  state.AccountsToSeedWithTransactions[account.EntityId])
+                  state.AccountsToSeedWithTransactions[account.AccountId])
 
             for acct in accountsToSeedWithTxns do
                do!
                   seedAccountTransactions
                      getAccountRef
-                     state.AccountsToCreate[acct.EntityId]
+                     state.AccountsToCreate[acct.AccountId]
 
                ()
 
             let txnsSeedMap =
                accountsToSeedWithTxns @ seeded
                |> List.fold
-                     (fun acc account -> acc |> Map.add account.EntityId false)
+                     (fun acc account -> acc |> Map.add account.AccountId false)
                      state.AccountsToSeedWithTransactions
 
             if verified.Length = state.AccountsToCreate.Count then

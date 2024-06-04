@@ -102,7 +102,16 @@ type BankEvent<'E> = {
 #endif
 
 module BankEvent =
-   let create<'C, 'E> (command: Command<'C>) (evtData: 'E) : BankEvent<'E> = {
+   let create<'E> (command: Command<'E>) : BankEvent<'E> = {
+      Id = command.Id
+      EntityId = command.EntityId
+      OrgId = command.OrgId
+      CorrelationId = command.CorrelationId
+      Timestamp = command.Timestamp
+      Data = command.Data
+   }
+
+   let create2<'C, 'E> (command: Command<'C>) (evtData: 'E) : BankEvent<'E> = {
       Id = command.Id
       EntityId = command.EntityId
       OrgId = command.OrgId

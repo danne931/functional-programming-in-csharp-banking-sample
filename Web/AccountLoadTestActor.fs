@@ -79,7 +79,6 @@ module private Stub =
    let depositMessage accountId =
       AccountMessage.StateChange << AccountCommand.DepositCash
       <| DepositCashCommand.create (accountId, orgId) {
-         Date = DateTime.UtcNow
          Amount = depositAmount
          Origin = Some "load-test"
       }

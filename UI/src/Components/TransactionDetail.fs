@@ -16,6 +16,16 @@ open Lib.SharedTypes
 type private TransactionMaybe =
    Deferred<Result<TransactionWithAncillaryInfo, Err>>
 
+/// Is the transaction detail component implemented for a given AccountEvent
+let hasRenderImplementation =
+   function
+   | AccountEvent.DepositedCash _
+   | AccountEvent.InternalTransferPending _
+   | AccountEvent.DomesticTransferPending _
+   | AccountEvent.TransferDeposited _
+   | AccountEvent.DebitedAccount _ -> true
+   | _ -> false
+
 type State = {
    TransactionId: EventId
    Transaction: TransactionMaybe
@@ -44,7 +54,8 @@ type Msg =
    | ToggleNicknameEdit
    | SaveRecipientNickname of
       Account *
-      TransferRecipient *
+      recipientId: AccountId *
+      RecipientAccountEnvironment *
       nickname: string option *
       AsyncOperationStatus<Result<EventId, Err>>
    | SaveMerchantNickname of Merchant * AsyncOperationStatus<Result<int, Err>>
@@ -120,11 +131,12 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
             EditingNickname = not state.EditingNickname
       },
       Cmd.none
-   | SaveRecipientNickname(account, recipient, nickname, Started) ->
+   | SaveRecipientNickname(account, recipientId, recipientEnv, nickname, Started) ->
       let command =
          NicknameRecipientCommand.create account.CompositeId {
             Nickname = nickname
-            Recipient = recipient
+            RecipientId = recipientId
+            RecipientAccountEnvironment = recipientEnv
          }
          |> AccountCommand.NicknameRecipient
 
@@ -134,7 +146,8 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
          return
             Msg.SaveRecipientNickname(
                account,
-               recipient,
+               recipientId,
+               recipientEnv,
                nickname,
                Finished res
             )
@@ -145,14 +158,14 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
             NicknamePersistence = Deferred.InProgress
       },
       Cmd.fromAsync submitCommand
-   | SaveRecipientNickname(_, _, _, Finished(Ok _)) ->
+   | SaveRecipientNickname(_, _, _, _, Finished(Ok _)) ->
       {
          state with
             EditingNickname = false
             NicknamePersistence = Deferred.Idle
       },
       Cmd.none
-   | SaveRecipientNickname(_, _, _, Finished(Error err)) ->
+   | SaveRecipientNickname(_, _, _, _, Finished(Error err)) ->
       {
          state with
             NicknamePersistence = Deferred.Resolved(Error err)
@@ -210,15 +223,12 @@ let private nicknameSaveButton dispatch msg =
 [<ReactComponent>]
 let RecipientNicknameEditComponent
    (account: Account)
-   (recipient: TransferRecipient)
+   (recipientId: AccountId)
+   (recipientEnv: RecipientAccountEnvironment)
    dispatch
    =
-   let recipientNickname =
-      account.TransferRecipients
-      |> Map.tryFind recipient.LookupKey
-      |> Option.bind _.Nickname
-
-   let pendingNickname, setNickname = React.useState recipientNickname
+   let name, nickname = nameAndNicknamePair account recipientId
+   let pendingNickname, setNickname = React.useState nickname
 
    let nicknameInputRef = React.useInputRef ()
 
@@ -241,28 +251,29 @@ let RecipientNicknameEditComponent
             |> setNickname)
       ]
 
-      if pendingNickname = (Some recipient.Name) then
-         Html.small $"No change from original name {recipient.Name}."
-      elif pendingNickname <> recipientNickname then
+      if pendingNickname = (Some name) then
+         Html.small $"No change from original name {name}."
+      elif pendingNickname <> nickname then
          match pendingNickname with
          | None ->
             Html.small
-               $"Transactions will display as {recipient.Name} for past and future transactions."
-         | Some name ->
+               $"Transactions will display as {name} for past and future transactions."
+         | Some alias ->
             Html.small
-               $"Transactions for {recipient.Name} will display as {name} for past and future transactions."
+               $"Transactions for {name} will display as {alias} for past and future transactions."
 
       classyNode Html.div [ "transaction-nickname-controls" ] [
-         if pendingNickname = (Some recipient.Name) then
+         if pendingNickname = (Some name) then
             nicknameCancelButton dispatch
-         elif pendingNickname <> recipientNickname then
+         elif pendingNickname <> nickname then
             nicknameCancelButton dispatch
 
             nicknameSaveButton
             <| dispatch
             <| Msg.SaveRecipientNickname(
                account,
-               recipient,
+               recipientId,
+               recipientEnv,
                pendingNickname,
                Started
             )
@@ -365,8 +376,18 @@ let renderTransactionInfo
          ]
 
          match txnInfo.Event with
-         | AccountEvent.TransferPending e when isEditingNickname ->
-            RecipientNicknameEditComponent account e.Data.Recipient dispatch
+         | AccountEvent.InternalTransferPending e when isEditingNickname ->
+            RecipientNicknameEditComponent
+               account
+               e.Data.RecipientId
+               RecipientAccountEnvironment.Internal
+               dispatch
+         | AccountEvent.DomesticTransferPending e when isEditingNickname ->
+            RecipientNicknameEditComponent
+               account
+               e.Data.Recipient.VirtualId
+               RecipientAccountEnvironment.Domestic
+               dispatch
          | AccountEvent.DebitedAccount e when isEditingNickname ->
             MerchantNicknameEditComponent e merchants dispatch
          | _ ->
@@ -445,7 +466,8 @@ let renderFooterMenuControls
       match txnInfo with
       | Deferred.Resolved(Ok txnInfo) ->
          match txnInfo.Event with
-         | AccountEvent.TransferPending _
+         | AccountEvent.InternalTransferPending _
+         | AccountEvent.DomesticTransferPending _
          | AccountEvent.TransferDeposited _
          | AccountEvent.DebitedAccount _ -> Some txnInfo.Event
          | _ -> None
@@ -486,7 +508,8 @@ let renderFooterMenuControls
                                  dispatch ToggleNicknameEdit)
                            ]
                         ]
-                     | AccountEvent.TransferPending _ ->
+                     | AccountEvent.InternalTransferPending _
+                     | AccountEvent.DomesticTransferPending _ ->
                         Html.li [
                            Html.a [
                               attr.href ""
@@ -548,7 +571,7 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
             |> AccountBrowserQuery.toQueryParams
             |> Router.encodeQueryString
 
-         Router.navigate ("account", string account.EntityId, queryString))
+         Router.navigate ("account", string account.AccountId, queryString))
 
       match state.Transaction with
       | Deferred.Resolved(Ok txn) ->

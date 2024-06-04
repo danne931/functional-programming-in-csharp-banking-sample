@@ -1,7 +1,5 @@
 module RoutePaths
 
-open System
-
 open Lib.SharedTypes
 
 module AccountPath =
@@ -29,7 +27,10 @@ module DiagnosticPath =
 
 module TransferPath =
    let Base = "/transfers"
-   let TransferRecipient = Base + "/register-recipient"
+   let Internal = Base + "/internal"
+   let Domestic = Base + "/domestic"
+   let InternalTransferRecipient = Internal + "/register-recipient"
+   let DomesticTransferRecipient = Domestic + "/register-recipient"
    let NicknameRecipient = Base + "/recipient-nickname"
 
 module TransactionPath =

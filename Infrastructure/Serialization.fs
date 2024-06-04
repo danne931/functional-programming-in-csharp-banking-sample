@@ -7,7 +7,6 @@ open Akka.Serialization
 open Akka.Actor
 open Akka.Persistence.Journal
 open Akka.Persistence.Extras
-open Akka.Cluster.Sharding
 open Akkling.Cluster.Sharding
 
 open Bank.Account.Domain
@@ -71,7 +70,8 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
       | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
       | :? BillingCycleMessage -> "BillingCycleActorMessage"
-      | :? DomesticTransferMessage -> "DomesticTransferActorMessage"
+      | :? DomesticTransferRecipientActor.DomesticTransferMessage ->
+         "DomesticTransferActorMessage"
       | :? TransferProgressTrackingMessage ->
          "TransferProgressTrackingActorMessage"
       | :? ShardEnvelope as e ->
@@ -116,7 +116,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? TransferProgressTrackingMessage
       // ProgressCheck messages from TransferProgressTracking
       // singleton actor to DomesticTransferActor
-      | :? DomesticTransferMessage
+      | :? DomesticTransferRecipientActor.DomesticTransferMessage
       // Messages from sharded account nodes to AccountClosureActor cluster
       // singleton. Also for messages from SchedulingActor to Account Closure Proxy
       | :? AccountClosureMessage
@@ -183,7 +183,8 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "BillingCycleActorMessage" -> typeof<BillingCycleMessage>
          | "TransferProgressTrackingActorMessage" ->
             typeof<TransferProgressTrackingMessage>
-         | "DomesticTransferActorMessage" -> typeof<DomesticTransferMessage>
+         | "DomesticTransferActorMessage" ->
+            typeof<DomesticTransferRecipientActor.DomesticTransferMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>

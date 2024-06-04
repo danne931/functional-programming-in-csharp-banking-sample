@@ -57,24 +57,14 @@ let internalRecipientForm
       }
 
    let onSubmit (recipient: AccountProfile) =
-      let recipient = {
-         LastName = recipient.LastName
-         FirstName = recipient.FirstName
-         Nickname = None
-         Identification = string recipient.EntityId
-         AccountEnvironment = RecipientAccountEnvironment.Internal
-         IdentificationStrategy =
-            RecipientAccountIdentificationStrategy.AccountId
-         RoutingNumber = None
-         Status = RecipientRegistrationStatus.Confirmed
-      }
-
       let cmd =
-         RegisterTransferRecipientCommand.create account.CompositeId {
-            Recipient = recipient
+         RegisterInternalTransferRecipientCommand.create account.CompositeId {
+            AccountId = recipient.AccountId
+            FirstName = recipient.FirstName
+            LastName = recipient.LastName
          }
 
-      Msg.Submit(AccountCommand.RegisterTransferRecipient cmd, Started)
+      Msg.Submit(AccountCommand.RegisterInternalTransferRecipient cmd, Started)
 
    Form.succeed onSubmit |> Form.append fieldEmail
 
@@ -124,8 +114,7 @@ let domesticRecipientForm
 
    let fieldRoutingNumber =
       Form.textField {
-         Parser =
-            Some >> routingNumberValidator >> validationErrorsHumanFriendly
+         Parser = routingNumberValidator >> validationErrorsHumanFriendly
          Value = fun (values: Values) -> values.RoutingNumber
          Update =
             fun newValue values -> { values with RoutingNumber = newValue }
@@ -140,24 +129,15 @@ let domesticRecipientForm
    let onSubmit name accountNum routingNum =
       let first, last = name
 
-      let recipient = {
-         LastName = last
-         FirstName = first
-         Nickname = None
-         Identification = accountNum
-         AccountEnvironment = RecipientAccountEnvironment.Domestic
-         IdentificationStrategy =
-            RecipientAccountIdentificationStrategy.AccountId
-         RoutingNumber = Some routingNum
-         Status = RecipientRegistrationStatus.Confirmed
-      }
-
       let cmd =
-         RegisterTransferRecipientCommand.create account.CompositeId {
-            Recipient = recipient
+         RegisterDomesticTransferRecipientCommand.create account.CompositeId {
+            LastName = last
+            FirstName = first
+            AccountNumber = accountNum
+            RoutingNumber = routingNum
          }
 
-      Msg.Submit(AccountCommand.RegisterTransferRecipient cmd, Started)
+      Msg.Submit(AccountCommand.RegisterDomesticTransferRecipient cmd, Started)
 
    Form.succeed onSubmit
    |> Form.append (

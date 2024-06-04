@@ -6,15 +6,23 @@ open Akka.Hosting
 open Akka.Streams
 open Akkling.Streams
 open Akkling
+open FsToolkit.ErrorHandling
 
+open Lib.SharedTypes
 open Bank.Transfer.Domain
 open ActorUtil
 open Lib.Types
+open Lib.Postgres
+open AccountSqlMapper
+
+type private DomesticTransferMsg =
+   DomesticTransferRecipientActor.DomesticTransferMessage
 
 let actorProps
    (system: ActorSystem)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
-   (getInProgressTransfers: GetInProgressTransfers)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
+   (getInProgressTransfers:
+      unit -> Async<Result<Option<DomesticTransfer list>, Err>>)
    (throttle: StreamThrottle)
    =
    let mat = system.Materializer()
@@ -46,8 +54,8 @@ let actorProps
                throttle.Duration
          |> Source.runForEach mat (fun transferInProgress ->
             let msg =
-               DomesticTransferMessage.TransferRequest(
-                  TransferServiceAction.ProgressCheck,
+               DomesticTransferMsg.TransferRequest(
+                  DomesticTransferServiceAction.ProgressCheck,
                   transferInProgress
                )
 
@@ -65,3 +73,56 @@ let get (system: ActorSystem) : IActorRef<TransferProgressTrackingMessage> =
    <| ActorRegistry
       .For(system)
       .Get<ActorMetadata.TransferProgressTrackingMarker>()
+
+// NOTE: Date Filter:
+// Include in progress check if an hour has elapsed since transfer initiated.
+//
+// NOTE: Transfer Status Filter:
+// Include in progress check if the initial transfer request has
+// been acknowledged as received by the mock 3rd party bank.
+// This avoids transfer rejections due to a ProgressCheck being
+// received by the mock 3rd party bank before a TransferRequest
+// in cases where a TransferRequest was rescheduled when the
+// domestic transfer actor's circuit breaker was open.
+let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResultOption {
+   let reader (read: RowReader) =
+      read.text "txns" |> Serialization.deserializeUnsafe<DomesticTransfer>
+
+   let statusPath = "{Status,0}"
+
+   let inProgressTransfersPath =
+      AccountSqlMapper.table + "." + AccountFields.inProgressDomesticTransfers
+
+   let inProgressTransfersCountPath =
+      AccountSqlMapper.table
+      + "."
+      + AccountFields.inProgressDomesticTransfersCount
+
+   let! transfers =
+      pgQuery<DomesticTransfer>
+         $"""
+         SELECT txns
+         FROM
+            {AccountSqlMapper.table},
+            jsonb_array_elements({inProgressTransfersPath}) as txns
+         WHERE
+            {inProgressTransfersCountPath} > 0
+            AND txns #>> '{statusPath}' = 'InProgress'
+            AND (txns ->> 'Date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
+         """
+         None
+         reader
+
+   return transfers
+}
+
+let initProps
+   (system: ActorSystem)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
+   =
+   actorProps
+      system
+      getDomesticTransferActor
+      (getProgressCheckReadyDomesticTransfers
+         EnvTransfer.config.TransferProgressLookbackMinutes)
+      EnvTransfer.config.TransferProgressTrackingThrottle

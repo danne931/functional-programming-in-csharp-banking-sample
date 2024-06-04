@@ -30,13 +30,16 @@ CREATE TABLE account (
    daily_debit_accrued MONEY NOT NULL,
    daily_internal_transfer_accrued MONEY NOT NULL,
    daily_domestic_transfer_accrued MONEY NOT NULL,
-   transfer_recipients JSONB NOT NULL,
+   internal_transfer_recipients JSONB NOT NULL,
+   domestic_transfer_recipients JSONB NOT NULL,
    internal_transfer_senders JSONB NOT NULL,
    maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
    maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
    events JSONB NOT NULL,
-   in_progress_transfers JSONB NOT NULL,
-   in_progress_transfers_count INT NOT NULL,
+   in_progress_internal_transfers JSONB NOT NULL,
+   in_progress_internal_transfers_count INT NOT NULL,
+   in_progress_domestic_transfers JSONB NOT NULL,
+   in_progress_domestic_transfers_count INT NOT NULL,
    card_locked BOOLEAN NOT NULL,
    org_id UUID NOT NULL REFERENCES organization,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +49,7 @@ CREATE TABLE account (
    last_billing_cycle_at TIMESTAMPTZ
 );
 
-CREATE INDEX account_in_progress_transfers_count_idx ON account(in_progress_transfers_count);
+CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
 
 CREATE TABLE billingstatement (

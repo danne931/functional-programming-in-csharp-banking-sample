@@ -10,15 +10,24 @@ open Bank.Transfer.Domain
 open AsyncUtil
 open Lib.Validators
 open FormContainer
+open Lib.SharedTypes
 
 type Values = { Amount: string; RecipientId: string }
 
 let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
-   let options = [
-      for recipientLookupKey, recipient in
-         (Map.toList account.TransferRecipients) ->
-         recipientLookupKey, $"{recipient.FirstName} {recipient.LastName}"
-   ]
+   let options =
+      [
+         for KeyValue(recipientId, recipient) in account.TransferRecipients ->
+            let name =
+               match recipient with
+               | TransferRecipient.Internal o ->
+                  o.Nickname |> Option.defaultValue o.Name
+               | TransferRecipient.Domestic o ->
+                  o.Nickname |> Option.defaultValue o.Name
+
+            string recipientId, name
+      ]
+      |> List.sortBy snd
 
    let selectField =
       Form.selectField {
@@ -54,31 +63,38 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
          }
       }
 
-   let onSubmit selectedId amount =
-      let cmd =
-         TransferCommand.create account.CompositeId {
-            Date = DateTime.UtcNow
-            Amount = amount
-            Recipient = account.TransferRecipients |> Map.find selectedId
-            Reference = None
-         }
+   let onSubmit (selectedId: string) (amount: decimal) =
+      let selectedId = selectedId |> Guid.Parse |> AccountId
 
-      Msg.Submit(AccountCommand.Transfer cmd, Started)
+      Map.tryFind selectedId account.InternalTransferRecipients
+      |> Option.map (fun recipient ->
+         let cmd =
+            InternalTransferCommand.create account.CompositeId {
+               TransferRequestDate = DateTime.UtcNow
+               Amount = amount
+               RecipientId = recipient.AccountId
+               Reference = None
+            }
+
+         Msg.Submit(AccountCommand.InternalTransfer cmd, Started))
+      |> Option.defaultWith (fun () ->
+         let recipient = Map.find selectedId account.DomesticTransferRecipients
+
+         let cmd =
+            DomesticTransferCommand.create account.CompositeId {
+               TransferRequestDate = DateTime.UtcNow
+               Amount = amount
+               Recipient = recipient
+               Reference = None
+            }
+
+         Msg.Submit(AccountCommand.DomesticTransfer cmd, Started))
 
    Form.succeed onSubmit |> Form.append selectField |> Form.append amountField
 
 let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   let selectedRecipient =
-      account.TransferRecipients.Values
-      |> Seq.tryHead
-      |> Option.map _.LookupKey
-      |> Option.defaultValue ""
-
    FormContainer
       account
-      {
-         Amount = ""
-         RecipientId = selectedRecipient
-      }
+      { Amount = ""; RecipientId = "" }
       (form account)
       onSubmit

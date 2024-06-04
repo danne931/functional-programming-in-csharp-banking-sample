@@ -12,6 +12,7 @@ open Lib.TransactionQuery
 open Lib.Postgres
 open Lib.SharedTypes
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 
 module Fields = AccountSqlMapper.AccountFields
 module Reader = AccountSqlMapper.AccountSqlReader
@@ -21,8 +22,8 @@ let accountTable = AccountSqlMapper.table
 let getAccount (id: AccountId) =
    pgQuerySingle<Account>
       $"SELECT * FROM {accountTable} 
-        WHERE {Fields.entityId} = @accountId"
-      (Some [ "accountId", Writer.entityId id ])
+        WHERE {Fields.accountId} = @accountId"
+      (Some [ "accountId", Writer.accountId id ])
       Reader.account
 
 let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
@@ -41,7 +42,7 @@ let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
             '[]'::jsonb
          ) as txns
       FROM {accountTable}
-      WHERE {Fields.entityId} = @accountId
+      WHERE {Fields.accountId} = @accountId
       """
 
    return!
@@ -58,7 +59,7 @@ let getAccountProfiles (orgId: OrgId) =
    let query =
       $"""
       SELECT
-         {Fields.entityId},
+         {Fields.accountId},
          {Fields.orgId},
          {Fields.firstName},
          {Fields.lastName},
@@ -71,7 +72,7 @@ let getAccountProfiles (orgId: OrgId) =
       query
       (Some [ "orgId", Writer.orgId orgId ])
       (fun read -> {
-         EntityId = Reader.entityId read
+         AccountId = Reader.accountId read
          OrgId = Reader.orgId read
          Email = Reader.email read
          FirstName = Reader.firstName read
@@ -81,25 +82,49 @@ let getAccountProfiles (orgId: OrgId) =
 let getAccountsByIds (accountIds: AccountId list) =
    pgQuery<Account>
       $"SELECT * FROM {accountTable} 
-        WHERE {Fields.entityId} = ANY(@accountIds)"
+        WHERE {Fields.accountId} = ANY(@accountIds)"
       (Some [
          "accountIds",
          accountIds |> List.map AccountId.get |> List.toArray |> Sql.uuidArray
       ])
       Reader.account
 
-let processCommand
-   (system: ActorSystem)
-   (command: AccountCommand)
-   (entityId: AccountId)
-   (validation: ValidationResult<BankEvent<'E>>)
-   =
-   taskResult {
-      let! _ = validation |> Result.mapError Err.ValidationError
-      let ref = AccountActor.get system entityId
-      ref <! AccountMessage.StateChange command
-      return validation |> Result.map _.Id
-   }
+let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult {
+   let ids (cmd: BankEvent<_>) = cmd.EntityId, cmd.Id
+
+   let validation =
+      match command with
+      | CreateAccount cmd -> CreateAccountCommand.toEvent cmd |> Result.map ids
+      | DepositCash cmd -> DepositCashCommand.toEvent cmd |> Result.map ids
+      | Debit cmd -> DebitCommand.toEvent cmd |> Result.map ids
+      | LimitDailyDebits cmd ->
+         LimitDailyDebitsCommand.toEvent cmd |> Result.map ids
+      | LockCard cmd -> LockCardCommand.toEvent cmd |> Result.map ids
+      | UnlockCard cmd -> UnlockCardCommand.toEvent cmd |> Result.map ids
+      | InternalTransfer cmd ->
+         InternalTransferCommand.toEvent cmd |> Result.map ids
+      | DomesticTransfer cmd ->
+         DomesticTransferCommand.toEvent cmd |> Result.map ids
+      | RegisterInternalTransferRecipient cmd ->
+         RegisterInternalTransferRecipientCommand.toEvent cmd |> Result.map ids
+      | RegisterDomesticTransferRecipient cmd ->
+         RegisterDomesticTransferRecipientCommand.toEvent cmd |> Result.map ids
+      | DeactivateInternalRecipient cmd ->
+         DeactivateInternalRecipientCommand.toEvent cmd |> Result.map ids
+      | NicknameRecipient cmd ->
+         NicknameRecipientCommand.toEvent cmd |> Result.map ids
+      | CloseAccount cmd -> CloseAccountCommand.toEvent cmd |> Result.map ids
+      | cmd ->
+         Error
+         <| ValidationErrors.create "" [
+            $"Command processing not implemented for {cmd}"
+         ]
+
+   let! (entityId, _) = validation |> Result.mapError Err.ValidationError
+   let ref = AccountActor.get system (AccountId.fromEntityId entityId)
+   ref <! AccountMessage.StateChange command
+   return validation |> Result.map snd
+}
 
 // Diagnostic
 let getAccountEventsFromAkka

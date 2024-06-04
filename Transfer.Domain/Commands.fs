@@ -1,22 +1,18 @@
 namespace Bank.Transfer.Domain
 
-open System
 open Validus
+open System
 
 open Lib.SharedTypes
 open Lib.Validators
 
-type TransferInput = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   Amount: decimal
-   Reference: string option
-}
+type InternalTransferCommand = Command<InternalTransferPending>
 
-type TransferCommand = Command<TransferInput>
-
-module TransferCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: TransferInput) =
+module InternalTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: InternalTransferPending)
+      =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -24,135 +20,58 @@ module TransferCommand =
          data
 
    let toEvent
-      (cmd: TransferCommand)
-      : ValidationResult<BankEvent<TransferPending>>
+      (cmd: InternalTransferCommand)
+      : ValidationResult<BankEvent<InternalTransferPending>>
       =
       validate {
          let input = cmd.Data
          let! _ = amountValidator "Transfer amount" input.Amount
-         let! _ = dateNotDefaultValidator "Transfer date" input.Date
 
-         return
-            BankEvent.create<TransferInput, TransferPending> cmd {
-               Recipient = input.Recipient
-               Date = input.Date
-               DebitedAmount = input.Amount
-               Reference = input.Reference
-               Status = TransferProgress.Outgoing
-            }
+         let! _ =
+            dateNotDefaultValidator "Transfer date" input.TransferRequestDate
+
+         return BankEvent.create<InternalTransferPending> cmd
       }
 
-type TransferProgressInput = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   Amount: decimal
-   Status: TransferProgress
-}
+type ApproveInternalTransferCommand = Command<InternalTransferApproved>
 
-type UpdateTransferProgressCommand = Command<TransferProgressInput>
-
-module UpdateTransferProgressCommand =
+module ApproveInternalTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
-      (data: TransferProgressInput)
+      (data: InternalTransferApproved)
       =
       Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
-      (cmd: UpdateTransferProgressCommand)
-      : ValidationResult<BankEvent<TransferProgressUpdate>>
+      (cmd: ApproveInternalTransferCommand)
+      : ValidationResult<BankEvent<InternalTransferApproved>>
       =
-      let input = cmd.Data
+      BankEvent.create<InternalTransferApproved> cmd |> Ok
 
-      BankEvent.create<TransferProgressInput, TransferProgressUpdate> cmd {
-         Recipient = input.Recipient
-         Date = input.Date
-         DebitedAmount = input.Amount
-         Status = input.Status
-      }
-      |> Ok
+type RejectInternalTransferCommand = Command<InternalTransferRejected>
 
-type ApproveTransferInput = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   Amount: decimal
-}
-
-type ApproveTransferCommand = Command<ApproveTransferInput>
-
-module ApproveTransferCommand =
+module RejectInternalTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
-      (data: ApproveTransferInput)
+      (data: InternalTransferRejected)
       =
       Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
-      (cmd: ApproveTransferCommand)
-      : ValidationResult<BankEvent<TransferApproved>>
+      (cmd: RejectInternalTransferCommand)
+      : ValidationResult<BankEvent<InternalTransferRejected>>
       =
-      let input = cmd.Data
+      BankEvent.create<InternalTransferRejected> cmd |> Ok
 
-      BankEvent.create<ApproveTransferInput, TransferApproved> cmd {
-         Recipient = input.Recipient
-         Date = input.Date
-         DebitedAmount = input.Amount
-      }
-      |> Ok
-
-type RejectTransferInput = {
-   Recipient: TransferRecipient
-   Date: DateTime
-   Amount: decimal
-   Reason: TransferDeclinedReason
-}
-
-type RejectTransferCommand = Command<RejectTransferInput>
-
-module RejectTransferCommand =
-   let create
-      (accountId: AccountId, orgId: OrgId)
-      correlationId
-      (data: RejectTransferInput)
-      =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
-
-   let toEvent
-      (cmd: RejectTransferCommand)
-      : ValidationResult<BankEvent<TransferRejected>>
-      =
-      let input = cmd.Data
-      // Updates status of transfer recipient when a transfer is declined
-      // due to an account not existing or becoming closed.
-      let updatedRecipientStatus =
-         match input.Reason with
-         | TransferDeclinedReason.InvalidAccountInfo ->
-            RecipientRegistrationStatus.InvalidAccount
-         | TransferDeclinedReason.AccountClosed ->
-            RecipientRegistrationStatus.Closed
-         | _ -> input.Recipient.Status
-
-      BankEvent.create<RejectTransferInput, TransferRejected> cmd {
-         Recipient = {
-            input.Recipient with
-               Status = updatedRecipientStatus
-         }
-         Date = input.Date
-         DebitedAmount = input.Amount
-         Reason = input.Reason
-      }
-      |> Ok
-
-type DepositTransferInput = { Amount: decimal; Origin: AccountId }
-type DepositTransferCommand = Command<DepositTransferInput>
+type DepositTransferCommand = Command<TransferDeposited>
 
 module DepositTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
-      (data: DepositTransferInput)
+      (data: TransferDeposited)
       =
       Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
@@ -160,19 +79,21 @@ module DepositTransferCommand =
       (cmd: DepositTransferCommand)
       : ValidationResult<BankEvent<TransferDeposited>>
       =
-      BankEvent.create<DepositTransferInput, TransferDeposited> cmd {
-         DepositedAmount = cmd.Data.Amount
-         Origin = cmd.Data.Origin
-      }
-      |> Ok
+      BankEvent.create<TransferDeposited> cmd |> Ok
 
-type RegisterTransferRecipientInput = { Recipient: TransferRecipient }
-type RegisterTransferRecipientCommand = Command<RegisterTransferRecipientInput>
+type InternalTransferRecipientInput = {
+   LastName: string
+   FirstName: string
+   AccountId: AccountId
+}
 
-module RegisterTransferRecipientCommand =
+type RegisterInternalTransferRecipientCommand =
+   Command<InternalTransferRecipientInput>
+
+module RegisterInternalTransferRecipientCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
-      (data: RegisterTransferRecipientInput)
+      (data: InternalTransferRecipientInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -180,73 +101,38 @@ module RegisterTransferRecipientCommand =
          (CorrelationId.create ())
          data
 
-module TransferRecipientEvent =
-   let recipientValidation (cmd: RegisterTransferRecipientCommand) = validate {
-      let recipient = cmd.Data.Recipient
-
+   let toEvent (cmd: RegisterInternalTransferRecipientCommand) = validate {
       let! _ =
          transferRecipientIdValidator
             (string cmd.EntityId)
-            recipient.Identification
+            (string cmd.Data.AccountId)
 
-      and! _ = accountNumberValidator recipient.Identification
+      and! _ = firstNameValidator cmd.Data.FirstName
+      and! _ = lastNameValidator cmd.Data.LastName
 
-      and! _ = firstNameValidator recipient.FirstName
-      and! _ = lastNameValidator recipient.LastName
-      return cmd
+      return
+         BankEvent.create2<
+            InternalTransferRecipientInput,
+            RegisteredInternalTransferRecipient
+          >
+            cmd
+            {
+               Recipient = {
+                  LastName = cmd.Data.LastName
+                  FirstName = cmd.Data.FirstName
+                  Nickname = None
+                  AccountId = cmd.Data.AccountId
+                  Status = RecipientRegistrationStatus.Confirmed
+               }
+            }
    }
 
-   let local
-      (cmd: RegisterTransferRecipientCommand)
-      : ValidationResult<BankEvent<RegisteredInternalTransferRecipient>>
-      =
-      validate {
-         let! _ = recipientValidation cmd
-         let recipient = cmd.Data.Recipient
-
-         return
-            BankEvent.create<
-               RegisterTransferRecipientInput,
-               RegisteredInternalTransferRecipient
-             >
-               cmd
-               {
-                  AccountNumber = recipient.Identification
-                  LastName = recipient.LastName
-                  FirstName = recipient.FirstName
-               }
-      }
-
-   let domestic
-      (cmd: RegisterTransferRecipientCommand)
-      : ValidationResult<BankEvent<RegisteredDomesticTransferRecipient>>
-      =
-      validate {
-         let! _ = recipientValidation cmd
-         and! _ = routingNumberValidator cmd.Data.Recipient.RoutingNumber
-         let recipient = cmd.Data.Recipient
-
-         return
-            BankEvent.create<
-               RegisterTransferRecipientInput,
-               RegisteredDomesticTransferRecipient
-             >
-               cmd
-               {
-                  LastName = recipient.LastName
-                  FirstName = recipient.FirstName
-                  AccountNumber = recipient.Identification
-                  RoutingNumber = recipient.RoutingNumber
-               }
-      }
-
-type RegisterInternalSenderInput = { Sender: InternalTransferSender }
-type RegisterInternalSenderCommand = Command<RegisterInternalSenderInput>
+type RegisterInternalSenderCommand = Command<InternalSenderRegistered>
 
 module RegisterInternalSenderCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
-      (data: RegisterInternalSenderInput)
+      (data: InternalSenderRegistered)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -258,23 +144,14 @@ module RegisterInternalSenderCommand =
       (cmd: RegisterInternalSenderCommand)
       : ValidationResult<BankEvent<InternalSenderRegistered>>
       =
-      BankEvent.create<RegisterInternalSenderInput, InternalSenderRegistered>
-         cmd
-         { TransferSender = cmd.Data.Sender }
-      |> Ok
+      BankEvent.create<InternalSenderRegistered> cmd |> Ok
 
-type DeactivateInternalRecipientInput = {
-   RecipientId: AccountId
-   RecipientName: string
-}
-
-type DeactivateInternalRecipientCommand =
-   Command<DeactivateInternalRecipientInput>
+type DeactivateInternalRecipientCommand = Command<InternalRecipientDeactivated>
 
 module DeactivateInternalRecipientCommand =
    let create
       (sender: InternalTransferSender)
-      (data: DeactivateInternalRecipientInput)
+      (data: InternalRecipientDeactivated)
       =
       Command.create
          (AccountId.toEntityId sender.AccountId)
@@ -286,29 +163,12 @@ module DeactivateInternalRecipientCommand =
       (cmd: DeactivateInternalRecipientCommand)
       : ValidationResult<BankEvent<InternalRecipientDeactivated>>
       =
-      BankEvent.create<
-         DeactivateInternalRecipientInput,
-         InternalRecipientDeactivated
-       >
-         cmd
-         {
-            RecipientId = cmd.Data.RecipientId
-            RecipientName = cmd.Data.RecipientName
-         }
-      |> Ok
+      BankEvent.create<InternalRecipientDeactivated> cmd |> Ok
 
-type NicknameRecipientInput = {
-   Recipient: TransferRecipient
-   Nickname: string option
-}
-
-type NicknameRecipientCommand = Command<NicknameRecipientInput>
+type NicknameRecipientCommand = Command<RecipientNicknamed>
 
 module NicknameRecipientCommand =
-   let create
-      (accountId: AccountId, orgId: OrgId)
-      (data: NicknameRecipientInput)
-      =
+   let create (accountId: AccountId, orgId: OrgId) (data: RecipientNicknamed) =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
@@ -319,41 +179,189 @@ module NicknameRecipientCommand =
       (cmd: NicknameRecipientCommand)
       : ValidationResult<BankEvent<RecipientNicknamed>>
       =
-      BankEvent.create<NicknameRecipientInput, RecipientNicknamed> cmd {
-         RecipientLookupKey = cmd.Data.Recipient.LookupKey
-         Nickname = cmd.Data.Nickname
-      }
-      |> Ok
+      BankEvent.create<RecipientNicknamed> cmd |> Ok
 
-module TransferTransactionToCommand =
-   let progress (txn: TransferTransaction) (status: TransferProgress) =
-      UpdateTransferProgressCommand.create
+type DomesticTransferRecipientInput = {
+   LastName: string
+   FirstName: string
+   AccountNumber: string
+   RoutingNumber: string
+}
+
+type RegisterDomesticTransferRecipientCommand =
+   Command<DomesticTransferRecipientInput>
+
+module RegisterDomesticTransferRecipientCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: DomesticTransferRecipientInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
+
+   let toEvent
+      (cmd: RegisterDomesticTransferRecipientCommand)
+      : ValidationResult<BankEvent<RegisteredDomesticTransferRecipient>>
+      =
+      validate {
+
+         let recipient = {
+            FirstName = cmd.Data.FirstName
+            LastName = cmd.Data.LastName
+            Nickname = None
+            AccountNumber = cmd.Data.AccountNumber
+            RoutingNumber = cmd.Data.RoutingNumber
+            Status = RecipientRegistrationStatus.Confirmed
+            VirtualId = Guid.NewGuid() |> AccountId
+         }
+
+         let! _ =
+            transferRecipientIdValidator
+               (string cmd.EntityId)
+               (string recipient.VirtualId)
+
+         and! _ = accountNumberValidator recipient.AccountNumber
+         and! _ = routingNumberValidator recipient.RoutingNumber
+         and! _ = firstNameValidator recipient.FirstName
+         and! _ = lastNameValidator recipient.LastName
+
+         return
+            BankEvent.create2<
+               DomesticTransferRecipientInput,
+               RegisteredDomesticTransferRecipient
+             >
+               cmd
+               { Recipient = recipient }
+      }
+
+type DomesticTransferPendingInput = {
+   TransferRequestDate: DateTime
+   Amount: Decimal
+   Recipient: DomesticTransferRecipient
+   Reference: string option
+}
+
+type DomesticTransferCommand = Command<DomesticTransferPendingInput>
+
+module DomesticTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: DomesticTransferPendingInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
+
+   let toEvent
+      (cmd: DomesticTransferCommand)
+      : ValidationResult<BankEvent<DomesticTransferPending>>
+      =
+      validate {
+         let input = cmd.Data
+         let! _ = amountValidator "Transfer amount" input.Amount
+
+         let! _ =
+            dateNotDefaultValidator "Transfer date" input.TransferRequestDate
+
+         return
+            BankEvent.create2<
+               DomesticTransferPendingInput,
+               DomesticTransferPending
+             >
+               cmd
+               {
+                  TransferRequestDate = cmd.Data.TransferRequestDate
+                  Amount = cmd.Data.Amount
+                  Recipient = cmd.Data.Recipient
+                  Reference = cmd.Data.Reference
+                  Status = DomesticTransferProgress.Outgoing
+               }
+      }
+
+type ApproveDomesticTransferCommand = Command<DomesticTransferApproved>
+
+module ApproveDomesticTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: DomesticTransferApproved)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+
+   let toEvent
+      (cmd: ApproveDomesticTransferCommand)
+      : ValidationResult<BankEvent<DomesticTransferApproved>>
+      =
+      BankEvent.create<DomesticTransferApproved> cmd |> Ok
+
+type RejectDomesticTransferCommand = Command<DomesticTransferRejected>
+
+module RejectDomesticTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: DomesticTransferRejected)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+
+   let toEvent
+      (cmd: RejectDomesticTransferCommand)
+      : ValidationResult<BankEvent<DomesticTransferRejected>>
+      =
+      BankEvent.create<DomesticTransferRejected> cmd |> Ok
+
+type UpdateDomesticTransferProgressCommand =
+   Command<DomesticTransferProgressUpdate>
+
+module UpdateDomesticTransferProgressCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (data: DomesticTransferProgressUpdate)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+
+   let toEvent
+      (cmd: UpdateDomesticTransferProgressCommand)
+      : ValidationResult<BankEvent<DomesticTransferProgressUpdate>>
+      =
+      BankEvent.create<DomesticTransferProgressUpdate> cmd |> Ok
+
+module DomesticTransferToCommand =
+   let progress (txn: DomesticTransfer) (status: DomesticTransferProgress) =
+      UpdateDomesticTransferProgressCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient
-            Date = txn.Date
+            TransferRequestDate = txn.Date
             Amount = txn.Amount
             Status = status
          }
 
-   let approve (txn: TransferTransaction) =
-      ApproveTransferCommand.create
+   let approve (txn: DomesticTransfer) =
+      ApproveDomesticTransferCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient
-            Date = txn.Date
+            TransferRequestDate = txn.Date
             Amount = txn.Amount
+            Status = txn.Status
          }
 
-   let reject (txn: TransferTransaction) (reason: TransferDeclinedReason) =
-      RejectTransferCommand.create
+   let reject (txn: DomesticTransfer) (reason: TransferDeclinedReason) =
+      RejectDomesticTransferCommand.create
          (txn.SenderAccountId, txn.SenderOrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient
-            Date = txn.Date
+            TransferRequestDate = txn.Date
             Amount = txn.Amount
             Reason = reason
          }

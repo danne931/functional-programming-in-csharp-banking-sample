@@ -371,14 +371,6 @@ let renderControlPanel
       ]
    ]
 
-let private canViewTransactionDetail =
-   function
-   | AccountEvent.DepositedCash _
-   | AccountEvent.TransferPending _
-   | AccountEvent.TransferDeposited _
-   | AccountEvent.DebitedAccount _ -> true
-   | _ -> false
-
 let renderTableRow
    (account: Account)
    (evt: AccountEvent)
@@ -399,7 +391,7 @@ let renderTableRow
       | Some txnId when txnId = envelope.Id -> attr.classes [ "selected" ]
       | _ -> ()
 
-      if canViewTransactionDetail evt then
+      if TransactionDetail.hasRenderImplementation evt then
          attr.onClick (fun _ -> dispatch (Msg.ViewTransaction envelope.Id))
       else
          attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
@@ -475,14 +467,14 @@ let TransactionTableComponent
 
    let txnQuery =
       TransactionService.transactionQueryFromAccountBrowserQuery
-         account.EntityId
+         account.AccountId
          browserQuery
 
    let state, dispatch =
       React.useElmish (
          init txnsDeferred txnQuery,
          update,
-         [| box account.EntityId |]
+         [| box account.AccountId |]
       )
 
    let txns = Map.tryFind state.TransactionQuery.Page state.Transactions

@@ -38,11 +38,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.Base,
       Func<ActorSystem, CreateAccountCommand, Task<IResult>>(fun system cmd ->
-         processCommand
-            system
-            (AccountCommand.CreateAccount cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (CreateAccountCommand.toEvent cmd)
+         processCommand system (AccountCommand.CreateAccount cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -50,11 +46,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.Deposit,
       Func<ActorSystem, DepositCashCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.DepositCash cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (DepositCashCommand.toEvent cmd)
+         processCommand sys (AccountCommand.DepositCash cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -62,11 +54,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.Debit,
       Func<ActorSystem, DebitCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.Debit cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (DebitCommand.toEvent cmd)
+         processCommand sys (AccountCommand.Debit cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -74,11 +62,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.DailyDebitLimit,
       Func<ActorSystem, LimitDailyDebitsCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.LimitDailyDebits cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (LimitDailyDebitsCommand.toEvent cmd)
+         processCommand sys (AccountCommand.LimitDailyDebits cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -86,11 +70,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.LockCard,
       Func<ActorSystem, LockCardCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.LockCard cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (LockCardCommand.toEvent cmd)
+         processCommand sys (AccountCommand.LockCard cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -98,11 +78,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.UnlockCard,
       Func<ActorSystem, UnlockCardCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.UnlockCard cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (UnlockCardCommand.toEvent cmd)
+         processCommand sys (AccountCommand.UnlockCard cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore
@@ -110,11 +86,7 @@ let startAccountRoutes (app: WebApplication) =
    app.MapPost(
       AccountPath.CloseAccount,
       Func<ActorSystem, CloseAccountCommand, Task<IResult>>(fun sys cmd ->
-         processCommand
-            sys
-            (AccountCommand.CloseAccount cmd)
-            (AccountId.fromEntityId cmd.EntityId)
-            (CloseAccountCommand.toEvent cmd)
+         processCommand sys (AccountCommand.CloseAccount cmd)
          |> RouteUtil.unwrapTaskResult)
    )
    |> ignore

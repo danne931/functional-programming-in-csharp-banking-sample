@@ -14,14 +14,14 @@ let renderAccountListItem
       Html.a [
          attr.text $"{account.Name} - {account.Email}"
          attr.href ""
-         attr.value (AccountId.get account.EntityId)
+         attr.value (AccountId.get account.AccountId)
          attr.onClick (fun e ->
             e.preventDefault ()
 
-            Router.navigate ("account", string account.EntityId))
+            Router.navigate ("account", string account.AccountId))
 
          match selectedAccountId with
-         | Some selectedId when selectedId = account.EntityId ->
+         | Some selectedId when selectedId = account.AccountId ->
             attr.classes [ "selected" ]
          | _ -> ()
       ]

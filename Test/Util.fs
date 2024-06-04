@@ -1,6 +1,5 @@
 module Util
 
-open System
 open Expecto
 open Akkling
 open Akkling.Cluster.Sharding
