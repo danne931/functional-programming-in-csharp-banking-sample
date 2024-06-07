@@ -28,7 +28,7 @@ let domesticRecipient = {
    AccountNumber = "9234235"
    RoutingNumber = "1992384"
    Status = RecipientRegistrationStatus.Confirmed
-   VirtualId = Guid.NewGuid() |> AccountId
+   AccountId = Guid.NewGuid() |> AccountId
 }
 
 let command = {|

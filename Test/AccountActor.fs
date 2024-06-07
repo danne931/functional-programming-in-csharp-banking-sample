@@ -333,7 +333,7 @@ let tests =
 
          let transfer = {
             transfer with
-               Data.Recipient.VirtualId = recipientStubIdOverride
+               Data.Recipient.AccountId = recipientStubIdOverride
          }
 
          let cmd = AccountCommand.DomesticTransfer transfer

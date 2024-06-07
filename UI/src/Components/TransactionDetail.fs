@@ -385,7 +385,7 @@ let renderTransactionInfo
          | AccountEvent.DomesticTransferPending e when isEditingNickname ->
             RecipientNicknameEditComponent
                account
-               e.Data.Recipient.VirtualId
+               e.Data.Recipient.AccountId
                RecipientAccountEnvironment.Domestic
                dispatch
          | AccountEvent.DebitedAccount e when isEditingNickname ->

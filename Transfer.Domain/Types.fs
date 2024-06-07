@@ -39,7 +39,7 @@ type DomesticTransferRecipient = {
    AccountNumber: string
    RoutingNumber: string
    Status: RecipientRegistrationStatus
-   VirtualId: AccountId
+   AccountId: AccountId
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"

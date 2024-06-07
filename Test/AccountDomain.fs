@@ -528,7 +528,7 @@ let tests =
          let (AccountEvent.DomesticTransferRecipient evt), account =
             Expect.wantOk res "should be Result.Ok"
 
-         let recipientStubIdOverride = evt.Data.Recipient.VirtualId
+         let recipientStubIdOverride = evt.Data.Recipient.AccountId
 
          let updates =
             List.fold
@@ -538,7 +538,7 @@ let tests =
 
                   let cmd = {
                      cmd with
-                        Data.Recipient.VirtualId = recipientStubIdOverride
+                        Data.Recipient.AccountId = recipientStubIdOverride
                   }
 
                   let res =
@@ -562,7 +562,7 @@ let tests =
          let command = {
             command with
                Data.TransferRequestDate = DateTime.UtcNow.AddDays(-1)
-               Data.Recipient.VirtualId = recipientStubIdOverride
+               Data.Recipient.AccountId = recipientStubIdOverride
          }
 
          let res = update newState <| AccountCommand.DomesticTransfer command
@@ -589,14 +589,14 @@ let tests =
          let (AccountEvent.DomesticTransferRecipient evt), account =
             Expect.wantOk res "should be Result.Ok"
 
-         let recipientStubIdOverride = evt.Data.Recipient.VirtualId
+         let recipientStubIdOverride = evt.Data.Recipient.AccountId
 
          let transferAmount = 100m
          let command = Stub.command.domesticTransfer transferAmount
 
          let command = {
             command with
-               Data.Recipient.VirtualId = recipientStubIdOverride
+               Data.Recipient.AccountId = recipientStubIdOverride
          }
 
          let res = update account <| AccountCommand.DomesticTransfer command
@@ -808,7 +808,7 @@ let tests =
                   ]
                DomesticTransferRecipients =
                   Map [
-                     Stub.domesticRecipient.VirtualId, Stub.domesticRecipient
+                     Stub.domesticRecipient.AccountId, Stub.domesticRecipient
                   ]
          }
 

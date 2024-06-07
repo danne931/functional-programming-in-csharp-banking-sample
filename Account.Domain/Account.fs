@@ -213,7 +213,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             | None -> state.DomesticTransferRecipients
             | Some status ->
                Map.change
-                  e.Data.Recipient.VirtualId
+                  e.Data.Recipient.AccountId
                   (Option.map (fun recipient -> {
                      recipient with
                         Status = status
@@ -320,7 +320,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             state with
                DomesticTransferRecipients =
                   state.DomesticTransferRecipients.Add(
-                     recipient.VirtualId,
+                     recipient.AccountId,
                      recipient
                   )
          }
@@ -518,7 +518,7 @@ module private StateTransition =
          transitionErr <| InsufficientBalance state.Balance
       elif
          state.DomesticTransferRecipients
-         |> Map.containsKey input.Recipient.VirtualId
+         |> Map.containsKey input.Recipient.AccountId
          |> not
       then
          transitionErr RecipientRegistrationRequired

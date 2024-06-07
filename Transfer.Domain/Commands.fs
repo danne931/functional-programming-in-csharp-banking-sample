@@ -215,13 +215,13 @@ module RegisterDomesticTransferRecipientCommand =
             AccountNumber = cmd.Data.AccountNumber
             RoutingNumber = cmd.Data.RoutingNumber
             Status = RecipientRegistrationStatus.Confirmed
-            VirtualId = Guid.NewGuid() |> AccountId
+            AccountId = Guid.NewGuid() |> AccountId
          }
 
          let! _ =
             transferRecipientIdValidator
                (string cmd.EntityId)
-               (string recipient.VirtualId)
+               (string recipient.AccountId)
 
          and! _ = accountNumberValidator recipient.AccountNumber
          and! _ = routingNumberValidator recipient.RoutingNumber

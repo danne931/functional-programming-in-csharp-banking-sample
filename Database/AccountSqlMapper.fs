@@ -150,7 +150,7 @@ module AccountSqlReader =
          |> Map.ofList
       DomesticTransferRecipients =
          domesticTransferRecipients read
-         |> List.map (fun recipient -> recipient.VirtualId, recipient)
+         |> List.map (fun recipient -> recipient.AccountId, recipient)
          |> Map.ofList
       InternalTransferSenders =
          internalTransferSenders read
