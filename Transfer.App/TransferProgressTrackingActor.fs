@@ -77,9 +77,9 @@ let get (system: ActorSystem) : IActorRef<TransferProgressTrackingMessage> =
 //
 // NOTE: Transfer Status Filter:
 // Include in progress check if the initial transfer request has
-// been acknowledged as received by the mock 3rd party bank.
+// been acknowledged as received by the mock domestic transfer processor.
 // This avoids transfer rejections due to a ProgressCheck being
-// received by the mock 3rd party bank before a TransferRequest
+// received by the mock domestic transfer processor before a TransferRequest
 // in cases where a TransferRequest was rescheduled when the
 // domestic transfer actor's circuit breaker was open.
 let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResultOption {

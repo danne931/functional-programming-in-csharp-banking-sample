@@ -11,7 +11,7 @@ let builder = Env.builder
 
 type DomesticTransferRouter = { MaxInstancesPerNode: int }
 
-type MockThirdPartyBank = { Host: IPAddress; Port: int }
+type MockDomesticTransferProcessor = { Host: IPAddress; Port: int }
 
 // NOTE: These settings apply to all DomesticTransfer actors created
 //       by the round robin pool router on a given account node.  There are
@@ -30,7 +30,7 @@ type MockThirdPartyBank = { Host: IPAddress; Port: int }
 //            were coordinated across nodes.
 //       5. Transfer request on Node B -> Failure (BreakerOpen)
 type private TransferConfigInput = {
-   MockThirdPartyBank: {| Host: string option; Port: int |}
+   MockDomesticTransferProcessor: {| Host: string option; Port: int |}
    DomesticTransferRouter: {| MaxInstancesPerNode: int option |}
    DomesticTransferCircuitBreaker: {|
       MaxFailures: int option
@@ -42,7 +42,7 @@ type private TransferConfigInput = {
 }
 
 type TransferConfig = {
-   MockThirdPartyBank: MockThirdPartyBank
+   MockDomesticTransferProcessor: MockDomesticTransferProcessor
    DomesticTransferRouter: DomesticTransferRouter
    domesticTransferCircuitBreaker:
       Akka.Actor.ActorSystem -> Akka.Pattern.CircuitBreaker
@@ -50,19 +50,19 @@ type TransferConfig = {
    TransferProgressLookbackMinutes: int
 }
 
-let private getMockThirdPartyBankHost (host: string option) =
+let private getMockDomesticTransferProcessorHost (host: string option) =
    match host with
    | Some ip -> IPAddress.Parse ip
    | None ->
       try
          // Referencing container by name to resolve IP for
-         // mock third party bank server.
-         Dns.GetHostAddresses("mock-third-party-bank")[0]
+         // mock domestic transfer processor server.
+         Dns.GetHostAddresses("mock-domestic-transfer-processor")[0]
       with _ ->
          if not Env.isDev then
             failwith
                """
-               IP for mock third party bank doesn't exist.
+               IP for mock domestic transfer processor doesn't exist.
                Misconfigured container name.
                """
          else
@@ -72,9 +72,11 @@ let private getMockThirdPartyBankHost (host: string option) =
 let config =
    match AppConfig(builder.Configuration).Get<TransferConfigInput>() with
    | Ok input -> {
-      MockThirdPartyBank = {
-         Host = getMockThirdPartyBankHost input.MockThirdPartyBank.Host
-         Port = input.MockThirdPartyBank.Port
+      MockDomesticTransferProcessor = {
+         Host =
+            getMockDomesticTransferProcessorHost
+               input.MockDomesticTransferProcessor.Host
+         Port = input.MockDomesticTransferProcessor.Port
       }
       DomesticTransferRouter = {
          MaxInstancesPerNode =

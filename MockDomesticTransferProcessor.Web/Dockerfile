@@ -6,4 +6,4 @@ COPY ./bin/Release/net8.0/publish /home/app
 
 WORKDIR /home/app
 
-CMD ["dotnet", "MockThirdPartyBankTransferReceiver.Web.dll"]
+CMD ["dotnet", "MockDomesticTransferProcessor.Web.dll"]

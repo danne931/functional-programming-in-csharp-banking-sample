@@ -13,7 +13,8 @@ let schedule (logInfo: string -> unit) =
          .ForJob($"{name}Job", group)
          .WithIdentity($"{name}Trigger", group)
          .WithDescription(
-            "Regularly request transfer progress status updates from mock 3rd party bank"
+            "Regularly request transfer progress status updates from mock
+            domestic transfer processor."
          )
 
    if Env.isProd then

@@ -2,54 +2,54 @@ import * as k8s from '@pulumi/kubernetes'
 
 import { ports, isDev } from './environment'
 
-export const initMockThirdPartyBankService = (
+export const initMockDomesticTransferProcessorService = (
   provider: k8s.Provider
 ): k8s.core.v1.Service =>
   new k8s.core.v1.Service(
-    'mockThirdPartyBank',
+    'mockDomesticTransferProcessor',
     {
       metadata: {
-        name: 'mock-third-party-bank'
+        name: 'mock-domestic-transfer-processor'
       },
       spec: {
         ports: [
           {
-            port: ports.mockThirdPartyBank,
+            port: ports.mockDomesticTransferProcessor,
             protocol: 'TCP',
-            targetPort: ports.mockThirdPartyBank
+            targetPort: ports.mockDomesticTransferProcessor
           }
         ],
         selector: {
-          app: 'mock-third-party-bank'
+          app: 'mock-domestic-transfer-processor'
         }
       }
     },
     { provider }
   )
 
-export const initMockThirdPartyBankDeployment = (
+export const initMockDomesticTransferProcessorDeployment = (
   provider: k8s.Provider
 ): k8s.apps.v1.Deployment =>
   new k8s.apps.v1.Deployment(
-    'mockThirdPartyBankDeployment',
+    'mockDomesticTransferProcessorDeployment',
     {
       metadata: {
         labels: {
-          app: 'mock-third-party-bank'
+          app: 'mock-domestic-transfer-processor'
         },
-        name: 'mock-third-party-bank-deployment'
+        name: 'mock-domestic-transfer-processor-deployment'
       },
       spec: {
         replicas: 1,
         selector: {
           matchLabels: {
-            app: 'mock-third-party-bank'
+            app: 'mock-domestic-transfer-processor'
           }
         },
         template: {
           metadata: {
             labels: {
-              app: 'mock-third-party-bank'
+              app: 'mock-domestic-transfer-processor'
             }
           },
           spec: {
@@ -58,10 +58,10 @@ export const initMockThirdPartyBankDeployment = (
                 env: [
                   {
                     name: 'TCP_BIND_PORT',
-                    value: ports.mockThirdPartyBank.toString()
+                    value: ports.mockDomesticTransferProcessor.toString()
                   }
                 ],
-                image: isDev ? 'mock-third-party-bank:latest' : 'danne931/akka-dotnet-bank-mock-third-party-bank:latest',
+                image: isDev ? 'mock-domestic-transfer-processor:latest' : 'danne931/akka-dotnet-bank-mock-domestic-transfer-processor:latest',
                 imagePullPolicy: isDev ? 'Never' : 'Always',
                 livenessProbe: {
                   initialDelaySeconds: 10,
@@ -70,10 +70,10 @@ export const initMockThirdPartyBankDeployment = (
                     port: 'tcp-bind-port'
                   }
                 },
-                name: 'mock-third-party-bank',
+                name: 'mock-domestic-transfer-processor',
                 ports: [
                   {
-                    containerPort: ports.mockThirdPartyBank,
+                    containerPort: ports.mockDomesticTransferProcessor,
                     name: 'tcp-bind-port',
                     protocol: 'TCP'
                   }

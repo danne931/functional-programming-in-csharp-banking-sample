@@ -272,8 +272,8 @@ let transferRequest action (txn: DomesticTransfer) = taskResult {
 
    let! response =
       TCP.request
-         EnvTransfer.config.MockThirdPartyBank.Host
-         EnvTransfer.config.MockThirdPartyBank.Port
+         EnvTransfer.config.MockDomesticTransferProcessor.Host
+         EnvTransfer.config.MockDomesticTransferProcessor.Port
          Encoding.UTF8
          (JsonSerializer.SerializeToUtf8Bytes msg)
 

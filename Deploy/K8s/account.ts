@@ -250,8 +250,8 @@ export const initAccountCluster = (
                     value: '$(POD_NAME).account-service'
                   },
                   {
-                    name: 'MockThirdPartyBank__Port',
-                    value: ports.mockThirdPartyBank.toString()
+                    name: 'MockDomesticTransferProcessor__Port',
+                    value: ports.mockDomesticTransferProcessor.toString()
                   },
                   {
                     name: 'EmailServiceUri',

@@ -5,7 +5,7 @@ import initPostgres from './postgres'
 import { initBankEnvConfigMap, isDev } from './environment'
 import { initAccountCluster, initAccountService } from './account'
 import { initServiceAccount, initAkkaRBAC } from './admin'
-import { initMockThirdPartyBankService, initMockThirdPartyBankDeployment } from './mock-third-party-bank'
+import { initMockDomesticTransferProcessorService, initMockDomesticTransferProcessorDeployment } from './mock-domestic-transfer-processor'
 import { initSchedulerCluster, initSchedulerService } from './scheduler'
 import { initWebCluster, initWebService, initLocalWebLoadBalancer, initIngress } from './web'
 
@@ -57,8 +57,8 @@ initPostgres(k8sProvider, namespace)
 const bankEnvConfigMap = initBankEnvConfigMap(k8sProvider)
 initServiceAccount(k8sProvider)
 initAkkaRBAC(k8sProvider)
-initMockThirdPartyBankService(k8sProvider)
-initMockThirdPartyBankDeployment(k8sProvider)
+initMockDomesticTransferProcessorService(k8sProvider)
+initMockDomesticTransferProcessorDeployment(k8sProvider)
 initAccountCluster(k8sProvider, bankEnvConfigMap)
 initAccountService(k8sProvider)
 initSchedulerCluster(k8sProvider, bankEnvConfigMap)

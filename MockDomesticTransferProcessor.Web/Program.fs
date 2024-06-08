@@ -134,7 +134,8 @@ let serializeResponse (response: Response) =
    response |> JsonSerializer.Serialize |> ByteString.ofUtf8String
 
 let actorSystem =
-   System.create "thirdparty-bank" <| Configuration.defaultConfig ()
+   System.create "mock-domestic-transfer-processor"
+   <| Configuration.defaultConfig ()
 
 // Reads from the connection are delegated to this actor.
 let tcpMessageHandler connection (ctx: Actor<obj>) =
