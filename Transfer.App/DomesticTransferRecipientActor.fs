@@ -1,4 +1,3 @@
-[<RequireQualifiedAccess>]
 module DomesticTransferRecipientActor
 
 open System
@@ -17,6 +16,33 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 module Command = DomesticTransferToCommand
+
+[<RequireQualifiedAccess>]
+type DomesticTransferServiceAction =
+   | TransferRequest
+   | ProgressCheck
+
+type DomesticTransferServiceSender = {
+   Name: string
+   AccountNumber: string
+   RoutingNumber: string
+}
+
+type DomesticTransferServiceRecipient = {
+   Name: string
+   AccountNumber: string
+   RoutingNumber: string
+   Depository: string
+}
+
+type DomesticTransferServiceResponse = {
+   Sender: DomesticTransferServiceSender
+   Recipient: DomesticTransferServiceRecipient
+   Ok: bool
+   Status: string
+   Reason: string
+   TransactionId: string
+}
 
 [<RequireQualifiedAccess>]
 type DomesticTransferMessage =
@@ -57,8 +83,35 @@ let private declinedReasonFromError (err: string) : TransferDeclinedReason =
    | Contains "InvalidAction" -> TransferDeclinedReason.InvalidAction
    | Contains "InvalidAmount" -> TransferDeclinedReason.InvalidAmount
    | Contains "InvalidAccountInfo" -> TransferDeclinedReason.InvalidAccountInfo
+   | Contains "InvalidPaymentNetwork" ->
+      TransferDeclinedReason.InvalidPaymentNetwork
+   | Contains "InvalidDepository" -> TransferDeclinedReason.InvalidDepository
    | Contains "InactiveAccount" -> TransferDeclinedReason.AccountClosed
    | e -> TransferDeclinedReason.Unknown e
+
+let private networkSender
+   (sender: DomesticTransferSender)
+   : DomesticTransferServiceSender
+   =
+   {
+      Name = sender.Name
+      AccountNumber = string sender.AccountNumber
+      RoutingNumber = string sender.RoutingNumber
+   }
+
+let private networkRecipient
+   (recipient: DomesticTransferRecipient)
+   : DomesticTransferServiceRecipient
+   =
+   {
+      Name = recipient.Name
+      AccountNumber = string recipient.AccountNumber
+      RoutingNumber = string recipient.RoutingNumber
+      Depository =
+         match recipient.Depository with
+         | DomesticRecipientAccountDepository.Checking -> "checking"
+         | DomesticRecipientAccountDepository.Savings -> "savings"
+   }
 
 let handleTransfer
    (mailbox: Actor<obj>)
@@ -95,8 +148,8 @@ let handleTransfer
                logError mailbox errMsg
 
                let res = {
-                  AccountNumber = txn.Recipient.AccountNumber
-                  RoutingNumber = txn.Recipient.RoutingNumber
+                  Sender = networkSender txn.Sender
+                  Recipient = networkRecipient txn.Recipient
                   Ok = false
                   Status = ""
                   Reason = "CorruptData"
@@ -147,7 +200,7 @@ let actorProps
 
                Ignore
          | DomesticTransferMessage.TransferResponse(res, action, txn) ->
-            let accountRef = getAccountRef txn.SenderAccountId
+            let accountRef = getAccountRef txn.Sender.AccountId
 
             if res.Ok then
                mailbox.UnstashAll()
@@ -176,6 +229,8 @@ let actorProps
 
                match err with
                | TransferDeclinedReason.CorruptData
+               | TransferDeclinedReason.InvalidPaymentNetwork
+               | TransferDeclinedReason.InvalidDepository
                | TransferDeclinedReason.InvalidAction ->
                   logError $"Transfer API requires code update: {err}"
 
@@ -205,11 +260,14 @@ let actorProps
 let transferRequest action (txn: DomesticTransfer) = taskResult {
    let msg = {|
       Action = string action
-      AccountNumber = txn.Recipient.AccountNumber
-      RoutingNumber = txn.Recipient.RoutingNumber
+      Sender = networkSender txn.Sender
+      Recipient = networkRecipient txn.Recipient
       Amount = txn.Amount
       Date = txn.Date
       TransactionId = string txn.TransferId
+      PaymentNetwork =
+         match txn.Recipient.PaymentNetwork with
+         | PaymentNetwork.ACH -> "ach"
    |}
 
    let! response =

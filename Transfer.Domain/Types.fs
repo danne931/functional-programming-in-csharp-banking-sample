@@ -31,15 +31,26 @@ type InternalTransferSender = {
    OrgId: OrgId
 }
 
+[<RequireQualifiedAccess>]
+type DomesticRecipientAccountDepository =
+   | Checking
+   | Savings
+
+[<RequireQualifiedAccess>]
+type PaymentNetwork = | ACH
+//| FedNow
+
 type DomesticTransferRecipient = {
    LastName: string
    FirstName: string
    Nickname: string option
    // TODO: Make types for account/routing number with validus validation
-   AccountNumber: string
-   RoutingNumber: string
+   AccountNumber: AccountNumber
+   RoutingNumber: RoutingNumber
    Status: RecipientRegistrationStatus
    AccountId: AccountId
+   Depository: DomesticRecipientAccountDepository
+   PaymentNetwork: PaymentNetwork
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"
@@ -56,6 +67,8 @@ type TransferProgressTrackingMessage = | ProgressCheck
 type TransferDeclinedReason =
    | CorruptData
    | InvalidAction
+   | InvalidPaymentNetwork
+   | InvalidDepository
    | InvalidAmount
    | AccountClosed
    | InvalidAccountInfo
@@ -67,26 +80,19 @@ type DomesticTransferProgress =
    | InProgress of string
    | Complete
 
+type DomesticTransferSender = {
+   Name: string
+   AccountNumber: AccountNumber
+   RoutingNumber: RoutingNumber
+   OrgId: OrgId
+   AccountId: AccountId
+}
+
 type DomesticTransfer = {
-   SenderOrgId: OrgId
-   SenderAccountId: AccountId
-   TransferId: CorrelationId
+   Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
+   TransferId: CorrelationId
    Amount: decimal
    Date: DateTime
    Status: DomesticTransferProgress
-}
-
-[<RequireQualifiedAccess>]
-type DomesticTransferServiceAction =
-   | TransferRequest
-   | ProgressCheck
-
-type DomesticTransferServiceResponse = {
-   AccountNumber: string
-   RoutingNumber: string
-   Ok: bool
-   Status: string
-   Reason: string
-   TransactionId: string
 }

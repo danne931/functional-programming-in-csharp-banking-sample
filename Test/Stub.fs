@@ -25,17 +25,26 @@ let domesticRecipient = {
    LastName = "fish"
    FirstName = "big"
    Nickname = None
-   AccountNumber = "9234235"
-   RoutingNumber = "1992384"
+   AccountNumber = AccountNumber <| Int64.Parse "123456789123456"
+   RoutingNumber = RoutingNumber 123456789
    Status = RecipientRegistrationStatus.Confirmed
    AccountId = Guid.NewGuid() |> AccountId
+   Depository = DomesticRecipientAccountDepository.Checking
+   PaymentNetwork = PaymentNetwork.ACH
+}
+
+let domesticSender: DomesticTransferSender = {
+   Name = "small fish"
+   AccountNumber = AccountNumber <| Int64.Parse "987654321123456"
+   RoutingNumber = RoutingNumber 123456789
+   OrgId = orgId
+   AccountId = accountId
 }
 
 let command = {|
    createAccount =
       CreateAccountCommand.create {
          Email = "smallfish@gmail.com"
-         Balance = 2000m
          FirstName = "small"
          LastName = "fish"
          Currency = Currency.VND
@@ -78,13 +87,16 @@ let command = {|
       RegisterDomesticTransferRecipientCommand.create compositeId {
          FirstName = domesticRecipient.FirstName
          LastName = domesticRecipient.LastName
-         AccountNumber = domesticRecipient.AccountNumber
-         RoutingNumber = domesticRecipient.RoutingNumber
+         AccountNumber = string domesticRecipient.AccountNumber
+         RoutingNumber = string domesticRecipient.RoutingNumber
+         Depository = DomesticRecipientAccountDepository.Checking
+         PaymentNetwork = PaymentNetwork.ACH
       }
    domesticTransfer =
       fun amount ->
          let transferCmd =
             DomesticTransferCommand.create compositeId {
+               Sender = domesticSender
                Recipient = domesticRecipient
                TransferRequestDate = DateTime.UtcNow
                Amount = amount
@@ -159,7 +171,7 @@ let event: EventIndex = {
       |> Result.toValueOption
       |> _.Value
    depositedCash =
-      command.depositCash 150m
+      command.depositCash 2000m
       |> DepositCashCommand.toEvent
       |> Result.toValueOption
       |> _.Value
@@ -238,11 +250,11 @@ let accountStateAfterCreate = {
       FirstName = command.createAccount.Data.FirstName
       LastName = command.createAccount.Data.LastName
       Status = AccountStatus.Active
-      Balance = command.createAccount.Data.Balance
+      Balance = 0m
       Currency = command.createAccount.Data.Currency
       MaintenanceFeeCriteria = {
          QualifyingDepositFound = false
-         DailyBalanceThreshold = true
+         DailyBalanceThreshold = false
       }
       Events = [ AccountEnvelope.wrap event.createdAccount ]
 }

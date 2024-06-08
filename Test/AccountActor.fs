@@ -26,6 +26,9 @@ let config =
       akka.persistence.snapshot-store.plugin = "akka.persistence.snapshot-store.inmem"
       """
 
+let initialDepositCommand amount =
+   AccountCommand.DepositCash <| Stub.command.depositCash amount
+
 let accountPersistence: AccountPersistence = {
    getEvents = fun _ -> Stub.accountEvents |> async.Return
 }
@@ -41,8 +44,10 @@ let envelope msg =
 
 // Mock PersistenceSupervisor forwards messages to AccountActor
 // & wraps StateChange messages intended to be persisted.
-let mockPersistenceSupervisorProps (spawnChild: Actor<obj> -> IActorRef<obj>) =
-   let init (ctx: Actor<obj>) =
+let mockPersistenceSupervisorProps
+   (spawnChild: Actor<AccountMessage> -> IActorRef<obj>)
+   =
+   let init (ctx: Actor<AccountMessage>) =
       let child = spawnChild ctx
 
       actor {
@@ -183,8 +188,10 @@ let tests =
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
 
-         let debit =
-            Stub.command.debit <| Stub.accountStateAfterCreate.Balance + 1m
+         o.accountActor
+         <! AccountMessage.StateChange(initialDepositCommand 2000m)
+
+         let debit = Stub.command.debit 2001m
 
          o.accountActor
          <! AccountMessage.StateChange(AccountCommand.Debit debit)
@@ -192,10 +199,11 @@ let tests =
          o.accountActor <! AccountMessage.GetAccount
 
          let state = tck.ExpectMsg<Option<Account>>()
+         let account = Expect.wantSome state ""
 
          Expect.equal
-            (Stub.accountStateOmitEvents state)
-            (Stub.accountStateAfterCreate |> Some |> Stub.accountStateOmitEvents)
+            account.Balance
+            2000m
             "Account state should be unchanged after failed debit validation due
             to insufficient balance"
 
@@ -206,14 +214,6 @@ let tests =
 
          match msg with
          | EmailActor.EmailMessage.DebitDeclined(errMsg, account) ->
-            Expect.equal
-               (account |> Some |> Stub.accountStateOmitEvents)
-               (Stub.accountStateAfterCreate
-                |> Some
-                |> Stub.accountStateOmitEvents)
-               "EmailActor should receive a DebitDeclined message for
-               insufficient balance"
-
             Expect.stringContains
                errMsg
                "InsufficientBalance"
@@ -231,6 +231,9 @@ let tests =
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
 
+         o.accountActor
+         <! AccountMessage.StateChange(initialDepositCommand 2000m)
+
          let cmd =
             AccountCommand.LimitDailyDebits
             <| Stub.command.limitDailyDebits 100m
@@ -238,16 +241,12 @@ let tests =
          o.accountActor <! AccountMessage.StateChange cmd
          o.accountActor <! AccountMessage.GetAccount
 
-         let expectedState = {
-            Stub.accountStateAfterCreate with
-               DailyDebitLimit = 100m
-         }
-
          let state = tck.ExpectMsg<Option<Account>>()
+         let account = Expect.wantSome state ""
 
          Expect.equal
-            (Stub.accountStateOmitEvents state)
-            (expectedState |> Some |> Stub.accountStateOmitEvents)
+            account.DailyDebitLimit
+            100m
             "Account state should be configured with the daily debit limit"
 
          let debit1 = AccountCommand.Debit <| Stub.command.debit 98m
@@ -256,18 +255,18 @@ let tests =
          o.accountActor <! AccountMessage.StateChange debit2
          o.accountActor <! AccountMessage.GetAccount
          let state = tck.ExpectMsg<Option<Account>>()
+         let account = Expect.wantSome state ""
+
+         Expect.equal
+            account.Balance
+            (2000m - 98m)
+            "Account balance should reflect debits over daily accrued amount being rejected"
 
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
          match msg with
          | EmailActor.EmailMessage.DebitDeclined(errMsg, account) ->
-            Expect.equal
-               (Some account)
-               state
-               "EmailActor should receive a DebitDeclined message for exceeding
-               daily debits"
-
             Expect.stringContains
                errMsg
                "ExceededDailyDebit"
@@ -284,6 +283,9 @@ let tests =
          let o = init tck accountPersistence
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
+
+         o.accountActor
+         <! AccountMessage.StateChange(initialDepositCommand 2000m)
 
          let cmd =
             AccountCommand.RegisterInternalTransferRecipient
@@ -302,7 +304,7 @@ let tests =
 
          Expect.equal
             state.Value.Balance
-            (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
+            (2000m - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
          o.internalTransferProbe.ExpectMsg<InternalTransferMsg>() |> ignore
@@ -314,6 +316,9 @@ let tests =
          let o = init tck accountPersistence
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
+
+         o.accountActor
+         <! AccountMessage.StateChange(initialDepositCommand 2000m)
 
          let msg =
             Stub.command.registerDomesticRecipient
@@ -347,7 +352,7 @@ let tests =
 
          Expect.equal
             state.Value.Balance
-            (Stub.accountStateAfterCreate.Balance - transfer.Data.Amount)
+            (2000m - transfer.Data.Amount)
             "Account state should reflect a transfer debit"
 
          let msg = o.domesticTransferProbe.ExpectMsg<DomesticTransferMsg>()
@@ -367,6 +372,9 @@ let tests =
          let cmd = AccountCommand.CreateAccount Stub.command.createAccount
          o.accountActor <! AccountMessage.StateChange cmd
 
+         o.accountActor
+         <! AccountMessage.StateChange(initialDepositCommand 2000m)
+
          let deposit = Stub.command.depositTransfer 101m
 
          o.accountActor
@@ -374,17 +382,12 @@ let tests =
 
          o.accountActor <! AccountMessage.GetAccount
 
-         let expectedState = {
-            Stub.accountStateAfterCreate with
-               Balance =
-                  Stub.accountStateAfterCreate.Balance + deposit.Data.Amount
-         }
-
          let state = tck.ExpectMsg<Option<Account>>()
+         let account = Expect.wantSome state ""
 
          Expect.equal
-            (Stub.accountStateOmitEvents state)
-            (expectedState |> Some |> Stub.accountStateOmitEvents)
+            account.Balance
+            2101m
             "Account state should reflect a received transfer"
 
          // account create email

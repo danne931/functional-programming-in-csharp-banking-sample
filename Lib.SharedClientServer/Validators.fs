@@ -2,7 +2,22 @@ module Lib.Validators
 
 open System
 open Validus
+open Validus.Operators
 open Lib.SharedTypes
+
+let parseInt: Validator<string, int> =
+   fun field input ->
+      try
+         Int32.Parse input |> Ok
+      with _ ->
+         Error <| ValidationErrors.create field [ $"Invalid Int32 {input}" ]
+
+let parseInt64: Validator<string, int64> =
+   fun field input ->
+      try
+         Int64.Parse input |> Ok
+      with _ ->
+         Error <| ValidationErrors.create field [ $"Invalid Int64 {input}" ]
 
 let amountValidator = Check.Decimal.greaterThan 0m
 
@@ -17,13 +32,13 @@ let transferRecipientIdValidator senderId =
    let msg = sprintf "%s should not equal sender id"
    Check.WithMessage.String.notEquals senderId msg "Recipient Id"
 
-// TODO: ++ validation
-let accountNumberValidator =
-   Check.String.betweenLen 3 40 "Recipient account number"
+let accountNumberValidator: Validator<string, AccountNumber> =
+   parseInt64 *|* string
+   >=> Check.String.betweenLen 6 15 *|* (Int64.Parse >> AccountNumber)
 
-// TODO: ++ validation
-let routingNumberValidator =
-   Check.String.betweenLen 3 40 "Recipient routing number"
+let routingNumberValidator: Validator<string, RoutingNumber> =
+   parseInt *|* string
+   >=> Check.String.equalsLen 9 *|* (Int32.Parse >> RoutingNumber)
 
 let originValidator = Check.String.greaterThanLen 2 "Origin"
 

@@ -7,7 +7,6 @@ open Lib.Validators
 
 type CreateAccountInput = {
    Email: string
-   Balance: decimal
    FirstName: string
    LastName: string
    Currency: Currency
@@ -31,21 +30,34 @@ module CreateAccountCommand =
       =
       validate {
          let input = cmd.Data
-         let! _ = firstNameValidator input.FirstName
-         and! _ = lastNameValidator input.LastName
+         let routingNumberInput = "123456789"
+         // TODO: Provide a workflow to check account numbers against DB
+         let accountNumberInput =
+            let random = System.Random()
 
-         and! _ =
-            Check.Decimal.greaterThanOrEqualTo 100m "Balance" input.Balance
+            List.init 15 (fun _ -> random.Next(1, 9) |> string)
+            |> String.concat ""
+
+         let! firstName = firstNameValidator input.FirstName
+         and! lastName = lastNameValidator input.LastName
+
+         and! accountNumber =
+            accountNumberValidator "Account Number" accountNumberInput
+
+         and! routingNumber =
+            routingNumberValidator "Routing Number" routingNumberInput
 
          and! email = Email.ofString "Create account email" input.Email
 
          return
             BankEvent.create2<CreateAccountInput, CreatedAccount> cmd {
                Email = email
-               FirstName = input.FirstName
-               LastName = input.LastName
-               Balance = input.Balance
+               FirstName = firstName
+               LastName = lastName
+               Balance = 0m
                Currency = input.Currency
+               RoutingNumber = routingNumber
+               AccountNumber = accountNumber
             }
       }
 

@@ -3,6 +3,7 @@ module Util
 open Expecto
 open Akkling
 open Akkling.Cluster.Sharding
+
 open Lib.SharedTypes
 
 let akkaTest

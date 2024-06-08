@@ -14,13 +14,11 @@ open ActorUtil
 open Lib.Types
 open Lib.Postgres
 open AccountSqlMapper
-
-type private DomesticTransferMsg =
-   DomesticTransferRecipientActor.DomesticTransferMessage
+open DomesticTransferRecipientActor
 
 let actorProps
    (system: ActorSystem)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getInProgressTransfers:
       unit -> Async<Result<Option<DomesticTransfer list>, Err>>)
    (throttle: StreamThrottle)
@@ -54,7 +52,7 @@ let actorProps
                throttle.Duration
          |> Source.runForEach mat (fun transferInProgress ->
             let msg =
-               DomesticTransferMsg.TransferRequest(
+               DomesticTransferMessage.TransferRequest(
                   DomesticTransferServiceAction.ProgressCheck,
                   transferInProgress
                )
@@ -118,7 +116,7 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
 
 let initProps
    (system: ActorSystem)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    =
    actorProps
       system

@@ -59,16 +59,14 @@ type AccountLoadTestState = {
    }
 
 module private Stub =
-   let startBalance = 101m
    let depositAmount = 3m
-   let balanceAfter3Deposits = startBalance + (depositAmount * 3m)
+   let balanceAfter3Deposits = depositAmount * 3m
    let orgId = Guid.NewGuid() |> OrgId
 
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
       <| CreateAccountCommand.create {
          Email = $"{string accountId}@gmail.com"
-         Balance = startBalance
          FirstName = "Small"
          LastName = "Fish"
          Currency = Currency.EUR

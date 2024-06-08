@@ -22,7 +22,7 @@ let jsonOptions = baseConfig.ToJsonSerializerOptions()
 mergeDefaultJsonOptions jsonOptions |> ignore
 #endif
 
-let coders = Extra.empty |> Extra.withDecimal
+let coders = Extra.empty |> Extra.withDecimal |> Extra.withInt64
 
 #if FABLE_COMPILER
 let inline deserializeUnsafe<'t> (data: string) : 't =

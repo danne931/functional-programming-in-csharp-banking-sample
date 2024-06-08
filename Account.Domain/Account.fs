@@ -8,36 +8,6 @@ open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.Time
 
-let empty = {
-   AccountId = AccountId System.Guid.Empty
-   OrgId = OrgId System.Guid.Empty
-   Email = Email.empty
-   FirstName = ""
-   LastName = ""
-   Currency = Currency.USD
-   Status = AccountStatus.Pending
-   Balance = 0m
-   DailyDebitLimit = 2000m
-   DailyDebitAccrued = 0m
-   DailyInternalTransferAccrued = 0m
-   DailyDomesticTransferAccrued = 0m
-   LastDebitDate = None
-   LastInternalTransferDate = None
-   LastDomesticTransferDate = None
-   LastBillingCycleDate = None
-   InternalTransferRecipients = Map.empty
-   InProgressInternalTransfers = Map.empty
-   InternalTransferSenders = Map.empty
-   DomesticTransferRecipients = Map.empty
-   InProgressDomesticTransfers = Map.empty
-   MaintenanceFeeCriteria = {
-      QualifyingDepositFound = false
-      DailyBalanceThreshold = false
-   }
-   Events = []
-   CardLocked = false
-}
-
 let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
    // When applying a new event to the cached Account & the
    // last debit event did not occur today...
@@ -115,16 +85,35 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             Events = []
         }
       | CreatedAccount e -> {
-         empty with
-            AccountId = AccountId.fromEntityId e.EntityId
-            OrgId = e.OrgId
-            Email = e.Data.Email
-            FirstName = e.Data.FirstName
-            LastName = e.Data.LastName
-            Currency = e.Data.Currency
-            Balance = e.Data.Balance
-            Status = AccountStatus.Active
-            MaintenanceFeeCriteria = MaintenanceFee.reset e.Data.Balance
+         AccountId = AccountId.fromEntityId e.EntityId
+         AccountNumber = e.Data.AccountNumber
+         RoutingNumber = e.Data.RoutingNumber
+         OrgId = e.OrgId
+         Email = e.Data.Email
+         FirstName = e.Data.FirstName
+         LastName = e.Data.LastName
+         Currency = e.Data.Currency
+         Balance = e.Data.Balance
+         Status = AccountStatus.Active
+         DailyDebitLimit = 2000m
+         DailyDebitAccrued = 0m
+         DailyInternalTransferAccrued = 0m
+         DailyDomesticTransferAccrued = 0m
+         LastDebitDate = None
+         LastInternalTransferDate = None
+         LastDomesticTransferDate = None
+         LastBillingCycleDate = None
+         InternalTransferRecipients = Map.empty
+         InProgressInternalTransfers = Map.empty
+         InternalTransferSenders = Map.empty
+         DomesticTransferRecipients = Map.empty
+         InProgressDomesticTransfers = Map.empty
+         MaintenanceFeeCriteria = {
+            QualifyingDepositFound = false
+            DailyBalanceThreshold = false
+         }
+         Events = []
+         CardLocked = false
         }
       | AccountEvent.AccountClosed _ -> {
          state with
@@ -611,8 +600,8 @@ module private StateTransition =
       elif
          state.DomesticTransferRecipients
          |> Map.exists (fun _ recipient ->
-            recipient.AccountNumber = cmd.Data.AccountNumber
-            && recipient.RoutingNumber = cmd.Data.RoutingNumber)
+            string recipient.AccountNumber = cmd.Data.AccountNumber
+            && string recipient.RoutingNumber = cmd.Data.RoutingNumber)
       then
          transitionErr RecipientRegistered
       else
@@ -728,3 +717,35 @@ let stateTransition (state: Account) (command: AccountCommand) =
       StateTransition.domesticTransferProgress state cmd
    | NicknameRecipient cmd -> StateTransition.nicknameRecipient state cmd
    | CloseAccount cmd -> StateTransition.closeAccount state cmd
+
+let empty = {
+   AccountId = AccountId System.Guid.Empty
+   OrgId = OrgId System.Guid.Empty
+   Email = Email.empty
+   FirstName = ""
+   LastName = ""
+   Currency = Currency.USD
+   Status = AccountStatus.Pending
+   Balance = 0m
+   DailyDebitLimit = 2000m
+   DailyDebitAccrued = 0m
+   DailyInternalTransferAccrued = 0m
+   DailyDomesticTransferAccrued = 0m
+   LastDebitDate = None
+   LastInternalTransferDate = None
+   LastDomesticTransferDate = None
+   LastBillingCycleDate = None
+   InternalTransferRecipients = Map.empty
+   InProgressInternalTransfers = Map.empty
+   InternalTransferSenders = Map.empty
+   DomesticTransferRecipients = Map.empty
+   InProgressDomesticTransfers = Map.empty
+   MaintenanceFeeCriteria = {
+      QualifyingDepositFound = false
+      DailyBalanceThreshold = false
+   }
+   Events = []
+   CardLocked = false
+   AccountNumber = AccountNumber <| System.Int64.Parse "123456789123456"
+   RoutingNumber = RoutingNumber 123456789
+}

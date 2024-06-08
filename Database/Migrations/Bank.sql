@@ -18,6 +18,8 @@ CREATE TABLE organization (
 
 CREATE TABLE account (
    account_id UUID PRIMARY KEY,
+   routing_number INT NOT NULL,
+   account_number BIGINT UNIQUE NOT NULL,
    email VARCHAR(255) UNIQUE NOT NULL,
    first_name VARCHAR(50) NOT NULL,
    last_name VARCHAR(50) NOT NULL,

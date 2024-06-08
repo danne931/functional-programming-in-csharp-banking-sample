@@ -16,12 +16,10 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
+open DomesticTransferRecipientActor
 
 type private InternalTransferMsg =
    InternalTransferRecipientActor.InternalTransferMessage
-
-type private DomesticTransferMsg =
-   DomesticTransferRecipientActor.DomesticTransferMessage
 
 // Pass monthly billing statement to BillingStatementActor.
 // Conditionally apply monthly maintenance fee.
@@ -62,7 +60,7 @@ let actorProps
    (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
    (getOrStartInternalTransferActor: Actor<_> -> IActorRef<InternalTransferMsg>)
-   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMsg>)
+   (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
@@ -100,7 +98,7 @@ let actorProps
                let txn = TransferEventToDomesticTransfer.fromPending e
 
                let msg =
-                  DomesticTransferMsg.TransferRequest(
+                  DomesticTransferMessage.TransferRequest(
                      DomesticTransferServiceAction.TransferRequest,
                      txn
                   )

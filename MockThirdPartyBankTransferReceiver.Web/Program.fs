@@ -7,21 +7,39 @@ open System.Text.Json
 open System.Net
 open System.Collections.Generic
 
+// This module mocks processing of ACH transfers, eventually returning
+// success responses via TCP after a few progress check requests from the
+// client.
+
 let builder = WebApplication.CreateBuilder()
 let app = builder.Build()
 
-type Request = {
-   Action: string
+type Sender = {
+   Name: string
    AccountNumber: string
    RoutingNumber: string
+}
+
+type Recipient = {
+   Name: string
+   AccountNumber: string
+   RoutingNumber: string
+   Depository: string
+}
+
+type Request = {
+   Action: string
+   Sender: Sender
+   Recipient: Recipient
    Amount: decimal
    Date: DateTime
    TransactionId: string
+   PaymentNetwork: string
 }
 
 type Response = {
-   AccountNumber: string
-   RoutingNumber: string
+   Sender: Sender
+   Recipient: Recipient
    Ok: bool
    Status: string
    Reason: string
@@ -32,11 +50,14 @@ type InProgressTransfers = Dictionary<string, int * Request>
 
 let inMemoryState = InProgressTransfers()
 
+let paymentNetworks = [ "ach" ]
+let depository = [ "checking"; "savings" ]
+
 // Compute response & mutate in-memory state of in-progress transfers.
 let processRequest (req: Request) =
    let res = {
-      AccountNumber = req.AccountNumber
-      RoutingNumber = req.RoutingNumber
+      Sender = req.Sender
+      Recipient = req.Recipient
       Ok = true
       Status = ""
       Reason = ""
@@ -45,8 +66,28 @@ let processRequest (req: Request) =
 
    if req.Action = "TransferRequest" then
       if
-         String.IsNullOrEmpty req.AccountNumber
-         || String.IsNullOrEmpty req.RoutingNumber
+         paymentNetworks
+         |> List.exists (fun p -> p = req.PaymentNetwork.ToLower())
+         |> not
+      then
+         {
+            res with
+               Ok = false
+               Reason = "InvalidPaymentNetwork"
+         }
+      elif
+         depository
+         |> List.exists (fun d -> d = req.Recipient.Depository.ToLower())
+         |> not
+      then
+         {
+            res with
+               Ok = false
+               Reason = "InvalidDepository"
+         }
+      elif
+         String.IsNullOrEmpty req.Recipient.AccountNumber
+         || String.IsNullOrEmpty req.Recipient.RoutingNumber
       then
          {
             res with

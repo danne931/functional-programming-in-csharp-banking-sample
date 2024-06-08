@@ -25,6 +25,7 @@ type InternalTransferRejected = {
 }
 
 type DomesticTransferPending = {
+   Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
    TransferRequestDate: DateTime
    Amount: decimal
@@ -83,8 +84,7 @@ module TransferEventToDomesticTransfer =
       : DomesticTransfer
       =
       {
-         SenderAccountId = AccountId.fromEntityId evt.EntityId
-         SenderOrgId = evt.OrgId
+         Sender = evt.Data.Sender
          TransferId = evt.CorrelationId
          Recipient = evt.Data.Recipient
          Amount = evt.Data.Amount

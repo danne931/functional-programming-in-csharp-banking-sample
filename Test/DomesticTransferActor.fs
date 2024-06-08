@@ -12,11 +12,7 @@ open ActorUtil
 open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-
-type TransferRequest = DomesticTransferRecipientActor.DomesticTransferRequest
-
-type DomesticTransferMessage =
-   DomesticTransferRecipientActor.DomesticTransferMessage
+open DomesticTransferRecipientActor
 
 let initMockAccountActor (tck: TestKit.Tck) =
    let handler (ctx: Actor<_>) (msg: obj) =
@@ -43,9 +39,22 @@ let initMockAccountActor (tck: TestKit.Tck) =
 
    spawnAnonymous tck <| props (actorOf2 handler)
 
+let mockSender = {
+   Name = "Big Fish"
+   AccountNumber = "544112"
+   RoutingNumber = "923921"
+}
+
+let mockRecipient = {
+   Name = "Small Fish"
+   AccountNumber = "23423421"
+   RoutingNumber = "1092351"
+   Depository = "checking"
+}
+
 // Will fail with an intermittent "Connection" error
 // for the 2nd and 3rd request received.
-let mockTransferRequestFactory () : TransferRequest =
+let mockTransferRequestFactory () : DomesticTransferRequest =
    let mutable requestCount = 0
 
    fun (action: DomesticTransferServiceAction) (txn: DomesticTransfer) ->
@@ -64,8 +73,8 @@ let mockTransferRequestFactory () : TransferRequest =
             | DomesticTransferServiceAction.ProgressCheck -> "Complete"
 
          let response: DomesticTransferServiceResponse = {
-            AccountNumber = ""
-            RoutingNumber = ""
+            Sender = mockSender
+            Recipient = mockRecipient
             Ok = true
             Reason = ""
             Status = status
@@ -79,8 +88,8 @@ let mockTransferRequestInvalid
    (txn: DomesticTransfer)
    =
    let response: DomesticTransferServiceResponse = {
-      AccountNumber = ""
-      RoutingNumber = ""
+      Sender = mockSender
+      Recipient = mockRecipient
       Ok = false
       Reason = "InvalidAction"
       Status = ""
@@ -94,8 +103,8 @@ let mockTransferRequestInactiveAccount
    (txn: DomesticTransfer)
    =
    let response: DomesticTransferServiceResponse = {
-      AccountNumber = ""
-      RoutingNumber = ""
+      Sender = mockSender
+      Recipient = mockRecipient
       Ok = false
       Reason = "InactiveAccount"
       Status = ""
@@ -139,7 +148,7 @@ let initDomesticTransferActor
    (breaker: Akka.Pattern.CircuitBreaker)
    (getAccountActor: AccountId -> IEntityRef<AccountMessage>)
    (emailActor: IActorRef<EmailActor.EmailMessage>)
-   (transferRequest: TransferRequest)
+   (transferRequest: DomesticTransferRequest)
    =
    let prop =
       DomesticTransferRecipientActor.actorProps
@@ -150,7 +159,7 @@ let initDomesticTransferActor
 
    spawn tck ActorMetadata.domesticTransfer.Name prop
 
-let init (tck: TestKit.Tck) (mockTransferRequest: TransferRequest) =
+let init (tck: TestKit.Tck) (mockTransferRequest: DomesticTransferRequest) =
    let breaker = initCircuitBreaker tck
    let mockAccountRef = initMockAccountActor tck
 
@@ -187,7 +196,7 @@ let tests =
 
          Expect.equal
             (AccountId.fromEntityId cmd.EntityId)
-            txn.SenderAccountId
+            txn.Sender.AccountId
             $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting UpdateTransferProgressCommand"
 
@@ -208,7 +217,7 @@ let tests =
 
          Expect.equal
             (AccountId.fromEntityId cmd.EntityId)
-            txn.SenderAccountId
+            txn.Sender.AccountId
             $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting ApproveTransferCommand"
 
@@ -233,7 +242,7 @@ let tests =
 
          Expect.equal
             (AccountId.fromEntityId msg.EntityId)
-            txn.SenderAccountId
+            txn.Sender.AccountId
             $"SenderAccountId from Transaction should be
               EntityId of resulting RejectTransferCommand"
 

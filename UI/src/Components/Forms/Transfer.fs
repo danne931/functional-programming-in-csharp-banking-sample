@@ -84,6 +84,13 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
             DomesticTransferCommand.create account.CompositeId {
                TransferRequestDate = DateTime.UtcNow
                Amount = amount
+               Sender = {
+                  Name = account.Name
+                  AccountNumber = account.AccountNumber
+                  RoutingNumber = account.RoutingNumber
+                  OrgId = account.OrgId
+                  AccountId = account.AccountId
+               }
                Recipient = recipient
                Reference = None
             }

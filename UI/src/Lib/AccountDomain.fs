@@ -208,7 +208,7 @@ let transactionUIFriendly
                Destination =
                   recipientName
                   + " **"
-                  + evt.Data.Recipient.AccountNumber.Substring(-4)
+                  + evt.Data.Recipient.AccountNumber.ToString().Substring(-4)
          }
       | DomesticTransferApproved evt -> {
          props with

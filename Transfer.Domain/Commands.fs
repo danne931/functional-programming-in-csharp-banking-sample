@@ -186,6 +186,8 @@ type DomesticTransferRecipientInput = {
    FirstName: string
    AccountNumber: string
    RoutingNumber: string
+   Depository: DomesticRecipientAccountDepository
+   PaymentNetwork: PaymentNetwork
 }
 
 type RegisterDomesticTransferRecipientCommand =
@@ -207,26 +209,33 @@ module RegisterDomesticTransferRecipientCommand =
       : ValidationResult<BankEvent<RegisteredDomesticTransferRecipient>>
       =
       validate {
-
-         let recipient = {
-            FirstName = cmd.Data.FirstName
-            LastName = cmd.Data.LastName
-            Nickname = None
-            AccountNumber = cmd.Data.AccountNumber
-            RoutingNumber = cmd.Data.RoutingNumber
-            Status = RecipientRegistrationStatus.Confirmed
-            AccountId = Guid.NewGuid() |> AccountId
-         }
+         let recipientAccountId = Guid.NewGuid() |> AccountId
 
          let! _ =
             transferRecipientIdValidator
                (string cmd.EntityId)
-               (string recipient.AccountId)
+               (string recipientAccountId)
 
-         and! _ = accountNumberValidator recipient.AccountNumber
-         and! _ = routingNumberValidator recipient.RoutingNumber
-         and! _ = firstNameValidator recipient.FirstName
-         and! _ = lastNameValidator recipient.LastName
+         and! accountNumber =
+            accountNumberValidator "Account Number" cmd.Data.AccountNumber
+
+         and! routingNumber =
+            routingNumberValidator "Routing Number" cmd.Data.RoutingNumber
+
+         and! firstName = firstNameValidator cmd.Data.FirstName
+         and! lastName = lastNameValidator cmd.Data.LastName
+
+         let recipient = {
+            FirstName = firstName
+            LastName = lastName
+            Nickname = None
+            AccountNumber = accountNumber
+            RoutingNumber = routingNumber
+            Status = RecipientRegistrationStatus.Confirmed
+            AccountId = Guid.NewGuid() |> AccountId
+            Depository = cmd.Data.Depository
+            PaymentNetwork = cmd.Data.PaymentNetwork
+         }
 
          return
             BankEvent.create2<
@@ -240,6 +249,7 @@ module RegisterDomesticTransferRecipientCommand =
 type DomesticTransferPendingInput = {
    TransferRequestDate: DateTime
    Amount: Decimal
+   Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
    Reference: string option
 }
@@ -277,6 +287,7 @@ module DomesticTransferCommand =
                {
                   TransferRequestDate = cmd.Data.TransferRequestDate
                   Amount = cmd.Data.Amount
+                  Sender = cmd.Data.Sender
                   Recipient = cmd.Data.Recipient
                   Reference = cmd.Data.Reference
                   Status = DomesticTransferProgress.Outgoing
@@ -335,7 +346,7 @@ module UpdateDomesticTransferProgressCommand =
 module DomesticTransferToCommand =
    let progress (txn: DomesticTransfer) (status: DomesticTransferProgress) =
       UpdateDomesticTransferProgressCommand.create
-         (txn.SenderAccountId, txn.SenderOrgId)
+         (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient
@@ -346,7 +357,7 @@ module DomesticTransferToCommand =
 
    let approve (txn: DomesticTransfer) =
       ApproveDomesticTransferCommand.create
-         (txn.SenderAccountId, txn.SenderOrgId)
+         (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient
@@ -357,7 +368,7 @@ module DomesticTransferToCommand =
 
    let reject (txn: DomesticTransfer) (reason: TransferDeclinedReason) =
       RejectDomesticTransferCommand.create
-         (txn.SenderAccountId, txn.SenderOrgId)
+         (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
             Recipient = txn.Recipient

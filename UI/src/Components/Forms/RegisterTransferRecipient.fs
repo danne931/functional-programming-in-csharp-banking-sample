@@ -18,6 +18,8 @@ type Values = {
    Email: string
    AccountNumber: string
    RoutingNumber: string
+   AccountDepository: string
+   PaymentNetwork: string
 }
 
 type State = {
@@ -100,7 +102,10 @@ let domesticRecipientForm
 
    let fieldAccountNumber =
       Form.textField {
-         Parser = accountNumberValidator >> validationErrorsHumanFriendly
+         Parser =
+            accountNumberValidator "Account Number"
+            >> validationErrorsHumanFriendly
+            >> Result.map string
          Value = fun (values: Values) -> values.AccountNumber
          Update =
             fun newValue values -> { values with AccountNumber = newValue }
@@ -114,7 +119,10 @@ let domesticRecipientForm
 
    let fieldRoutingNumber =
       Form.textField {
-         Parser = routingNumberValidator >> validationErrorsHumanFriendly
+         Parser =
+            routingNumberValidator "Routing Number"
+            >> validationErrorsHumanFriendly
+            >> Result.map string
          Value = fun (values: Values) -> values.RoutingNumber
          Update =
             fun newValue values -> { values with RoutingNumber = newValue }
@@ -126,7 +134,57 @@ let domesticRecipientForm
          }
       }
 
-   let onSubmit name accountNum routingNum =
+   let fieldAccountDepository =
+      Form.selectField {
+         Parser =
+            fun depository ->
+               let depository =
+                  match depository with
+                  | "checking" -> DomesticRecipientAccountDepository.Checking
+                  | "savings" -> DomesticRecipientAccountDepository.Savings
+                  | other ->
+                     failwith $"Not implemented account depository {other}"
+
+               Ok depository
+         Value = fun (values: Values) -> values.AccountDepository
+         Update =
+            fun newValue values -> {
+               values with
+                  AccountDepository = newValue
+            }
+         Error = fun _ -> None
+         Attributes = {
+            Label = "Account Type"
+            Placeholder = ""
+            Options = [ "checking", "Checking"; "savings", "Savings" ]
+         }
+      }
+
+   let fieldPaymentNetwork =
+      Form.selectField {
+         Parser =
+            fun pay ->
+               let pay =
+                  match pay with
+                  | "ach" -> PaymentNetwork.ACH
+                  | other -> failwith $"Not implemented payment network {other}"
+
+               Ok pay
+         Value = fun (values: Values) -> values.PaymentNetwork
+         Update =
+            fun newValue values -> {
+               values with
+                  PaymentNetwork = newValue
+            }
+         Error = fun _ -> None
+         Attributes = {
+            Label = "Payment Network"
+            Placeholder = ""
+            Options = [ "ach", "ACH" ]
+         }
+      }
+
+   let onSubmit paymentNetwork depository name accountNum routingNum =
       let first, last = name
 
       let cmd =
@@ -135,11 +193,15 @@ let domesticRecipientForm
             FirstName = first
             AccountNumber = accountNum
             RoutingNumber = routingNum
+            Depository = depository
+            PaymentNetwork = paymentNetwork
          }
 
       Msg.Submit(AccountCommand.RegisterDomesticTransferRecipient cmd, Started)
 
    Form.succeed onSubmit
+   |> Form.append fieldPaymentNetwork
+   |> Form.append fieldAccountDepository
    |> Form.append (
       Form.succeed (fun first last -> first, last)
       |> Form.append fieldFirstName
@@ -201,6 +263,8 @@ let RegisterTransferRecipientFormComponent
       state.Account
       {
          AccountEnvironment = "internal"
+         AccountDepository = "checking"
+         PaymentNetwork = "ach"
          FirstName = ""
          LastName = ""
          Email = ""

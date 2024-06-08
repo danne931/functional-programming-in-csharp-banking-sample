@@ -60,7 +60,6 @@ let mockAccounts =
       CreateAccountCommand.create {
          FirstName = "Jelly"
          LastName = "Fish"
-         Balance = 1300m
          Email = "jellyfish@gmail.com"
          Currency = Currency.USD
          AccountId =
@@ -73,7 +72,6 @@ let mockAccounts =
       CreateAccountCommand.create {
          FirstName = "Star"
          LastName = "Fish"
-         Balance = 1000m
          Email = "starfish@gmail.com"
          Currency = Currency.USD
          AccountId =
@@ -86,7 +84,6 @@ let mockAccounts =
       CreateAccountCommand.create {
          FirstName = "Rainbow"
          LastName = "Trout"
-         Balance = 850m
          Email = "rainbowtrout@gmail.com"
          Currency = Currency.USD
          AccountId =
@@ -129,7 +126,7 @@ let seedAccountTransactions
 
       let command = {
          DepositCashCommand.create compositeId {
-            Amount = randomAmount ()
+            Amount = 1500m + randomAmount ()
             Origin = None
          } with
             Timestamp = timestamp

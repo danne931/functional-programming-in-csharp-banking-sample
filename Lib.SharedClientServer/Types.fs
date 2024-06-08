@@ -284,3 +284,17 @@ type CircuitBreakerActorState = {
 
 let ORG_ID_REMOVE_SOON =
    "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9" |> Guid.Parse |> OrgId
+
+type AccountNumber =
+   | AccountNumber of int64
+
+   override x.ToString() =
+      let (AccountNumber num) = x
+      string num
+
+type RoutingNumber =
+   | RoutingNumber of int
+
+   override x.ToString() =
+      let (RoutingNumber num) = x
+      string num

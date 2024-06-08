@@ -13,6 +13,8 @@ let table = "account"
 module AccountFields =
    let accountId = "account_id"
    let orgId = OrgFields.orgId
+   let accountNumber = "account_number"
+   let routingNumber = "routing_number"
    let email = "email"
    let firstName = "first_name"
    let lastName = "last_name"
@@ -51,6 +53,12 @@ module AccountSqlReader =
       AccountFields.accountId |> read.uuid |> AccountId
 
    let orgId = OrgSqlReader.orgId
+
+   let accountNumber (read: RowReader) =
+      read.int64 AccountFields.accountNumber |> AccountNumber
+
+   let routingNumber (read: RowReader) =
+      read.int AccountFields.routingNumber |> RoutingNumber
 
    let email (read: RowReader) =
       read.string AccountFields.email |> Email.deserialize
@@ -130,6 +138,8 @@ module AccountSqlReader =
    let account (read: RowReader) : Account = {
       AccountId = accountId read
       OrgId = orgId read
+      AccountNumber = accountNumber read
+      RoutingNumber = routingNumber read
       Email = email read
       FirstName = firstName read
       LastName = lastName read
@@ -172,6 +182,15 @@ module AccountSqlReader =
 module AccountSqlWriter =
    let accountId = AccountId.get >> Sql.uuid
    let orgId = OrgSqlWriter.orgId
+
+   let accountNumber (num: AccountNumber) =
+      let (AccountNumber acctNum) = num
+      Sql.int64 acctNum
+
+   let routingNumber (num: RoutingNumber) =
+      let (RoutingNumber routingNum) = num
+      Sql.int routingNum
+
    let email (email: Email) = Sql.string <| string email
    let firstName = Sql.string
    let lastName = Sql.string

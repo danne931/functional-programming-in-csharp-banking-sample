@@ -214,6 +214,8 @@ let upsertReadModels
       accounts
       |> List.map (fun account -> [
          "id", AccountSqlWriter.accountId account.AccountId
+         "accountNumber", AccountSqlWriter.accountNumber account.AccountNumber
+         "routingNumber", AccountSqlWriter.routingNumber account.RoutingNumber
          "orgId", AccountSqlWriter.orgId account.OrgId
          "email", AccountSqlWriter.email account.Email
          "firstName", AccountSqlWriter.firstName account.FirstName
@@ -345,6 +347,8 @@ let upsertReadModels
       $"""
       INSERT into {AccountSqlMapper.table}
          ({AccountFields.accountId},
+          {AccountFields.accountNumber},
+          {AccountFields.routingNumber},
           {AccountFields.orgId},
           {AccountFields.email},
           {AccountFields.firstName},
@@ -373,6 +377,8 @@ let upsertReadModels
           {AccountFields.cardLocked})
       VALUES
          (@id,
+          @accountNumber,
+          @routingNumber,
           @orgId,
           @email,
           @firstName,

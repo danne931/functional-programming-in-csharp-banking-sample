@@ -170,6 +170,8 @@ type Account = {
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    Events: AccountEvent list
    CardLocked: bool
+   AccountNumber: AccountNumber
+   RoutingNumber: RoutingNumber
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"

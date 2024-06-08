@@ -11,6 +11,8 @@ type CreatedAccount = {
    LastName: string
    Balance: decimal
    Currency: Currency
+   AccountNumber: AccountNumber
+   RoutingNumber: RoutingNumber
 }
 
 type LockedCard = { Reference: string option }
