@@ -183,8 +183,8 @@ let applyEvent (state: Account) (evt: AccountEvent) =
         }
       | DomesticTransferApproved e -> {
          state with
-            InProgressInternalTransfers =
-               Map.remove e.CorrelationId state.InProgressInternalTransfers
+            InProgressDomesticTransfers =
+               Map.remove e.CorrelationId state.InProgressDomesticTransfers
         }
       | DomesticTransferRejected e ->
          let balance = state.Balance + e.Data.Amount
