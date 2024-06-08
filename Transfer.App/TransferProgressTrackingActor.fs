@@ -86,8 +86,6 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
    let reader (read: RowReader) =
       read.text "txns" |> Serialization.deserializeUnsafe<DomesticTransfer>
 
-   let statusPath = "{Status,0}"
-
    let inProgressTransfersPath =
       AccountSqlMapper.table + "." + AccountFields.inProgressDomesticTransfers
 
@@ -105,8 +103,11 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
             jsonb_array_elements({inProgressTransfersPath}) as txns
          WHERE
             {inProgressTransfersCountPath} > 0
-            AND txns #>> '{statusPath}' = 'InProgress'
             AND (txns ->> 'Date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
+            AND (
+               (txns #>> '{{Status}}') = 'Outgoing'
+               OR (txns #>> '{{Status,0}}') = 'InProgress'
+            )
          """
          None
          reader

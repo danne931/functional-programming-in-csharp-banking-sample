@@ -190,7 +190,8 @@ let transactionUIFriendly
             Origin = Some account.Name
             Info =
                Some
-                  $"Recipient: {recipientName evt.Data.RecipientId} - Reason {evt.Data.Reason} - Acount refunded"
+                  $"Recipient: {recipientName evt.Data.RecipientId} - Reason
+                  {evt.Data.Reason} - Account refunded"
             AmountNaked = Some evt.Data.Amount
             MoneyFlow = MoneyFlow.In
         }
@@ -224,7 +225,8 @@ let transactionUIFriendly
             Origin = Some account.Name
             Info =
                Some
-                  $"Recipient: {recipientName evt.Data.Recipient.AccountId} - Reason {evt.Data.Reason} - Acount refunded"
+                  $"Recipient: {recipientName evt.Data.Recipient.AccountId} -
+                  Reason {evt.Data.Reason} - Account refunded"
             AmountNaked = Some evt.Data.Amount
             MoneyFlow = MoneyFlow.In
         }
