@@ -98,9 +98,9 @@ let command = {|
             DomesticTransferCommand.create compositeId {
                Sender = domesticSender
                Recipient = domesticRecipient
-               TransferRequestDate = DateTime.UtcNow
+               ScheduledDate = DateTime.UtcNow
                Amount = amount
-               Reference = None
+               Memo = None
             }
 
          {
@@ -113,8 +113,8 @@ let command = {|
             InternalTransferCommand.create compositeId {
                RecipientId = internalRecipient.AccountId
                Amount = amount
-               Reference = None
-               TransferRequestDate = DateTime.UtcNow
+               Memo = None
+               ScheduledDate = DateTime.UtcNow
             }
 
          {
@@ -125,7 +125,7 @@ let command = {|
       ApproveInternalTransferCommand.create compositeId correlationId {
          RecipientId = internalRecipient.AccountId
          Amount = 33m
-         TransferRequestDate = DateTime.UtcNow
+         ScheduledDate = DateTime.UtcNow
       }
    rejectInternalTransfer =
       fun amount ->
@@ -133,7 +133,7 @@ let command = {|
             RecipientId = internalRecipient.AccountId
             Amount = amount
             Reason = TransferDeclinedReason.AccountClosed
-            TransferRequestDate = DateTime.UtcNow
+            ScheduledDate = DateTime.UtcNow
          }
    depositTransfer =
       fun amount ->

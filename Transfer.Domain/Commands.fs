@@ -27,8 +27,7 @@ module InternalTransferCommand =
          let input = cmd.Data
          let! _ = amountValidator "Transfer amount" input.Amount
 
-         let! _ =
-            dateNotDefaultValidator "Transfer date" input.TransferRequestDate
+         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
 
          return BankEvent.create<InternalTransferPending> cmd
       }
@@ -209,14 +208,7 @@ module RegisterDomesticTransferRecipientCommand =
       : ValidationResult<BankEvent<RegisteredDomesticTransferRecipient>>
       =
       validate {
-         let recipientAccountId = Guid.NewGuid() |> AccountId
-
-         let! _ =
-            transferRecipientIdValidator
-               (string cmd.EntityId)
-               (string recipientAccountId)
-
-         and! accountNumber =
+         let! accountNumber =
             accountNumberValidator "Account Number" cmd.Data.AccountNumber
 
          and! routingNumber =
@@ -246,12 +238,69 @@ module RegisterDomesticTransferRecipientCommand =
                { Recipient = recipient }
       }
 
+type EditDomesticTransferRecipientInput = {
+   RecipientWithoutAppliedUpdates: DomesticTransferRecipient
+   LastName: string
+   FirstName: string
+   AccountNumber: string
+   RoutingNumber: string
+   Depository: DomesticRecipientAccountDepository
+   PaymentNetwork: PaymentNetwork
+}
+
+type EditDomesticTransferRecipientCommand =
+   Command<EditDomesticTransferRecipientInput>
+
+module EditDomesticTransferRecipientCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (data: EditDomesticTransferRecipientInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         data
+
+   let toEvent
+      (cmd: EditDomesticTransferRecipientCommand)
+      : ValidationResult<BankEvent<EditedDomesticTransferRecipient>>
+      =
+      validate {
+         let! accountNumber =
+            accountNumberValidator "Account Number" cmd.Data.AccountNumber
+
+         and! routingNumber =
+            routingNumberValidator "Routing Number" cmd.Data.RoutingNumber
+
+         and! firstName = firstNameValidator cmd.Data.FirstName
+         and! lastName = lastNameValidator cmd.Data.LastName
+
+         let recipient = {
+            cmd.Data.RecipientWithoutAppliedUpdates with
+               FirstName = firstName
+               LastName = lastName
+               AccountNumber = accountNumber
+               RoutingNumber = routingNumber
+               Depository = cmd.Data.Depository
+               PaymentNetwork = cmd.Data.PaymentNetwork
+         }
+
+         return
+            BankEvent.create2<
+               EditDomesticTransferRecipientInput,
+               EditedDomesticTransferRecipient
+             >
+               cmd
+               { Recipient = recipient }
+      }
+
 type DomesticTransferPendingInput = {
-   TransferRequestDate: DateTime
+   ScheduledDate: DateTime
    Amount: Decimal
    Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
-   Reference: string option
+   Memo: string option
 }
 
 type DomesticTransferCommand = Command<DomesticTransferPendingInput>
@@ -275,8 +324,7 @@ module DomesticTransferCommand =
          let input = cmd.Data
          let! _ = amountValidator "Transfer amount" input.Amount
 
-         let! _ =
-            dateNotDefaultValidator "Transfer date" input.TransferRequestDate
+         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
 
          return
             BankEvent.create2<
@@ -285,11 +333,13 @@ module DomesticTransferCommand =
              >
                cmd
                {
-                  TransferRequestDate = cmd.Data.TransferRequestDate
-                  Amount = cmd.Data.Amount
-                  Sender = cmd.Data.Sender
-                  Recipient = cmd.Data.Recipient
-                  Reference = cmd.Data.Reference
+                  BaseInfo = {
+                     ScheduledDate = cmd.Data.ScheduledDate
+                     Amount = cmd.Data.Amount
+                     Sender = cmd.Data.Sender
+                     Recipient = cmd.Data.Recipient
+                     Memo = cmd.Data.Memo
+                  }
                   Status = DomesticTransferProgress.Outgoing
                }
       }
@@ -349,9 +399,13 @@ module DomesticTransferToCommand =
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
-            Recipient = txn.Recipient
-            TransferRequestDate = txn.Date
-            Amount = txn.Amount
+            BaseInfo = {
+               Sender = txn.Sender
+               Recipient = txn.Recipient
+               ScheduledDate = txn.ScheduledDate
+               Amount = txn.Amount
+               Memo = txn.Memo
+            }
             Status = status
          }
 
@@ -360,9 +414,13 @@ module DomesticTransferToCommand =
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
-            Recipient = txn.Recipient
-            TransferRequestDate = txn.Date
-            Amount = txn.Amount
+            BaseInfo = {
+               Sender = txn.Sender
+               Recipient = txn.Recipient
+               ScheduledDate = txn.ScheduledDate
+               Amount = txn.Amount
+               Memo = txn.Memo
+            }
             Status = txn.Status
          }
 
@@ -371,8 +429,25 @@ module DomesticTransferToCommand =
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          {
-            Recipient = txn.Recipient
-            TransferRequestDate = txn.Date
-            Amount = txn.Amount
+            BaseInfo = {
+               Sender = txn.Sender
+               Recipient = txn.Recipient
+               ScheduledDate = txn.ScheduledDate
+               Amount = txn.Amount
+               Memo = txn.Memo
+            }
             Reason = reason
+         }
+
+   let retry (txn: DomesticTransfer) =
+      Command.create
+         (AccountId.toEntityId txn.Sender.AccountId)
+         txn.Sender.OrgId
+         txn.TransferId
+         {
+            ScheduledDate = txn.ScheduledDate
+            Amount = txn.Amount
+            Sender = txn.Sender
+            Recipient = txn.Recipient
+            Memo = txn.Memo
          }

@@ -278,16 +278,21 @@ let upsertReadModels
             account.InProgressInternalTransfers
 
          "inProgressInternalTransfersCount",
-         AccountSqlWriter.inProgressTransfersCount
+         AccountSqlWriter.transfersCount
             account.InProgressInternalTransfers.Count
 
          "inProgressDomesticTransfers",
-         AccountSqlWriter.inProgressDomesticTransfers
-            account.InProgressDomesticTransfers
+         AccountSqlWriter.domesticTransfers account.InProgressDomesticTransfers
 
          "inProgressDomesticTransfersCount",
-         AccountSqlWriter.inProgressTransfersCount
+         AccountSqlWriter.transfersCount
             account.InProgressDomesticTransfers.Count
+
+         "failedDomesticTransfers",
+         AccountSqlWriter.domesticTransfers account.FailedDomesticTransfers
+
+         "failedDomesticTransfersCount",
+         AccountSqlWriter.transfersCount account.FailedDomesticTransfers.Count
 
          "cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
@@ -330,9 +335,9 @@ let upsertReadModels
             | AccountEvent.TransferDeposited evt ->
                Some evt.Data.Amount, MoneyFlow.In
             | AccountEvent.DomesticTransferPending evt ->
-               Some evt.Data.Amount, MoneyFlow.Out
+               Some evt.Data.BaseInfo.Amount, MoneyFlow.Out
             | AccountEvent.DomesticTransferRejected evt ->
-               Some evt.Data.Amount, MoneyFlow.In
+               Some evt.Data.BaseInfo.Amount, MoneyFlow.In
             | AccountEvent.MaintenanceFeeDebited evt ->
                Some evt.Data.Amount, MoneyFlow.Out
             | _ -> None, MoneyFlow.None
@@ -374,6 +379,8 @@ let upsertReadModels
           {AccountFields.inProgressInternalTransfersCount},
           {AccountFields.inProgressDomesticTransfers},
           {AccountFields.inProgressDomesticTransfersCount},
+          {AccountFields.failedDomesticTransfers},
+          {AccountFields.failedDomesticTransfersCount},
           {AccountFields.cardLocked})
       VALUES
          (@id,
@@ -404,6 +411,8 @@ let upsertReadModels
           @inProgressInternalTransfersCount,
           @inProgressDomesticTransfers,
           @inProgressDomesticTransfersCount,
+          @failedDomesticTransfers,
+          @failedDomesticTransfersCount,
           @cardLocked)
       ON CONFLICT ({AccountFields.accountId})
       DO UPDATE SET
@@ -427,6 +436,8 @@ let upsertReadModels
          {AccountFields.inProgressInternalTransfersCount} = @inProgressInternalTransfersCount,
          {AccountFields.inProgressDomesticTransfers} = @inProgressDomesticTransfers,
          {AccountFields.inProgressDomesticTransfersCount} = @inProgressDomesticTransfersCount,
+         {AccountFields.failedDomesticTransfers} = @failedDomesticTransfers,
+         {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount,
          {AccountFields.cardLocked} = @cardLocked;
       """,
       accountSqlParams

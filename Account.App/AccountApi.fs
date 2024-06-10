@@ -109,6 +109,8 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
          RegisterInternalTransferRecipientCommand.toEvent cmd |> Result.map ids
       | RegisterDomesticTransferRecipient cmd ->
          RegisterDomesticTransferRecipientCommand.toEvent cmd |> Result.map ids
+      | EditDomesticTransferRecipient cmd ->
+         EditDomesticTransferRecipientCommand.toEvent cmd |> Result.map ids
       | DeactivateInternalRecipient cmd ->
          DeactivateInternalRecipientCommand.toEvent cmd |> Result.map ids
       | NicknameRecipient cmd ->

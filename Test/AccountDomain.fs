@@ -444,7 +444,7 @@ let tests =
 
          let command = {
             command with
-               Data.TransferRequestDate = DateTime.UtcNow.AddDays(-1)
+               Data.ScheduledDate = DateTime.UtcNow.AddDays(-1)
                Data.RecipientId = recipientStubIdOverride
          }
 
@@ -500,8 +500,7 @@ let tests =
                   RecipientId = recipientStubIdOverride
                   Reason = TransferDeclinedReason.AccountClosed
                   Amount = transferPendingEvt.Data.Amount
-                  TransferRequestDate =
-                     transferPendingEvt.Data.TransferRequestDate
+                  ScheduledDate = transferPendingEvt.Data.ScheduledDate
                }
 
          let res = update account <| AccountCommand.RejectInternalTransfer cmd
@@ -561,7 +560,7 @@ let tests =
 
          let command = {
             command with
-               Data.TransferRequestDate = DateTime.UtcNow.AddDays(-1)
+               Data.ScheduledDate = DateTime.UtcNow.AddDays(-1)
                Data.Recipient.AccountId = recipientStubIdOverride
          }
 
@@ -614,11 +613,8 @@ let tests =
                account.CompositeId
                transferPendingEvt.CorrelationId
                {
-                  Recipient = transferPendingEvt.Data.Recipient
+                  BaseInfo = transferPendingEvt.Data.BaseInfo
                   Reason = TransferDeclinedReason.AccountClosed
-                  Amount = transferPendingEvt.Data.Amount
-                  TransferRequestDate =
-                     transferPendingEvt.Data.TransferRequestDate
                }
 
          let res = update account <| AccountCommand.RejectDomesticTransfer cmd

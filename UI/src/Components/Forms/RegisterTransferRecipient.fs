@@ -10,6 +10,7 @@ open Bank.Transfer.Domain
 open AsyncUtil
 open Lib.Validators
 open FormContainer
+open Lib.SharedTypes
 
 type Values = {
    AccountEnvironment: string
@@ -25,11 +26,11 @@ type Values = {
 type State = {
    Account: Account
    PotentialInternalRecipients: PotentialInternalTransferRecipients
+   EditingDomesticRecipient: DomesticTransferRecipient option
 }
 
 let internalRecipientForm
-   (account: Account)
-   (potentialInternalRecipients: PotentialInternalTransferRecipients)
+   (state: State)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let fieldEmail =
@@ -37,7 +38,7 @@ let internalRecipientForm
          Parser =
             fun email ->
                let accountOpt =
-                  potentialInternalRecipients
+                  state.PotentialInternalRecipients
                   |> PotentialInternalTransferRecipients.value
                   |> Map.tryPick (fun id account ->
                      if (string account.Email) = email then
@@ -60,18 +61,20 @@ let internalRecipientForm
 
    let onSubmit (recipient: AccountProfile) =
       let cmd =
-         RegisterInternalTransferRecipientCommand.create account.CompositeId {
-            AccountId = recipient.AccountId
-            FirstName = recipient.FirstName
-            LastName = recipient.LastName
-         }
+         RegisterInternalTransferRecipientCommand.create
+            state.Account.CompositeId
+            {
+               AccountId = recipient.AccountId
+               FirstName = recipient.FirstName
+               LastName = recipient.LastName
+            }
 
       Msg.Submit(AccountCommand.RegisterInternalTransferRecipient cmd, Started)
 
    Form.succeed onSubmit |> Form.append fieldEmail
 
 let domesticRecipientForm
-   (account: Account)
+   (state: State)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let fieldFirstName =
@@ -188,16 +191,34 @@ let domesticRecipientForm
       let first, last = name
 
       let cmd =
-         RegisterDomesticTransferRecipientCommand.create account.CompositeId {
-            LastName = last
-            FirstName = first
-            AccountNumber = accountNum
-            RoutingNumber = routingNum
-            Depository = depository
-            PaymentNetwork = paymentNetwork
-         }
+         match state.EditingDomesticRecipient with
+         | None ->
+            RegisterDomesticTransferRecipientCommand.create
+               state.Account.CompositeId
+               {
+                  LastName = last
+                  FirstName = first
+                  AccountNumber = accountNum
+                  RoutingNumber = routingNum
+                  Depository = depository
+                  PaymentNetwork = paymentNetwork
+               }
+            |> AccountCommand.RegisterDomesticTransferRecipient
+         | Some recipient ->
+            EditDomesticTransferRecipientCommand.create
+               state.Account.CompositeId
+               {
+                  LastName = last
+                  FirstName = first
+                  AccountNumber = accountNum
+                  RoutingNumber = routingNum
+                  Depository = depository
+                  PaymentNetwork = paymentNetwork
+                  RecipientWithoutAppliedUpdates = recipient
+               }
+            |> AccountCommand.EditDomesticTransferRecipient
 
-      Msg.Submit(AccountCommand.RegisterDomesticTransferRecipient cmd, Started)
+      Msg.Submit(cmd, Started)
 
    Form.succeed onSubmit
    |> Form.append fieldPaymentNetwork
@@ -241,15 +262,14 @@ let form (state: State) : Form.Form<Values, Msg<Values>, IReactProperty> =
    fieldAccountEnvironment
    |> Form.andThen (fun env ->
       match env with
-      | RecipientAccountEnvironment.Internal ->
-         internalRecipientForm state.Account state.PotentialInternalRecipients
-      | RecipientAccountEnvironment.Domestic ->
-         domesticRecipientForm state.Account)
+      | RecipientAccountEnvironment.Internal -> internalRecipientForm state
+      | RecipientAccountEnvironment.Domestic -> domesticRecipientForm state)
 
 [<ReactComponent>]
 let RegisterTransferRecipientFormComponent
    (account: Account)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
+   (recipientIdForEdit: AccountId option)
    (onSubmit: ParentOnSubmitHandler)
    =
    // Capture state
@@ -257,19 +277,33 @@ let RegisterTransferRecipientFormComponent
       React.useState {
          Account = account
          PotentialInternalRecipients = potentialTransferRecipients
+         EditingDomesticRecipient =
+            recipientIdForEdit
+            |> Option.bind (fun accountId ->
+               Map.tryFind accountId account.DomesticTransferRecipients)
       }
 
-   FormContainer
-      state.Account
-      {
-         AccountEnvironment = "internal"
-         AccountDepository = "checking"
-         PaymentNetwork = "ach"
-         FirstName = ""
-         LastName = ""
-         Email = ""
-         AccountNumber = ""
-         RoutingNumber = ""
-      }
-      (form state)
-      onSubmit
+   let formProps = {
+      AccountEnvironment = "internal"
+      AccountDepository = "checking"
+      PaymentNetwork = "ach"
+      FirstName = ""
+      LastName = ""
+      Email = ""
+      AccountNumber = ""
+      RoutingNumber = ""
+   }
+
+   let formProps =
+      match state.EditingDomesticRecipient with
+      | Some recipient -> {
+         formProps with
+            AccountEnvironment = "domestic"
+            FirstName = recipient.FirstName
+            LastName = recipient.LastName
+            AccountNumber = string recipient.AccountNumber
+            RoutingNumber = string recipient.RoutingNumber
+        }
+      | _ -> formProps
+
+   FormContainer state.Account formProps (form state) onSubmit

@@ -25,6 +25,7 @@ type AccountCommand =
    | DeactivateInternalRecipient of DeactivateInternalRecipientCommand
    | RegisterDomesticTransferRecipient of
       RegisterDomesticTransferRecipientCommand
+   | EditDomesticTransferRecipient of EditDomesticTransferRecipientCommand
    | DomesticTransfer of DomesticTransferCommand
    | UpdateDomesticTransferProgress of UpdateDomesticTransferProgressCommand
    | ApproveDomesticTransfer of ApproveDomesticTransferCommand
@@ -50,6 +51,8 @@ type AccountEvent =
    | InternalRecipientDeactivated of BankEvent<InternalRecipientDeactivated>
    | TransferDeposited of BankEvent<TransferDeposited>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
+   | EditedDomesticTransferRecipient of
+      BankEvent<EditedDomesticTransferRecipient>
    | DomesticTransferPending of BankEvent<DomesticTransferPending>
    | DomesticTransferProgress of BankEvent<DomesticTransferProgressUpdate>
    | DomesticTransferApproved of BankEvent<DomesticTransferApproved>
@@ -86,6 +89,8 @@ module AccountEnvelope =
          InternalTransferRecipient evt
       | :? BankEvent<RegisteredDomesticTransferRecipient> as evt ->
          DomesticTransferRecipient evt
+      | :? BankEvent<EditedDomesticTransferRecipient> as evt ->
+         EditedDomesticTransferRecipient evt
       | :? BankEvent<InternalRecipientDeactivated> as evt ->
          InternalRecipientDeactivated evt
       | :? BankEvent<RecipientNicknamed> as evt ->
@@ -128,6 +133,7 @@ module AccountEnvelope =
       | InternalTransferApproved evt -> wrap evt, get evt
       | InternalTransferRejected evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
+      | EditedDomesticTransferRecipient evt -> wrap evt, get evt
       | DomesticTransferPending evt -> wrap evt, get evt
       | DomesticTransferProgress evt -> wrap evt, get evt
       | DomesticTransferApproved evt -> wrap evt, get evt
@@ -167,6 +173,7 @@ type Account = {
    InProgressInternalTransfers:
       Map<CorrelationId, BankEvent<InternalTransferPending>>
    InProgressDomesticTransfers: Map<CorrelationId, DomesticTransfer>
+   FailedDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    Events: AccountEvent list
    CardLocked: bool

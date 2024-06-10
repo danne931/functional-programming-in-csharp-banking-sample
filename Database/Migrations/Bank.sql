@@ -42,6 +42,8 @@ CREATE TABLE account (
    in_progress_internal_transfers_count INT NOT NULL,
    in_progress_domestic_transfers JSONB NOT NULL,
    in_progress_domestic_transfers_count INT NOT NULL,
+   failed_domestic_transfers JSONB NOT NULL,
+   failed_domestic_transfers_count INT NOT NULL,
    card_locked BOOLEAN NOT NULL,
    org_id UUID NOT NULL REFERENCES organization,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

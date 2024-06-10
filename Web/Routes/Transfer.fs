@@ -36,6 +36,17 @@ let startTransferRoutes (app: WebApplication) =
    |> ignore
 
    app.MapPost(
+      TransferPath.DomesticTransferRecipientEdit,
+      Func<ActorSystem, EditDomesticTransferRecipientCommand, Task<IResult>>
+         (fun sys cmd ->
+            processCommand
+               sys
+               (AccountCommand.EditDomesticTransferRecipient cmd)
+            |> RouteUtil.unwrapTaskResult)
+   )
+   |> ignore
+
+   app.MapPost(
       TransferPath.Internal,
       Func<ActorSystem, InternalTransferCommand, Task<IResult>>(fun sys cmd ->
          processCommand sys (AccountCommand.InternalTransfer cmd)

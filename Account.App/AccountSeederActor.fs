@@ -205,12 +205,11 @@ let seedAccountTransactions
                InternalTransferCommand.create compositeId {
                   RecipientId = registerRecipientCmd.Data.AccountId
                   Amount = randomAmount ()
-                  TransferRequestDate = DateTime.UtcNow
-                  Reference = None
+                  ScheduledDate = DateTime.UtcNow
+                  Memo = None
                }
 
             aref <! (StateChange << InternalTransfer) transferCmd
-
    }
 
 // Creates a new Map consisting of initial state of accounts to create

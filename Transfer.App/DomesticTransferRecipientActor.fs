@@ -263,7 +263,7 @@ let transferRequest action (txn: DomesticTransfer) = taskResult {
       Sender = networkSender txn.Sender
       Recipient = networkRecipient txn.Recipient
       Amount = txn.Amount
-      Date = txn.Date
+      Date = txn.ScheduledDate
       TransactionId = string txn.TransferId
       PaymentNetwork =
          match txn.Recipient.PaymentNetwork with

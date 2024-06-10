@@ -31,6 +31,7 @@ module TransferPath =
    let Domestic = Base + "/domestic"
    let InternalTransferRecipient = Internal + "/register-recipient"
    let DomesticTransferRecipient = Domestic + "/register-recipient"
+   let DomesticTransferRecipientEdit = Domestic + "/edit-recipient"
    let NicknameRecipient = Base + "/recipient-nickname"
 
 module TransactionPath =

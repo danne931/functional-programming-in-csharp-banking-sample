@@ -31,6 +31,8 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, TransferPath.InternalTransferRecipient
       | AccountCommand.RegisterDomesticTransferRecipient cmd ->
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipient
+      | AccountCommand.EditDomesticTransferRecipient cmd ->
+         Serialization.serialize cmd, TransferPath.DomesticTransferRecipientEdit
       | AccountCommand.LimitDailyDebits cmd ->
          Serialization.serialize cmd, AccountPath.DailyDebitLimit
       | AccountCommand.LockCard cmd ->

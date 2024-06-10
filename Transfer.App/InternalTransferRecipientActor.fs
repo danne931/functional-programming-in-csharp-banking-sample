@@ -82,7 +82,7 @@ let actorProps
                   RecipientId = recipientId
                   Amount = amount
                   Reason = reason
-                  TransferRequestDate = evt.Data.TransferRequestDate
+                  ScheduledDate = evt.Data.ScheduledDate
                }
             |> AccountCommand.RejectInternalTransfer
             |> AccountMessage.StateChange
@@ -110,7 +110,7 @@ let actorProps
                      {
                         RecipientId = recipientId
                         Amount = amount
-                        TransferRequestDate = evt.Data.TransferRequestDate
+                        ScheduledDate = evt.Data.ScheduledDate
                      }
                   |> AccountCommand.ApproveInternalTransfer
                   |> AccountMessage.StateChange

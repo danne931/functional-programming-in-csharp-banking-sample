@@ -91,6 +91,25 @@ let actorProps
                   )
 
                getOrStartInternalTransferActor mailbox <! msg
+            | EditedDomesticTransferRecipient e ->
+               // Retry failed domestic transfers if they were previously
+               // declined due to invalid account info.
+               let recipientId = e.Data.Recipient.AccountId
+
+               let invalidAccount =
+                  TransferDeclinedReason.InvalidAccountInfo
+                  |> DomesticTransferProgress.Failed
+
+               newState.FailedDomesticTransfers
+               |> Map.filter (fun _ transfer ->
+                  transfer.Recipient.AccountId = recipientId
+                  && transfer.Status = invalidAccount)
+               |> Map.iter (fun _ transfer ->
+                  let cmd =
+                     DomesticTransferToCommand.retry transfer
+                     |> AccountCommand.DomesticTransfer
+
+                  mailbox.Parent() <! AccountMessage.StateChange cmd)
             | InternalTransferPending e ->
                getOrStartInternalTransferActor mailbox
                <! InternalTransferMsg.TransferRequest e

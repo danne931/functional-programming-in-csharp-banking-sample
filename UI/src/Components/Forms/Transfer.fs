@@ -70,10 +70,10 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
       |> Option.map (fun recipient ->
          let cmd =
             InternalTransferCommand.create account.CompositeId {
-               TransferRequestDate = DateTime.UtcNow
+               ScheduledDate = DateTime.UtcNow
                Amount = amount
                RecipientId = recipient.AccountId
-               Reference = None
+               Memo = None
             }
 
          Msg.Submit(AccountCommand.InternalTransfer cmd, Started))
@@ -82,7 +82,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
          let cmd =
             DomesticTransferCommand.create account.CompositeId {
-               TransferRequestDate = DateTime.UtcNow
+               ScheduledDate = DateTime.UtcNow
                Amount = amount
                Sender = {
                   Name = account.Name
@@ -92,7 +92,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                   AccountId = account.AccountId
                }
                Recipient = recipient
-               Reference = None
+               Memo = None
             }
 
          Msg.Submit(AccountCommand.DomesticTransfer cmd, Started))

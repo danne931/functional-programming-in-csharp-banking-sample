@@ -9,6 +9,7 @@ open System
 open Bank.Account.Domain
 open Bank.Account.UIDomain
 open Bank.Account.Forms
+open Bank.Transfer.Domain
 open Lib.SharedTypes
 
 type private PendingAction = (AccountCommand * EventId) option
@@ -269,6 +270,8 @@ let AccountActionsComponent
             match form with
             | AccountActionView.RegisterTransferRecipient ->
                "Add a Transfer Recipient"
+            | AccountActionView.EditTransferRecipient _ ->
+               "Edit Transfer Recipient"
             | AccountActionView.Transfer -> "Transfer Money"
             | AccountActionView.Debit -> "Debit Purchase"
             | AccountActionView.Deposit -> "Deposit Cash"
@@ -283,6 +286,34 @@ let AccountActionsComponent
             RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
                state.Account
                potentialTransferRecipients
+               None
+               (Msg.NetworkAckCommand >> dispatch)
+         | AccountActionView.EditTransferRecipient accountId ->
+            let invalidAccount =
+               TransferDeclinedReason.InvalidAccountInfo
+               |> DomesticTransferProgress.Failed
+
+            let count =
+               account.FailedDomesticTransfers
+               |> Map.filter (fun _ t -> t.Status = invalidAccount)
+               |> Map.count
+
+            let msg = "will be retried upon editing recipient info."
+
+            let msg =
+               match count with
+               | 0 -> None
+               | 1 -> Some $"1 failed transfer {msg}"
+               | count -> Some $"{count} failed transfers {msg}"
+
+            match msg with
+            | Some msg -> Html.div [ Html.ins msg ]
+            | None -> ()
+
+            RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
+               state.Account
+               potentialTransferRecipients
+               (Some accountId)
                (Msg.NetworkAckCommand >> dispatch)
          | AccountActionView.Transfer ->
             TransferForm.TransferFormComponent

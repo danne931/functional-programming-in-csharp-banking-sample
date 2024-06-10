@@ -1,7 +1,6 @@
 [<RequireQualifiedAccess>]
 module Routes
 
-open System
 open Feliz.Router
 
 open Bank.Account.UIDomain

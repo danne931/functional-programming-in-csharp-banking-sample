@@ -44,7 +44,6 @@ type DomesticTransferRecipient = {
    LastName: string
    FirstName: string
    Nickname: string option
-   // TODO: Make types for account/routing number with validus validation
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber
    Status: RecipientRegistrationStatus
@@ -79,6 +78,7 @@ type DomesticTransferProgress =
    | Outgoing
    | InProgress of string
    | Complete
+   | Failed of TransferDeclinedReason
 
 type DomesticTransferSender = {
    Name: string
@@ -93,6 +93,7 @@ type DomesticTransfer = {
    Recipient: DomesticTransferRecipient
    TransferId: CorrelationId
    Amount: decimal
-   Date: DateTime
+   ScheduledDate: DateTime
    Status: DomesticTransferProgress
+   Memo: string option
 }

@@ -24,8 +24,8 @@ type TransactionUIFriendly = {
    Sign: string
    Info: string option
    MoneyFlow: MoneyFlow
-   Source: string
-   Destination: string
+   Source: string option
+   Destination: string option
 }
 
 let dateUIFriendly (date: DateTime) =
@@ -85,17 +85,28 @@ let transactionUIFriendly
       Sign = ""
       Info = None
       MoneyFlow = MoneyFlow.None
-      Source = ""
-      Destination = ""
+      Source = None
+      Destination = None
    }
 
-   let accountIdLast4 (id: AccountId) = id |> string |> _.Substring(-4)
+   let accountNumberLast4 (num: AccountNumber) =
+      num |> string |> _.Substring(-4)
 
-   let accountName = account.Name + " **" + accountIdLast4 account.AccountId
+   let accountIdLast4 (num: AccountId) = num |> string |> _.Substring(-4)
+
+   let accountName =
+      account.Name + " **" + accountNumberLast4 account.AccountNumber
 
    let recipientName (recipientId: AccountId) =
       let name, nickname = nameAndNicknamePair account recipientId
       nickname |> Option.defaultValue name
+
+   let recipientNameAndAccountNumber
+      (recipientId: AccountId)
+      (recipientAccountNum: AccountNumber)
+      =
+      let name = recipientName recipientId
+      name + " **" + accountNumberLast4 recipientAccountNum
 
    let props =
       match txn with
@@ -111,8 +122,8 @@ let transactionUIFriendly
             AmountNaked = Some evt.Data.Amount
             Origin = Some evt.Data.Origin
             MoneyFlow = MoneyFlow.In
-            Source = evt.Data.Origin
-            Destination = accountName
+            Source = Some evt.Data.Origin
+            Destination = Some accountName
         }
       | DebitedAccount evt -> {
          props with
@@ -120,8 +131,8 @@ let transactionUIFriendly
             AmountNaked = Some evt.Data.Amount
             Origin = Some evt.Data.Origin
             MoneyFlow = MoneyFlow.Out
-            Source = accountName
-            Destination = evt.Data.Origin
+            Source = Some accountName
+            Destination = Some evt.Data.Origin
         }
       | MaintenanceFeeDebited evt -> {
          props with
@@ -144,12 +155,28 @@ let transactionUIFriendly
             Info =
                Some $"Recipient: {recipientName evt.Data.Recipient.AccountId}"
         }
-      | DomesticTransferRecipient evt -> {
-         props with
-            Name = "Domestic Transfer Recipient Added"
-            Info =
-               Some $"Recipient: {recipientName evt.Data.Recipient.AccountId}"
-        }
+      | DomesticTransferRecipient evt ->
+         let recipientName =
+            recipientNameAndAccountNumber
+               evt.Data.Recipient.AccountId
+               evt.Data.Recipient.AccountNumber
+
+         {
+            props with
+               Name = "Domestic Transfer Recipient Added"
+               Info = Some $"Recipient: {recipientName}"
+         }
+      | EditedDomesticTransferRecipient evt ->
+         let recipientName =
+            recipientNameAndAccountNumber
+               evt.Data.Recipient.AccountId
+               evt.Data.Recipient.AccountNumber
+
+         {
+            props with
+               Name = "Domestic Transfer Recipient Edited"
+               Info = Some $"Recipient: {recipientName}"
+         }
       | InternalSenderRegistered evt -> {
          props with
             Name = "Transfer Sender Registered"
@@ -171,11 +198,8 @@ let transactionUIFriendly
             Origin = Some account.Name
             AmountNaked = Some evt.Data.Amount
             MoneyFlow = MoneyFlow.Out
-            Source = accountName
-            Destination =
-               recipientName evt.Data.RecipientId
-               + " **"
-               + evt.Data.RecipientId.ToString().Substring(-4)
+            Source = Some accountName
+            Destination = Some <| recipientName evt.Data.RecipientId
         }
       | InternalTransferApproved evt -> {
          props with
@@ -196,49 +220,71 @@ let transactionUIFriendly
             MoneyFlow = MoneyFlow.In
         }
       | DomesticTransferPending evt ->
-         let recipientName = recipientName evt.Data.Recipient.AccountId
+         let info = evt.Data.BaseInfo
+
+         let recipientName =
+            recipientNameAndAccountNumber
+               info.Recipient.AccountId
+               info.Recipient.AccountNumber
 
          {
             props with
                Name = "Domestic Transfer Request"
                Info = Some $"Recipient: {recipientName}"
                Origin = Some account.Name
-               AmountNaked = Some evt.Data.Amount
+               AmountNaked = Some info.Amount
                MoneyFlow = MoneyFlow.Out
-               Source = accountName
-               Destination =
-                  recipientName
-                  + " **"
-                  + evt.Data.Recipient.AccountNumber.ToString().Substring(-4)
+               Source = Some accountName
+               Destination = Some recipientName
          }
-      | DomesticTransferApproved evt -> {
-         props with
-            Name = "Domestic Transfer Approved"
-            Origin = Some account.Name
-            Info =
-               Some $"Recipient: {recipientName evt.Data.Recipient.AccountId}"
-            AmountNaked = Some evt.Data.Amount
-        }
-      | DomesticTransferRejected evt -> {
-         props with
-            Name = "Domestic Transfer Rejected"
-            Origin = Some account.Name
-            Info =
-               Some
-                  $"Recipient: {recipientName evt.Data.Recipient.AccountId} -
-                  Reason {evt.Data.Reason} - Account refunded"
-            AmountNaked = Some evt.Data.Amount
-            MoneyFlow = MoneyFlow.In
-        }
-      | DomesticTransferProgress evt -> {
-         props with
-            Name = "Transfer Progress Update"
-            Origin = Some account.Name
-            Info =
-               Some
-                  $"Status {evt.Data.Status} Recipient: {recipientName evt.Data.Recipient.AccountId}"
-            AmountNaked = Some evt.Data.Amount
-        }
+      | DomesticTransferApproved evt ->
+         let info = evt.Data.BaseInfo
+
+         let recipientName =
+            recipientNameAndAccountNumber
+               info.Recipient.AccountId
+               info.Recipient.AccountNumber
+
+         {
+            props with
+               Name = "Domestic Transfer Approved"
+               Origin = Some account.Name
+               Info = Some $"Recipient: {recipientName}"
+               AmountNaked = Some info.Amount
+         }
+      | DomesticTransferRejected evt ->
+         let info = evt.Data.BaseInfo
+
+         let recipientName =
+            recipientNameAndAccountNumber
+               info.Recipient.AccountId
+               info.Recipient.AccountNumber
+
+         {
+            props with
+               Name = "Domestic Transfer Rejected"
+               Origin = Some account.Name
+               Info =
+                  Some
+                     $"Recipient: {recipientName} -
+                     Reason {evt.Data.Reason} - Account refunded"
+               AmountNaked = Some info.Amount
+               MoneyFlow = MoneyFlow.In
+               Source = Some accountName
+               Destination = Some recipientName
+         }
+      | DomesticTransferProgress evt ->
+         let info = evt.Data.BaseInfo
+
+         {
+            props with
+               Name = "Transfer Progress Update"
+               Origin = Some account.Name
+               Info =
+                  Some
+                     $"Status {evt.Data.Status} Recipient: {recipientName info.Recipient.AccountId}"
+               AmountNaked = Some info.Amount
+         }
       | TransferDeposited evt ->
          let sender =
             account.InternalTransferSenders
@@ -252,8 +298,8 @@ let transactionUIFriendly
                AmountNaked = Some evt.Data.Amount
                Origin = Some sender
                MoneyFlow = MoneyFlow.In
-               Source = sender
-               Destination = accountName
+               Source = Some sender
+               Destination = Some accountName
          }
       | LockedCard _ -> { props with Name = "Card Locked" }
       | UnlockedCard _ -> { props with Name = "Card Unlocked" }
@@ -351,6 +397,7 @@ type AccountActionView =
    | Deposit
    | Transfer
    | RegisterTransferRecipient
+   | EditTransferRecipient of AccountId
    | DailyDebitLimit
    | CardAccess
 
@@ -405,6 +452,12 @@ module AccountBrowserQuery =
 
       let agg =
          match query.Action with
+         | Some(AccountActionView.EditTransferRecipient accountId) ->
+            [
+               "action", "EditTransferRecipient"
+               "transferRecipient", string accountId
+            ]
+            @ agg
          | Some view -> ("action", string view) :: agg
          | None -> agg
 
@@ -462,6 +515,13 @@ module AccountBrowserQuery =
                | "Transfer" -> Some AccountActionView.Transfer
                | "RegisterTransferRecipient" ->
                   Some AccountActionView.RegisterTransferRecipient
+               | "EditTransferRecipient" ->
+                  Map.tryFind "transferRecipient" queryParams
+                  |> Option.map (
+                     Guid.Parse
+                     >> AccountId
+                     >> AccountActionView.EditTransferRecipient
+                  )
                | "DailyDebitLimit" -> Some AccountActionView.DailyDebitLimit
                | "CardAccess" -> Some AccountActionView.CardAccess
                | view ->
@@ -471,3 +531,28 @@ module AccountBrowserQuery =
             Map.tryFind "transaction" queryParams
             |> Option.bind (Guid.parseOptional >> Option.map EventId)
       }
+
+/// May edit transfer recipient if domestic and status is not Closed.
+let canEditTransferRecipient
+   (account: Account)
+   (evt: AccountEvent)
+   : DomesticTransferRecipient option
+   =
+   let recipientIdOpt =
+      match evt with
+      | AccountEvent.DomesticTransferPending evt ->
+         Some evt.Data.BaseInfo.Recipient.AccountId
+      | AccountEvent.DomesticTransferRecipient evt ->
+         Some evt.Data.Recipient.AccountId
+      | AccountEvent.DomesticTransferRejected evt ->
+         Some evt.Data.BaseInfo.Recipient.AccountId
+      | _ -> None
+
+   recipientIdOpt
+   |> Option.bind (fun recipientId ->
+      Map.tryFind recipientId account.DomesticTransferRecipients)
+   |> Option.bind (fun recipient ->
+      if recipient.Status <> RecipientRegistrationStatus.Closed then
+         Some recipient
+      else
+         None)

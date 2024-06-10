@@ -22,6 +22,7 @@ let hasRenderImplementation =
    | AccountEvent.DepositedCash _
    | AccountEvent.InternalTransferPending _
    | AccountEvent.DomesticTransferPending _
+   | AccountEvent.DomesticTransferRejected _
    | AccountEvent.TransferDeposited _
    | AccountEvent.DebitedAccount _ -> true
    | _ -> false
@@ -59,6 +60,7 @@ type Msg =
       nickname: string option *
       AsyncOperationStatus<Result<EventId, Err>>
    | SaveMerchantNickname of Merchant * AsyncOperationStatus<Result<int, Err>>
+   | EditTransferRecipient of senderId: AccountId * recipientId: AccountId
 
 let init txnId () =
    {
@@ -198,6 +200,20 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
             NicknamePersistence = Deferred.Resolved(Error err)
       },
       Alerts.toastCommand err
+   | EditTransferRecipient(senderId, recipientId) ->
+      let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
+
+      let queryString =
+         {
+            browserQuery with
+               Transaction = None
+               Action =
+                  Some(AccountActionView.EditTransferRecipient recipientId)
+         }
+         |> AccountBrowserQuery.toQueryParams
+         |> Router.encodeQueryString
+
+      state, Cmd.navigate ("account", string senderId, queryString)
 
 let private nicknameCancelButton dispatch =
    Html.a [
@@ -366,26 +382,47 @@ let renderTransactionInfo
       ]
 
       Html.section [
-         Html.div [
-            Html.small "From:"
-            Html.h6 [
-               attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
-               attr.text account.Name
-               attr.text txn.Source
+         match txn.Source with
+         | Some source ->
+            Html.div [
+               Html.small "From:"
+               Html.h6 [
+                  attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
+                  attr.text account.Name
+                  attr.text source
+               ]
             ]
-         ]
+         | None -> ()
 
          match txnInfo.Event with
+         | AccountEvent.InternalTransferRecipient e when isEditingNickname ->
+            RecipientNicknameEditComponent
+               account
+               e.Data.Recipient.AccountId
+               RecipientAccountEnvironment.Internal
+               dispatch
          | AccountEvent.InternalTransferPending e when isEditingNickname ->
             RecipientNicknameEditComponent
                account
                e.Data.RecipientId
                RecipientAccountEnvironment.Internal
                dispatch
-         | AccountEvent.DomesticTransferPending e when isEditingNickname ->
+         | AccountEvent.DomesticTransferRecipient e when isEditingNickname ->
             RecipientNicknameEditComponent
                account
                e.Data.Recipient.AccountId
+               RecipientAccountEnvironment.Domestic
+               dispatch
+         | AccountEvent.DomesticTransferPending e when isEditingNickname ->
+            RecipientNicknameEditComponent
+               account
+               e.Data.BaseInfo.Recipient.AccountId
+               RecipientAccountEnvironment.Domestic
+               dispatch
+         | AccountEvent.DomesticTransferRejected e when isEditingNickname ->
+            RecipientNicknameEditComponent
+               account
+               e.Data.BaseInfo.Recipient.AccountId
                RecipientAccountEnvironment.Domestic
                dispatch
          | AccountEvent.DebitedAccount e when isEditingNickname ->
@@ -395,13 +432,19 @@ let renderTransactionInfo
                eventWithMerchantAlias txnInfo.Event merchants
                |> transactionUIFriendly account
 
-            Html.div [
-               Html.small "To:"
-               Html.h6 [
-                  attr.style [ style.display.inlineBlock; style.marginLeft 10 ]
-                  attr.text txn.Destination
+            match txn.Destination with
+            | Some destination ->
+               Html.div [
+                  Html.small "To:"
+                  Html.h6 [
+                     attr.style [
+                        style.display.inlineBlock
+                        style.marginLeft 10
+                     ]
+                     attr.text destination
+                  ]
                ]
-            ]
+            | None -> ()
       ]
    ]
 
@@ -458,6 +501,7 @@ let renderNoteInput (txnInfo: TransactionMaybe) dispatch =
    ]
 
 let renderFooterMenuControls
+   (account: Account)
    (txnInfo: TransactionMaybe)
    (isEditingNickname: bool)
    dispatch
@@ -468,6 +512,8 @@ let renderFooterMenuControls
          match txnInfo.Event with
          | AccountEvent.InternalTransferPending _
          | AccountEvent.DomesticTransferPending _
+         | AccountEvent.DomesticTransferRejected _
+         | AccountEvent.DomesticTransferRecipient _
          | AccountEvent.TransferDeposited _
          | AccountEvent.DebitedAccount _ -> Some txnInfo.Event
          | _ -> None
@@ -509,7 +555,11 @@ let renderFooterMenuControls
                            ]
                         ]
                      | AccountEvent.InternalTransferPending _
-                     | AccountEvent.DomesticTransferPending _ ->
+                     | AccountEvent.DomesticTransferPending _
+                     | AccountEvent.InternalTransferRecipient _
+                     | AccountEvent.DomesticTransferRecipient _
+                     | AccountEvent.DomesticTransferRejected _
+                     | AccountEvent.EditedDomesticTransferRecipient _ ->
                         Html.li [
                            Html.a [
                               attr.href ""
@@ -523,13 +573,25 @@ let renderFooterMenuControls
                            ]
                         ]
 
-                        Html.li [
-                           Html.a [
-                              attr.onClick (fun e -> e.preventDefault ())
-                              attr.text "View Recipient"
-                              attr.href ""
+                        match canEditTransferRecipient account evt with
+                        | None -> ()
+                        | Some recipient ->
+                           Html.li [
+                              Html.a [
+                                 attr.onClick (fun e ->
+                                    e.preventDefault ()
+
+                                    dispatch
+                                    <| Msg.EditTransferRecipient(
+                                       account.AccountId,
+                                       recipient.AccountId
+                                    ))
+
+                                 attr.text "Edit Recipient"
+                                 attr.href ""
+                              ]
                            ]
-                        ]
+
                      | AccountEvent.TransferDeposited evt ->
                         Html.li [
                            Html.a [
@@ -562,10 +624,11 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
       React.useElmish (init txnId, update merchantDispatchCtx, [| box txnId |])
 
    let categories = React.useContext TransactionCategoryProvider.context
-   let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
 
    classyNode Html.div [ "transaction-detail" ] [
       CloseButton.render (fun _ ->
+         let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
+
          let queryString =
             { browserQuery with Transaction = None }
             |> AccountBrowserQuery.toQueryParams
@@ -593,6 +656,7 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
 
          attr.children [
             renderFooterMenuControls
+               account
                state.Transaction
                state.EditingNickname
                dispatch

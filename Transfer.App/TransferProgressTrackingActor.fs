@@ -103,7 +103,7 @@ let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResu
             jsonb_array_elements({inProgressTransfersPath}) as txns
          WHERE
             {inProgressTransfersCountPath} > 0
-            AND (txns ->> 'Date')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
+            AND (txns ->> 'ScheduledDate')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
             AND (
                (txns #>> '{{Status}}') = 'Outgoing'
                OR (txns #>> '{{Status,0}}') = 'InProgress'

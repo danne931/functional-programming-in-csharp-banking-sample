@@ -46,6 +46,9 @@ module AccountFields =
    let inProgressDomesticTransfers = "in_progress_domestic_transfers"
    let inProgressDomesticTransfersCount = "in_progress_domestic_transfers_count"
 
+   let failedDomesticTransfers = "failed_domestic_transfers"
+   let failedDomesticTransfersCount = "failed_domestic_transfers_count"
+
    let cardLocked = "card_locked"
 
 module AccountSqlReader =
@@ -133,6 +136,10 @@ module AccountSqlReader =
       read.text AccountFields.inProgressDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
+   let failedDomesticTransfers (read: RowReader) =
+      read.text AccountFields.failedDomesticTransfers
+      |> Serialization.deserializeUnsafe<DomesticTransfer list>
+
    let cardLocked (read: RowReader) = read.bool AccountFields.cardLocked
 
    let account (read: RowReader) : Account = {
@@ -174,6 +181,10 @@ module AccountSqlReader =
          |> Map.ofList
       InProgressDomesticTransfers =
          inProgressDomesticTransfers read
+         |> List.map (fun txn -> txn.TransferId, txn)
+         |> Map.ofList
+      FailedDomesticTransfers =
+         failedDomesticTransfers read
          |> List.map (fun txn -> txn.TransferId, txn)
          |> Map.ofList
       CardLocked = cardLocked read
@@ -237,10 +248,8 @@ module AccountSqlWriter =
       =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
-   let inProgressDomesticTransfers
-      (transfers: Map<CorrelationId, DomesticTransfer>)
-      =
+   let domesticTransfers (transfers: Map<CorrelationId, DomesticTransfer>) =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
-   let inProgressTransfersCount = Sql.int
+   let transfersCount = Sql.int
    let cardLocked = Sql.bool
