@@ -27,6 +27,7 @@
     <Compile Include="Components/Forms/DailyDebitLimit.fs" />
     <Compile Include="Components/Forms/Debit.fs" />
     <Compile Include="Components/Forms/Deposit.fs" />
+    <Compile Include="Components/Pagination.fs" />
     <Compile Include="Components/CloseButton.fs" />
     <Compile Include="Components/ServiceHealth.fs" />
     <Compile Include="Components/AccountSelection.fs" />

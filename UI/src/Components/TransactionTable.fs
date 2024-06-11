@@ -292,57 +292,13 @@ let renderControlPanel
             onAmountPillSelected
             onAmountPillDeleted
 
-      Html.a [
-         attr.children [ Fa.i [ Fa.Solid.CaretRight ] [] ]
-
-         attr.href ""
-
-         attr.classes [
-            "pagination"
-            if endOfPagination then
-               "secondary"
-         ]
-
-         if endOfPagination then
-            attr.ariaDisabled true
-
-         attr.onClick (fun e ->
-            e.preventDefault ()
-
-            if not endOfPagination then
-               dispatch
-               <| Msg.LoadTransactions(
-                  { query with Page = query.Page + 1 },
-                  Started
-               ))
-      ]
-
-      Html.a [
-         attr.children [ Fa.i [ Fa.Solid.CaretLeft ] [] ]
-
-         attr.href ""
-
-         attr.classes [
-            "pagination"
-            if page = 1 then
-               "secondary"
-         ]
-
-         if page = 1 then
-            attr.ariaDisabled true
-
-         attr.onClick (fun e ->
-            e.preventDefault ()
-
-            if page = 2 then
-               dispatch ResetPageIndex
-            elif page > 2 then
-               dispatch
-               <| LoadTransactions(
-                  { query with Page = query.Page - 1 },
-                  Started
-               ))
-      ]
+      Pagination.render
+         query.Page
+         endOfPagination
+         (fun page ->
+            dispatch
+            <| Msg.LoadTransactions({ query with Page = page }, Started))
+         (fun () -> dispatch ResetPageIndex)
 
       Html.a [
          attr.children [
