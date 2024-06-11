@@ -482,6 +482,11 @@ let renderCategorySelect
 
          match txnInfo with
          | Deferred.Resolved(Ok txnInfo) ->
+            txnInfo.Category
+            |> Option.map _.Id
+            |> Option.defaultValue 0
+            |> attr.value
+
             attr.children [
                Html.option [ attr.value 0; attr.text "None" ]
 
@@ -489,10 +494,6 @@ let renderCategorySelect
                   Html.option [
                      attr.value category.Id
                      attr.text category.Name
-
-                     match txnInfo.Category with
-                     | Some cat when cat.Id = category.Id -> attr.selected true
-                     | _ -> ()
                   ]
             ]
          | _ -> attr.disabled true
