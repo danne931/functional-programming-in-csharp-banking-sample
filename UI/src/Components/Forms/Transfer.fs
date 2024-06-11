@@ -12,7 +12,11 @@ open Lib.Validators
 open FormContainer
 open Lib.SharedTypes
 
-type Values = { Amount: string; RecipientId: string }
+type Values = {
+   Amount: string
+   RecipientId: string
+   Memo: string
+}
 
 let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let options =
@@ -63,8 +67,26 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
          }
       }
 
-   let onSubmit (selectedId: string) (amount: decimal) =
+   let memoField =
+      Form.textField {
+         Parser = Ok
+         Value = fun (values: Values) -> values.Memo
+         Update = fun newValue values -> { values with Memo = newValue }
+         Error = fun _ -> None
+         Attributes = {
+            Label = "Memo:"
+            Placeholder = "Reason for Transfer"
+            HtmlAttributes = []
+         }
+      }
+
+   let onSubmit (selectedId: string) (amount: decimal) (memo: string option) =
       let selectedId = selectedId |> Guid.Parse |> AccountId
+
+      let memo =
+         memo
+         |> Option.bind (fun memo ->
+            if String.IsNullOrWhiteSpace memo then None else Some memo)
 
       Map.tryFind selectedId account.InternalTransferRecipients
       |> Option.map (fun recipient ->
@@ -73,7 +95,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                ScheduledDate = DateTime.UtcNow
                Amount = amount
                RecipientId = recipient.AccountId
-               Memo = None
+               Memo = memo
             }
 
          Msg.Submit(AccountCommand.InternalTransfer cmd, Started))
@@ -92,16 +114,23 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                   AccountId = account.AccountId
                }
                Recipient = recipient
-               Memo = None
+               Memo = memo
             }
 
          Msg.Submit(AccountCommand.DomesticTransfer cmd, Started))
 
-   Form.succeed onSubmit |> Form.append selectField |> Form.append amountField
+   Form.succeed onSubmit
+   |> Form.append selectField
+   |> Form.append amountField
+   |> Form.append (Form.succeed id |> Form.append memoField |> Form.optional)
 
 let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
    FormContainer
       account
-      { Amount = ""; RecipientId = "" }
+      {
+         Amount = ""
+         RecipientId = ""
+         Memo = ""
+      }
       (form account)
       onSubmit
