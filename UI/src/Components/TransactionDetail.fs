@@ -34,6 +34,11 @@ type State = {
    // depending on the AccountEvent rendered.
    EditingNickname: bool
    NicknamePersistence: Deferred<Result<EventId, Err>>
+   // Sometimes the user clicks on a persisted event in the table
+   // before the read model is synced, resulting in a 404 and
+   // nothing to display in this view.  Reattempt fetching the
+   // transaction info if this is the case.
+   GetTxnAttempt: int
 }
 
 let private updateTransaction
@@ -68,6 +73,7 @@ let init txnId () =
       Transaction = Deferred.Idle
       EditingNickname = false
       NicknamePersistence = Deferred.Idle
+      GetTxnAttempt = 1
    },
    Cmd.ofMsg (GetTransactionInfo Started)
 
@@ -89,12 +95,26 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
       Cmd.none
    | GetTransactionInfo(Finished(Error err)) ->
       Log.error $"Error fetching ancillary txn info: {err}"
+      let attempt = state.GetTxnAttempt
 
-      {
-         state with
-            Transaction = Deferred.Resolved(Error err)
-      },
-      Alerts.toastCommand err
+      if attempt <= 4 then
+         let delayedReattempt = async {
+            do! Async.Sleep(1500 * attempt)
+            Log.info $"Reattempt fetching transaction info {attempt}."
+            return GetTransactionInfo Started
+         }
+
+         {
+            state with
+               GetTxnAttempt = attempt + 1
+         },
+         Cmd.fromAsync delayedReattempt
+      else
+         {
+            state with
+               Transaction = Deferred.Resolved(Error err)
+         },
+         Alerts.toastCommand err
    | SaveCategory(category, Started) ->
       let updateCategory = async {
          let! res =
