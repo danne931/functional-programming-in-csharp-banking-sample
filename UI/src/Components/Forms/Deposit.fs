@@ -2,7 +2,6 @@ module Bank.Account.Forms.DepositForm
 
 open Feliz
 open Fable.Form.Simple
-open System
 
 open Lib.Validators
 open Bank.Account.Domain
@@ -13,11 +12,10 @@ type Values = { Amount: string }
 
 let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let amountField =
-      Form.numberField {
+      Form.textField {
          Parser =
-            fun (text: string) ->
-               amountValidator "Deposit amount" (decimal text)
-               |> validationErrorsHumanFriendly
+            amountValidatorFromString "Deposit amount"
+            >> validationErrorsHumanFriendly
          Value = fun values -> values.Amount
          Update = fun newValue values -> { values with Amount = newValue }
          Error = fun _ -> None

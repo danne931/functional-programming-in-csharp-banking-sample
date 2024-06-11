@@ -12,11 +12,10 @@ type Values = { Amount: string }
 
 let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let amountField =
-      Form.numberField {
+      Form.textField {
          Parser =
-            fun (text: string) ->
-               amountValidator "Debit amount" (decimal text)
-               |> validationErrorsHumanFriendly
+            amountValidatorFromString "Debit limit"
+            >> validationErrorsHumanFriendly
          Value = fun values -> values.Amount
          Update = fun newValue values -> { values with Amount = newValue }
          Error = fun _ -> None

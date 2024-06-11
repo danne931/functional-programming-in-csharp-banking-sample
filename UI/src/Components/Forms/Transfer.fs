@@ -47,16 +47,15 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
       }
 
    let amountField =
-      Form.numberField {
+      Form.textField {
          Parser =
-            fun (text: string) ->
-               amountValidator "Transfer amount" (decimal text)
-               |> validationErrorsHumanFriendly
-               |> Result.bind (fun amt ->
-                  if account.Balance - amt < 0m then
-                     Result.Error $"Insufficient Balance ${account.Balance}"
-                  else
-                     Ok amt)
+            amountValidatorFromString "Transfer amount"
+            >> validationErrorsHumanFriendly
+            >> Result.bind (fun amt ->
+               if account.Balance - amt < 0m then
+                  Result.Error $"Insufficient Balance ${account.Balance}"
+               else
+                  Ok amt)
          Value = fun (values: Values) -> values.Amount
          Update = fun newValue values -> { values with Amount = newValue }
          Error = fun _ -> None

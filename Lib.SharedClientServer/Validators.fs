@@ -10,16 +10,25 @@ let parseInt: Validator<string, int> =
       try
          Int32.Parse input |> Ok
       with _ ->
-         Error <| ValidationErrors.create field [ $"Invalid Int32 {input}" ]
+         Error <| ValidationErrors.create field [ $"Invalid {field}" ]
 
 let parseInt64: Validator<string, int64> =
    fun field input ->
       try
          Int64.Parse input |> Ok
       with _ ->
-         Error <| ValidationErrors.create field [ $"Invalid Int64 {input}" ]
+         Error <| ValidationErrors.create field [ $"Invalid {field}" ]
+
+let parseDecimal: Validator<string, decimal> =
+   fun field input ->
+      try
+         decimal input |> Ok
+      with _ ->
+         Error <| ValidationErrors.create field [ $"Invalid {field}" ]
 
 let amountValidator = Check.Decimal.greaterThan 0m
+
+let amountValidatorFromString = parseDecimal >=> amountValidator
 
 let firstNameValidator = Check.String.betweenLen 2 50 "First name"
 let lastNameValidator = Check.String.betweenLen 2 50 "Last name"

@@ -14,21 +14,20 @@ type Values = { Amount: string; Origin: string }
 
 let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
    let amountField =
-      Form.numberField {
+      Form.textField {
          Parser =
-            fun (text: string) ->
-               amountValidator "Debit amount" (decimal text)
-               |> validationErrorsHumanFriendly
-               |> Result.bind (fun amt ->
-                  if account.Balance - amt < 0m then
-                     Error $"Insufficient Balance ${account.Balance}"
-                  elif
-                     account.DailyDebitAccrued + amt > account.DailyDebitLimit
-                  then
-                     Error
-                        $"Exceeded Daily Debit Limit ${account.DailyDebitLimit}"
-                  else
-                     Ok amt)
+            amountValidatorFromString "Debit amount"
+            >> validationErrorsHumanFriendly
+            >> Result.bind (fun amt ->
+               if account.Balance - amt < 0m then
+                  Error $"Insufficient Balance ${account.Balance}"
+               elif
+                  account.DailyDebitAccrued + amt > account.DailyDebitLimit
+               then
+                  Error
+                     $"Exceeded Daily Debit Limit ${account.DailyDebitLimit}"
+               else
+                  Ok amt)
          Value = fun (values: Values) -> values.Amount
          Update = fun newValue values -> { values with Amount = newValue }
          Error = fun _ -> None
