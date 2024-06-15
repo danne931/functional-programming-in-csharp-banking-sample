@@ -10,22 +10,22 @@ open OrganizationSqlMapper
 
 let table = "account"
 
+module AccountTypeCast =
+   let depository = "account_depository"
+   let status = "account_status"
+
 module AccountFields =
    let accountId = "account_id"
    let orgId = OrgFields.orgId
    let accountNumber = "account_number"
    let routingNumber = "routing_number"
-   let email = "email"
-   let firstName = "first_name"
-   let lastName = "last_name"
+   let name = "name"
+   let depository = "depository"
    let currency = "currency"
    let status = "status"
    let balance = "balance"
-   let dailyDebitLimit = "daily_debit_limit"
-   let dailyDebitAccrued = "daily_debit_accrued"
    let dailyInternalTransferAccrued = "daily_internal_transfer_accrued"
    let dailyDomesticTransferAccrued = "daily_domestic_transfer_accrued"
-   let lastDebitDate = "last_debit_at"
    let lastInternalTransferDate = "last_internal_transfer_at"
    let lastDomesticTransferDate = "last_domestic_transfer_at"
    let lastBillingCycleDate = "last_billing_cycle_at"
@@ -49,8 +49,6 @@ module AccountFields =
    let failedDomesticTransfers = "failed_domestic_transfers"
    let failedDomesticTransfersCount = "failed_domestic_transfers_count"
 
-   let cardLocked = "card_locked"
-
 module AccountSqlReader =
    let accountId (read: RowReader) =
       AccountFields.accountId |> read.uuid |> AccountId
@@ -63,11 +61,10 @@ module AccountSqlReader =
    let routingNumber (read: RowReader) =
       read.int AccountFields.routingNumber |> RoutingNumber
 
-   let email (read: RowReader) =
-      read.string AccountFields.email |> Email.deserialize
+   let name (read: RowReader) = read.string AccountFields.name
 
-   let firstName (read: RowReader) = read.string AccountFields.firstName
-   let lastName (read: RowReader) = read.string AccountFields.lastName
+   let depository (read: RowReader) =
+      read.string AccountFields.depository |> AccountDepository.fromStringUnsafe
 
    let currency (read: RowReader) =
       read.string AccountFields.currency
@@ -75,26 +72,15 @@ module AccountSqlReader =
       |> Serialization.deserializeUnsafe<Currency>
 
    let status (read: RowReader) =
-      read.string AccountFields.status
-      |> sprintf "\"%s\""
-      |> Serialization.deserializeUnsafe<AccountStatus>
+      read.string AccountFields.status |> AccountStatus.fromStringUnsafe
 
    let balance (read: RowReader) = read.decimal AccountFields.balance
-
-   let dailyDebitLimit (read: RowReader) =
-      read.decimal AccountFields.dailyDebitLimit
-
-   let dailyDebitAccrued (read: RowReader) =
-      read.decimal AccountFields.dailyDebitAccrued
 
    let dailyInternalTransferAccrued (read: RowReader) =
       read.decimal AccountFields.dailyInternalTransferAccrued
 
    let dailyDomesticTransferAccrued (read: RowReader) =
       read.decimal AccountFields.dailyDomesticTransferAccrued
-
-   let lastDebitDate (read: RowReader) =
-      read.dateTimeOrNone AccountFields.lastDebitDate
 
    let lastInternalTransferDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastInternalTransferDate
@@ -140,24 +126,18 @@ module AccountSqlReader =
       read.text AccountFields.failedDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
-   let cardLocked (read: RowReader) = read.bool AccountFields.cardLocked
-
    let account (read: RowReader) : Account = {
       AccountId = accountId read
       OrgId = orgId read
       AccountNumber = accountNumber read
       RoutingNumber = routingNumber read
-      Email = email read
-      FirstName = firstName read
-      LastName = lastName read
+      Name = name read
+      Depository = depository read
       Currency = currency read
       Status = status read
       Balance = balance read
-      DailyDebitLimit = dailyDebitLimit read
-      DailyDebitAccrued = dailyDebitAccrued read
       DailyInternalTransferAccrued = dailyInternalTransferAccrued read
       DailyDomesticTransferAccrued = dailyDomesticTransferAccrued read
-      LastDebitDate = lastDebitDate read
       LastInternalTransferDate = lastInternalTransferDate read
       LastDomesticTransferDate = lastDomesticTransferDate read
       LastBillingCycleDate = lastBillingCycleDate read
@@ -187,7 +167,6 @@ module AccountSqlReader =
          failedDomesticTransfers read
          |> List.map (fun txn -> txn.TransferId, txn)
          |> Map.ofList
-      CardLocked = cardLocked read
    }
 
 module AccountSqlWriter =
@@ -202,17 +181,18 @@ module AccountSqlWriter =
       let (RoutingNumber routingNum) = num
       Sql.int routingNum
 
-   let email (email: Email) = Sql.string <| string email
-   let firstName = Sql.string
-   let lastName = Sql.string
+   let depository (dep: AccountDepository) =
+      dep |> string |> _.ToLower() |> Sql.string
+
+   let name = Sql.string
    let balance = Sql.money
    let currency (currency: Currency) = Sql.string <| string currency
-   let status (status: AccountStatus) = Sql.string <| string status
-   let dailyDebitLimit = Sql.decimal
-   let dailyDebitAccrued = Sql.decimal
+
+   let status (status: AccountStatus) =
+      status |> string |> _.ToLower() |> Sql.string
+
    let dailyInternalTransferAccrued = Sql.decimal
    let dailyDomesticTransferAccrued = Sql.decimal
-   let lastDebitDate (date: DateTime option) = Sql.timestamptzOrNone date
 
    let lastInternalTransferDate (date: DateTime option) =
       Sql.timestamptzOrNone date
@@ -252,4 +232,3 @@ module AccountSqlWriter =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let transfersCount = Sql.int
-   let cardLocked = Sql.bool

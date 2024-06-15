@@ -9,14 +9,15 @@ open Akka.Persistence.Journal
 open Akka.Persistence.Extras
 open Akkling.Cluster.Sharding
 
+open Bank.Employee.Domain
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 open Lib.SharedTypes
 
-type AkkaPersistenceEventAdapter() =
+type AccountEventPersistenceAdapter() =
    let envelopeFromJournal (entry: obj) : Envelope =
-      let (Event evt) = unbox entry
+      let (AccountMessage.Event evt) = unbox entry
       let _, envelope = AccountEnvelope.unwrap evt
       envelope
 
@@ -34,10 +35,36 @@ type AkkaPersistenceEventAdapter() =
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
          EventSequence.Single(evt)
 
+type EmployeeEventPersistenceAdapter() =
+   let envelopeFromJournal (entry: obj) : Envelope =
+      let (EmployeeMessage.Event evt) = unbox entry
+      let _, envelope = EmployeeEnvelope.unwrap evt
+      envelope
+
+   interface IEventAdapter with
+      member x.Manifest(evt: obj) = envelopeFromJournal(evt).EventName
+
+      member x.ToJournal(evt: obj) : obj =
+         let envelope = envelopeFromJournal evt
+
+         Tagged(
+            evt,
+            Set.empty<string>.Add("EmployeeEvent").Add(envelope.EventName)
+         )
+
+      member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
+         EventSequence.Single(evt)
+
 type private AccountShardEnvelope = {
    EntityId: string
    ShardId: string
    Message: AccountMessage
+}
+
+type private EmployeeShardEnvelope = {
+   EntityId: string
+   ShardId: string
+   Message: EmployeeMessage
 }
 
 type BankSerializer(system: ExtendedActorSystem) =
@@ -51,6 +78,14 @@ type BankSerializer(system: ExtendedActorSystem) =
       match o with
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
       | :? ReadModelSyncActor.State -> "ReadModelSyncState"
+      | :? EmployeeReadModelSyncActor.State -> "EmployeeReadModelSyncState"
+      | :? List<EmployeeEvent> -> "EmployeeEventList"
+      | :? Employee -> "Employee"
+      | :? Option<Employee> -> "EmployeeOption"
+      | :? EmployeeMessage as msg ->
+         match msg with
+         | EmployeeMessage.Event _ -> "EmployeeEvent"
+         | _ -> "EmployeeMessage"
       | :? AccountLoadTestTypes.AccountLoadTestMessage ->
          "AccountLoadTestMessage"
       | :? AccountSeederMessage -> "AccountSeederMessage"
@@ -77,6 +112,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? ShardEnvelope as e ->
          match e.Message with
          | :? AccountMessage -> "AccountShardEnvelope"
+         | :? EmployeeMessage -> "EmployeeShardEnvelope"
          | _ -> raise <| NotImplementedException()
       | _ -> raise <| NotImplementedException()
 
@@ -95,6 +131,8 @@ type BankSerializer(system: ExtendedActorSystem) =
          match e.Message with
          | :? AccountMessage ->
             JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
+         | :? EmployeeMessage ->
+            JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
          | _ -> raise <| NotImplementedException()
       // AccountEvent messages to be persisted are wrapped in
       // Akka.Persistence.Extras ConfirmableMessageEnvelope to
@@ -106,6 +144,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? AccountLoadTestTypes.AccountLoadTestMessage
       // ReadModelSyncActor projection offset snapshot
       | :? ReadModelSyncActor.State
+      | :? EmployeeReadModelSyncActor.State
       // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
@@ -146,6 +185,22 @@ type BankSerializer(system: ExtendedActorSystem) =
             JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
          | msg ->
             JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
+      // EmployeeMessage.GetEvents response serialized for message sent
+      // from account cluster nodes to Web node.
+      | :? List<EmployeeEvent>
+      // EmployeeMessage.GetEmployee response serialized for message sent
+      // from account cluster nodes to Web node.
+      | :? Option<Employee>
+      // EmployeeActor persistence snapshot.
+      | :? Employee as o ->
+         JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
+      | :? EmployeeMessage as msg ->
+         match msg with
+         // EmployeeEvent actor message replay
+         | EmployeeMessage.Event e ->
+            JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
+         | msg ->
+            JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
       | _ -> raise <| NotImplementedException()
 
    (*
@@ -168,6 +223,14 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountLoadTestMessage" ->
             typeof<AccountLoadTestTypes.AccountLoadTestMessage>
          | "ReadModelSyncState" -> typeof<ReadModelSyncActor.State>
+         | "EmployeeReadModelSyncState" ->
+            typeof<EmployeeReadModelSyncActor.State>
+         | "Employee" -> typeof<Employee>
+         | "EmployeeOption" -> typeof<Employee option>
+         | "EmployeeEvent" -> typeof<EmployeeEvent>
+         | "EmployeeEventList" -> typeof<EmployeeEvent list>
+         | "EmployeeMessage" -> typeof<EmployeeMessage>
+         | "EmployeeShardEnvelope" -> typeof<EmployeeShardEnvelope>
          | "Account" -> typeof<Account>
          | "AccountOption" -> typeof<Account option>
          | "AccountMap" -> typeof<Map<AccountId, Account>>
@@ -205,6 +268,14 @@ type BankSerializer(system: ExtendedActorSystem) =
          // is AccountMessage type rather than JObject.
          // Return a ShardEnvelope type so the message
          // gets routed correctly.
+         let envelope: ShardEnvelope = {
+            EntityId = e.EntityId
+            ShardId = e.ShardId
+            Message = e.Message
+         }
+
+         envelope
+      | :? EmployeeShardEnvelope as e ->
          let envelope: ShardEnvelope = {
             EntityId = e.EntityId
             ShardId = e.ShardId

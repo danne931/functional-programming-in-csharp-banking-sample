@@ -52,38 +52,6 @@ let startAccountRoutes (app: WebApplication) =
    |> ignore
 
    app.MapPost(
-      AccountPath.Debit,
-      Func<ActorSystem, DebitCommand, Task<IResult>>(fun sys cmd ->
-         processCommand sys (AccountCommand.Debit cmd)
-         |> RouteUtil.unwrapTaskResult)
-   )
-   |> ignore
-
-   app.MapPost(
-      AccountPath.DailyDebitLimit,
-      Func<ActorSystem, LimitDailyDebitsCommand, Task<IResult>>(fun sys cmd ->
-         processCommand sys (AccountCommand.LimitDailyDebits cmd)
-         |> RouteUtil.unwrapTaskResult)
-   )
-   |> ignore
-
-   app.MapPost(
-      AccountPath.LockCard,
-      Func<ActorSystem, LockCardCommand, Task<IResult>>(fun sys cmd ->
-         processCommand sys (AccountCommand.LockCard cmd)
-         |> RouteUtil.unwrapTaskResult)
-   )
-   |> ignore
-
-   app.MapPost(
-      AccountPath.UnlockCard,
-      Func<ActorSystem, UnlockCardCommand, Task<IResult>>(fun sys cmd ->
-         processCommand sys (AccountCommand.UnlockCard cmd)
-         |> RouteUtil.unwrapTaskResult)
-   )
-   |> ignore
-
-   app.MapPost(
       AccountPath.CloseAccount,
       Func<ActorSystem, CloseAccountCommand, Task<IResult>>(fun sys cmd ->
          processCommand sys (AccountCommand.CloseAccount cmd)

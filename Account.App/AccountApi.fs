@@ -61,9 +61,8 @@ let getAccountProfiles (orgId: OrgId) =
       SELECT
          {Fields.accountId},
          {Fields.orgId},
-         {Fields.firstName},
-         {Fields.lastName},
-         {Fields.email}
+         {Fields.name},
+         {Fields.depository}
       FROM {accountTable}
       WHERE {Fields.orgId} = @orgId
       """
@@ -74,9 +73,8 @@ let getAccountProfiles (orgId: OrgId) =
       (fun read -> {
          AccountId = Reader.accountId read
          OrgId = Reader.orgId read
-         Email = Reader.email read
-         FirstName = Reader.firstName read
-         LastName = Reader.lastName read
+         Name = Reader.name read
+         Depository = Reader.depository read
       })
 
 let getAccountsByIds (accountIds: AccountId list) =
@@ -90,17 +88,16 @@ let getAccountsByIds (accountIds: AccountId list) =
       Reader.account
 
 let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult {
-   let ids (cmd: BankEvent<_>) = cmd.EntityId, cmd.Id
+   let ids (cmd: BankEvent<_>) : CommandProcessingResponse = {
+      EntityId = cmd.EntityId
+      CorrelationId = cmd.CorrelationId
+      EventId = cmd.Id
+   }
 
    let validation =
       match command with
       | CreateAccount cmd -> CreateAccountCommand.toEvent cmd |> Result.map ids
       | DepositCash cmd -> DepositCashCommand.toEvent cmd |> Result.map ids
-      | Debit cmd -> DebitCommand.toEvent cmd |> Result.map ids
-      | LimitDailyDebits cmd ->
-         LimitDailyDebitsCommand.toEvent cmd |> Result.map ids
-      | LockCard cmd -> LockCardCommand.toEvent cmd |> Result.map ids
-      | UnlockCard cmd -> UnlockCardCommand.toEvent cmd |> Result.map ids
       | InternalTransfer cmd ->
          InternalTransferCommand.toEvent cmd |> Result.map ids
       | DomesticTransfer cmd ->
@@ -122,10 +119,10 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
             $"Command processing not implemented for {cmd}"
          ]
 
-   let! (entityId, _) = validation |> Result.mapError Err.ValidationError
-   let ref = AccountActor.get system (AccountId.fromEntityId entityId)
+   let! res = validation |> Result.mapError Err.ValidationError
+   let ref = AccountActor.get system (AccountId.fromEntityId res.EntityId)
    ref <! AccountMessage.StateChange command
-   return validation |> Result.map snd
+   return validation
 }
 
 // Diagnostic

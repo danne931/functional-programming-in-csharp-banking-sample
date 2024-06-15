@@ -11,8 +11,10 @@ open Bank.Account.UIDomain
 open Bank.Account.Forms
 open Bank.Transfer.Domain
 open Lib.SharedTypes
+open FormContainer
+open EmployeeCardSelectSearch
 
-type private PendingAction = (AccountCommand * EventId) option
+type private PendingAction = (AccountCommand * CommandProcessingResponse) option
 
 // If user wants to view the transfer form but hasn't already added
 // recipients, redirect them to the transfer recipients creation form
@@ -24,17 +26,20 @@ let private shouldRedirectToRegisterRecipient (account: Account) selectedView =
       true
    | _ -> false
 
+
+// TODO: Try to remove when refactor to just lookup evtId in the
+//       transaction read model instead of account read model.
 let private findEventCorrespondingToPendingAction
-   (account: Account)
+   (realtimeEvents: AccountEvent list)
    (pendingAction: PendingAction)
    : AccountEvent option
    =
    pendingAction
-   |> Option.bind (fun (_, processingEvtId) ->
-      account.Events
+   |> Option.bind (fun (_, action) ->
+      realtimeEvents
       |> List.tryFind (fun evt ->
          let _, envelope = AccountEnvelope.unwrap evt
-         envelope.Id = processingEvtId))
+         envelope.CorrelationId = action.CorrelationId))
 
 let private navigate (accountId: AccountId) (view: AccountActionView option) =
    let queryString =
@@ -56,9 +61,9 @@ type State = {
 type Msg =
    | ShowForm of AccountActionView
    | CancelForm
-   | NetworkAckCommand of AccountCommand * EventId
-   | AccountEventReceived of Account
-   | CheckForEventConfirmation of EventId * AccountId * attemptNumber: int
+   | NetworkAckCommand of FormCommand * CommandProcessingResponse
+   | AccountEventReceived of AccountEvent list
+   | CheckForEventConfirmation of CommandProcessingResponse * attemptNumber: int
    | Noop
 
 let init (account: Account) () =
@@ -101,26 +106,27 @@ let update
 
       { state with View = view }, navigate view
    | CancelForm -> closeForm state, navigate None
-   | NetworkAckCommand(command, evtId) ->
+   | NetworkAckCommand(command, response) ->
       // HTTP request returned 200. Command accepted by network.  Wait
       // for account actor cluster to successfully process the command into
       // an event and send out a confirmation via SignalR.
-      let state = {
-         state with
-            PendingAction = Some(command, evtId)
-      }
+      match command with
+      | FormCommand.Account command ->
+         let state = {
+            state with
+               PendingAction = Some(command, response)
+         }
 
-      let delayedMsg =
-         Msg.CheckForEventConfirmation(evtId, state.Account.AccountId, 1)
+         let delayedMsg = Msg.CheckForEventConfirmation(response, 1)
 
-      state, Cmd.fromTimeout 3000 delayedMsg
-   | AccountEventReceived updatedAccount when state.PendingAction.IsNone ->
-      { state with Account = updatedAccount }, Cmd.none
-   | AccountEventReceived(updatedAccount) ->
-      let state = { state with Account = updatedAccount }
-
+         state, Cmd.fromTimeout 3000 delayedMsg
+      | FormCommand.Employee _ -> closeForm state, navigate None
+   | AccountEventReceived _ when state.PendingAction.IsNone -> state, Cmd.none
+   | AccountEventReceived realtimeEvents ->
       let found =
-         findEventCorrespondingToPendingAction state.Account state.PendingAction
+         findEventCorrespondingToPendingAction
+            realtimeEvents
+            state.PendingAction
 
       match found with
       | None -> state, Cmd.none
@@ -140,15 +146,14 @@ let update
    // a few seconds of the initial network request to process the command then
    // assume the SignalR message or connection was dropped. Revert to
    // polling for the latest account read model state.
-   | CheckForEventConfirmation(processingEvtId, accountId, attemptNumber) ->
+   | CheckForEventConfirmation(commandResponse, attemptNumber) ->
       let checkAgainMsg =
-         Msg.CheckForEventConfirmation(
-            processingEvtId,
-            accountId,
-            attemptNumber + 1
-         )
+         Msg.CheckForEventConfirmation(commandResponse, attemptNumber + 1)
 
-      if accountId <> state.Account.AccountId then
+      if
+         (AccountId.fromEntityId commandResponse.EntityId)
+         <> state.Account.AccountId
+      then
          Log.info
             "A different account was selected. Discard event confirmation check."
 
@@ -161,10 +166,16 @@ let update
       else
          match state.PendingAction with
          | None -> state, Cmd.none
-         | Some(_, evtId) when evtId <> processingEvtId -> state, Cmd.none
-         | Some(command, evtId) ->
+         | Some(_, action) when
+            action.CorrelationId <> commandResponse.CorrelationId
+            ->
+            state, Cmd.none
+         | Some(_, _) ->
+            // TODO: Refactor to just lookup id in the transaction read model
+            //       instead of account read model
             let getReadModel = async {
-               let! accountMaybe = AccountService.getAccount accountId
+               let! accountMaybe =
+                  AccountService.getAccount state.Account.AccountId
 
                match accountMaybe with
                | Error e ->
@@ -180,7 +191,7 @@ let update
                   | Some account ->
                      let found =
                         findEventCorrespondingToPendingAction
-                           account
+                           account.Events
                            state.PendingAction
 
                      match found with
@@ -194,7 +205,8 @@ let update
                            Date = DateTime.UtcNow
                         }
 
-                        return Msg.AccountEventReceived account
+                        return
+                           Msg.AccountEventReceived [ correspondingEvtFound ]
             }
 
             state, Cmd.fromAsync getReadModel
@@ -217,6 +229,7 @@ let private renderMenuButton dispatch (form: AccountActionView) =
 [<ReactComponent>]
 let AccountActionsComponent
    (account: Account)
+   (realtimeEvents: AccountEvent list)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
    (handleConfirmationReceivedViaPolling:
       AccountEventPersistedConfirmation -> unit)
@@ -228,14 +241,12 @@ let AccountActionsComponent
          [| box account.AccountId |]
       )
 
+   // TODO: See if I can remove and observe a Option<PendingEvent> on SignalR context
    React.useEffect (
       (fun () ->
-         if
-            account.AccountId = state.Account.AccountId
-            && account.Events.Length > state.Account.Events.Length
-         then
-            dispatch <| AccountEventReceived account),
-      [| box account.Events.Length |]
+         if account.AccountId = state.Account.AccountId then
+            dispatch <| AccountEventReceived realtimeEvents),
+      [| box realtimeEvents.Length |]
    )
 
    let renderMenuButton = renderMenuButton dispatch
@@ -282,6 +293,10 @@ let AccountActionsComponent
          CloseButton.render (fun _ -> dispatch CancelForm)
 
          match form with
+         | AccountActionView.Deposit ->
+            DepositForm.DepositFormComponent
+               state.Account
+               (Msg.NetworkAckCommand >> dispatch)
          | AccountActionView.RegisterTransferRecipient ->
             RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
                state.Account
@@ -320,19 +335,28 @@ let AccountActionsComponent
                state.Account
                (Msg.NetworkAckCommand >> dispatch)
          | AccountActionView.DailyDebitLimit ->
-            DailyDebitLimitForm.DailyDebitLimitFormComponent
-               state.Account
-               (Msg.NetworkAckCommand >> dispatch)
-         | AccountActionView.Deposit ->
-            DepositForm.DepositFormComponent
-               state.Account
-               (Msg.NetworkAckCommand >> dispatch)
+            EmployeeCardSelectSearchComponent
+               state.Account.OrgId
+               (fun card employee -> [
+                  DailyDebitLimitForm.DailyDebitLimitFormComponent
+                     (Msg.NetworkAckCommand >> dispatch)
+                     card.CardId
+                     employee
+               ])
          | AccountActionView.Debit ->
-            DebitForm.DebitFormComponent
-               state.Account
-               (Msg.NetworkAckCommand >> dispatch)
+            EmployeeCardSelectSearchComponent
+               state.Account.OrgId
+               (fun card employee -> [
+                  DebitForm.DebitFormComponent
+                     (Msg.NetworkAckCommand >> dispatch)
+                     state.Account
+                     card.CardId
+                     employee
+               ])
+      // TODO: move to employee card list page
+      (*
          | AccountActionView.CardAccess ->
             CardAccess.CardAccessFormComponent
-               state.Account
                (Msg.NetworkAckCommand >> dispatch)
+         *)
       ]

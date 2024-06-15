@@ -2,6 +2,7 @@ module Bank.Account.Forms.RegisterTransferRecipientForm
 
 open Feliz
 open Fable.Form.Simple
+open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.UIDomain
@@ -16,7 +17,7 @@ type Values = {
    AccountEnvironment: string
    FirstName: string
    LastName: string
-   Email: string
+   SelectedInternalAccountId: string
    AccountNumber: string
    RoutingNumber: string
    AccountDepository: string
@@ -33,29 +34,37 @@ let internalRecipientForm
    (state: State)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
-   let fieldEmail =
-      Form.emailField {
-         Parser =
-            fun email ->
-               let accountOpt =
-                  state.PotentialInternalRecipients
-                  |> PotentialInternalTransferRecipients.value
-                  |> Map.tryPick (fun id account ->
-                     if (string account.Email) = email then
-                        Some account
-                     else
-                        None)
+   let accounts =
+      state.PotentialInternalRecipients
+      |> PotentialInternalTransferRecipients.value
 
-               match accountOpt with
-               | None -> Error "No account found with that email"
+   let options =
+      accounts
+      |> Map.fold
+         (fun acc _ account -> (string account.AccountId, account.Name) :: acc)
+         []
+      |> List.sortBy snd
+
+   let accountSelectField =
+      Form.selectField {
+         Parser =
+            fun selectedId ->
+               let selectedId = selectedId |> Guid.Parse |> AccountId
+
+               match accounts.TryFind selectedId with
+               | None -> Error "No account found."
                | Some account -> Ok account
-         Value = fun (values: Values) -> values.Email
-         Update = fun newValue values -> { values with Email = newValue }
+         Value = fun values -> values.SelectedInternalAccountId
+         Update =
+            fun newValue values -> {
+               values with
+                  SelectedInternalAccountId = newValue
+            }
          Error = fun _ -> None
          Attributes = {
-            Label = "Email:"
-            Placeholder = "Email"
-            HtmlAttributes = []
+            Label = "Select an account:"
+            Placeholder = "No account selected"
+            Options = options
          }
       }
 
@@ -65,13 +74,14 @@ let internalRecipientForm
             state.Account.CompositeId
             {
                AccountId = recipient.AccountId
-               FirstName = recipient.FirstName
-               LastName = recipient.LastName
+               Name = recipient.Name
             }
+         |> AccountCommand.RegisterInternalTransferRecipient
+         |> FormCommand.Account
 
-      Msg.Submit(AccountCommand.RegisterInternalTransferRecipient cmd, Started)
+      Msg.Submit(cmd, Started)
 
-   Form.succeed onSubmit |> Form.append fieldEmail
+   Form.succeed onSubmit |> Form.append accountSelectField
 
 let domesticRecipientForm
    (state: State)
@@ -218,7 +228,7 @@ let domesticRecipientForm
                }
             |> AccountCommand.EditDomesticTransferRecipient
 
-      Msg.Submit(cmd, Started)
+      Msg.Submit(FormCommand.Account cmd, Started)
 
    Form.succeed onSubmit
    |> Form.append fieldPaymentNetwork
@@ -283,13 +293,13 @@ let RegisterTransferRecipientFormComponent
                Map.tryFind accountId account.DomesticTransferRecipients)
       }
 
-   let formProps = {
+   let formProps: Values = {
       AccountEnvironment = "internal"
       AccountDepository = "checking"
       PaymentNetwork = "ach"
       FirstName = ""
       LastName = ""
-      Email = ""
+      SelectedInternalAccountId = ""
       AccountNumber = ""
       RoutingNumber = ""
    }
@@ -306,4 +316,8 @@ let RegisterTransferRecipientFormComponent
         }
       | _ -> formProps
 
-   FormContainer state.Account formProps (form state) onSubmit
+   FormContainer
+      (FormDomain.Account state.Account)
+      formProps
+      (form state)
+      onSubmit

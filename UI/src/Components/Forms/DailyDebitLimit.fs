@@ -3,14 +3,19 @@ module Bank.Account.Forms.DailyDebitLimitForm
 open Feliz
 open Fable.Form.Simple
 
-open Bank.Account.Domain
+open Bank.Employee.Domain
 open AsyncUtil
 open Lib.Validators
+open Lib.SharedTypes
 open FormContainer
 
 type Values = { Amount: string }
 
-let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
+let form
+   (selectedCardId: CardId)
+   (employee: Employee)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
    let amountField =
       Form.textField {
          Parser =
@@ -28,16 +33,24 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount =
       let cmd =
-         LimitDailyDebitsCommand.create account.CompositeId {
+         LimitDailyDebitsCommand.create employee.CompositeId {
+            CardId = selectedCardId
             DebitLimit = amount
          }
+         |> EmployeeCommand.LimitDailyDebits
+         |> FormCommand.Employee
 
-      Msg.Submit(AccountCommand.LimitDailyDebits cmd, Started)
+      Msg.Submit(cmd, Started)
 
    Form.succeed onSubmit |> Form.append amountField
 
 let DailyDebitLimitFormComponent
-   (account: Account)
    (onSubmit: ParentOnSubmitHandler)
+   (selectedCardId: CardId)
+   (employee: Employee)
    =
-   FormContainer account { Amount = "" } (form account) onSubmit
+   FormContainer
+      (FormDomain.Employee employee)
+      { Amount = "" }
+      (form selectedCardId employee)
+      onSubmit

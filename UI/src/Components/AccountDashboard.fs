@@ -243,6 +243,7 @@ let renderAccountActions state dispatch =
       | Some(account, potentialTransferRecipients) ->
          AccountActionsComponent
             account
+            state.RealtimeTransactions
             potentialTransferRecipients
             (AccountEventPersisted >> dispatch)
    ]

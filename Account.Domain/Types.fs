@@ -12,9 +12,6 @@ type AccountCommand =
    | Debit of DebitCommand
    | MaintenanceFee of MaintenanceFeeCommand
    | SkipMaintenanceFee of SkipMaintenanceFeeCommand
-   | LimitDailyDebits of LimitDailyDebitsCommand
-   | LockCard of LockCardCommand
-   | UnlockCard of UnlockCardCommand
    | InternalTransfer of InternalTransferCommand
    | ApproveInternalTransfer of ApproveInternalTransferCommand
    | RejectInternalTransfer of RejectInternalTransferCommand
@@ -40,9 +37,6 @@ type AccountEvent =
    | DebitedAccount of BankEvent<DebitedAccount>
    | MaintenanceFeeDebited of BankEvent<MaintenanceFeeDebited>
    | MaintenanceFeeSkipped of BankEvent<MaintenanceFeeSkipped>
-   | DailyDebitLimitUpdated of BankEvent<DailyDebitLimitUpdated>
-   | LockedCard of BankEvent<LockedCard>
-   | UnlockedCard of BankEvent<UnlockedCard>
    | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
    | InternalTransferPending of BankEvent<InternalTransferPending>
    | InternalTransferApproved of BankEvent<InternalTransferApproved>
@@ -81,10 +75,6 @@ module AccountEnvelope =
       | :? BankEvent<DebitedAccount> as evt -> DebitedAccount evt
       | :? BankEvent<MaintenanceFeeDebited> as evt -> MaintenanceFeeDebited evt
       | :? BankEvent<MaintenanceFeeSkipped> as evt -> MaintenanceFeeSkipped evt
-      | :? BankEvent<DailyDebitLimitUpdated> as evt ->
-         DailyDebitLimitUpdated evt
-      | :? BankEvent<LockedCard> as evt -> LockedCard evt
-      | :? BankEvent<UnlockedCard> as evt -> UnlockedCard evt
       | :? BankEvent<RegisteredInternalTransferRecipient> as evt ->
          InternalTransferRecipient evt
       | :? BankEvent<RegisteredDomesticTransferRecipient> as evt ->
@@ -123,9 +113,6 @@ module AccountEnvelope =
       | DebitedAccount evt -> wrap evt, get evt
       | MaintenanceFeeDebited evt -> wrap evt, get evt
       | MaintenanceFeeSkipped evt -> wrap evt, get evt
-      | DailyDebitLimitUpdated evt -> wrap evt, get evt
-      | LockedCard evt -> wrap evt, get evt
-      | UnlockedCard evt -> wrap evt, get evt
       | InternalTransferRecipient evt -> wrap evt, get evt
       | InternalRecipientDeactivated evt -> wrap evt, get evt
       | InternalSenderRegistered evt -> wrap evt, get evt
@@ -150,20 +137,47 @@ type AccountStatus =
    | Closed
    | ReadyForDelete
 
+module AccountStatus =
+   let fromString (status: string) : AccountStatus option =
+      match status.ToLower() with
+      | "pending" -> Some AccountStatus.Pending
+      | "active" -> Some AccountStatus.Active
+      | "closed" -> Some AccountStatus.Closed
+      | "readyfordelete" -> Some AccountStatus.ReadyForDelete
+      | _ -> None
+
+   let fromStringUnsafe (status: string) : AccountStatus =
+      match fromString status with
+      | None -> failwith "Error attempting to cast string to AccountStatus"
+      | Some status -> status
+
+[<RequireQualifiedAccess>]
+type AccountDepository =
+   | Checking
+   | Savings
+
+module AccountDepository =
+   let fromString (dep: string) : AccountDepository option =
+      match dep.ToLower() with
+      | "checking" -> Some AccountDepository.Checking
+      | "savings" -> Some AccountDepository.Savings
+      | _ -> None
+
+   let fromStringUnsafe (dep: string) : AccountDepository =
+      match fromString dep with
+      | None -> failwith "Error attempting to cast string to AccountDepository"
+      | Some dep -> dep
+
 type Account = {
    AccountId: AccountId
    OrgId: OrgId
-   Email: Email
-   FirstName: string
-   LastName: string
+   Name: string
+   Depository: AccountDepository
    Currency: Currency
    Status: AccountStatus
    Balance: decimal
-   DailyDebitLimit: decimal
-   DailyDebitAccrued: decimal
    DailyInternalTransferAccrued: decimal
    DailyDomesticTransferAccrued: decimal
-   LastDebitDate: DateTime option
    LastInternalTransferDate: DateTime option
    LastDomesticTransferDate: DateTime option
    LastBillingCycleDate: DateTime option
@@ -176,12 +190,9 @@ type Account = {
    FailedDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    Events: AccountEvent list
-   CardLocked: bool
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber
 } with
-
-   member x.Name = $"{x.FirstName} {x.LastName}"
 
    member x.CompositeId = x.AccountId, x.OrgId
 
@@ -198,17 +209,13 @@ type Account = {
 type AccountProfile = {
    AccountId: AccountId
    OrgId: OrgId
-   Email: Email
-   FirstName: string
-   LastName: string
+   Name: string
+   Depository: AccountDepository
 } with
-
-   member x.Name = $"{x.FirstName} {x.LastName}"
 
    member x.CompositeId = x.AccountId, x.OrgId
 
 type AccountMessage =
-   | UserCreationResponse of Result<int, Err> * BankEvent<CreatedAccount>
    | GetAccount
    | GetEvents
    | StateChange of AccountCommand

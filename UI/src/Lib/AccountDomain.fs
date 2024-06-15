@@ -23,7 +23,7 @@ type TransactionUIFriendly = {
    Amount: string option
    Sign: string
    Info: string option
-   MoneyFlow: MoneyFlow
+   MoneyFlow: MoneyFlow option
    Source: string option
    Destination: string option
 }
@@ -68,6 +68,7 @@ let nameAndNicknamePair
       recipient.Name, recipient.Nickname
    | None -> "", None
 
+// TODO: Collapse some of the field-specific info into one descriptive field
 let transactionUIFriendly
    (account: Account)
    (txn: AccountEvent)
@@ -84,18 +85,14 @@ let transactionUIFriendly
       Amount = None
       Sign = ""
       Info = None
-      MoneyFlow = MoneyFlow.None
+      MoneyFlow = None
       Source = None
       Destination = None
    }
 
-   let accountNumberLast4 (num: AccountNumber) =
-      num |> string |> _.Substring(-4)
-
    let accountIdLast4 (num: AccountId) = num |> string |> _.Substring(-4)
 
-   let accountName =
-      account.Name + " **" + accountNumberLast4 account.AccountNumber
+   let accountName = account.Name + " **" + account.AccountNumber.Last4
 
    let recipientName (recipientId: AccountId) =
       let name, nickname = nameAndNicknamePair account recipientId
@@ -106,7 +103,7 @@ let transactionUIFriendly
       (recipientAccountNum: AccountNumber)
       =
       let name = recipientName recipientId
-      name + " **" + accountNumberLast4 recipientAccountNum
+      name + " **" + recipientAccountNum.Last4
 
    let props =
       match txn with
@@ -114,40 +111,40 @@ let transactionUIFriendly
          props with
             Name = "Account Created"
             AmountNaked = Some evt.Data.Balance
-            MoneyFlow = MoneyFlow.In
         }
       | DepositedCash evt -> {
          props with
             Name = "Deposit"
             AmountNaked = Some evt.Data.Amount
             Origin = Some evt.Data.Origin
-            MoneyFlow = MoneyFlow.In
+            MoneyFlow = Some MoneyFlow.In
             Source = Some evt.Data.Origin
             Destination = Some accountName
         }
-      | DebitedAccount evt -> {
-         props with
-            Name = "Debit"
-            AmountNaked = Some evt.Data.Amount
-            Origin = Some evt.Data.Origin
-            MoneyFlow = MoneyFlow.Out
-            Source = Some accountName
-            Destination = Some evt.Data.Origin
-        }
+      | DebitedAccount evt ->
+         let employee = evt.Data.EmployeePurchaseReference
+         // TODO: rename Origin field as Merchant
+         let employeePurchaser =
+            $"{employee.EmployeeName}**{employee.EmployeeCardNumberLast4}"
+
+         {
+            props with
+               Name = "Debit"
+               AmountNaked = Some evt.Data.Amount
+               Origin = Some $"{evt.Data.Origin} by {employeePurchaser}"
+               MoneyFlow = Some MoneyFlow.Out
+               Source = Some $"{accountName} via {employeePurchaser}"
+               Destination = Some evt.Data.Origin
+         }
       | MaintenanceFeeDebited evt -> {
          props with
             Name = "Maintenance Fee"
             AmountNaked = Some evt.Data.Amount
-            MoneyFlow = MoneyFlow.Out
+            MoneyFlow = Some MoneyFlow.Out
         }
       | MaintenanceFeeSkipped _ -> {
          props with
             Name = "Maintenance Fee Skipped"
-        }
-      | DailyDebitLimitUpdated evt -> {
-         props with
-            Name = "Daily Debit Limit Updated"
-            AmountNaked = Some evt.Data.DebitLimit
         }
       | InternalTransferRecipient evt -> {
          props with
@@ -197,7 +194,7 @@ let transactionUIFriendly
             Info = Some $"Recipient: {recipientName evt.Data.RecipientId}"
             Origin = Some account.Name
             AmountNaked = Some evt.Data.Amount
-            MoneyFlow = MoneyFlow.Out
+            MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
             Destination = Some <| recipientName evt.Data.RecipientId
         }
@@ -217,7 +214,7 @@ let transactionUIFriendly
                   $"Recipient: {recipientName evt.Data.RecipientId} - Reason
                   {evt.Data.Reason} - Account refunded"
             AmountNaked = Some evt.Data.Amount
-            MoneyFlow = MoneyFlow.In
+            MoneyFlow = Some MoneyFlow.In
         }
       | DomesticTransferPending evt ->
          let info = evt.Data.BaseInfo
@@ -233,7 +230,7 @@ let transactionUIFriendly
                Info = Some $"Recipient: {recipientName}"
                Origin = Some account.Name
                AmountNaked = Some info.Amount
-               MoneyFlow = MoneyFlow.Out
+               MoneyFlow = Some MoneyFlow.Out
                Source = Some accountName
                Destination = Some recipientName
          }
@@ -269,7 +266,7 @@ let transactionUIFriendly
                      $"Recipient: {recipientName} -
                      Reason {evt.Data.Reason} - Account refunded"
                AmountNaked = Some info.Amount
-               MoneyFlow = MoneyFlow.In
+               MoneyFlow = Some MoneyFlow.In
                Source = Some accountName
                Destination = Some recipientName
          }
@@ -297,12 +294,10 @@ let transactionUIFriendly
                Name = "Transfer Received"
                AmountNaked = Some evt.Data.Amount
                Origin = Some sender
-               MoneyFlow = MoneyFlow.In
+               MoneyFlow = Some MoneyFlow.In
                Source = Some sender
                Destination = Some accountName
          }
-      | LockedCard _ -> { props with Name = "Card Locked" }
-      | UnlockedCard _ -> { props with Name = "Card Unlocked" }
       | BillingCycleStarted _ -> {
          props with
             Name = "New Billing Cycle"
@@ -325,9 +320,9 @@ let transactionUIFriendly
 
    let sign =
       match props.MoneyFlow with
-      | MoneyFlow.In -> "+"
-      | MoneyFlow.Out -> "-"
-      | MoneyFlow.None -> props.Sign
+      | Some MoneyFlow.In -> "+"
+      | Some MoneyFlow.Out -> "-"
+      | None -> props.Sign
 
    {
       props with

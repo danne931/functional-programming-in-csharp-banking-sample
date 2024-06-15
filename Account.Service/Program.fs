@@ -9,6 +9,7 @@ open Akka.Routing
 open Akkling
 
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open Bank.Infrastructure
 open ActorUtil
 
@@ -20,10 +21,15 @@ builder.Services.AddSingleton<AccountBroadcast>(fun provider ->
 
 let journalOpts = AkkaInfra.getJournalOpts ()
 
-journalOpts.Adapters.AddEventAdapter<AkkaPersistenceEventAdapter>(
-   "v1",
-   [ typedefof<AccountMessage> ]
-)
+journalOpts.Adapters
+   .AddEventAdapter<AccountEventPersistenceAdapter>(
+      "account-v1",
+      [ typedefof<AccountMessage> ]
+   )
+   .AddEventAdapter<EmployeeEventPersistenceAdapter>(
+      "employee-v1",
+      [ typedefof<EmployeeMessage> ]
+   )
 |> ignore
 
 let snapshotOpts = AkkaInfra.getSnapshotOpts ()
@@ -35,6 +41,7 @@ builder.Services.AddAkka(
          AkkaInfra.withClustering [|
             ClusterMetadata.roles.account
             ClusterMetadata.roles.signalR
+            ClusterMetadata.roles.employee
          |]
          << AkkaInfra.withPetabridgeCmd
          << AkkaInfra.withHealthCheck
@@ -60,16 +67,37 @@ builder.Services.AddAkka(
          .WithShardRegion<ActorMetadata.AccountMarker>(
             ClusterMetadata.accountShardRegion.name,
             (fun persistenceId ->
+               let system = provider.GetRequiredService<ActorSystem>()
+
                let props =
                   AccountActor.initProps
                   <| provider.GetRequiredService<AccountBroadcast>()
-                  <| provider.GetRequiredService<ActorSystem>()
+                  <| system
                   <| Env.config.AccountActorSupervisor
                   <| persistenceId
+                  <| EmployeeActor.get system
 
                props),
             ClusterMetadata.accountShardRegion.messageExtractor,
             ShardOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithShardRegion<ActorMetadata.EmployeeMarker>(
+            ClusterMetadata.employeeShardRegion.name,
+            (fun persistenceId ->
+               let system = provider.GetRequiredService<ActorSystem>()
+
+               let props =
+                  EmployeeActor.initProps
+                  <| system
+                  // TODO: Create employee-specific Environment file & replace
+                  //       account env var here.
+                  <| Env.config.AccountActorSupervisor
+                  <| persistenceId
+                  <| AccountActor.get system
+
+               props),
+            ClusterMetadata.employeeShardRegion.messageExtractor,
+            ShardOptions(Role = ClusterMetadata.roles.employee)
          )
          .WithSingleton<ActorMetadata.BillingCycleMarker>(
             ActorMetadata.billingCycle.Name,
@@ -105,8 +133,8 @@ builder.Services.AddAkka(
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
-         .WithSingleton<ActorMetadata.ReadModelSyncMarker>(
-            ActorMetadata.accountEventConsumer.Name,
+         .WithSingleton<ActorMetadata.AccountReadModelSyncMarker>(
+            ActorMetadata.accountReadModelSync.Name,
             (fun system _ _ ->
                let typedProps =
                   ReadModelSyncActor.initProps
@@ -117,6 +145,19 @@ builder.Services.AddAkka(
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingleton<ActorMetadata.EmployeeReadModelSyncMarker>(
+            ActorMetadata.employeeReadModelSync.Name,
+            (fun system _ _ ->
+               let typedProps =
+                  EmployeeReadModelSyncActor.initProps
+                     (EmployeeActor.get system)
+                     Env.config.AccountEventProjectionChunking
+                     Env.config.AccountEventReadModelPersistenceBackoffRestart
+                     Env.config.AccountEventReadModelRetryPersistenceAfter
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.employee)
          )
          // TODO: Do more than just printing dead letter messages.
          .WithSingleton<ActorMetadata.AuditorMarker>(
@@ -143,7 +184,9 @@ builder.Services.AddAkka(
             ActorMetadata.accountSeeder.Name,
             (fun system _ _ ->
                let typedProps =
-                  AccountSeederActor.actorProps <| AccountActor.get system
+                  AccountSeederActor.actorProps
+                  <| AccountActor.get system
+                  <| EmployeeActor.get system
 
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)

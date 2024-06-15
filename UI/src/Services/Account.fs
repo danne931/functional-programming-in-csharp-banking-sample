@@ -19,8 +19,6 @@ let private notImplemented (cmd: AccountCommand) =
 let postJson (command: AccountCommand) =
    let serialized, url =
       match command with
-      | AccountCommand.Debit cmd ->
-         Serialization.serialize cmd, AccountPath.Debit
       | AccountCommand.DepositCash cmd ->
          Serialization.serialize cmd, AccountPath.Deposit
       | AccountCommand.InternalTransfer cmd ->
@@ -33,12 +31,6 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipient
       | AccountCommand.EditDomesticTransferRecipient cmd ->
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipientEdit
-      | AccountCommand.LimitDailyDebits cmd ->
-         Serialization.serialize cmd, AccountPath.DailyDebitLimit
-      | AccountCommand.LockCard cmd ->
-         Serialization.serialize cmd, AccountPath.LockCard
-      | AccountCommand.UnlockCard cmd ->
-         Serialization.serialize cmd, AccountPath.UnlockCard
       | AccountCommand.NicknameRecipient cmd ->
          Serialization.serialize cmd, TransferPath.NicknameRecipient
       | other -> notImplemented other
@@ -109,7 +101,7 @@ let getAccountAndTransactions
 let submitCommand
    (account: Account)
    (command: AccountCommand)
-   : Async<Result<EventId, Err>>
+   : Async<Result<CommandProcessingResponse, Err>>
    =
    asyncResult {
       // Pre-network request validation checks the command itself
@@ -126,7 +118,8 @@ let submitCommand
          return! Error <| Err.InvalidStatusCodeError("AccountService", code)
       else
          let! deserialized =
-            Serialization.deserialize<Result<EventId, Err>> res.responseText
+            Serialization.deserialize<Result<CommandProcessingResponse, Err>>
+               res.responseText
 
          return! deserialized
    }

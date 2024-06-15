@@ -48,11 +48,7 @@ let transactionQuery (query: TransactionQuery) =
          let queryParams, where, joinAncillary = agg
 
          let queryParams =
-            [
-               "direction", Writer.moneyFlow direction
-               "diagnostic", Writer.moneyFlow MoneyFlow.None
-            ]
-            @ queryParams
+            ("direction", Writer.moneyFlow (Some direction)) :: queryParams
 
          let where =
             where
@@ -60,7 +56,7 @@ let transactionQuery (query: TransactionQuery) =
             AND 
             (
                {Fields.moneyFlow} = @direction::{TransactionTypeCast.moneyFlow}
-               OR {Fields.moneyFlow} = @diagnostic::{TransactionTypeCast.moneyFlow}
+               OR {Fields.moneyFlow} IS NULL
             )
             """
 
@@ -68,13 +64,13 @@ let transactionQuery (query: TransactionQuery) =
       | false, None ->
          let queryParams, where, joinAncillary = agg
 
-         ("diagnostic", Writer.moneyFlow MoneyFlow.None) :: queryParams,
-         $"{where} AND {Fields.moneyFlow} <> @diagnostic::{TransactionTypeCast.moneyFlow}",
+         queryParams,
+         $"{where} AND {Fields.moneyFlow} IS NOT NULL",
          joinAncillary
       | false, Some direction ->
          let queryParams, where, joinAncillary = agg
 
-         ("direction", Writer.moneyFlow direction) :: queryParams,
+         ("direction", Writer.moneyFlow (Some direction)) :: queryParams,
          $"{where} AND {Fields.moneyFlow} = @direction::{TransactionTypeCast.moneyFlow}",
          joinAncillary
       | true, None -> agg

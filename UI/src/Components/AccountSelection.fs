@@ -12,7 +12,7 @@ let renderAccountListItem
    =
    Html.li [
       Html.a [
-         attr.text $"{account.Name} - {account.Email}"
+         attr.text account.Name
          attr.href ""
          attr.value (AccountId.get account.AccountId)
          attr.onClick (fun e ->

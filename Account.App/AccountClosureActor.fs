@@ -38,7 +38,8 @@ let actorProps
    (schedulingActorRef: IActorRef<SchedulingActor.Message>)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailRef: unit -> IActorRef<EmailActor.EmailMessage>)
-   (deleteHistoricalRecords: AccountId list -> TaskResultOption<Email list, Err>)
+   (deleteHistoricalRecords:
+      AccountId list -> TaskResultOption<AccountNumber list, Err>)
    (throttle: StreamThrottle)
    =
    let handler (mailbox: Eventsourced<obj>) =
@@ -144,10 +145,10 @@ let deleteHistoricalRecords (accountIds: AccountId list) =
    if accountIds.IsEmpty then
       TaskResult.ok None
    else
-      pgQuery<Email>
+      pgQuery<AccountNumber>
          $"DELETE FROM {AccountSqlMapper.table} 
            WHERE {AccountFields.accountId} = ANY(@accountIds) 
-           RETURNING {AccountFields.email}"
+           RETURNING {AccountFields.accountNumber}"
          (Some [
             "@accountIds",
             accountIds
@@ -155,7 +156,7 @@ let deleteHistoricalRecords (accountIds: AccountId list) =
             |> List.toArray
             |> Sql.uuidArray
          ])
-         AccountSqlReader.email
+         AccountSqlReader.accountNumber
 
 let initProps
    (system: ActorSystem)

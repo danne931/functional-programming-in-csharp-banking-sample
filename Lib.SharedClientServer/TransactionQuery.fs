@@ -20,7 +20,7 @@ type TransactionQuery = {
    AccountId: AccountId
    Diagnostic: bool
    Page: int
-   MoneyFlow: Lib.SharedTypes.MoneyFlow option
+   MoneyFlow: MoneyFlow option
    Category: CategoryFilter option
    Amount: AmountFilter option
    DateRange: (DateTime * DateTime) option

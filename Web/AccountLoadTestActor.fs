@@ -66,9 +66,7 @@ module private Stub =
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
       <| CreateAccountCommand.create {
-         Email = $"{string accountId}@gmail.com"
-         FirstName = "Small"
-         LastName = "Fish"
+         Name = "Operations"
          Currency = Currency.EUR
          AccountId = accountId
          OrgId = orgId

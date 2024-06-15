@@ -11,6 +11,7 @@
     <Compile Include="Routes/Transaction.fs" /> 
     <Compile Include="Routes/Account.fs" />
     <Compile Include="Routes/Transfer.fs" />
+    <Compile Include="Routes/Employee.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -27,5 +28,6 @@
     <ProjectReference Include="../Infrastructure/Infrastructure.fsproj" />
     <ProjectReference Include="../Transfer.Domain/Transfer.Domain.fsproj" />
     <ProjectReference Include="../Account.App/Account.App.fsproj" />
+    <ProjectReference Include="../Employee.App/Employee.App.fsproj" /> 
   </ItemGroup>
 </Project>

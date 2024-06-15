@@ -15,6 +15,7 @@ open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.Employee.Domain
 open BillingStatement
 open DomesticTransferRecipientActor
 
@@ -54,7 +55,9 @@ let private billingCycle
 
       mailbox.Parent() <! msg
 
-   getEmailActor mailbox.System <! EmailActor.BillingStatement account
+// TODO: Comment out all account related email messages until
+//       I associate account owners with the account.
+//getEmailActor mailbox.System <! EmailActor.BillingStatement account
 
 let actorProps
    (persistence: AccountPersistence)
@@ -64,6 +67,7 @@ let actorProps
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
@@ -75,17 +79,38 @@ let actorProps
          match box msg with
          | Persisted mailbox e ->
             let (AccountMessage.Event evt) = unbox e
-            let newState = Account.applyEvent account evt
-            broadcaster.accountEventPersisted evt newState |> ignore
+            let account = Account.applyEvent account evt
+            broadcaster.accountEventPersisted evt account |> ignore
 
             match evt with
+            | DebitedAccount e ->
+               let info = e.Data
+               let employee = info.EmployeePurchaseReference
+
+               let msg =
+                  ApproveDebitCommand.create (employee.EmployeeId, e.OrgId) {
+                     Info = {
+                        AccountId = account.AccountId
+                        CorrelationId = e.CorrelationId
+                        EmployeeId = employee.EmployeeId
+                        CardId = employee.CardId
+                        Date = info.Date
+                        Amount = info.Amount
+                        Origin = info.Origin
+                        Reference = info.Reference
+                     }
+                  }
+                  |> EmployeeCommand.ApproveDebit
+                  |> EmployeeMessage.StateChange
+
+               getEmployeeRef employee.EmployeeId <! msg
             | InternalTransferRecipient e ->
                let msg =
                   InternalTransferMsg.ConfirmRecipient(
                      {
-                        Name = newState.Name
-                        OrgId = newState.OrgId
-                        AccountId = newState.AccountId
+                        Name = account.Name
+                        OrgId = account.OrgId
+                        AccountId = account.AccountId
                      },
                      e.Data.Recipient
                   )
@@ -100,7 +125,7 @@ let actorProps
                   TransferDeclinedReason.InvalidAccountInfo
                   |> DomesticTransferProgress.Failed
 
-               newState.FailedDomesticTransfers
+               account.FailedDomesticTransfers
                |> Map.filter (fun _ transfer ->
                   transfer.Recipient.AccountId = recipientId
                   && transfer.Status = invalidAccount)
@@ -123,14 +148,16 @@ let actorProps
                   )
 
                getDomesticTransferActor mailbox.System <! msg
-            | TransferDeposited e ->
+            | TransferDeposited e -> ()
+            (*
                getEmailActor mailbox.System
-               <! EmailActor.TransferDeposited(e, newState)
-            | CreatedAccount _ ->
-               getEmailActor mailbox.System <! EmailActor.AccountOpen newState
+               <! EmailActor.TransferDeposited(e, account)
+               *)
+            | CreatedAccount _ -> ()
+            //getEmailActor mailbox.System <! EmailActor.AccountOpen account
             | AccountEvent.AccountClosed _ ->
                getAccountClosureActor mailbox.System
-               <! AccountClosureMessage.Register newState
+               <! AccountClosureMessage.Register account
             | BillingCycleStarted _ ->
                billingCycle
                   getBillingStatementActor
@@ -139,13 +166,13 @@ let actorProps
                   account
             | _ -> ()
 
-            return! loop <| Some newState
+            return! loop <| Some account
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? ConfirmableMessageEnvelope as envelope ->
             match envelope.Message with
             | :? AccountMessage as msg ->
                match msg with
-               | StateChange cmd ->
+               | AccountMessage.StateChange cmd ->
                   let validation = Account.stateTransition account cmd
 
                   match validation with
@@ -164,7 +191,7 @@ let actorProps
                            err
 
                      match err with
-                     | StateTransitionError e ->
+                     | AccountStateTransitionError e ->
                         match e with
                         // NOOP
                         | TransferProgressNoChange
@@ -173,10 +200,36 @@ let actorProps
                            logDebug mailbox $"AccountTransferActor NOOP msg {e}"
                         // Send email for declined debit.
                         // Broadcast validation errors to UI.
-                        | InsufficientBalance _
-                        | ExceededDailyDebit _ ->
+                        | InsufficientBalance e ->
+                           match cmd with
+                           | AccountCommand.Debit cmd ->
+                              let info = cmd.Data
+                              let employee = cmd.Data.EmployeePurchaseReference
+
+                              let msg =
+                                 DeclineDebitCommand.create
+                                    (employee.EmployeeId, cmd.OrgId)
+                                    {
+                                       Info = {
+                                          AccountId = account.AccountId
+                                          CorrelationId = cmd.CorrelationId
+                                          EmployeeId = employee.EmployeeId
+                                          CardId = employee.CardId
+                                          Date = info.Date
+                                          Amount = info.Amount
+                                          Origin = info.Origin
+                                          Reference = info.Reference
+                                       }
+                                    }
+                                 |> EmployeeCommand.DeclineDebit
+                                 |> EmployeeMessage.StateChange
+
+                              getEmployeeRef employee.EmployeeId <! msg
+                           | _ -> ()
+                           (*
                            getEmailActor mailbox.System
                            <! EmailActor.DebitDeclined(string err, account)
+                           *)
 
                            signalRBroadcastValidationErr ()
                         | _ -> signalRBroadcastValidationErr ()
@@ -191,19 +244,19 @@ let actorProps
                return unhandled ()
          | :? AccountMessage as msg ->
             match msg with
-            | GetAccount -> mailbox.Sender() <! accountOpt
-            | GetEvents ->
+            | AccountMessage.GetAccount -> mailbox.Sender() <! accountOpt
+            | AccountMessage.GetEvents ->
                match accountOpt with
                | None -> mailbox.Sender() <! []
                | Some account ->
                   mailbox.Sender() <!| persistence.getEvents account.AccountId
-            | Delete ->
-               let newState = {
+            | AccountMessage.Delete ->
+               let account = {
                   account with
                      Status = AccountStatus.ReadyForDelete
                }
 
-               return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
+               return! loop (Some account) <@> DeleteMessages Int64.MaxValue
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent account e)
@@ -266,6 +319,7 @@ let initProps
    (system: ActorSystem)
    (supervisorOpts: PersistenceSupervisorOptions)
    (persistenceId: string)
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    =
    let getOrStartInternalTransferActor mailbox =
       InternalTransferRecipientActor.getOrStart mailbox <| get system
@@ -279,6 +333,7 @@ let initProps
          EmailActor.get
          AccountClosureActor.get
          BillingStatementActor.get
+         getEmployeeRef
 
    persistenceSupervisor
       supervisorOpts

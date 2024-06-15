@@ -15,6 +15,7 @@ open Bank.Account.Domain
 open Bank.Transfer.Routes
 open Bank.Diagnostic.Routes
 open Bank.Transaction.Routes
+open Bank.Employee.Routes
 open Bank.Hubs
 open ActorUtil
 open Lib.SharedTypes
@@ -80,6 +81,11 @@ builder.Services.AddAkka(
             ClusterMetadata.roles.account,
             ClusterMetadata.accountShardRegion.messageExtractor
          )
+         .WithShardRegionProxy<ActorMetadata.EmployeeMarker>(
+            ClusterMetadata.employeeShardRegion.name,
+            ClusterMetadata.roles.employee,
+            ClusterMetadata.employeeShardRegion.messageExtractor
+         )
          .WithSingletonProxy<ActorMetadata.CircuitBreakerMarker>(
             ActorMetadata.circuitBreaker.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
@@ -133,5 +139,6 @@ startTransferRoutes app
 startAccountRoutes app
 startDiagnosticRoutes app
 startTransactionRoutes app
+startEmployeeRoutes app
 
 app.Run()

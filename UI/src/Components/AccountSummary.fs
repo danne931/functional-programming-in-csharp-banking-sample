@@ -19,19 +19,6 @@ let render (account: Account) =
          ]
 
          Html.div [
-            attr.custom (
-               "data-tooltip",
-               "Monthly maintenance fee is not accrued."
-            )
-            attr.custom ("data-placement", "top")
-            attr.children [
-               Html.p "Daily Debit: "
-               Html.ins [ attr.text (Money.format account.DailyDebitAccrued) ]
-               Html.small $"/{Money.format account.DailyDebitLimit}"
-            ]
-         ]
-
-         Html.div [
             Html.p "Daily Internal Transfer: "
             Html.ins [
                attr.text (Money.format account.DailyInternalTransferAccrued)

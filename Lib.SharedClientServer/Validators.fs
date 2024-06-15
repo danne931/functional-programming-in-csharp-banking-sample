@@ -30,6 +30,7 @@ let amountValidator = Check.Decimal.greaterThan 0m
 
 let amountValidatorFromString = parseDecimal >=> amountValidator
 
+let accountNameValidator = Check.String.betweenLen 2 50 "Account name"
 let firstNameValidator = Check.String.betweenLen 2 50 "First name"
 let lastNameValidator = Check.String.betweenLen 2 50 "Last name"
 

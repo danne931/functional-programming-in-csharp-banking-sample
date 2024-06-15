@@ -17,12 +17,20 @@ open Lib.SharedTypes
 open ActorUtil
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.Employee.Domain
 
+// TODO: Comment out all account related email messages until
+//       I associate account owners with the account.
+//
 type EmailMessage =
    | AccountOpen of Account
    | AccountClose of Account
    | BillingStatement of Account
-   | DebitDeclined of string * Account
+   | DebitDeclinedExceededDailyDebit of
+      limit: decimal *
+      accrued: decimal *
+      Email
+   | DebitDeclinedInsufficientAccountBalance of balance: decimal * Email
    | TransferDeposited of BankEvent<TransferDeposited> * Account
    | ApplicationErrorRequiresSupport of string
 
@@ -42,53 +50,55 @@ let private emailPropsFromMessage (msg: EmailMessage) =
    match msg with
    | AccountOpen account -> {
       event = "account-opened"
-      email = string account.Email
-      data = {| firstName = account.FirstName |}
+      //email = string account.Email
+      //data = {| firstName = account.FirstName |}
+      email = ""
+      data = {| |}
      }
    | AccountClose account -> {
       event = "account-closed"
-      email = string account.Email
-      data = {| firstName = account.FirstName |}
+      //email = string account.Email
+      //data = {| firstName = account.FirstName |}
+      email = ""
+      data = {| |}
      }
    // TODO: Include link to view statement
    | BillingStatement account -> {
       event = "billing-statement"
-      email = string account.Email
+      //email = string account.Email
+      //data = {| |}
+      email = ""
       data = {| |}
      }
-   | DebitDeclined(reason, account) ->
-      let o = {
-         event = "debit-declined"
-         email = string account.Email
-         data = {| reason = reason |}
-      }
-
-      match reason with
-      | Contains "InsufficientBalance" -> {
-         o with
-            data = {|
-               reason =
-                  $"Your account has insufficient funds. 
-                    Your balance is ${account.Balance}"
-            |}
-        }
-      | Contains "ExceededDailyDebit" -> {
-         o with
-            data = {|
-               reason =
-                  $"You have spent ${account.DailyDebitAccrued} today. 
-                    Your daily debit limit is set to ${account.DailyDebitLimit}."
-            |}
-        }
-      | _ -> o
+   | DebitDeclinedInsufficientAccountBalance(balance, email) -> {
+      event = "debit-declined"
+      email = string email
+      data = {|
+         reason =
+            $"Your account has insufficient funds.  Your balance is ${balance}"
+      |}
+     }
+   | DebitDeclinedExceededDailyDebit(limit, accrued, email) -> {
+      event = "debit-declined"
+      email = string email
+      data = {|
+         reason =
+            $"You have spent ${accrued} today. 
+              Your daily debit limit is set to ${limit}."
+      |}
+     }
    | TransferDeposited(evt, account) -> {
       event = "transfer-deposited"
+      (*
       email = string account.Email
       data = {|
          firstName = account.FirstName
          amount = $"${evt.Data.Amount}"
          origin = evt.Data.Origin
       |}
+     *)
+      email = ""
+      data = {| |}
      }
    | ApplicationErrorRequiresSupport errMsg -> {
       event = "application-error-requires-support"

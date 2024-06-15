@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="Events.fs" />
+    <Compile Include="Commands.fs" />
+    <Compile Include="Messages.fs" />
+    <Compile Include="Employee.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Validus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lib.SharedClientServer/Lib.SharedClientServer.fsproj" />
+  </ItemGroup>
+</Project>

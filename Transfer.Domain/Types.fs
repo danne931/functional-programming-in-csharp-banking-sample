@@ -16,14 +16,11 @@ type RecipientRegistrationStatus =
    | Closed
 
 type InternalTransferRecipient = {
-   LastName: string
-   FirstName: string
+   Name: string
    Nickname: string option
    AccountId: AccountId
    Status: RecipientRegistrationStatus
-} with
-
-   member x.Name = $"{x.FirstName} {x.LastName}"
+}
 
 type InternalTransferSender = {
    Name: string

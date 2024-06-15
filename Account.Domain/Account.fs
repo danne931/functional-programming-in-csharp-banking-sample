@@ -8,26 +8,6 @@ open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.Time
 
-let dailyDebitAccrued state (evt: BankEvent<DebitedAccount>) : decimal =
-   // When applying a new event to the cached Account & the
-   // last debit event did not occur today...
-   // -> Ignore the cached DailyDebitAccrued
-   let accrued =
-      if
-         state.LastDebitDate.IsSome
-         && DateTime.isToday state.LastDebitDate.Value
-      then
-         state.DailyDebitAccrued
-      else
-         0m
-
-   // When accumulating events into Account aggregate...
-   // -> Ignore debits older than a day
-   if DateTime.isToday evt.Data.Date then
-      accrued + evt.Data.Amount
-   else
-      accrued
-
 module TransferLimits =
    let DailyInternalLimit = 999_999_999m
    let DailyDomesticLimit = 100_000m
@@ -91,17 +71,13 @@ let applyEvent (state: Account) (evt: AccountEvent) =
          AccountNumber = e.Data.AccountNumber
          RoutingNumber = e.Data.RoutingNumber
          OrgId = e.OrgId
-         Email = e.Data.Email
-         FirstName = e.Data.FirstName
-         LastName = e.Data.LastName
+         Name = e.Data.Name
+         Depository = AccountDepository.Checking
          Currency = e.Data.Currency
          Balance = e.Data.Balance
          Status = AccountStatus.Active
-         DailyDebitLimit = 2000m
-         DailyDebitAccrued = 0m
          DailyInternalTransferAccrued = 0m
          DailyDomesticTransferAccrued = 0m
-         LastDebitDate = None
          LastInternalTransferDate = None
          LastDomesticTransferDate = None
          LastBillingCycleDate = None
@@ -116,7 +92,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             DailyBalanceThreshold = false
          }
          Events = []
-         CardLocked = false
         }
       | AccountEvent.AccountClosed _ -> {
          state with
@@ -136,8 +111,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
          {
             state with
                Balance = balance
-               DailyDebitAccrued = dailyDebitAccrued state e
-               LastDebitDate = Some e.Data.Date
                MaintenanceFeeCriteria =
                   MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
          }
@@ -153,12 +126,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
          state with
             MaintenanceFeeCriteria = MaintenanceFee.reset state.Balance
         }
-      | DailyDebitLimitUpdated e -> {
-         state with
-            DailyDebitLimit = e.Data.DebitLimit
-        }
-      | LockedCard _ -> { state with CardLocked = true }
-      | UnlockedCard _ -> { state with CardLocked = false }
       | DomesticTransferPending e ->
          let info = e.Data.BaseInfo
          let balance = state.Balance - info.Amount
@@ -408,8 +375,8 @@ let applyEvent (state: Account) (evt: AccountEvent) =
    }
 
 module private StateTransition =
-   let transitionErr (err: StateTransitionError) =
-      Error <| StateTransitionError err
+   let transitionErr (err: AccountStateTransitionError) =
+      Error <| AccountStateTransitionError err
 
    let map
       (eventTransform: BankEvent<'t> -> AccountEvent)
@@ -440,38 +407,13 @@ module private StateTransition =
       else
          map DepositedCash state (DepositCashCommand.toEvent cmd)
 
-   let limitDailyDebits (state: Account) (cmd: LimitDailyDebitsCommand) =
-      if state.Status <> AccountStatus.Active then
-         transitionErr AccountNotActive
-      else
-         map DailyDebitLimitUpdated state (LimitDailyDebitsCommand.toEvent cmd)
-
-   let lockCard (state: Account) (cmd: LockCardCommand) =
-      if state.Status <> AccountStatus.Active then
-         transitionErr AccountNotActive
-      else
-         map LockedCard state (LockCardCommand.toEvent cmd)
-
-   let unlockCard (state: Account) (cmd: UnlockCardCommand) =
-      if state.Status <> AccountStatus.Active then
-         transitionErr AccountNotActive
-      else
-         map UnlockedCard state (UnlockCardCommand.toEvent cmd)
-
    let debit (state: Account) (cmd: DebitCommand) =
       let input = cmd.Data
 
-      if state.CardLocked then
-         transitionErr AccountCardLocked
-      elif state.Status <> AccountStatus.Active then
+      if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       elif state.Balance - input.Amount < 0m then
          transitionErr <| InsufficientBalance state.Balance
-      elif
-         DateTime.isToday input.Date
-         && state.DailyDebitAccrued + input.Amount > state.DailyDebitLimit
-      then
-         transitionErr <| ExceededDailyDebit state.DailyDebitLimit
       else
          map DebitedAccount state (DebitCommand.toEvent cmd)
 
@@ -757,9 +699,6 @@ let stateTransition (state: Account) (command: AccountCommand) =
    | Debit cmd -> StateTransition.debit state cmd
    | MaintenanceFee cmd -> StateTransition.maintenanceFee state cmd
    | SkipMaintenanceFee cmd -> StateTransition.skipMaintenanceFee state cmd
-   | LimitDailyDebits cmd -> StateTransition.limitDailyDebits state cmd
-   | LockCard cmd -> StateTransition.lockCard state cmd
-   | UnlockCard cmd -> StateTransition.unlockCard state cmd
    | InternalTransfer cmd -> StateTransition.internalTransfer state cmd
    | ApproveInternalTransfer cmd ->
       StateTransition.approveInternalTransfer state cmd
@@ -786,20 +725,16 @@ let stateTransition (state: Account) (command: AccountCommand) =
    | NicknameRecipient cmd -> StateTransition.nicknameRecipient state cmd
    | CloseAccount cmd -> StateTransition.closeAccount state cmd
 
-let empty = {
+let empty: Account = {
    AccountId = AccountId System.Guid.Empty
    OrgId = OrgId System.Guid.Empty
-   Email = Email.empty
-   FirstName = ""
-   LastName = ""
+   Name = ""
+   Depository = AccountDepository.Checking
    Currency = Currency.USD
    Status = AccountStatus.Pending
    Balance = 0m
-   DailyDebitLimit = 2000m
-   DailyDebitAccrued = 0m
    DailyInternalTransferAccrued = 0m
    DailyDomesticTransferAccrued = 0m
-   LastDebitDate = None
    LastInternalTransferDate = None
    LastDomesticTransferDate = None
    LastBillingCycleDate = None
@@ -814,7 +749,6 @@ let empty = {
       DailyBalanceThreshold = false
    }
    Events = []
-   CardLocked = false
    AccountNumber = AccountNumber <| System.Int64.Parse "123456789123456"
    RoutingNumber = RoutingNumber 123456789
 }

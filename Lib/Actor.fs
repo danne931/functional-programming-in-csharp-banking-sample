@@ -69,15 +69,22 @@ module ClusterMetadata =
          messageExtractor Env.config.AccountCluster.NumberOfShards
    }
 
+   let employeeShardRegion = {
+      name = "employee"
+      messageExtractor =
+         messageExtractor Env.config.AccountCluster.NumberOfShards
+   }
+
    let roles = {|
       web = "web-role"
       account = "account-role"
       signalR = "signal-r-role"
       scheduling = "scheduling-role"
+      employee = "employee-role"
    |}
 
 module ActorMetadata =
-   type ReadModelSyncMarker() = class end
+   type AccountReadModelSyncMarker() = class end
 
    type CircuitBreakerMarker() = class end
 
@@ -102,6 +109,10 @@ module ActorMetadata =
    type AccountMarker() = class end
 
    type SchedulingMarker() = class end
+
+   type EmployeeMarker() = class end
+
+   type EmployeeReadModelSyncMarker() = class end
 
    type ActorMetadata = {
       Name: string
@@ -130,9 +141,19 @@ module ActorMetadata =
       Route = "account-closure"
    }
 
-   let accountEventConsumer = {
-      Name = "account-event-consumer"
-      Route = "account-event-consumer"
+   let accountReadModelSync = {
+      Name = "account-read-model-sync"
+      Route = "account-read-model-sync"
+   }
+
+   let employee = {
+      Name = "employee"
+      Route = "employee"
+   }
+
+   let employeeReadModelSync = {
+      Name = "employee-read-model-sync"
+      Route = "employee-read-model-sync"
    }
 
    let internalTransfer = {

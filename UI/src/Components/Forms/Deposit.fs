@@ -32,10 +32,16 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
             Amount = amount
             Origin = Some "ATM"
          }
+         |> AccountCommand.DepositCash
+         |> FormCommand.Account
 
-      Msg.Submit(AccountCommand.DepositCash command, Started)
+      Msg.Submit(command, Started)
 
    Form.succeed onSubmit |> Form.append amountField
 
 let DepositFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   FormContainer account { Amount = "" } (form account) onSubmit
+   FormContainer
+      (FormDomain.Account account)
+      { Amount = "" }
+      (form account)
+      onSubmit

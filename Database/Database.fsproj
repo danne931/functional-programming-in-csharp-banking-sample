@@ -12,6 +12,8 @@
     <Compile Include="TransactionSqlMapper.fs" />
     <Compile Include="AncillaryTransactionInfoSqlMapper.fs" /> 
     <Compile Include="BillingSqlMapper.fs" />
+    <Compile Include="EmployeeSqlMapper.fs" />
+    <Compile Include="EmployeeEventSqlMapper.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,5 +27,6 @@
     <ProjectReference Include="../Lib/Lib.fsproj" />
     <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Employee.Domain/Employee.Domain.fsproj" />
   </ItemGroup>
 </Project>

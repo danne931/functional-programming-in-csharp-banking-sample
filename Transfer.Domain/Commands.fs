@@ -80,11 +80,7 @@ module DepositTransferCommand =
       =
       BankEvent.create<TransferDeposited> cmd |> Ok
 
-type InternalTransferRecipientInput = {
-   LastName: string
-   FirstName: string
-   AccountId: AccountId
-}
+type InternalTransferRecipientInput = { Name: string; AccountId: AccountId }
 
 type RegisterInternalTransferRecipientCommand =
    Command<InternalTransferRecipientInput>
@@ -106,8 +102,7 @@ module RegisterInternalTransferRecipientCommand =
             (string cmd.EntityId)
             (string cmd.Data.AccountId)
 
-      and! _ = firstNameValidator cmd.Data.FirstName
-      and! _ = lastNameValidator cmd.Data.LastName
+      and! _ = accountNameValidator cmd.Data.Name
 
       return
          BankEvent.create2<
@@ -117,8 +112,7 @@ module RegisterInternalTransferRecipientCommand =
             cmd
             {
                Recipient = {
-                  LastName = cmd.Data.LastName
-                  FirstName = cmd.Data.FirstName
+                  Name = cmd.Data.Name
                   Nickname = None
                   AccountId = cmd.Data.AccountId
                   Status = RecipientRegistrationStatus.Confirmed

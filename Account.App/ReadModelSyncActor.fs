@@ -3,7 +3,6 @@ module ReadModelSyncActor
 
 open System
 open System.Threading.Tasks
-open Akka.Hosting
 open Akka.Actor
 open Akka.Persistence
 open Akka.Streams
@@ -217,18 +216,11 @@ let upsertReadModels
          "accountNumber", AccountSqlWriter.accountNumber account.AccountNumber
          "routingNumber", AccountSqlWriter.routingNumber account.RoutingNumber
          "orgId", AccountSqlWriter.orgId account.OrgId
-         "email", AccountSqlWriter.email account.Email
-         "firstName", AccountSqlWriter.firstName account.FirstName
-         "lastName", AccountSqlWriter.lastName account.LastName
+         "name", AccountSqlWriter.name account.Name
+         "depository", AccountSqlWriter.depository account.Depository
          "balance", AccountSqlWriter.balance account.Balance
          "currency", AccountSqlWriter.currency account.Currency
          "status", AccountSqlWriter.status account.Status
-
-         "dailyDebitLimit",
-         AccountSqlWriter.dailyDebitLimit account.DailyDebitLimit
-
-         "dailyDebitAccrued",
-         AccountSqlWriter.dailyDebitAccrued account.DailyDebitAccrued
 
          "dailyInternalTransferAccrued",
          AccountSqlWriter.dailyInternalTransferAccrued
@@ -237,8 +229,6 @@ let upsertReadModels
          "dailyDomesticTransferAccrued",
          AccountSqlWriter.dailyDomesticTransferAccrued
             account.DailyDomesticTransferAccrued
-
-         "lastDebitDate", AccountSqlWriter.lastDebitDate account.LastDebitDate
 
          "lastInternalTransferDate",
          AccountSqlWriter.lastInternalTransferDate
@@ -293,8 +283,6 @@ let upsertReadModels
 
          "failedDomesticTransfersCount",
          AccountSqlWriter.transfersCount account.FailedDomesticTransfers.Count
-
-         "cardLocked", AccountSqlWriter.cardLocked account.CardLocked
       ])
 
    let transactionSqlParams =
@@ -320,32 +308,31 @@ let upsertReadModels
             "event", TransactionSqlWriter.event evt
          ]
 
-         let amountOpt, moneyFlow =
+         let amountOpt, moneyFlowOpt =
             match evt with
-            | AccountEvent.CreatedAccount evt ->
-               Some evt.Data.Balance, MoneyFlow.In
+            | AccountEvent.CreatedAccount evt -> Some evt.Data.Balance, None
             | AccountEvent.DepositedCash evt ->
-               Some evt.Data.Amount, MoneyFlow.In
+               Some evt.Data.Amount, Some MoneyFlow.In
             | AccountEvent.DebitedAccount evt ->
-               Some evt.Data.Amount, MoneyFlow.Out
+               Some evt.Data.Amount, Some MoneyFlow.Out
             | AccountEvent.InternalTransferPending evt ->
-               Some evt.Data.Amount, MoneyFlow.Out
+               Some evt.Data.Amount, Some MoneyFlow.Out
             | AccountEvent.InternalTransferRejected evt ->
-               Some evt.Data.Amount, MoneyFlow.In
+               Some evt.Data.Amount, Some MoneyFlow.In
             | AccountEvent.TransferDeposited evt ->
-               Some evt.Data.Amount, MoneyFlow.In
+               Some evt.Data.Amount, Some MoneyFlow.In
             | AccountEvent.DomesticTransferPending evt ->
-               Some evt.Data.BaseInfo.Amount, MoneyFlow.Out
+               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.Out
             | AccountEvent.DomesticTransferRejected evt ->
-               Some evt.Data.BaseInfo.Amount, MoneyFlow.In
+               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.In
             | AccountEvent.MaintenanceFeeDebited evt ->
-               Some evt.Data.Amount, MoneyFlow.Out
-            | _ -> None, MoneyFlow.None
+               Some evt.Data.Amount, Some MoneyFlow.Out
+            | _ -> None, None
 
          sqlParams
          @ [
             ("amount", TransactionSqlWriter.amount amountOpt)
-            ("moneyFlow", TransactionSqlWriter.moneyFlow moneyFlow)
+            ("moneyFlow", TransactionSqlWriter.moneyFlow moneyFlowOpt)
          ])
 
    pgTransaction [
@@ -355,17 +342,13 @@ let upsertReadModels
           {AccountFields.accountNumber},
           {AccountFields.routingNumber},
           {AccountFields.orgId},
-          {AccountFields.email},
-          {AccountFields.firstName},
-          {AccountFields.lastName},
+          {AccountFields.name},
+          {AccountFields.depository},
           {AccountFields.balance},
           {AccountFields.currency},
           {AccountFields.status},
-          {AccountFields.dailyDebitLimit},
-          {AccountFields.dailyDebitAccrued},
           {AccountFields.dailyInternalTransferAccrued},
           {AccountFields.dailyDomesticTransferAccrued},
-          {AccountFields.lastDebitDate},
           {AccountFields.lastInternalTransferDate},
           {AccountFields.lastDomesticTransferDate},
           {AccountFields.lastBillingCycleDate},
@@ -380,24 +363,19 @@ let upsertReadModels
           {AccountFields.inProgressDomesticTransfers},
           {AccountFields.inProgressDomesticTransfersCount},
           {AccountFields.failedDomesticTransfers},
-          {AccountFields.failedDomesticTransfersCount},
-          {AccountFields.cardLocked})
+          {AccountFields.failedDomesticTransfersCount})
       VALUES
          (@id,
           @accountNumber,
           @routingNumber,
           @orgId,
-          @email,
-          @firstName,
-          @lastName,
+          @name,
+          @depository::{AccountTypeCast.depository},
           @balance,
           @currency,
-          @status,
-          @dailyDebitLimit,
-          @dailyDebitAccrued,
+          @status::{AccountTypeCast.status},
           @dailyInternalTransferAccrued,
           @dailyDomesticTransferAccrued,
-          @lastDebitDate,
           @lastInternalTransferDate,
           @lastDomesticTransferDate,
           @lastBillingCycleDate,
@@ -412,17 +390,13 @@ let upsertReadModels
           @inProgressDomesticTransfers,
           @inProgressDomesticTransfersCount,
           @failedDomesticTransfers,
-          @failedDomesticTransfersCount,
-          @cardLocked)
+          @failedDomesticTransfersCount)
       ON CONFLICT ({AccountFields.accountId})
       DO UPDATE SET
          {AccountFields.balance} = @balance,
-         {AccountFields.status} = @status,
-         {AccountFields.dailyDebitLimit} = @dailyDebitLimit,
-         {AccountFields.dailyDebitAccrued} = @dailyDebitAccrued,
+         {AccountFields.status} = @status::{AccountTypeCast.status},
          {AccountFields.dailyInternalTransferAccrued} = @dailyInternalTransferAccrued,
          {AccountFields.dailyDomesticTransferAccrued} = @dailyDomesticTransferAccrued,
-         {AccountFields.lastDebitDate} = @lastDebitDate,
          {AccountFields.lastInternalTransferDate} = @lastInternalTransferDate,
          {AccountFields.lastDomesticTransferDate} = @lastDomesticTransferDate,
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
@@ -437,8 +411,7 @@ let upsertReadModels
          {AccountFields.inProgressDomesticTransfers} = @inProgressDomesticTransfers,
          {AccountFields.inProgressDomesticTransfersCount} = @inProgressDomesticTransfersCount,
          {AccountFields.failedDomesticTransfers} = @failedDomesticTransfers,
-         {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount,
-         {AccountFields.cardLocked} = @cardLocked;
+         {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount;
       """,
       accountSqlParams
 
@@ -481,6 +454,3 @@ let initProps
       restartSettings
       retryPersistenceAfter
       upsertReadModels
-
-let get (system: ActorSystem) : IActorRef<AccountClosureMessage> =
-   typed <| ActorRegistry.For(system).Get<ActorMetadata.AccountClosureMarker>()

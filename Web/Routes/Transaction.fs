@@ -37,6 +37,12 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
            ([<FromQuery>] amountMin: Nullable<decimal>)
            ([<FromQuery>] amountMax: Nullable<decimal>)
            ([<FromQuery>] date: string) ->
+         let moneyFlowOpt =
+            if not <| String.IsNullOrWhiteSpace moneyFlow then
+               MoneyFlow.fromString moneyFlow
+            else
+               None
+
          let dateOpt =
             if not <| String.IsNullOrWhiteSpace date then
                TransactionQuery.dateRangeFromQueryString date
@@ -65,7 +71,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
             AccountId = AccountId id
             Diagnostic = diagnostic
             Page = page
-            MoneyFlow = MoneyFlow.fromString moneyFlow
+            MoneyFlow = moneyFlowOpt
             Category = categoryOpt
             Amount = amountOpt
             DateRange = dateOpt

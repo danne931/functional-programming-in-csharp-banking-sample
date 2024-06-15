@@ -9,10 +9,6 @@ module AccountPath =
    let accountAndTransactions (id: AccountId) = $"{account id}/transactions"
    let AccountAndTransactions = Account + "/transactions"
    let Deposit = Base + "/deposit"
-   let Debit = Base + "/debit"
-   let DailyDebitLimit = Base + "/daily-debit-limit"
-   let LockCard = Base + "/lock"
-   let UnlockCard = Base + "/unlock"
    let CloseAccount = Base + "/close-account"
    let BillingStatement = Base + "/billing-statement/{accountId}/{page}"
 
@@ -44,9 +40,7 @@ module TransactionPath =
 
    let TransactionInfo = Base + "/transaction/{txnId}"
 
-   let transactionInfo (txnId: EventId) =
-      let (EventId id) = txnId
-      $"{Base}/transaction/{id}"
+   let transactionInfo (id: EventId) = $"{Base}/transaction/{id}"
 
    let Category = TransactionInfo + "/category/{categoryId}"
    let CategoryDelete = TransactionInfo + "/category"
@@ -58,5 +52,11 @@ module TransactionPath =
    let Note = TransactionInfo + "/note"
    let note (txnId: EventId) = transactionInfo txnId + "/note"
 
-module UserPath =
-   let Base = "/users"
+module EmployeePath =
+   let Base = "/employees"
+   let Get = Base + "/{orgId}"
+   let get (orgId: OrgId) = $"{Base}/{orgId}"
+   let Debit = Base + "/debit"
+   let DailyDebitLimit = Base + "/daily-debit-limit"
+   let LockCard = Base + "/lock"
+   let UnlockCard = Base + "/unlock"

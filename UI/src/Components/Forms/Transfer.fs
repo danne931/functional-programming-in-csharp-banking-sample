@@ -96,8 +96,10 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                RecipientId = recipient.AccountId
                Memo = memo
             }
+            |> AccountCommand.InternalTransfer
+            |> FormCommand.Account
 
-         Msg.Submit(AccountCommand.InternalTransfer cmd, Started))
+         Msg.Submit(cmd, Started))
       |> Option.defaultWith (fun () ->
          let recipient = Map.find selectedId account.DomesticTransferRecipients
 
@@ -115,8 +117,10 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                Recipient = recipient
                Memo = memo
             }
+            |> AccountCommand.DomesticTransfer
+            |> FormCommand.Account
 
-         Msg.Submit(AccountCommand.DomesticTransfer cmd, Started))
+         Msg.Submit(cmd, Started))
 
    Form.succeed onSubmit
    |> Form.append selectField
@@ -125,7 +129,7 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
 let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
    FormContainer
-      account
+      (FormDomain.Account account)
       {
          Amount = ""
          RecipientId = ""

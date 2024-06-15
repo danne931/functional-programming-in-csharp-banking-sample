@@ -17,5 +17,6 @@
     <ProjectReference Include="../Lib/Lib.fsproj" />
     <ProjectReference Include="../Transfer.Domain/Transfer.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />
+    <ProjectReference Include="../Employee.Domain/Employee.Domain.fsproj" /> 
   </ItemGroup>
 </Project>

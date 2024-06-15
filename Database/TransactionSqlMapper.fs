@@ -38,8 +38,8 @@ module TransactionSqlReader =
    let amount (read: RowReader) = read.decimal TransactionFields.amount
 
    let moneyFlow (read: RowReader) =
-      read.string TransactionFields.moneyFlow
-      |> Serialization.deserializeUnsafe<MoneyFlow>
+      read.stringOrNone TransactionFields.moneyFlow
+      |> Option.map MoneyFlow.fromString
 
    let timestamp (read: RowReader) =
       read.dateTime TransactionFields.timestamp
@@ -62,8 +62,8 @@ module TransactionSqlWriter =
    let name = Sql.text
    let amount = Sql.moneyOrNone
 
-   let moneyFlow (direction: MoneyFlow) =
-      direction |> string |> _.ToLower() |> Sql.string
+   let moneyFlow (direction: MoneyFlow option) =
+      direction |> Option.map (string >> _.ToLower()) |> Sql.stringOrNone
 
    let timestamp (date: DateTime) = Sql.timestamptz date
 

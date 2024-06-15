@@ -358,13 +358,15 @@ let renderTableRow
          Html.td [
             attr.classes [
                match txn.MoneyFlow with
-               | MoneyFlow.None -> ""
-               | MoneyFlow.In -> "credit"
-               | MoneyFlow.Out -> "debit"
+               | None -> ""
+               | Some MoneyFlow.In -> "credit"
+               | Some MoneyFlow.Out -> "debit"
             ]
 
             attr.text (txn.Amount |> orDefaultValue)
          ]
+
+         // TODO: Collapse name, origin, & info columns into 1 descriptive info column
 
          Html.td txn.Name
 

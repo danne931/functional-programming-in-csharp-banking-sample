@@ -6,28 +6,25 @@ open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open AsyncUtil
 open Lib.Validators
+open Lib.SharedTypes
 open FormContainer
 
 type Values = { Amount: string; Origin: string }
 
-let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
+let form
+   (account: Account)
+   (employee: Employee)
+   (selectedCardId: CardId)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
    let amountField =
       Form.textField {
          Parser =
             amountValidatorFromString "Debit amount"
             >> validationErrorsHumanFriendly
-            >> Result.bind (fun amt ->
-               if account.Balance - amt < 0m then
-                  Error $"Insufficient Balance ${account.Balance}"
-               elif
-                  account.DailyDebitAccrued + amt > account.DailyDebitLimit
-               then
-                  Error
-                     $"Exceeded Daily Debit Limit ${account.DailyDebitLimit}"
-               else
-                  Ok amt)
          Value = fun (values: Values) -> values.Amount
          Update = fun newValue values -> { values with Amount = newValue }
          Error = fun _ -> None
@@ -53,16 +50,29 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount origin =
       let cmd =
-         DebitCommand.create account.CompositeId {
+         DebitRequestCommand.create employee.CompositeId {
+            CardId = selectedCardId
+            AccountId = account.AccountId
             Amount = amount
             Origin = origin
             Reference = None
             Date = DateTime.UtcNow
          }
+         |> EmployeeCommand.DebitRequest
+         |> FormCommand.Employee
 
-      Msg.Submit(AccountCommand.Debit cmd, Started)
+      Msg.Submit(cmd, Started)
 
    Form.succeed onSubmit |> Form.append amountField |> Form.append originField
 
-let DebitFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   FormContainer account { Amount = ""; Origin = "" } (form account) onSubmit
+let DebitFormComponent
+   (onSubmit: ParentOnSubmitHandler)
+   (account: Account)
+   (selectedCardId: CardId)
+   (employee: Employee)
+   =
+   FormContainer
+      (FormDomain.Employee employee)
+      { Amount = ""; Origin = "" }
+      (form account employee selectedCardId)
+      onSubmit

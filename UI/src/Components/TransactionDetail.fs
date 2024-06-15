@@ -63,7 +63,7 @@ type Msg =
       recipientId: AccountId *
       RecipientAccountEnvironment *
       nickname: string option *
-      AsyncOperationStatus<Result<EventId, Err>>
+      AsyncOperationStatus<Result<CommandProcessingResponse, Err>>
    | SaveMerchantNickname of Merchant * AsyncOperationStatus<Result<int, Err>>
    | EditTransferRecipient of senderId: AccountId * recipientId: AccountId
 

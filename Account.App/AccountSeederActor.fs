@@ -18,6 +18,7 @@ open OrganizationSqlMapper
 open Bank.Account.Api
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.Employee.Domain
 open ActorUtil
 
 type Status =
@@ -50,6 +51,27 @@ let createOrg () =
       "name", OrgSqlWriter.name "test-org"
    ]
 
+let mockEmployees =
+   let withModifiedTimestamp (command: CreateEmployeeCommand) = {
+      command with
+         Timestamp = command.Timestamp.AddMonths -1
+   }
+
+   let cmd1 =
+      CreateEmployeeCommand.create {
+         EmployeeId =
+            "ec3e94cc-eba1-4ff4-b3dc-55010ecf69b1" |> Guid.Parse |> EmployeeId
+         Email = "jellyfish@gmail.com"
+         FirstName = "jelly"
+         LastName = "fish"
+         OrgId = orgId
+         Role = EmployeeRole.Admin
+      }
+      |> withModifiedTimestamp
+
+   Map [ cmd1.Data.EmployeeId, cmd1 ]
+
+
 let mockAccounts =
    let withModifiedTimestamp (command: CreateAccountCommand) = {
       command with
@@ -58,9 +80,7 @@ let mockAccounts =
 
    let cmd1 =
       CreateAccountCommand.create {
-         FirstName = "Jelly"
-         LastName = "Fish"
-         Email = "jellyfish@gmail.com"
+         Name = "AR"
          Currency = Currency.USD
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
@@ -70,9 +90,7 @@ let mockAccounts =
 
    let cmd2 =
       CreateAccountCommand.create {
-         FirstName = "Star"
-         LastName = "Fish"
-         Email = "starfish@gmail.com"
+         Name = "AP"
          Currency = Currency.USD
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
@@ -82,9 +100,7 @@ let mockAccounts =
 
    let cmd3 =
       CreateAccountCommand.create {
-         FirstName = "Rainbow"
-         LastName = "Trout"
-         Email = "rainbowtrout@gmail.com"
+         Name = "Operations"
          Currency = Currency.USD
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
@@ -102,12 +118,13 @@ let mockAccounts =
 
 let seedAccountTransactions
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    (command: CreateAccountCommand)
    =
    task {
       let accountId = command.Data.AccountId
       let compositeId = accountId, command.OrgId
-      let aref = getAccountRef accountId
+      let accountRef = getAccountRef accountId
 
       let rnd = new Random()
 
@@ -124,16 +141,20 @@ let seedAccountTransactions
 
       let timestamp = command.Timestamp.AddDays(rnd.Next(1, 3))
 
-      let command = {
-         DepositCashCommand.create compositeId {
-            Amount = 1500m + randomAmount ()
-            Origin = None
-         } with
-            Timestamp = timestamp
-      }
+      let msg =
+         {
+            DepositCashCommand.create compositeId {
+               Amount = 1500m + randomAmount ()
+               Origin = None
+            } with
+               Timestamp = timestamp
+         }
+         |> AccountCommand.DepositCash
+         |> AccountMessage.StateChange
 
-      aref <! (StateChange << DepositCash) command
+      accountRef <! msg
 
+      (*
       for num in [ 1..3 ] do
          let timestamp = timestamp.AddDays((double num) * 2.3)
 
@@ -148,68 +169,94 @@ let seedAccountTransactions
          }
 
          aref <! (StateChange << Debit) command
+      *)
 
-      let command =
+      let msg =
          StartBillingCycleCommand.create compositeId { Reference = None }
+         |> AccountCommand.StartBillingCycle
+         |> AccountMessage.StateChange
 
-      aref <! (StateChange << StartBillingCycle) command
+      accountRef <! msg
 
       do! Task.Delay 1300
 
-      for num in [ 1..7 ] do
-         let command =
-            DebitCommand.create compositeId {
-               Date = DateTime.UtcNow
-               Amount = randomAmount ()
-               Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
-               Reference = None
+      if accountId = Seq.head mockAccounts.Keys then
+         let employeeCreateCmd = mockEmployees.Head().Value
+         let employeeId = employeeCreateCmd.Data.EmployeeId
+         let employeeRef = getEmployeeRef employeeId
+
+         let createCardCmd =
+            CreateCardCommand.create {
+               CardId = Guid.NewGuid() |> CardId
+               EmployeeId = employeeId
+               OrgId = orgId
+               AccountId = accountId
+               PersonName =
+                  $"{employeeCreateCmd.Data.FirstName} {employeeCreateCmd.Data.LastName}"
+               CardNickname = Some "Lunch"
+               Virtual = true
             }
 
-         aref <! (StateChange << Debit) command
+         let msg =
+            createCardCmd
+            |> EmployeeCommand.CreateCard
+            |> EmployeeMessage.StateChange
 
-         if num = 2 || num = 5 then
-            let command =
-               DepositCashCommand.create compositeId {
+         employeeRef <! msg
+
+         for num in [ 1..7 ] do
+            let msg =
+               DebitRequestCommand.create (employeeId, orgId) {
+                  AccountId = accountId
+                  CardId = createCardCmd.Data.CardId
+                  Date = DateTime.UtcNow
                   Amount = randomAmount ()
-                  Origin = None
+                  Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
+                  Reference = None
                }
+               |> EmployeeCommand.DebitRequest
+               |> EmployeeMessage.StateChange
 
-            aref <! (StateChange << DepositCash) command
+            employeeRef <! msg
 
-      if
-         (AccountId.fromEntityId command.EntityId) = Seq.head mockAccounts.Keys
-      then
-         let lockCmd = LockCardCommand.create compositeId { Reference = None }
-         aref <! (StateChange << LockCard) lockCmd
+            if num = 2 || num = 5 then
+               let msg =
+                  DepositCashCommand.create compositeId {
+                     Amount = randomAmount ()
+                     Origin = None
+                  }
+                  |> AccountCommand.DepositCash
+                  |> AccountMessage.StateChange
 
-         let unlockCmd =
-            UnlockCardCommand.create compositeId { Reference = None }
-
-         aref <! (StateChange << UnlockCard) unlockCmd
+               accountRef <! msg
 
          for num in [ 1..2 ] do
             let createAccountCmd = mockAccounts.Values |> Seq.item num
 
-            let registerRecipientCmd =
+            let internalRecipientCmd =
                RegisterInternalTransferRecipientCommand.create compositeId {
                   AccountId = createAccountCmd.Data.AccountId
-                  LastName = createAccountCmd.Data.LastName
-                  FirstName = createAccountCmd.Data.FirstName
+                  Name = createAccountCmd.Data.Name
                }
 
-            aref
-            <! (StateChange << RegisterInternalTransferRecipient)
-                  registerRecipientCmd
+            let msg =
+               internalRecipientCmd
+               |> AccountCommand.RegisterInternalTransferRecipient
+               |> AccountMessage.StateChange
 
-            let transferCmd =
+            accountRef <! msg
+
+            let msg =
                InternalTransferCommand.create compositeId {
-                  RecipientId = registerRecipientCmd.Data.AccountId
+                  RecipientId = internalRecipientCmd.Data.AccountId
                   Amount = randomAmount ()
                   ScheduledDate = DateTime.UtcNow
                   Memo = None
                }
+               |> AccountCommand.InternalTransfer
+               |> AccountMessage.StateChange
 
-            aref <! (StateChange << InternalTransfer) transferCmd
+            accountRef <! msg
    }
 
 // Creates a new Map consisting of initial state of accounts to create
@@ -261,7 +308,10 @@ let private initState = {
       Map [ for acctId in mockAccounts.Keys -> acctId, true ]
 }
 
-let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
+let actorProps
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   =
    let handler (ctx: Actor<AccountSeederMessage>) =
       let logInfo = logInfo ctx
 
@@ -303,8 +353,29 @@ let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
                            state.AccountsToCreate
 
                      for command in remaining.Values do
-                        let aref = getAccountRef command.Data.AccountId
-                        aref <! (StateChange << CreateAccount) command
+                        if
+                           command.Data.AccountId = Seq.head mockAccounts.Keys
+                        then
+                           let employeeCmd = mockEmployees.Head().Value
+
+                           let msg =
+                              employeeCmd
+                              |> EmployeeCommand.CreateEmployee
+                              |> EmployeeMessage.StateChange
+
+                           let employeeRef =
+                              getEmployeeRef employeeCmd.Data.EmployeeId
+
+                           employeeRef <! msg
+
+                        let accountRef = getAccountRef command.Data.AccountId
+
+                        let msg =
+                           command
+                           |> AccountCommand.CreateAccount
+                           |> AccountMessage.StateChange
+
+                        accountRef <! msg
 
                      scheduleVerification ctx 5.
 
@@ -325,6 +396,7 @@ let actorProps (getAccountRef: AccountId -> IEntityRef<AccountMessage>) =
                do!
                   seedAccountTransactions
                      getAccountRef
+                     getEmployeeRef
                      state.AccountsToCreate[acct.AccountId]
 
                ()

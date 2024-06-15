@@ -12,10 +12,12 @@
     <Compile Include="Lib/FelizExtensions.fs" />
     <Compile Include="Lib/Util.fs" />
     <Compile Include="Lib/AccountDomain.fs" />
+    <Compile Include="Lib/EmployeeDomain.fs" />
     <Compile Include="Lib/Form.fs" />
     <Compile Include="Services/Diagnostics.fs" />
     <Compile Include="Services/Transaction.fs" />
     <Compile Include="Services/Account.fs" />
+    <Compile Include="Services/Employee.fs" />
     <Compile Include="Context/SignalRConnectionProvider.fs" />
     <Compile Include="Context/TransactionCategoryProvider.fs" />
     <Compile Include="Context/MerchantProvider.fs" />
@@ -29,6 +31,7 @@
     <Compile Include="Components/Forms/Deposit.fs" />
     <Compile Include="Components/Pagination.fs" />
     <Compile Include="Components/CloseButton.fs" />
+    <Compile Include="Components/EmployeeCardSelectSearch.fs" />
     <Compile Include="Components/ServiceHealth.fs" />
     <Compile Include="Components/AccountSelection.fs" />
     <Compile Include="Components/Navigation.fs" />
@@ -65,6 +68,7 @@
      <ProjectReference Include="../../Transfer.Domain/Transfer.Domain.fsproj" />
      <ProjectReference Include="../../Billing.Domain/Billing.Domain.fsproj" />
      <ProjectReference Include="../../Account.Domain/Account.Domain.fsproj" />
+     <ProjectReference Include="../../Employee.Domain/Employee.Domain.fsproj" />
   </ItemGroup>
 
 </Project>

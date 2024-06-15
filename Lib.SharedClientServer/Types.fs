@@ -45,6 +45,20 @@ type AccountId =
       let (AccountId id) = x
       string id
 
+type EmployeeId =
+   | EmployeeId of Guid
+
+   override x.ToString() =
+      let (EmployeeId id) = x
+      string id
+
+type CardId =
+   | CardId of Guid
+
+   override x.ToString() =
+      let (CardId id) = x
+      string id
+
 module AccountId =
    let get (accountId: AccountId) : Guid =
       let (AccountId id) = accountId
@@ -57,6 +71,19 @@ module AccountId =
    let fromEntityId (entityId: EntityId) : AccountId =
       let (EntityId id) = entityId
       AccountId id
+
+module EmployeeId =
+   let get (employeeId: EmployeeId) : Guid =
+      let (EmployeeId id) = employeeId
+      id
+
+   let toEntityId (employeeId: EmployeeId) : EntityId =
+      let (EmployeeId id) = employeeId
+      EntityId id
+
+   let fromEntityId (entityId: EntityId) : EmployeeId =
+      let (EntityId id) = entityId
+      EmployeeId id
 
 module CorrelationId =
    let create () = CorrelationId <| Guid.NewGuid()
@@ -129,12 +156,10 @@ type Envelope = {
    CorrelationId: CorrelationId
 }
 
-type StateTransitionError =
+type AccountStateTransitionError =
    | AccountNotReadyToActivate
    | AccountNotActive
-   | AccountCardLocked
    | InsufficientBalance of decimal
-   | ExceededDailyDebit of decimal
    | ExceededDailyInternalTransferLimit of decimal
    | ExceededDailyDomesticTransferLimit of decimal
    | RecipientRegistrationRequired
@@ -145,10 +170,19 @@ type StateTransitionError =
    | TransferProgressNoChange
    | TransferAlreadyProgressedToApprovedOrRejected
 
+type EmployeeStateTransitionError =
+   | EmployeeNotReadyToActivate
+   | EmployeeNotActive
+   | CardNotFound
+   | CardLocked
+   | ExceededDailyDebit of limit: decimal * accrued: decimal
+   | DebitAlreadyProgressedToApprovedOrDeclined
+
 type Err =
    | DatabaseError of exn
    | ValidationError of ValidationErrors
-   | StateTransitionError of StateTransitionError
+   | AccountStateTransitionError of AccountStateTransitionError
+   | EmployeeStateTransitionError of EmployeeStateTransitionError
    | SerializationError of string
    | InvalidStatusCodeError of serviceName: string * code: int
    | SignalRError of exn
@@ -158,7 +192,8 @@ type Err =
       match x with
       | DatabaseError e -> $"DatabaseError: %s{e.Message}"
       | ValidationError e -> $"ValidationError: {ValidationErrors.toList e}"
-      | StateTransitionError e -> $"StateTransitionError: {e}"
+      | AccountStateTransitionError e -> $"AccountStateTransitionError: {e}"
+      | EmployeeStateTransitionError e -> $"EmployeeStateTransitionError: {e}"
       | InvalidStatusCodeError(service, code) ->
          $"InvalidStatusCodeError {service}: Invalid status code {code}"
       | SerializationError err -> $"SerializationError: {err}"
@@ -177,42 +212,54 @@ type Err =
          |> ValidationErrors.toList
          |> List.fold (fun acc errMsg -> acc + errMsg + ", ") ""
          |> fun str -> str.Remove(str.Length - 2)
-      | StateTransitionError e ->
+      | AccountStateTransitionError e ->
          match e with
-         | StateTransitionError.AccountNotActive -> "Account Not Active"
-         | StateTransitionError.AccountNotReadyToActivate ->
+         | AccountStateTransitionError.AccountNotActive -> "Account Not Active"
+         | AccountStateTransitionError.AccountNotReadyToActivate ->
             "Account Not Ready to Activate"
-         | StateTransitionError.AccountCardLocked -> "Account Card Locked"
-         | StateTransitionError.ExceededDailyDebit limit ->
-            $"Exceeded Daily Debit Limit ${limit}"
-         | StateTransitionError.ExceededDailyInternalTransferLimit limit ->
+         | AccountStateTransitionError.ExceededDailyInternalTransferLimit limit ->
             $"Exceeded Daily Internal Transfer Limit ${limit}"
-         | StateTransitionError.ExceededDailyDomesticTransferLimit limit ->
+         | AccountStateTransitionError.ExceededDailyDomesticTransferLimit limit ->
             $"Exceeded Daily Internal Transfer Limit ${limit}"
-         | StateTransitionError.InsufficientBalance balance ->
+         | AccountStateTransitionError.InsufficientBalance balance ->
             $"Insufficient Balance ${balance}"
-         | StateTransitionError.SenderRegistered -> "Sender Already Registered"
-         | StateTransitionError.RecipientRegistered -> "Recipient Registered"
-         | StateTransitionError.RecipientDeactivated -> "Recipient Deactivated"
-         | StateTransitionError.RecipientNotFound -> "Recipient Not Found"
-         | StateTransitionError.RecipientRegistrationRequired ->
+         | AccountStateTransitionError.SenderRegistered ->
+            "Sender Already Registered"
+         | AccountStateTransitionError.RecipientRegistered ->
+            "Recipient Registered"
+         | AccountStateTransitionError.RecipientDeactivated ->
+            "Recipient Deactivated"
+         | AccountStateTransitionError.RecipientNotFound ->
+            "Recipient Not Found"
+         | AccountStateTransitionError.RecipientRegistrationRequired ->
             "Recipient Registration Required"
-         | StateTransitionError.TransferAlreadyProgressedToApprovedOrRejected ->
+         | AccountStateTransitionError.TransferAlreadyProgressedToApprovedOrRejected ->
             "Transfer already progressed to approved or rejected"
-         | StateTransitionError.TransferProgressNoChange ->
+         | AccountStateTransitionError.TransferProgressNoChange ->
             "Transfer progress no change"
+      | EmployeeStateTransitionError e ->
+         match e with
+         | DebitAlreadyProgressedToApprovedOrDeclined ->
+            "Not found in PendingPurchases. Likely already approved or declined."
+         | EmployeeStateTransitionError.EmployeeNotActive ->
+            "Employee Not Active"
+         | EmployeeStateTransitionError.EmployeeNotReadyToActivate ->
+            "Employee Not Ready to Activate"
+         | EmployeeStateTransitionError.CardLocked -> "Card Locked"
+         | EmployeeStateTransitionError.CardNotFound -> "Card Not Found"
+         | EmployeeStateTransitionError.ExceededDailyDebit(limit, _) ->
+            $"Exceeded Daily Debit Limit ${limit}"
 
 [<RequireQualifiedAccess>]
 type MoneyFlow =
-   | None
    | In
    | Out
 
 module MoneyFlow =
    let fromString (flow: string) : MoneyFlow option =
-      match flow with
-      | "In" -> Some MoneyFlow.In
-      | "Out" -> Some MoneyFlow.Out
+      match flow.ToLower() with
+      | "in" -> Some MoneyFlow.In
+      | "out" -> Some MoneyFlow.Out
       | _ -> None
 
 [<RequireQualifiedAccess>]
@@ -292,9 +339,17 @@ type AccountNumber =
       let (AccountNumber num) = x
       string num
 
+   member x.Last4 = x |> string |> (fun str -> str.Substring(str.Length - 4))
+
 type RoutingNumber =
    | RoutingNumber of int
 
    override x.ToString() =
       let (RoutingNumber num) = x
       string num
+
+type CommandProcessingResponse = {
+   EventId: EventId
+   CorrelationId: CorrelationId
+   EntityId: EntityId
+}

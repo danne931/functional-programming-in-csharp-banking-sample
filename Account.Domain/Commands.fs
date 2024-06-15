@@ -6,9 +6,8 @@ open Lib.SharedTypes
 open Lib.Validators
 
 type CreateAccountInput = {
-   Email: string
-   FirstName: string
-   LastName: string
+   Name: string
+   //Depository: AccountDepository
    Currency: Currency
    AccountId: AccountId
    OrgId: OrgId
@@ -38,8 +37,7 @@ module CreateAccountCommand =
             List.init 15 (fun _ -> random.Next(1, 9) |> string)
             |> String.concat ""
 
-         let! firstName = firstNameValidator input.FirstName
-         and! lastName = lastNameValidator input.LastName
+         let! accountName = accountNameValidator input.Name
 
          and! accountNumber =
             accountNumberValidator "Account Number" accountNumberInput
@@ -47,13 +45,10 @@ module CreateAccountCommand =
          and! routingNumber =
             routingNumberValidator "Routing Number" routingNumberInput
 
-         and! email = Email.ofString "Create account email" input.Email
-
          return
             BankEvent.create2<CreateAccountInput, CreatedAccount> cmd {
-               Email = email
-               FirstName = firstName
-               LastName = lastName
+               Name = accountName
+               //Depository = input.Depository
                Balance = 0m
                Currency = input.Currency
                RoutingNumber = routingNumber
@@ -94,12 +89,12 @@ module DepositCashCommand =
 type DebitCommand = Command<DebitedAccount>
 
 module DebitCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: DebitedAccount) =
-      Command.create
-         (AccountId.toEntityId accountId)
-         orgId
-         (CorrelationId.create ())
-         data
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (correlationId: CorrelationId)
+      (data: DebitedAccount)
+      =
+      Command.create (AccountId.toEntityId accountId) orgId correlationId data
 
    let toEvent
       (cmd: DebitCommand)
@@ -113,62 +108,6 @@ module DebitCommand =
 
          return BankEvent.create<DebitedAccount> cmd
       }
-
-type LimitDailyDebitsCommand = Command<DailyDebitLimitUpdated>
-
-module LimitDailyDebitsCommand =
-   let create
-      (accountId: AccountId, orgId: OrgId)
-      (data: DailyDebitLimitUpdated)
-      =
-      Command.create
-         (AccountId.toEntityId accountId)
-         orgId
-         (CorrelationId.create ())
-         data
-
-   let toEvent
-      (cmd: LimitDailyDebitsCommand)
-      : ValidationResult<BankEvent<DailyDebitLimitUpdated>>
-      =
-      validate {
-         let input = cmd.Data
-         let! _ = amountValidator "Debit limit" input.DebitLimit
-
-         return BankEvent.create<DailyDebitLimitUpdated> cmd
-      }
-
-type LockCardCommand = Command<LockedCard>
-
-module LockCardCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: LockedCard) =
-      Command.create
-         (AccountId.toEntityId accountId)
-         orgId
-         (CorrelationId.create ())
-         data
-
-   let toEvent
-      (cmd: LockCardCommand)
-      : ValidationResult<BankEvent<LockedCard>>
-      =
-      Ok <| BankEvent.create<LockedCard> cmd
-
-type UnlockCardCommand = Command<UnlockedCard>
-
-module UnlockCardCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: UnlockedCard) =
-      Command.create
-         (AccountId.toEntityId accountId)
-         orgId
-         (CorrelationId.create ())
-         data
-
-   let toEvent
-      (cmd: UnlockCardCommand)
-      : ValidationResult<BankEvent<UnlockedCard>>
-      =
-      Ok <| BankEvent.create<UnlockedCard> cmd
 
 type MaintenanceFeeCommand = Command<MaintenanceFeeDebited>
 

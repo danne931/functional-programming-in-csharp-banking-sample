@@ -19,10 +19,12 @@ module.exports = (env, argv) => {
 
     devServer: {
       proxy: {
+        // TODO: Prepend /api to routes
         '/accounts': proxyUrl,
         '/transfers': proxyUrl,
         '/diagnostic': proxyUrl,
         '/transactions': proxyUrl,
+        '/employees': proxyUrl,
         '/accountHub': {
           target: 'ws://localhost:3000',
           ws: true
@@ -47,6 +49,11 @@ module.exports = (env, argv) => {
         {
           test: /\.sass$/i,
           use: ['style-loader', 'css-loader', 'sass-loader']
+        },
+        // NOTE: CSS needs to be parsed for some 3rd party libs
+        {
+          test: /\.css$/i,
+          use: ['style-loader', 'css-loader']
         }
       ]
     },
