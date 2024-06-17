@@ -4,7 +4,6 @@ open Akkling
 open Akka.Actor
 open FsToolkit.ErrorHandling
 open Validus
-open System.Threading.Tasks
 
 open Lib.Postgres
 open Lib.SharedTypes
@@ -15,13 +14,6 @@ module Reader = EmployeeSqlMapper.EmployeeSqlReader
 module Writer = EmployeeSqlMapper.EmployeeSqlWriter
 let table = EmployeeSqlMapper.table
 
-let getEmployee (id: EmployeeId) =
-   pgQuerySingle<Employee>
-      $"SELECT * FROM {table} 
-        WHERE {Fields.employeeId} = @id"
-      (Some [ "id", Writer.employeeId id ])
-      Reader.employee
-
 let searchEmployees (orgId: OrgId) (searchQuery: string) =
    pgQuery<Employee>
       $$"""
@@ -30,7 +22,7 @@ let searchEmployees (orgId: OrgId) (searchQuery: string) =
          {{Fields.orgId}} = @orgId
          AND {{Fields.searchQuery}} %> @query
       ORDER BY {{Fields.searchQuery}} <-> @query DESC
-      LIMIT 20
+      LIMIT 10
       """
       (Some [
          "orgId", Writer.orgId orgId
@@ -68,3 +60,18 @@ let processCommand (system: ActorSystem) (command: EmployeeCommand) = taskResult
    actorRef <! EmployeeMessage.StateChange command
    return validation
 }
+
+let getEmployee (id: EmployeeId) =
+   pgQuerySingle<Employee>
+      $"SELECT * FROM {table} 
+        WHERE {Fields.employeeId} = @id"
+      (Some [ "id", Writer.employeeId id ])
+      Reader.employee
+
+let getEmployees (orgId: OrgId) =
+   pgQuery<Employee>
+      $"SELECT * FROM {table} 
+        WHERE {Fields.orgId} = @orgId
+        ORDER BY {Fields.firstName}"
+      (Some [ "orgId", Writer.orgId orgId ])
+      Reader.employee

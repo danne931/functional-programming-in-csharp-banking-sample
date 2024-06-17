@@ -233,7 +233,8 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
          |> AccountBrowserQuery.toQueryParams
          |> Router.encodeQueryString
 
-      state, Cmd.navigate ("account", string senderId, queryString)
+      state,
+      Cmd.navigate (Routes.AccountUrl.BasePath, string senderId, queryString)
 
 let private nicknameCancelButton dispatch =
    Html.a [
@@ -655,7 +656,11 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
             |> AccountBrowserQuery.toQueryParams
             |> Router.encodeQueryString
 
-         Router.navigate ("account", string account.AccountId, queryString))
+         Router.navigate (
+            Routes.AccountUrl.BasePath,
+            string account.AccountId,
+            queryString
+         ))
 
       match state.Transaction with
       | Deferred.Resolved(Ok txn) ->

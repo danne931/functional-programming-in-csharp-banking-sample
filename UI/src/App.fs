@@ -19,6 +19,9 @@ let App () =
    let activePage =
       match currentUrl with
       | Routes.IndexUrl.Reporting -> Html.h1 "Reporting"
+      | Routes.IndexUrl.Employees url ->
+         EmployeeDashboard.EmployeeDashboardComponent url
+      | Routes.IndexUrl.Cards url -> CardDashboard.CardDashboardComponent url
       | Routes.IndexUrl.Account url ->
          AccountDashboard.AccountDashboardComponent url
          |> SignalRConnectionProvider
@@ -32,7 +35,17 @@ let App () =
          Html.div [
             React.router [
                router.onUrlChanged (Routes.IndexUrl.parse >> setUrl)
-               router.children [ activePage ]
+               router.children [
+                  Navigation.element
+
+                  classyNode Html.div [ "container-fluid"; "app-shell" ] [
+                     classyNode Html.div [ "grid" ] [
+                        SidebarMenu.render currentUrl
+
+                        Html.section [ activePage ]
+                     ]
+                  ]
+               ]
             ]
          ]
       ]

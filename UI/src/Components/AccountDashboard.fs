@@ -11,6 +11,7 @@ open Bank.Account.UIDomain
 open Lib.SharedTypes
 open AccountActions
 open TransactionDetail
+open AccountSelection
 
 type State = {
    CurrentUrl: Routes.AccountUrl
@@ -121,7 +122,7 @@ let update msg state =
 
       let firstAccount () =
          let selectedId = accounts |> Map.values |> Seq.head |> _.AccountId
-         state, Cmd.navigate ("account", string selectedId)
+         state, Cmd.navigate (Routes.AccountUrl.BasePath, string selectedId)
 
       match Routes.AccountUrl.accountIdMaybe state.CurrentUrl with
       | None -> firstAccount ()
@@ -277,11 +278,12 @@ let AccountDashboardComponent (url: Routes.AccountUrl) =
 
    let accountOpt = selectedAccount state
 
-   Html.div [
+   classyNode Html.div [ "account-dashboard" ] [
       match accountProfiles state with
       | Some accounts ->
-         Navigation.NavigationComponent (Some accounts) state.CurrentAccountId
-      | None -> Navigation.NavigationComponent None None
+         Navigation.Portal
+         <| AccountSelectionComponent state.CurrentAccountId accounts
+      | None -> ()
 
       ServiceHealth.ServiceHealthComponent()
 

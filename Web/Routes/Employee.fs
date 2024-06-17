@@ -15,8 +15,13 @@ let startEmployeeRoutes (app: WebApplication) =
    app.MapGet(
       EmployeePath.Get,
       Func<Guid, string, Task<IResult>>(fun orgId ([<FromQuery>] searchQuery) ->
-         searchEmployees (OrgId orgId) searchQuery
-         |> RouteUtil.unwrapTaskResultOption)
+         let get =
+            if String.IsNullOrEmpty searchQuery then
+               getEmployees (OrgId orgId)
+            else
+               searchEmployees (OrgId orgId) searchQuery
+
+         RouteUtil.unwrapTaskResultOption get)
    )
    |> ignore
 

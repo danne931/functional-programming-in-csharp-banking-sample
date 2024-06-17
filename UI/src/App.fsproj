@@ -46,6 +46,9 @@
     <Compile Include="Components/AccountActions.fs" />
     <Compile Include="Components/AccountSummary.fs" />
     <Compile Include="Components/AccountDashboard.fs" />
+    <Compile Include="Components/CardDashboard.fs" />
+    <Compile Include="Components/EmployeeDashboard.fs" />
+    <Compile Include="Components/SidebarMenu.fs" /> 
     <Compile Include="App.fs" />
   </ItemGroup>
   <ItemGroup>

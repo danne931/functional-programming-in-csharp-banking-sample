@@ -1,16 +1,14 @@
+[<RequireQualifiedAccess>]
 module Navigation
 
 open Feliz
+open Browser.Dom
 
-open Bank.Account.Domain
-open AccountSelection
-open Lib.SharedTypes
+let Portal (content: ReactElement) =
+   let root = document.getElementById "navigation-portal"
+   ReactDOM.createPortal (content, root)
 
-[<ReactComponent>]
-let NavigationComponent
-   (accounts: Map<AccountId, AccountProfile> option)
-   (selectedAccountId: AccountId option)
-   =
+let element =
    classyNode Html.nav [ "container-fluid" ] [
       Html.ul [
          Html.li [
@@ -22,7 +20,5 @@ let NavigationComponent
          ]
       ]
 
-      match accounts with
-      | None -> Html.none
-      | Some accounts -> AccountSelectionComponent selectedAccountId accounts
+      Html.div [ attr.id "navigation-portal" ]
    ]

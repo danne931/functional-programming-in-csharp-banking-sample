@@ -50,7 +50,7 @@ let private navigate (accountId: AccountId) (view: AccountActionView option) =
       |> AccountBrowserQuery.toQueryParams
       |> Router.encodeQueryString
 
-   Cmd.navigate ("account", string accountId, queryString)
+   Cmd.navigate (Routes.AccountUrl.BasePath, string accountId, queryString)
 
 type State = {
    Account: Account

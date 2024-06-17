@@ -32,15 +32,19 @@ let postJson (command: EmployeeCommand) =
 
    Http.postJson url serialized
 
-let searchEmployees
+let private getEmployeesWithOptionalSearchQuery
    (orgId: OrgId)
-   (searchQuery: string)
+   (searchQuery: string option)
    : Async<EmployeesMaybe>
    =
    async {
+      let path = EmployeePath.get orgId
+
       let path =
-         (EmployeePath.get orgId)
-         + Router.encodeQueryString [ ("searchQuery", searchQuery) ]
+         match searchQuery with
+         | None -> path
+         | Some query ->
+            path + Router.encodeQueryString [ ("searchQuery", query) ]
 
       let! (code, responseText) = Http.get path
 
@@ -54,6 +58,16 @@ let searchEmployees
             |> Serialization.deserialize<Employee list>
             |> Result.map Some
    }
+
+let getEmployees (orgId: OrgId) : Async<EmployeesMaybe> =
+   getEmployeesWithOptionalSearchQuery orgId None
+
+let searchEmployees
+   (orgId: OrgId)
+   (searchQuery: string)
+   : Async<EmployeesMaybe>
+   =
+   getEmployeesWithOptionalSearchQuery orgId (Some searchQuery)
 
 let submitCommand
    (employee: Employee)

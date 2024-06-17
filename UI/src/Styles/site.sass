@@ -116,7 +116,6 @@ footer
 
   > div:not(:first-child)
     display: flex
-    justify-content: center
     align-items: center
 
     p
@@ -201,7 +200,27 @@ main
     padding: 1rem
     margin: .5rem 0
 
+.app-shell
+  padding-left: 0
+  padding-bottom: 0
+
+  .menu
+    background: var(--card-background-color)
+    box-shadow: var(--card-box-shadow)
+    min-height: 1000px
+
+    li
+      border-left: solid transparent 0.1rem
+      &.selected, &:hover
+        border-color: var(--primary)
+
 @media (min-width: 992px)
+  .app-shell
+    > .grid
+      grid-template-columns: 10% auto
+    ul
+      padding-left: 0
+
   main > .grid
     grid-template-columns: auto 30%
 

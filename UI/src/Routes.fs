@@ -14,6 +14,9 @@ type AccountUrl =
    | NotFound
 
 module AccountUrl =
+   [<Literal>]
+   let BasePath = "account"
+
    let parse =
       function
       // Matches /
@@ -39,21 +42,60 @@ module AccountUrl =
       | _ -> None
 
 [<RequireQualifiedAccess>]
+type EmployeeUrl =
+   | Employees
+   | NotFound
+
+module EmployeeUrl =
+   [<Literal>]
+   let BasePath = "employees"
+
+   let parse =
+      function
+      | [] -> EmployeeUrl.Employees
+      | _ -> EmployeeUrl.NotFound
+
+[<RequireQualifiedAccess>]
+type CardUrl =
+   | Cards
+   | NotFound
+
+module CardUrl =
+   [<Literal>]
+   let BasePath = "cards"
+
+   let parse =
+      function
+      | [] -> CardUrl.Cards
+      | _ -> CardUrl.NotFound
+
+[<RequireQualifiedAccess>]
 type IndexUrl =
    | Account of AccountUrl
+   | Employees of EmployeeUrl
+   | Cards of CardUrl
    | Reporting
    | NotFound
 
 module IndexUrl =
    let parse (segments: string list) =
       // Temporarily redirect Index page to Accounts.
-      let segments = if segments.IsEmpty then [ "account" ] else segments
+      let segments =
+         if segments.IsEmpty then
+            [ AccountUrl.BasePath ]
+         else
+            segments
 
       match segments with
       //| "reporting" :: reportingSegments ->
-      // Matches /account/{AccountDashboard.Url}
-      | "account" :: accountSegments ->
-         IndexUrl.Account(AccountUrl.parse accountSegments)
+      // Matches /account/{AccountUrl}
+      | AccountUrl.BasePath :: segments ->
+         IndexUrl.Account(AccountUrl.parse segments)
+      // Matches /employees/{EmployeeUrl}
+      | EmployeeUrl.BasePath :: segments ->
+         IndexUrl.Employees(EmployeeUrl.parse segments)
+      // Matches /cards/{CardUrl}
+      | CardUrl.BasePath :: segments -> IndexUrl.Cards(CardUrl.parse segments)
       | _ -> IndexUrl.NotFound
 
    let accountBrowserQuery () =

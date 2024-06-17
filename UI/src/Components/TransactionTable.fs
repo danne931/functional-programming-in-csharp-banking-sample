@@ -114,7 +114,11 @@ let update msg state =
       },
       Cmd.batch [
          Cmd.ofMsg (Msg.LoadTransactions(query, Started))
-         Cmd.navigate ("account", string query.AccountId, browserQueryParams)
+         Cmd.navigate (
+            Routes.AccountUrl.BasePath,
+            string query.AccountId,
+            browserQueryParams
+         )
       ]
    | SelectFilterView view -> { state with FilterView = Some view }, Cmd.none
    | ResetPageIndex ->
@@ -176,7 +180,7 @@ let update msg state =
 
       state,
       Cmd.navigate (
-         "account",
+         Routes.AccountUrl.BasePath,
          string state.TransactionQuery.AccountId,
          queryString
       )
