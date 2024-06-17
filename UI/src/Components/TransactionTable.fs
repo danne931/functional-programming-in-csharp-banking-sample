@@ -366,15 +366,10 @@ let renderTableRow
             attr.text (txn.Amount |> orDefaultValue)
          ]
 
-         // TODO: Collapse name, origin, & info columns into 1 descriptive info column
-
-         Html.td txn.Name
-
-         Html.td (txn.Origin |> orDefaultValue)
+         Html.td txn.Info
 
          Html.td txn.Date
 
-         Html.td (txn.Info |> orDefaultValue)
       ]
    ]
 
@@ -395,13 +390,9 @@ let renderTable
 
                Html.th [ attr.scope "col"; attr.text "Amount" ]
 
-               Html.th [ attr.scope "col"; attr.text "Event" ]
-
-               Html.th [ attr.scope "col"; attr.text "Origin" ]
+               Html.th [ attr.scope "col"; attr.text "Info" ]
 
                Html.th [ attr.scope "col"; attr.text "Date" ]
-
-               Html.th [ attr.scope "col"; attr.text "Info" ]
             ]
          ]
 

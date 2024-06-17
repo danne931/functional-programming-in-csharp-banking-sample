@@ -15,14 +15,13 @@ type AccountAndTransactionsMaybe =
 type TransactionsMaybe = Result<AccountEvent list option, Err>
 
 type TransactionUIFriendly = {
+   Name: string
    DateNaked: DateTime
    Date: string
-   Name: string
-   Origin: string option
    AmountNaked: decimal option
    Amount: string option
    Sign: string
-   Info: string option
+   Info: string
    MoneyFlow: MoneyFlow option
    Source: string option
    Destination: string option
@@ -68,7 +67,6 @@ let nameAndNicknamePair
       recipient.Name, recipient.Nickname
    | None -> "", None
 
-// TODO: Collapse some of the field-specific info into one descriptive field
 let transactionUIFriendly
    (account: Account)
    (txn: AccountEvent)
@@ -77,14 +75,13 @@ let transactionUIFriendly
    let _, envelope = AccountEnvelope.unwrap txn
 
    let props = {
+      Name = envelope.EventName
       DateNaked = envelope.Timestamp
       Date = dateUIFriendly envelope.Timestamp
-      Name = envelope.EventName
-      Origin = None
       AmountNaked = None
       Amount = None
       Sign = ""
-      Info = None
+      Info = ""
       MoneyFlow = None
       Source = None
       Destination = None
@@ -105,232 +102,211 @@ let transactionUIFriendly
       let name = recipientName recipientId
       name + " **" + recipientAccountNum.Last4
 
-   let props =
-      match txn with
-      | CreatedAccount evt -> {
-         props with
-            Name = "Account Created"
-            AmountNaked = Some evt.Data.Balance
-        }
-      | DepositedCash evt -> {
-         props with
-            Name = "Deposit"
-            AmountNaked = Some evt.Data.Amount
-            Origin = Some evt.Data.Origin
-            MoneyFlow = Some MoneyFlow.In
-            Source = Some evt.Data.Origin
-            Destination = Some accountName
-        }
-      | DebitedAccount evt ->
-         let employee = evt.Data.EmployeePurchaseReference
-         // TODO: rename Origin field as Merchant
-         let employeePurchaser =
-            $"{employee.EmployeeName}**{employee.EmployeeCardNumberLast4}"
+   match txn with
+   | CreatedAccount _ -> { props with Info = "Created Account" }
+   | DepositedCash evt -> {
+      props with
+         Name = "Deposit Received"
+         Info = "Deposit Received"
+         MoneyFlow = Some MoneyFlow.In
+         Source = Some evt.Data.Origin
+         Destination = Some accountName
+         AmountNaked = Some evt.Data.Amount
+         Amount = Some <| Money.format evt.Data.Amount
+     }
+   | DebitedAccount evt ->
+      let employee = evt.Data.EmployeePurchaseReference
+      // TODO: rename Origin field as Merchant
+      let employee =
+         $"{employee.EmployeeName}**{employee.EmployeeCardNumberLast4}"
 
-         {
-            props with
-               Name = "Debit"
-               AmountNaked = Some evt.Data.Amount
-               Origin = Some $"{evt.Data.Origin} by {employeePurchaser}"
-               MoneyFlow = Some MoneyFlow.Out
-               Source = Some $"{accountName} via {employeePurchaser}"
-               Destination = Some evt.Data.Origin
-         }
-      | MaintenanceFeeDebited evt -> {
+      {
          props with
-            Name = "Maintenance Fee"
+            Name = "Purchase"
+            Info = $"Purchase from {evt.Data.Origin} by {employee}"
+            Amount = Some <| Money.format evt.Data.Amount
             AmountNaked = Some evt.Data.Amount
             MoneyFlow = Some MoneyFlow.Out
-        }
-      | MaintenanceFeeSkipped _ -> {
-         props with
-            Name = "Maintenance Fee Skipped"
-        }
-      | InternalTransferRecipient evt -> {
-         props with
-            Name = "Internal Transfer Recipient Added"
-            Info =
-               Some $"Recipient: {recipientName evt.Data.Recipient.AccountId}"
-        }
-      | DomesticTransferRecipient evt ->
-         let recipientName =
-            recipientNameAndAccountNumber
-               evt.Data.Recipient.AccountId
-               evt.Data.Recipient.AccountNumber
+            Source = Some $"{accountName} via {employee}"
+            Destination = Some evt.Data.Origin
+      }
+   | MaintenanceFeeDebited evt -> {
+      props with
+         Info = "Maintenance Fee"
+         AmountNaked = Some evt.Data.Amount
+         Amount = Some <| Money.format evt.Data.Amount
+         MoneyFlow = Some MoneyFlow.Out
+     }
+   | MaintenanceFeeSkipped _ -> {
+      props with
+         Info = "Skipped Maintenance Fee"
+     }
+   | InternalTransferRecipient evt -> {
+      props with
+         Name = "Created Internal Recipient"
+         Info =
+            $"Created internal recipient: {recipientName evt.Data.Recipient.AccountId}"
+     }
+   | DomesticTransferRecipient evt ->
+      let recipientName =
+         recipientNameAndAccountNumber
+            evt.Data.Recipient.AccountId
+            evt.Data.Recipient.AccountNumber
 
-         {
-            props with
-               Name = "Domestic Transfer Recipient Added"
-               Info = Some $"Recipient: {recipientName}"
-         }
-      | EditedDomesticTransferRecipient evt ->
-         let recipientName =
-            recipientNameAndAccountNumber
-               evt.Data.Recipient.AccountId
-               evt.Data.Recipient.AccountNumber
+      {
+         props with
+            Name = "Created Domestic Recipient"
+            Info = $"Created domestic recipient: {recipientName}"
+      }
+   | EditedDomesticTransferRecipient evt ->
+      let recipientName =
+         recipientNameAndAccountNumber
+            evt.Data.Recipient.AccountId
+            evt.Data.Recipient.AccountNumber
 
-         {
-            props with
-               Name = "Domestic Transfer Recipient Edited"
-               Info = Some $"Recipient: {recipientName}"
-         }
-      | InternalSenderRegistered evt -> {
+      {
          props with
-            Name = "Transfer Sender Registered"
-            Info =
-               Some
-                  $"{evt.Data.Sender.Name} added this account as a transfer recipient."
-        }
-      | InternalRecipientDeactivated evt -> {
+            Name = "Edited Domestic Recipient"
+            Info = $"Edited recipient: {recipientName}"
+      }
+   | InternalSenderRegistered evt -> {
+      props with
+         Info =
+            $"{evt.Data.Sender.Name} configured this account as a transfer recipient."
+     }
+   | InternalRecipientDeactivated evt -> {
+      props with
+         Info =
+            $"Recipient {recipientName evt.Data.RecipientId} closed their account."
+     }
+   | InternalTransferPending evt -> {
+      props with
+         Name = "Internal Transfer Pending"
+         Info = $"Internal transfer to {recipientName evt.Data.RecipientId}"
+         AmountNaked = Some evt.Data.Amount
+         Amount = Some <| Money.format evt.Data.Amount
+         MoneyFlow = Some MoneyFlow.Out
+         Source = Some accountName
+         Destination = Some <| recipientName evt.Data.RecipientId
+     }
+   | InternalTransferApproved evt -> {
+      props with
+         Name = "Internal Transfer Approved"
+         Info =
+            $"Internal transfer approved to {recipientName evt.Data.RecipientId}"
+         AmountNaked = Some evt.Data.Amount
+         Amount = Some <| Money.format evt.Data.Amount
+     }
+   | InternalTransferRejected evt -> {
+      props with
+         Name = "Internal Transfer Rejected"
+         Info =
+            $"Internal transfer declined to {recipientName evt.Data.RecipientId} 
+              - Reason: {evt.Data.Reason} 
+              - Account refunded"
+         AmountNaked = Some evt.Data.Amount
+         Amount = Some <| Money.format evt.Data.Amount
+         MoneyFlow = Some MoneyFlow.In
+     }
+   | DomesticTransferPending evt ->
+      let info = evt.Data.BaseInfo
+
+      let recipientName =
+         recipientNameAndAccountNumber
+            info.Recipient.AccountId
+            info.Recipient.AccountNumber
+
+      {
          props with
-            Name = "Internal Recipient Deactivated"
-            Info =
-               Some
-                  $"Recipient {recipientName evt.Data.RecipientId} closed their account"
-        }
-      | InternalTransferPending evt -> {
-         props with
-            Name = "Internal Transfer Request"
-            Info = Some $"Recipient: {recipientName evt.Data.RecipientId}"
-            Origin = Some account.Name
-            AmountNaked = Some evt.Data.Amount
+            Name = "Domestic Transfer Pending"
+            Info = $"Domestic transfer processing to {recipientName}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format evt.Data.BaseInfo.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
-            Destination = Some <| recipientName evt.Data.RecipientId
-        }
-      | InternalTransferApproved evt -> {
+            Destination = Some recipientName
+      }
+   | DomesticTransferApproved evt ->
+      let info = evt.Data.BaseInfo
+
+      let recipientName =
+         recipientNameAndAccountNumber
+            info.Recipient.AccountId
+            info.Recipient.AccountNumber
+
+      {
          props with
-            Name = "Internal Transfer Approved"
-            Origin = Some account.Name
-            Info = Some $"Recipient: {recipientName evt.Data.RecipientId}"
-            AmountNaked = Some evt.Data.Amount
-        }
-      | InternalTransferRejected evt -> {
+            Name = "Domestic Transfer Approved"
+            Info = $"Domestic transfer approved to {recipientName}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format evt.Data.BaseInfo.Amount
+      }
+   | DomesticTransferRejected evt ->
+      let info = evt.Data.BaseInfo
+
+      let recipientName =
+         recipientNameAndAccountNumber
+            info.Recipient.AccountId
+            info.Recipient.AccountNumber
+
+      {
          props with
-            Name = "Internal Transfer Rejected"
-            Origin = Some account.Name
+            Name = "Domestic Transfer Declined"
             Info =
-               Some
-                  $"Recipient: {recipientName evt.Data.RecipientId} - Reason
-                  {evt.Data.Reason} - Account refunded"
-            AmountNaked = Some evt.Data.Amount
+               $"Domestic transfer declined to {recipientName} 
+                 - Reason {evt.Data.Reason} 
+                 - Account refunded"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format evt.Data.BaseInfo.Amount
             MoneyFlow = Some MoneyFlow.In
-        }
-      | DomesticTransferPending evt ->
-         let info = evt.Data.BaseInfo
+            Source = Some accountName
+            Destination = Some recipientName
+      }
+   | DomesticTransferProgress evt ->
+      let info = evt.Data.BaseInfo
 
-         let recipientName =
-            recipientNameAndAccountNumber
-               info.Recipient.AccountId
-               info.Recipient.AccountNumber
-
-         {
-            props with
-               Name = "Domestic Transfer Request"
-               Info = Some $"Recipient: {recipientName}"
-               Origin = Some account.Name
-               AmountNaked = Some info.Amount
-               MoneyFlow = Some MoneyFlow.Out
-               Source = Some accountName
-               Destination = Some recipientName
-         }
-      | DomesticTransferApproved evt ->
-         let info = evt.Data.BaseInfo
-
-         let recipientName =
-            recipientNameAndAccountNumber
-               info.Recipient.AccountId
-               info.Recipient.AccountNumber
-
-         {
-            props with
-               Name = "Domestic Transfer Approved"
-               Origin = Some account.Name
-               Info = Some $"Recipient: {recipientName}"
-               AmountNaked = Some info.Amount
-         }
-      | DomesticTransferRejected evt ->
-         let info = evt.Data.BaseInfo
-
-         let recipientName =
-            recipientNameAndAccountNumber
-               info.Recipient.AccountId
-               info.Recipient.AccountNumber
-
-         {
-            props with
-               Name = "Domestic Transfer Rejected"
-               Origin = Some account.Name
-               Info =
-                  Some
-                     $"Recipient: {recipientName} -
-                     Reason {evt.Data.Reason} - Account refunded"
-               AmountNaked = Some info.Amount
-               MoneyFlow = Some MoneyFlow.In
-               Source = Some accountName
-               Destination = Some recipientName
-         }
-      | DomesticTransferProgress evt ->
-         let info = evt.Data.BaseInfo
-
-         {
-            props with
-               Name = "Transfer Progress Update"
-               Origin = Some account.Name
-               Info =
-                  Some
-                     $"Status {evt.Data.Status} Recipient: {recipientName info.Recipient.AccountId}"
-               AmountNaked = Some info.Amount
-         }
-      | TransferDeposited evt ->
-         let sender =
-            account.InternalTransferSenders
-            |> Map.tryFind evt.Data.Origin
-            |> Option.map _.Name
-            |> Option.defaultValue (accountIdLast4 evt.Data.Origin)
-
-         {
-            props with
-               Name = "Transfer Received"
-               AmountNaked = Some evt.Data.Amount
-               Origin = Some sender
-               MoneyFlow = Some MoneyFlow.In
-               Source = Some sender
-               Destination = Some accountName
-         }
-      | BillingCycleStarted _ -> {
+      {
          props with
-            Name = "New Billing Cycle"
             Info =
-               Some "Previous transactions consolidated into billing statement"
-        }
-      | AccountClosed evt -> {
-         props with
-            Name = "Account Closed"
-            Info = evt.Data.Reference
-        }
-      | RecipientNicknamed evt -> {
-         props with
-            Name = "Recipent Nickname Updated"
-            Info =
-               match evt.Data.Nickname with
-               | None -> Some "Nickname removed"
-               | Some name -> Some $"Nickname updated to {name}"
-        }
+               $"Progress update received for domestic transfer 
+                 to {recipientName info.Recipient.AccountId}
+                 - Status {evt.Data.Status}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format evt.Data.BaseInfo.Amount
+      }
+   | TransferDeposited evt ->
+      let sender =
+         account.InternalTransferSenders
+         |> Map.tryFind evt.Data.Origin
+         |> Option.map _.Name
+         |> Option.defaultValue (accountIdLast4 evt.Data.Origin)
 
-   let sign =
-      match props.MoneyFlow with
-      | Some MoneyFlow.In -> "+"
-      | Some MoneyFlow.Out -> "-"
-      | None -> props.Sign
-
-   {
+      {
+         props with
+            Name = "Transfer Received"
+            Info = $"Transfer received from {sender}."
+            AmountNaked = Some evt.Data.Amount
+            Amount = Some <| Money.format evt.Data.Amount
+            MoneyFlow = Some MoneyFlow.In
+            Source = Some sender
+            Destination = Some accountName
+      }
+   | BillingCycleStarted _ -> {
       props with
-         Sign = sign
-         Amount =
-            props.AmountNaked
-            |> Option.map (fun amount -> sign + Money.format amount)
-   }
+         Info =
+            "New billing cycle. Transactions consolidated into billing statement."
+     }
+   | AccountClosed evt -> {
+      props with
+         Info = $"Closed Account - Reference: {evt.Data.Reference}"
+     }
+   | RecipientNicknamed evt -> {
+      props with
+         Info =
+            match evt.Data.Nickname with
+            | None -> "Removed recipient nickname."
+            | Some name -> $"Updated recipient nickname to {name}"
+     }
 
 type PotentialInternalTransferRecipients =
    private | PotentialInternalTransferRecipients of
