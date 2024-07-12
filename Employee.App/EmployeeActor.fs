@@ -34,36 +34,109 @@ let actorProps
             let employee = Employee.applyEvent employee evt
 
             match evt with
-            | DebitRequested e ->
+            | EmployeeEvent.CreatedAccountOwner e ->
+               getEmailActor mailbox.System
+               <! EmailActor.EmailMessage.EmployeeInvite {
+                  Name = employee.Name
+                  Email = employee.Email
+                  Token = e.Data.InviteToken
+               }
+            | EmployeeEvent.CreatedEmployee _ ->
+               match employee.Status with
+               | EmployeeStatus.PendingInviteConfirmation token ->
+                  getEmailActor mailbox.System
+                  <! EmailActor.EmailMessage.EmployeeInvite {
+                     Name = employee.Name
+                     Email = employee.Email
+                     Token = token
+                  }
+               | _ -> ()
+            | EmployeeEvent.InvitationTokenRefreshed e ->
+               getEmailActor mailbox.System
+               <! EmailActor.EmailMessage.EmployeeInvite {
+                  Name = employee.Name
+                  Email = employee.Email
+                  Token = e.Data.InviteToken
+               }
+            | EmployeeEvent.InvitationApproved e ->
+               getEmailActor mailbox.System
+               <! EmailActor.EmailMessage.EmployeeInvite {
+                  Name = employee.Name
+                  Email = employee.Email
+                  Token = e.Data.InviteToken
+               }
+            | EmployeeEvent.InvitationConfirmed e ->
+               for task in employee.OnboardingTasks do
+                  match task with
+                  | EmployeeOnboardingTask.CreateCard info ->
+                     let msg =
+                        CreateCardCommand.create {
+                           AccountId = info.LinkedAccountId
+                           DailyPurchaseLimit = Some info.DailyPurchaseLimit
+                           PersonName = employee.Name
+                           CardNickname = None
+                           OrgId = employee.OrgId
+                           EmployeeId = employee.EmployeeId
+                           CardId = CardId <| Guid.NewGuid()
+                           Virtual = true
+                           InitiatedBy = e.InitiatedById
+                        }
+                        |> EmployeeCommand.CreateCard
+                        |> EmployeeMessage.StateChange
+
+                     mailbox.Parent() <! msg
+            | EmployeeEvent.UpdatedRole e ->
+               match e.Data.CardInfo with
+               | Some info ->
+                  let msg =
+                     CreateCardCommand.create {
+                        AccountId = info.LinkedAccountId
+                        DailyPurchaseLimit = Some info.DailyPurchaseLimit
+                        PersonName = employee.Name
+                        CardNickname = None
+                        OrgId = employee.OrgId
+                        EmployeeId = employee.EmployeeId
+                        CardId = CardId <| Guid.NewGuid()
+                        Virtual = true
+                        InitiatedBy = e.InitiatedById
+                     }
+                     |> EmployeeCommand.CreateCard
+                     |> EmployeeMessage.StateChange
+
+                  mailbox.Parent() <! msg
+               | None -> ()
+            | EmployeeEvent.DebitRequested e ->
                let accountId = e.Data.Info.AccountId
                let info = e.Data.Info
 
                let cmd =
-                  DebitCommand.create (accountId, e.OrgId) e.CorrelationId {
-                     Date = info.Date
-                     Amount = info.Amount
-                     Origin = info.Origin
-                     Reference = info.Reference
-                     EmployeePurchaseReference = {
-                        EmployeeName = employee.Name
-                        EmployeeCardNumberLast4 =
-                           employee.Cards[info.CardId]
-                              .SecurityInfo.CardNumber.Last4
-                        EmployeeId = info.EmployeeId
-                        CardId = info.CardId
+                  DebitCommand.create
+                     (accountId, e.OrgId)
+                     e.CorrelationId
+                     e.InitiatedById
+                     {
+                        Date = info.Date
+                        Amount = info.Amount
+                        Origin = info.Origin
+                        Reference = info.Reference
+                        EmployeePurchaseReference = {
+                           EmployeeName = employee.Name
+                           EmployeeCardNumberLast4 = info.CardNumberLast4
+                           EmployeeId = info.EmployeeId
+                           CardId = info.CardId
+                        }
                      }
-                  }
 
                // Notify associated company account actor of
                // debit request and wait for approval before
                // sending a response to issuing card network.
                getAccountRef accountId
                <! AccountMessage.StateChange(AccountCommand.Debit cmd)
-            | DebitApproved e ->
+            | EmployeeEvent.DebitApproved e ->
                // Notify card network which issued the debit request
                // to our bank.
                ()
-            | DebitDeclined e ->
+            | EmployeeEvent.DebitDeclined e ->
                // Notify card network which issued the debit request
                // to our bank.
                ()

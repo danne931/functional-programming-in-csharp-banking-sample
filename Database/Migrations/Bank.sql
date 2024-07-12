@@ -14,12 +14,14 @@ DROP TABLE IF EXISTS category;
 
 DROP TYPE IF EXISTS money_flow;
 DROP TYPE IF EXISTS employee_status;
+DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
 DROP TYPE IF EXISTS account_status;
 
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-   name VARCHAR(100) UNIQUE NOT NULL,
+   org_name VARCHAR(100) UNIQUE NOT NULL,
+   requires_employee_invite_approval BOOLEAN NOT NULL,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -29,7 +31,7 @@ CREATE TABLE account (
    account_id UUID PRIMARY KEY,
    routing_number INT NOT NULL,
    account_number BIGINT UNIQUE NOT NULL,
-   name VARCHAR(50) NOT NULL,
+   account_name VARCHAR(50) NOT NULL,
    depository account_depository NOT NULL,
    balance MONEY NOT NULL,
    currency VARCHAR(3) NOT NULL,
@@ -150,21 +152,34 @@ CREATE TABLE ancillarytransactioninfo (
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
 
-CREATE TYPE employee_status AS ENUM ('pendingapproval', 'active', 'closed', 'readyfordelete');
+CREATE TYPE employee_status AS ENUM (
+  'pendinginviteconfirmation',
+  'pendinginviteapproval',
+  'pendingrestoreaccessapproval',
+  'active',
+  'closed',
+  'readyfordelete'
+);
+CREATE TYPE employee_role AS ENUM ('admin', 'scholar', 'cardonly');
 CREATE TABLE employee (
    employee_id UUID PRIMARY KEY,
    email VARCHAR(255) UNIQUE NOT NULL,
    first_name VARCHAR(50) NOT NULL,
    last_name VARCHAR(50) NOT NULL,
    search_query TEXT,
-   role VARCHAR(50) NOT NULL,
+   role employee_role NOT NULL,
    status employee_status NOT NULL,
    pending_purchases JSONB NOT NULL,
+   onboarding_tasks JSONB NOT NULL,
    cards JSONB NOT NULL,
+   invite_token UUID,
+   invite_expiration TIMESTAMPTZ,
+   auth_provider_user_id UUID,
    org_id UUID NOT NULL REFERENCES organization,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-
+CREATE INDEX employee_email_idx ON employee(email);
+CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
 
 CREATE OR REPLACE FUNCTION update_search_query() RETURNS TRIGGER AS $$
@@ -183,8 +198,9 @@ CREATE TABLE employee_event (
    name VARCHAR(50) NOT NULL,
    timestamp TIMESTAMPTZ NOT NULL,
    event_id UUID PRIMARY KEY,
-   employee_id UUID NOT NULL REFERENCES employee ON DELETE CASCADE,
+   employee_id UUID NOT NULL REFERENCES employee,
    correlation_id UUID NOT NULL,
+   initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );

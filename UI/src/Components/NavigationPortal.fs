@@ -4,8 +4,10 @@ module Navigation
 open Feliz
 open Browser.Dom
 
+let private portalId = "navigation-portal"
+
 let Portal (content: ReactElement) =
-   let root = document.getElementById "navigation-portal"
+   let root = document.getElementById portalId
    ReactDOM.createPortal (content, root)
 
 let element =
@@ -20,5 +22,5 @@ let element =
          ]
       ]
 
-      Html.div [ attr.id "navigation-portal" ]
+      Html.div [ attr.id portalId ]
    ]

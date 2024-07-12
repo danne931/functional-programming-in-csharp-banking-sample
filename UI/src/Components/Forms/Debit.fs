@@ -1,4 +1,4 @@
-module Bank.Account.Forms.DebitForm
+module Bank.Employee.Forms.DebitForm
 
 open Feliz
 open Fable.Form.Simple
@@ -7,7 +7,6 @@ open System
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
 open Bank.Employee.Domain
-open AsyncUtil
 open Lib.Validators
 open Lib.SharedTypes
 open FormContainer
@@ -52,6 +51,8 @@ let form
       let cmd =
          DebitRequestCommand.create employee.CompositeId {
             CardId = selectedCardId
+            CardNumberLast4 =
+               employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
             AccountId = account.AccountId
             Amount = amount
             Origin = origin
@@ -59,9 +60,8 @@ let form
             Date = DateTime.UtcNow
          }
          |> EmployeeCommand.DebitRequest
-         |> FormCommand.Employee
 
-      Msg.Submit(cmd, Started)
+      Msg.Submit(employee, cmd, Started)
 
    Form.succeed onSubmit |> Form.append amountField |> Form.append originField
 
@@ -71,8 +71,8 @@ let DebitFormComponent
    (selectedCardId: CardId)
    (employee: Employee)
    =
-   FormContainer
-      (FormDomain.Employee employee)
+   EmployeeFormContainer
       { Amount = ""; Origin = "" }
       (form account employee selectedCardId)
       onSubmit
+      None

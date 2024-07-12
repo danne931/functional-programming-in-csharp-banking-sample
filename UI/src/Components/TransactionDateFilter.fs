@@ -3,7 +3,7 @@ module TransactionDateFilter
 open Feliz
 open System
 
-open Bank.Account.UIDomain
+open UIDomain
 
 [<ReactComponent>]
 let TransactionDateFilterComponent

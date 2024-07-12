@@ -55,7 +55,7 @@ let actorProps
             match msg with
             | AccountClosureMessage.GetRegisteredAccounts ->
                mailbox.Sender() <! accounts
-            | AccountClosureMessage.Register account ->
+            | AccountClosureMessage.Register(account, initiatedBy) ->
                let newState = Map.add account.AccountId account accounts
 
                logInfo
@@ -68,10 +68,13 @@ let actorProps
                // TransferRecipients Map.
                for sender in account.InternalTransferSenders.Values do
                   let msg =
-                     DeactivateInternalRecipientCommand.create sender {
-                        RecipientId = account.AccountId
-                        RecipientName = account.Name
-                     }
+                     DeactivateInternalRecipientCommand.create
+                        sender
+                        initiatedBy
+                        {
+                           RecipientId = account.AccountId
+                           RecipientName = account.Name
+                        }
                      |> AccountCommand.DeactivateInternalRecipient
                      |> AccountMessage.StateChange
 

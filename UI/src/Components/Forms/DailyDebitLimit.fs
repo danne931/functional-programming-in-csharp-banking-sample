@@ -1,56 +1,61 @@
-module Bank.Account.Forms.DailyDebitLimitForm
+module Bank.Employee.Forms.DailyPurchaseLimitForm
 
 open Feliz
 open Fable.Form.Simple
 
 open Bank.Employee.Domain
-open AsyncUtil
 open Lib.Validators
 open Lib.SharedTypes
 open FormContainer
 
 type Values = { Amount: string }
 
-let form
+let dailyPurchaseLimitField =
+   Form.textField {
+      Parser =
+         amountValidatorFromString "Purchase limit"
+         >> validationErrorsHumanFriendly
+      Value = fun values -> values.Amount
+      Update = fun newValue values -> { values with Amount = newValue }
+      Error = fun _ -> None
+      Attributes = {
+         Label = "Daily Purchase Limit:"
+         Placeholder = "250"
+         HtmlAttributes = []
+      }
+   }
+
+let private form
    (selectedCardId: CardId)
    (employee: Employee)
+   (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
-   let amountField =
-      Form.textField {
-         Parser =
-            amountValidatorFromString "Debit limit"
-            >> validationErrorsHumanFriendly
-         Value = fun values -> values.Amount
-         Update = fun newValue values -> { values with Amount = newValue }
-         Error = fun _ -> None
-         Attributes = {
-            Label = "Daily Debit Limit:"
-            Placeholder = "250"
-            HtmlAttributes = []
-         }
-      }
 
    let onSubmit amount =
+      let card = employee.Cards[selectedCardId]
+
       let cmd =
-         LimitDailyDebitsCommand.create employee.CompositeId {
+         LimitDailyDebitsCommand.create employee.CompositeId initiatedBy {
             CardId = selectedCardId
+            CardNumberLast4 = card.SecurityInfo.CardNumber.Last4
+            PriorLimit = card.DailyDebitLimit
             DebitLimit = amount
          }
          |> EmployeeCommand.LimitDailyDebits
-         |> FormCommand.Employee
 
-      Msg.Submit(cmd, Started)
+      Msg.Submit(employee, cmd, Started)
 
-   Form.succeed onSubmit |> Form.append amountField
+   Form.succeed onSubmit |> Form.append dailyPurchaseLimitField
 
-let DailyDebitLimitFormComponent
+let DailyPurchaseLimitFormComponent
+   (session: UserSession)
    (onSubmit: ParentOnSubmitHandler)
    (selectedCardId: CardId)
    (employee: Employee)
    =
-   FormContainer
-      (FormDomain.Employee employee)
+   EmployeeFormContainer
       { Amount = "" }
-      (form selectedCardId employee)
+      (form selectedCardId employee (InitiatedById session.EmployeeId))
       onSubmit
+      None

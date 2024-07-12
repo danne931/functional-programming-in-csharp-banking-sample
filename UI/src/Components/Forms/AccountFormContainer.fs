@@ -8,45 +8,34 @@ open Fable.Form.Simple
 open Fable.Form.Simple.Pico
 open Lib.SharedTypes
 open Bank.Account.Domain
-open Bank.Employee.Domain
-open AsyncUtil
+open UIDomain.Account
 
-[<RequireQualifiedAccess>]
-type FormDomain =
-   | Account of Account
-   | Employee of Employee
-
-[<RequireQualifiedAccess>]
-type FormCommand =
-   | Account of AccountCommand
-   | Employee of EmployeeCommand
-
-type ParentOnSubmitHandler = FormCommand * CommandProcessingResponse -> unit
+type ParentOnSubmitHandler = AccountCommandReceipt -> unit
 
 type State<'Values> = { FormModel: Form.View.Model<'Values> }
 
 type Msg<'Values> =
    | FormChanged of Form.View.Model<'Values>
    | Submit of
-      FormCommand *
-      AsyncOperationStatus<Result<CommandProcessingResponse, Err>>
+      Account *
+      AccountCommand *
+      AsyncOperationStatus<Result<AccountCommandReceipt, Err>>
    | ErrorReceivedViaSignalR of Err
 
 let init (values: 'Values) () =
    { FormModel = Form.View.idle values }, Cmd.none
 
 let update
-   (persist: FormCommand -> Async<Result<CommandProcessingResponse, Err>>)
    (onSubmit: ParentOnSubmitHandler)
    (msg: Msg<'Values>)
    (state: State<'Values>)
    =
    match msg with
    | FormChanged formModel -> { state with FormModel = formModel }, Cmd.none
-   | Submit(command, Started) ->
+   | Submit(account, command, Started) ->
       let submit = async {
-         let! res = persist command
-         return Submit(command, Finished res)
+         let! res = AccountService.submitCommand account command
+         return Submit(account, command, Finished res)
       }
 
       {
@@ -54,11 +43,10 @@ let update
             FormModel = state.FormModel |> Form.View.setLoading
       },
       Cmd.fromAsync submit
-   | Submit(command, Finished(Ok eventId)) ->
-      onSubmit (command, eventId)
-
+   | Submit(_, _, Finished(Ok receipt)) ->
+      onSubmit receipt
       state, Cmd.none
-   | Submit(command, Finished(Error err)) ->
+   | Submit(_, command, Finished(Error err)) ->
       Log.error $"Error submitting command {command} {err}"
 
       {
@@ -74,25 +62,16 @@ let update
       Alerts.toastCommand err
 
 [<ReactComponent>]
-let FormContainer
-   (domain: FormDomain)
+let AccountFormContainer
    (values: 'Values)
    (form: Form.Form<'Values, Msg<'Values>, IReactProperty>)
    (onSubmit: ParentOnSubmitHandler)
    =
-   let persist (command: FormCommand) =
-      match domain, command with
-      | FormDomain.Account account, FormCommand.Account command ->
-         AccountService.submitCommand account command
-      | FormDomain.Employee employee, FormCommand.Employee command ->
-         EmployeeService.submitCommand employee command
-      | _ -> failwith $"FormContainer does not support mixed domains."
+   let state, dispatch = React.useElmish (init values, update onSubmit, [||])
 
-   let state, dispatch =
-      React.useElmish (init values, update persist onSubmit, [||])
-
+   (*
    let signalRContext = React.useContext SignalRConnectionProvider.context
-   let errors = signalRContext.Errors
+   let errors = signalRContext.Errors.Account
 
    React.useEffect (
       (fun () ->
@@ -103,6 +82,7 @@ let FormContainer
             dispatch <| Msg.ErrorReceivedViaSignalR errors.Head.Error),
       [| box errors.Length |]
    )
+   *)
 
    Form.View.asHtml
       {

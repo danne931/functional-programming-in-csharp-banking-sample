@@ -59,7 +59,6 @@ let AccountSelectionComponent
                   ]
 
                   Html.ul [
-                     attr.id "accounts-list"
                      attr.role "listbox"
                      attr.children [
                         for account in accounts.Values ->

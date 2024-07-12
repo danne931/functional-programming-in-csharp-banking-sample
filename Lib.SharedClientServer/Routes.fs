@@ -2,8 +2,10 @@ module RoutePaths
 
 open Lib.SharedTypes
 
+let private API = "/api"
+
 module AccountPath =
-   let Base = "/accounts"
+   let Base = $"{API}/accounts"
    let account (id: AccountId) = $"{Base}/{id}"
    let Account = Base + "/{id}"
    let accountAndTransactions (id: AccountId) = $"{account id}/transactions"
@@ -13,7 +15,7 @@ module AccountPath =
    let BillingStatement = Base + "/billing-statement/{accountId}/{page}"
 
 module DiagnosticPath =
-   let Base = "/diagnostic"
+   let Base = $"{API}/diagnostic"
    let Account = Base + "/account/{id}"
    let AccountEvents = Base + "/events/{id}"
    let LoadTest = Base + "/load-test"
@@ -22,7 +24,7 @@ module DiagnosticPath =
    let CircuitBreaker = Base + "/circuit-breaker"
 
 module TransferPath =
-   let Base = "/transfers"
+   let Base = $"{API}/transfers"
    let Internal = Base + "/internal"
    let Domestic = Base + "/domestic"
    let InternalTransferRecipient = Internal + "/register-recipient"
@@ -31,7 +33,7 @@ module TransferPath =
    let NicknameRecipient = Base + "/recipient-nickname"
 
 module TransactionPath =
-   let Base = "/transactions"
+   let Base = $"{API}/transactions"
    let AccountTransactions = Base + "/{id}"
    let accountTransactions (id: AccountId) = $"{Base}/{id}"
    let Categories = Base + "/categories"
@@ -53,10 +55,27 @@ module TransactionPath =
    let note (txnId: EventId) = transactionInfo txnId + "/note"
 
 module EmployeePath =
-   let Base = "/employees"
+   let Base = $"{API}/employees"
    let Get = Base + "/{orgId}"
    let get (orgId: OrgId) = $"{Base}/{orgId}"
+   let Search = Base + "/search/{orgId}/{searchQuery}"
+
+   let search (orgId: OrgId) (searchQuery: string) =
+      $"{Base}/search/{orgId}/{searchQuery}"
+
    let Debit = Base + "/debit"
    let DailyDebitLimit = Base + "/daily-debit-limit"
    let LockCard = Base + "/lock"
    let UnlockCard = Base + "/unlock"
+   let UpdateRole = Base + "/role"
+   let CancelEmployeeInvitation = Base + "/cancel-employee-invitation"
+   let ResendInviteNotification = Base + "/resend-invite-notification"
+   let RestoreAccess = Base + "/restore-access"
+   let History = Get + "/history"
+   let history (orgId: OrgId) = get orgId + "/history"
+
+module UserSessionPath =
+   let Login = "/login"
+   let GetSession = "/session"
+   let AuthorizeInvite = "/auth/invite"
+   let AuthorizationCallback = "/auth/callback"

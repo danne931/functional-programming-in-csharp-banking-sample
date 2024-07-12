@@ -1,11 +1,16 @@
-module Bank.Account.UIDomain
+module UIDomain.Account
 
 open System
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
-open Lib.TransactionQuery
+open Lib.NetworkQuery
+
+type OrgAndAccountProfilesMaybe =
+   Result<(Org * Map<AccountId, AccountProfile>) option, Err>
+
+type OrgMaybe = Result<Org option, Err>
 
 type AccountProfilesMaybe = Result<Map<AccountId, AccountProfile> option, Err>
 
@@ -14,22 +19,24 @@ type AccountAndTransactionsMaybe =
 
 type TransactionsMaybe = Result<AccountEvent list option, Err>
 
+type AccountCommandReceipt = {
+   PendingCommand: AccountCommand
+   PendingEvent: AccountEvent
+   PendingState: Account
+   Envelope: Envelope
+}
+
 type TransactionUIFriendly = {
    Name: string
    DateNaked: DateTime
    Date: string
    AmountNaked: decimal option
    Amount: string option
-   Sign: string
    Info: string
    MoneyFlow: MoneyFlow option
    Source: string option
    Destination: string option
 }
-
-let dateUIFriendly (date: DateTime) =
-   let dayAndMonth = date.ToLongDateString().Split(string date.Year)[0]
-   $"{dayAndMonth} {date.ToShortTimeString()}"
 
 let debitWithMerchantAlias
    (evt: BankEvent<DebitedAccount>)
@@ -80,7 +87,6 @@ let transactionUIFriendly
       Date = dateUIFriendly envelope.Timestamp
       AmountNaked = None
       Amount = None
-      Sign = ""
       Info = ""
       MoneyFlow = None
       Source = None
@@ -327,50 +333,12 @@ module PotentialInternalTransferRecipients =
    let value (PotentialInternalTransferRecipients recipients) = recipients
 
 [<RequireQualifiedAccess>]
-type DateFilter =
-   | Custom of dateStart: DateTime * dateEnd: DateTime
-   | Last30Days
-   | CurrentMonth
-   | LastMonth
-   | CurrentYear
-   | LastYear
-
-module DateFilter =
-   let toDateRange (filter: DateFilter) =
-      let endOfToday = DateTime.Today.AddDays(1).AddMilliseconds(-1)
-
-      match filter with
-      | DateFilter.Custom(startDate, endDate) -> startDate, endDate
-      | DateFilter.Last30Days -> DateTime.Today.AddDays(-30), endOfToday
-      | DateFilter.CurrentMonth ->
-         DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), endOfToday
-      | DateFilter.LastMonth ->
-         let start = DateTime.Today.AddMonths -1
-
-         let endDate =
-            DateTime(
-               start.Year,
-               start.Month,
-               DateTime.DaysInMonth(start.Year, start.Month)
-            )
-
-         DateTime(start.Year, start.Month, 1),
-         endDate.AddDays(1).AddMilliseconds(-1)
-      | DateFilter.CurrentYear ->
-         DateTime(DateTime.Today.Year, 1, 1), endOfToday
-      | DateFilter.LastYear ->
-         DateTime(DateTime.Today.AddYears(-1).Year, 1, 1),
-         DateTime(DateTime.Today.Year, 1, 1).AddMilliseconds(-1)
-
-[<RequireQualifiedAccess>]
 type AccountActionView =
    | Debit
    | Deposit
    | Transfer
    | RegisterTransferRecipient
    | EditTransferRecipient of AccountId
-   | DailyDebitLimit
-   | CardAccess
 
 type AccountBrowserQuery = {
    MoneyFlow: MoneyFlow option
@@ -379,7 +347,15 @@ type AccountBrowserQuery = {
    Date: DateFilter option
    Action: AccountActionView option
    Transaction: EventId option
-}
+} with
+
+   member x.ChangeDetection =
+      Serialization.serialize {|
+         MoneyFlow = x.MoneyFlow
+         Category = x.Category
+         Amount = x.Amount
+         Date = x.Date
+      |}
 
 module AccountBrowserQuery =
    let toQueryParams (query: AccountBrowserQuery) : (string * string) list =
@@ -415,8 +391,14 @@ module AccountBrowserQuery =
       let agg =
          match query.Category with
          | Some(CategoryFilter.CategoryIds catIds) ->
-            ("categoryIds", TransactionQuery.categoryListToQueryString catIds)
-            :: agg
+            let queryString =
+               List.fold
+                  (fun acc id ->
+                     if acc = "" then string id else $"{acc},{string id}")
+                  ""
+                  catIds
+
+            ("categoryIds", queryString) :: agg
          | Some(CategoryFilter.IsCategorized isCat) ->
             ("isCategorized", string isCat) :: agg
          | None -> agg
@@ -442,42 +424,20 @@ module AccountBrowserQuery =
       =
       let queryParams = Map.ofList queryParams
 
-      let findAmount key =
-         Map.tryFind key queryParams |> Option.map decimal
-
-      let min = findAmount "amountMin"
-      let max = findAmount "amountMax"
-
-      let amountOpt =
-         match min, max with
-         | Some min, None -> Some(AmountFilter.GreaterThanOrEqualTo min)
-         | None, Some max -> Some(AmountFilter.LessThanOrEqualTo max)
-         | Some min, Some max -> Some(AmountFilter.Between(min, max))
-         | _ -> None
-
       {
          Category =
             Map.tryFind "categoryIds" queryParams
-            |> Option.map TransactionQuery.categoryFromQueryString
+            |> Option.bind CategoryFilter.categoryFromQueryString
             |> Option.orElse (
                Map.tryFind "isCategorized" queryParams
                |> Option.map (bool.Parse >> CategoryFilter.IsCategorized)
             )
-         Amount = amountOpt
+         Amount = AmountFilter.fromQueryString queryParams
          MoneyFlow =
             Map.tryFind "moneyFlow" queryParams
             |> Option.bind MoneyFlow.fromString
          Date =
-            Map.tryFind "date" queryParams
-            |> Option.bind (function
-               | "Last30Days" -> Some DateFilter.Last30Days
-               | "CurrentMonth" -> Some DateFilter.CurrentMonth
-               | "LastMonth" -> Some DateFilter.LastMonth
-               | "CurrentYear" -> Some DateFilter.CurrentYear
-               | "LastYear" -> Some DateFilter.LastYear
-               | str ->
-                  TransactionQuery.dateRangeFromQueryString str
-                  |> Option.map DateFilter.Custom)
+            Map.tryFind "date" queryParams |> Option.bind DateFilter.fromString
          Action =
             Map.tryFind "action" queryParams
             |> Option.bind (function
@@ -493,8 +453,6 @@ module AccountBrowserQuery =
                      >> AccountId
                      >> AccountActionView.EditTransferRecipient
                   )
-               | "DailyDebitLimit" -> Some AccountActionView.DailyDebitLimit
-               | "CardAccess" -> Some AccountActionView.CardAccess
                | view ->
                   Log.error $"Account action view not implemented: {view}"
                   None)
@@ -502,6 +460,15 @@ module AccountBrowserQuery =
             Map.tryFind "transaction" queryParams
             |> Option.bind (Guid.parseOptional >> Option.map EventId)
       }
+
+   let empty: AccountBrowserQuery = {
+      Category = None
+      MoneyFlow = None
+      Amount = None
+      Date = None
+      Action = None
+      Transaction = None
+   }
 
 /// May edit transfer recipient if domestic and status is not Closed.
 let canEditTransferRecipient

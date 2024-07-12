@@ -6,8 +6,8 @@ open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open Bank.Transfer.Domain
-open AsyncUtil
 open Lib.Validators
 open FormContainer
 open Lib.SharedTypes
@@ -18,7 +18,11 @@ type Values = {
    Memo: string
 }
 
-let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
+let form
+   (account: Account)
+   (initiatedBy: InitiatedById)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
    let options =
       [
          for KeyValue(recipientId, recipient) in account.TransferRecipients ->
@@ -90,21 +94,20 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
       Map.tryFind selectedId account.InternalTransferRecipients
       |> Option.map (fun recipient ->
          let cmd =
-            InternalTransferCommand.create account.CompositeId {
+            InternalTransferCommand.create account.CompositeId initiatedBy {
                ScheduledDate = DateTime.UtcNow
                Amount = amount
                RecipientId = recipient.AccountId
                Memo = memo
             }
             |> AccountCommand.InternalTransfer
-            |> FormCommand.Account
 
-         Msg.Submit(cmd, Started))
+         Msg.Submit(account, cmd, Started))
       |> Option.defaultWith (fun () ->
          let recipient = Map.find selectedId account.DomesticTransferRecipients
 
          let cmd =
-            DomesticTransferCommand.create account.CompositeId {
+            DomesticTransferCommand.create account.CompositeId initiatedBy {
                ScheduledDate = DateTime.UtcNow
                Amount = amount
                Sender = {
@@ -118,22 +121,24 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
                Memo = memo
             }
             |> AccountCommand.DomesticTransfer
-            |> FormCommand.Account
 
-         Msg.Submit(cmd, Started))
+         Msg.Submit(account, cmd, Started))
 
    Form.succeed onSubmit
    |> Form.append selectField
    |> Form.append amountField
    |> Form.append (Form.succeed id |> Form.append memoField |> Form.optional)
 
-let TransferFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   FormContainer
-      (FormDomain.Account account)
+let TransferFormComponent
+   (session: UserSession)
+   (account: Account)
+   (onSubmit: ParentOnSubmitHandler)
+   =
+   AccountFormContainer
       {
          Amount = ""
          RecipientId = ""
          Memo = ""
       }
-      (form account)
+      (form account (InitiatedById session.EmployeeId))
       onSubmit

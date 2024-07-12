@@ -1,11 +1,10 @@
-module Bank.Account.Forms.CardAccess
+module Bank.Employee.Forms.CardAccess
 
 open Feliz
 open Fable.Form.Simple
 
 open Lib.SharedTypes
 open Bank.Employee.Domain
-open AsyncUtil
 open FormContainer
 
 type Values = { Locked: bool }
@@ -13,6 +12,7 @@ type Values = { Locked: bool }
 let form
    (employee: Employee)
    (selectedCardId: CardId)
+   (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let isLockedField =
@@ -27,29 +27,34 @@ let form
    let onSubmit isLocked =
       let cmd =
          if isLocked then
-            LockCardCommand.create employee.CompositeId {
+            LockCardCommand.create employee.CompositeId initiatedBy {
                CardId = selectedCardId
+               CardNumberLast4 =
+                  employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
                Reference = None
             }
             |> EmployeeCommand.LockCard
          else
-            UnlockCardCommand.create employee.CompositeId {
+            UnlockCardCommand.create employee.CompositeId initiatedBy {
                CardId = selectedCardId
+               CardNumberLast4 =
+                  employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
                Reference = None
             }
             |> EmployeeCommand.UnlockCard
 
-      Msg.Submit(FormCommand.Employee cmd, Started)
+      Msg.Submit(employee, cmd, Started)
 
    Form.succeed onSubmit |> Form.append isLockedField
 
 let CardAccessFormComponent
-   (employee: Employee)
-   (selectedCardId: CardId)
+   (session: UserSession)
    (onSubmit: ParentOnSubmitHandler)
+   (selectedCardId: CardId)
+   (employee: Employee)
    =
-   FormContainer
-      (FormDomain.Employee employee)
+   EmployeeFormContainer
       { Locked = false }
-      (form employee selectedCardId)
+      (form employee selectedCardId (InitiatedById session.EmployeeId))
       onSubmit
+      None

@@ -5,7 +5,6 @@ open Feliz.UseElmish
 open Elmish
 
 open Lib.SharedTypes
-open AsyncUtil
 open DiagnosticsService
 
 type Msg =
@@ -60,15 +59,16 @@ let update msg (state: State) =
 let ServiceHealthComponent () =
    let state, dispatch = React.useElmish (init, update, [||])
 
-   let signalRContext = React.useContext SignalRConnectionProvider.context
-   let signalRConnection = signalRContext.Connection
+   let signalRConnection = React.useContext SignalRConnectionProvider.context
 
    React.useEffect (
       fun () ->
-         if signalRConnection.IsSome then
+         match signalRConnection with
+         | Some conn ->
             DiagnosticsService.listenForCircuitBreakerEvent
                (ServiceHealthEventReceived >> dispatch)
-               signalRConnection.Value
+               conn
+         | _ -> ()
       , [| box signalRConnection |]
    )
 

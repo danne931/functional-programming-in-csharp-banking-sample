@@ -10,13 +10,13 @@ open Lib.SharedTypes
 let private json (res: 't) : IResult =
    Results.Content <| Serialization.serialize res
 
-let private badRequest (err: Err) : IResult =
-   BadRequest <| {| validationError = string err |}
-
 let private unwrapOption (opt: 't option) : IResult =
    match opt with
    | None -> NotFound()
    | Some res -> json res
+
+let badRequest (err: Err) : IResult =
+   BadRequest <| {| validationError = string err |}
 
 let unwrapTask (future: 'a Task) : Task<IResult> = task {
    try

@@ -4,7 +4,7 @@ open Feliz
 open System
 
 open Bank.Account.Domain
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 
 let renderCategoryAssignmentStatusFilter
    (category: CategoryFilter option)
@@ -52,46 +52,6 @@ let renderCategoryAssignmentStatusFilter
          ]
    ]
 
-let renderCategoriesFilter
-   (categoryOpt: CategoryFilter option)
-   (categories: Map<int, TransactionCategory>)
-   (onChange: CategoryFilter option -> unit)
-   =
-   React.fragment [
-      for cat in categories.Values ->
-         Html.label [
-            Html.input [
-               attr.type' "checkbox"
-               attr.name (string cat.Id)
-               attr.isChecked (
-                  match categoryOpt with
-                  | Some(CategoryFilter.CategoryIds catIds) ->
-                     catIds |> List.exists (fun id -> id = cat.Id)
-                  | _ -> false
-               )
-
-               attr.onChange (fun (_: Browser.Types.Event) ->
-                  let filter =
-                     match categoryOpt with
-                     | Some(CategoryFilter.CategoryIds catIds) ->
-                        let withoutClicked =
-                           catIds |> List.filter (fun id -> id <> cat.Id)
-
-                        if withoutClicked.Length = catIds.Length then
-                           Some <| CategoryFilter.CategoryIds(cat.Id :: catIds)
-                        else if not withoutClicked.IsEmpty then
-                           Some <| CategoryFilter.CategoryIds withoutClicked
-                        else
-                           None
-                     | _ -> Some <| CategoryFilter.CategoryIds [ cat.Id ]
-
-                  onChange filter)
-            ]
-
-            Html.text cat.Name
-         ]
-   ]
-
 [<ReactComponent>]
 let TransactionCategoryFilterComponent
    (category: CategoryFilter option)
@@ -129,5 +89,19 @@ let TransactionCategoryFilterComponent
 
       Html.small "Categories"
 
-      renderCategoriesFilter category categories onChange
+      CheckboxFieldset.render {|
+         Options =
+            categories.Values
+            |> Seq.toList
+            |> List.map (fun cat -> { Id = cat.Id; Display = cat.Name })
+         SelectedItems =
+            category
+            |> Option.bind (function
+               | CategoryFilter.IsCategorized _ -> None
+               | CategoryFilter.CategoryIds ids -> Some ids)
+         OnChange =
+            fun ids ->
+               let ids = ids |> Option.map CategoryFilter.CategoryIds
+               onChange ids
+      |}
    ]

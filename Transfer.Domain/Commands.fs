@@ -11,12 +11,14 @@ type InternalTransferCommand = Command<InternalTransferPending>
 module InternalTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: InternalTransferPending)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -38,9 +40,15 @@ module ApproveInternalTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: InternalTransferApproved)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: ApproveInternalTransferCommand)
@@ -54,9 +62,15 @@ module RejectInternalTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: InternalTransferRejected)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: RejectInternalTransferCommand)
@@ -70,9 +84,15 @@ module DepositTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: TransferDeposited)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: DepositTransferCommand)
@@ -88,12 +108,14 @@ type RegisterInternalTransferRecipientCommand =
 module RegisterInternalTransferRecipientCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: InternalTransferRecipientInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent (cmd: RegisterInternalTransferRecipientCommand) = validate {
@@ -131,6 +153,7 @@ module RegisterInternalSenderCommand =
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         (Guid.Empty |> EmployeeId |> InitiatedById)
          data
 
    let toEvent
@@ -144,12 +167,14 @@ type DeactivateInternalRecipientCommand = Command<InternalRecipientDeactivated>
 module DeactivateInternalRecipientCommand =
    let create
       (sender: InternalTransferSender)
+      (initiatedBy: InitiatedById)
       (data: InternalRecipientDeactivated)
       =
       Command.create
          (AccountId.toEntityId sender.AccountId)
          sender.OrgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -161,11 +186,16 @@ module DeactivateInternalRecipientCommand =
 type NicknameRecipientCommand = Command<RecipientNicknamed>
 
 module NicknameRecipientCommand =
-   let create (accountId: AccountId, orgId: OrgId) (data: RecipientNicknamed) =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: RecipientNicknamed)
+      =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         (initiatedBy: InitiatedById)
          data
 
    let toEvent
@@ -189,12 +219,14 @@ type RegisterDomesticTransferRecipientCommand =
 module RegisterDomesticTransferRecipientCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: DomesticTransferRecipientInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -248,12 +280,14 @@ type EditDomesticTransferRecipientCommand =
 module EditDomesticTransferRecipientCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: EditDomesticTransferRecipientInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -302,12 +336,14 @@ type DomesticTransferCommand = Command<DomesticTransferPendingInput>
 module DomesticTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: DomesticTransferPendingInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -344,9 +380,15 @@ module ApproveDomesticTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: DomesticTransferApproved)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: ApproveDomesticTransferCommand)
@@ -360,9 +402,15 @@ module RejectDomesticTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: DomesticTransferRejected)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: RejectDomesticTransferCommand)
@@ -377,9 +425,15 @@ module UpdateDomesticTransferProgressCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
+      (initiatedBy: InitiatedById)
       (data: DomesticTransferProgressUpdate)
       =
-      Command.create (AccountId.toEntityId accountId) orgId correlationId data
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
 
    let toEvent
       (cmd: UpdateDomesticTransferProgressCommand)
@@ -392,6 +446,7 @@ module DomesticTransferToCommand =
       UpdateDomesticTransferProgressCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
+         txn.InitiatedBy
          {
             BaseInfo = {
                Sender = txn.Sender
@@ -407,6 +462,7 @@ module DomesticTransferToCommand =
       ApproveDomesticTransferCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
+         txn.InitiatedBy
          {
             BaseInfo = {
                Sender = txn.Sender
@@ -422,6 +478,7 @@ module DomesticTransferToCommand =
       RejectDomesticTransferCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
+         txn.InitiatedBy
          {
             BaseInfo = {
                Sender = txn.Sender
@@ -438,6 +495,7 @@ module DomesticTransferToCommand =
          (AccountId.toEntityId txn.Sender.AccountId)
          txn.Sender.OrgId
          txn.TransferId
+         txn.InitiatedBy
          {
             ScheduledDate = txn.ScheduledDate
             Amount = txn.Amount

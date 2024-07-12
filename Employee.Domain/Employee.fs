@@ -30,6 +30,19 @@ let dailyDebitAccrued (card: Card) (evt: BankEvent<DebitApproved>) : decimal =
 
 let applyEvent (state: Employee) (evt: EmployeeEvent) =
    match evt with
+   | CreatedAccountOwner e -> {
+      EmployeeId = EmployeeId.fromEntityId e.EntityId
+      Role = Role.Admin
+      OrgId = e.OrgId
+      Email = e.Data.Email
+      FirstName = e.Data.FirstName
+      LastName = e.Data.LastName
+      Cards = Map.empty
+      Status = EmployeeStatus.PendingInviteConfirmation e.Data.InviteToken
+      PendingPurchases = Map.empty
+      OnboardingTasks = []
+      AuthProviderUserId = None
+     }
    | CreatedEmployee e -> {
       EmployeeId = EmployeeId.fromEntityId e.EntityId
       Role = e.Data.Role
@@ -38,8 +51,17 @@ let applyEvent (state: Employee) (evt: EmployeeEvent) =
       FirstName = e.Data.FirstName
       LastName = e.Data.LastName
       Cards = Map.empty
-      Status = EmployeeStatus.Active
+      Status =
+         if e.Data.OrgRequiresEmployeeInviteApproval then
+            EmployeeStatus.PendingInviteApproval
+         else
+            EmployeeStatus.PendingInviteConfirmation <| InviteToken.generate ()
       PendingPurchases = Map.empty
+      OnboardingTasks =
+         match e.Data.CardInfo with
+         | Some cardInfo -> [ EmployeeOnboardingTask.CreateCard cardInfo ]
+         | None -> []
+      AuthProviderUserId = None
      }
    | CreatedCard e ->
       let info = e.Data.Info
@@ -47,6 +69,10 @@ let applyEvent (state: Employee) (evt: EmployeeEvent) =
       {
          state with
             Cards = state.Cards |> Map.add info.CardId info
+            OnboardingTasks =
+               state.OnboardingTasks
+               |> List.filter (function
+                  | EmployeeOnboardingTask.CreateCard _ -> false)
       }
    | DebitRequested e -> {
       state with
@@ -91,7 +117,10 @@ let applyEvent (state: Employee) (evt: EmployeeEvent) =
             state.Cards
             |> Map.change
                   e.Data.CardId
-                  (Option.map (fun card -> { card with Locked = true }))
+                  (Option.map (fun card -> {
+                     card with
+                        Status = CardStatus.Frozen
+                  }))
      }
    | UnlockedCard e -> {
       state with
@@ -99,7 +128,41 @@ let applyEvent (state: Employee) (evt: EmployeeEvent) =
             state.Cards
             |> Map.change
                   e.Data.CardId
-                  (Option.map (fun card -> { card with Locked = false }))
+                  (Option.map (fun card -> {
+                     card with
+                        Status = CardStatus.Active
+                  }))
+     }
+   | UpdatedRole e -> { state with Role = e.Data.Role }
+   | InvitationCancelled _ -> {
+      state with
+         Status = EmployeeStatus.Closed
+     }
+   | InvitationTokenRefreshed e -> {
+      state with
+         Status =
+            if e.Data.OrgRequiresEmployeeInviteApproval then
+               EmployeeStatus.PendingInviteApproval
+            else
+               EmployeeStatus.PendingInviteConfirmation e.Data.InviteToken
+     }
+   | InvitationDenied _ -> {
+      state with
+         Status = EmployeeStatus.Closed
+     }
+   | InvitationApproved e -> {
+      state with
+         Status = EmployeeStatus.PendingInviteConfirmation e.Data.InviteToken
+     }
+   | InvitationConfirmed e -> {
+      state with
+         Status = EmployeeStatus.Active
+         Email = e.Data.Email
+         AuthProviderUserId = Some e.Data.AuthProviderUserId
+     }
+   | AccessRestored _ -> {
+      state with
+         Status = EmployeeStatus.Active
      }
 
 module private StateTransition =
@@ -117,8 +180,14 @@ module private StateTransition =
          let evt = eventTransform evt
          (evt, applyEvent state evt))
 
+   let createAccountOwner (state: Employee) (cmd: CreateAccountOwnerCommand) =
+      if state.Status <> EmployeeStatus.InitialEmptyState then
+         transitionErr EmployeeNotReadyToActivate
+      else
+         map CreatedAccountOwner state (CreateAccountOwnerCommand.toEvent cmd)
+
    let create (state: Employee) (cmd: CreateEmployeeCommand) =
-      if state.Status <> EmployeeStatus.PendingApproval then
+      if state.Status <> EmployeeStatus.InitialEmptyState then
          transitionErr EmployeeNotReadyToActivate
       else
          map CreatedEmployee state (CreateEmployeeCommand.toEvent cmd)
@@ -155,7 +224,9 @@ module private StateTransition =
       else
          match Map.tryFind info.CardId state.Cards with
          | None -> transitionErr CardNotFound
-         | Some card when card.Locked -> transitionErr CardLocked
+         | Some card when card.Status = CardStatus.Frozen ->
+            transitionErr CardLocked
+         | Some card when card.IsExpired() -> transitionErr CardExpired
          | Some card when
             DateTime.isToday info.Date
             && card.DailyDebitAccrued + info.Amount > card.DailyDebitLimit
@@ -184,8 +255,78 @@ module private StateTransition =
       else
          map DebitDeclined state (DeclineDebitCommand.toEvent cmd)
 
+   let updateRole (state: Employee) (cmd: UpdateRoleCommand) =
+      if state.Status <> EmployeeStatus.Active then
+         transitionErr EmployeeNotActive
+      else
+         map UpdatedRole state (UpdateRoleCommand.toEvent cmd)
+
+   let refreshEmployeeInvitationToken
+      (state: Employee)
+      (cmd: RefreshInvitationTokenCommand)
+      =
+      match state.Status with
+      | EmployeeStatus.PendingInviteApproval
+      | EmployeeStatus.PendingInviteConfirmation _ ->
+         map
+            InvitationTokenRefreshed
+            state
+            (RefreshInvitationTokenCommand.toEvent cmd)
+      | _ ->
+         transitionErr
+         <| EmployeeStatusDisallowsInviteProgression(string state.Role)
+
+   let cancelEmployeeInvitation
+      (state: Employee)
+      (cmd: CancelInvitationCommand)
+      =
+      match state.Status with
+      | EmployeeStatus.PendingInviteApproval
+      | EmployeeStatus.PendingInviteConfirmation _ ->
+         map InvitationCancelled state (CancelInvitationCommand.toEvent cmd)
+      | _ ->
+         transitionErr
+         <| EmployeeStatusDisallowsInviteProgression(string state.Role)
+
+   let approveEmployeeInvitation
+      (state: Employee)
+      (cmd: ApproveInvitationCommand)
+      =
+      match state.Status with
+      | EmployeeStatus.PendingInviteApproval ->
+         map InvitationApproved state (ApproveInvitationCommand.toEvent cmd)
+      | _ ->
+         transitionErr
+         <| EmployeeStatusDisallowsInviteProgression(string state.Role)
+
+   let denyEmployeeInvitation (state: Employee) (cmd: DenyInvitationCommand) =
+      if state.Status = EmployeeStatus.PendingInviteApproval then
+         map InvitationDenied state (DenyInvitationCommand.toEvent cmd)
+      else
+         transitionErr
+         <| EmployeeStatusDisallowsInviteProgression(string state.Role)
+
+   let confirmEmployeeInvitation
+      (state: Employee)
+      (cmd: ConfirmInvitationCommand)
+      =
+      match state.Status with
+      | EmployeeStatus.PendingInviteConfirmation _ ->
+         map InvitationConfirmed state (ConfirmInvitationCommand.toEvent cmd)
+      | _ ->
+         transitionErr
+         <| EmployeeStatusDisallowsInviteProgression(string state.Role)
+
+   let restoreAccess (state: Employee) (cmd: RestoreAccessCommand) =
+      if state.Status <> EmployeeStatus.Closed then
+         transitionErr
+         <| EmployeeStatusDisallowsAccessRestore(string state.Status)
+      else
+         map AccessRestored state (RestoreAccessCommand.toEvent cmd)
+
 let stateTransition (state: Employee) (command: EmployeeCommand) =
    match command with
+   | CreateAccountOwner cmd -> StateTransition.createAccountOwner state cmd
    | CreateEmployee cmd -> StateTransition.create state cmd
    | CreateCard cmd -> StateTransition.createCard state cmd
    | DebitRequest cmd -> StateTransition.debitRequest state cmd
@@ -194,15 +335,27 @@ let stateTransition (state: Employee) (command: EmployeeCommand) =
    | LimitDailyDebits cmd -> StateTransition.limitDailyDebits state cmd
    | LockCard cmd -> StateTransition.lockCard state cmd
    | UnlockCard cmd -> StateTransition.unlockCard state cmd
+   | UpdateRole cmd -> StateTransition.updateRole state cmd
+   | CancelInvitation cmd -> StateTransition.cancelEmployeeInvitation state cmd
+   | RefreshInvitationToken cmd ->
+      StateTransition.refreshEmployeeInvitationToken state cmd
+   | ApproveInvitation cmd ->
+      StateTransition.approveEmployeeInvitation state cmd
+   | DenyInvitation cmd -> StateTransition.denyEmployeeInvitation state cmd
+   | ConfirmInvitation cmd ->
+      StateTransition.confirmEmployeeInvitation state cmd
+   | RestoreAccess cmd -> StateTransition.restoreAccess state cmd
 
 let empty: Employee = {
    EmployeeId = EmployeeId System.Guid.Empty
    OrgId = OrgId System.Guid.Empty
-   Role = EmployeeRole.Scholar
+   Role = Role.Scholar
    Email = Email.empty
    FirstName = ""
    LastName = ""
-   Status = EmployeeStatus.PendingApproval
+   Status = EmployeeStatus.InitialEmptyState
    Cards = Map.empty
    PendingPurchases = Map.empty
+   OnboardingTasks = []
+   AuthProviderUserId = None
 }

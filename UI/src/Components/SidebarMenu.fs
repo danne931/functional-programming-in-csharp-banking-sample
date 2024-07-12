@@ -1,9 +1,11 @@
 module SidebarMenu
 
 open Feliz
+open Lib.SharedTypes
 
 type private MenuUrl =
    | Account
+   | EmployeeHistory
    | Employee
    | Card
 
@@ -18,6 +20,8 @@ let private renderListItem (item: MenuItem) =
    Html.li [
       match item.Url, item.SelectedUrl with
       | Account, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
+      | EmployeeHistory, Routes.IndexUrl.EmployeeHistory _ ->
+         attr.classes [ "selected" ]
       | Employee, Routes.IndexUrl.Employees _ -> attr.classes [ "selected" ]
       | Card, Routes.IndexUrl.Cards _ -> attr.classes [ "selected" ]
       | _ -> ()
@@ -27,8 +31,8 @@ let private renderListItem (item: MenuItem) =
       ]
    ]
 
-let render (currentUrl: Routes.IndexUrl) =
-   classyNode Html.aside [ "menu" ] [
+let render (currentUrl: Routes.IndexUrl) (session: UserSession) =
+   React.fragment [
       Html.ul [
          attr.role "listbox"
          attr.children [
@@ -37,6 +41,13 @@ let render (currentUrl: Routes.IndexUrl) =
                SelectedUrl = currentUrl
                Name = "Accounts"
                Href = Routes.AccountUrl.BasePath
+            }
+
+            renderListItem {
+               Url = EmployeeHistory
+               SelectedUrl = currentUrl
+               Name = "Employee History"
+               Href = Routes.EmployeeHistoryUrl.BasePath
             }
 
             renderListItem {

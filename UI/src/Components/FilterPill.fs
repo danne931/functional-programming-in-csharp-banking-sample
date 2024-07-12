@@ -4,7 +4,7 @@ open Feliz
 
 let render (content: string) (onSelect: unit -> unit) (onDelete: unit -> unit) =
    Html.button [
-      attr.classes [ "outline" ]
+      attr.classes [ "outline"; "filter-pill" ]
 
       attr.children [
          Html.span [

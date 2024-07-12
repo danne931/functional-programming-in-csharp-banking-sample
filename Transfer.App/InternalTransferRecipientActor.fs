@@ -9,10 +9,16 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
 
+type InternalRecipientConfirmation = {
+   Sender: InternalTransferSender
+   Recipient: InternalTransferRecipient
+   InitiatedBy: InitiatedById
+}
+
 [<RequireQualifiedAccess>]
 type InternalTransferMessage =
    | TransferRequest of BankEvent<InternalTransferPending>
-   | ConfirmRecipient of InternalTransferSender * InternalTransferRecipient
+   | ConfirmRecipient of InternalRecipientConfirmation
 
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
@@ -22,7 +28,9 @@ let actorProps
       let logWarning = logWarning ctx
 
       match msg with
-      | InternalTransferMessage.ConfirmRecipient(sender, recipient) ->
+      | InternalTransferMessage.ConfirmRecipient(conf) ->
+         let sender = conf.Sender
+         let recipient = conf.Recipient
          let senderAccountRef = getAccountRef sender.AccountId
          let recipientAccountRef = getAccountRef recipient.AccountId
 
@@ -34,7 +42,7 @@ let actorProps
             logWarning $"Transfer recipient not found {recipient.AccountId}"
 
             let msg =
-               DeactivateInternalRecipientCommand.create sender {
+               DeactivateInternalRecipientCommand.create sender conf.InitiatedBy {
                   RecipientName = recipient.Name
                   RecipientId = recipient.AccountId
                }
@@ -47,10 +55,13 @@ let actorProps
                logWarning $"Transfer recipient account closed"
 
                let msg =
-                  DeactivateInternalRecipientCommand.create sender {
-                     RecipientId = recipient.AccountId
-                     RecipientName = recipient.Name
-                  }
+                  DeactivateInternalRecipientCommand.create
+                     sender
+                     conf.InitiatedBy
+                     {
+                        RecipientId = recipient.AccountId
+                        RecipientName = recipient.Name
+                     }
                   |> AccountCommand.DeactivateInternalRecipient
                   |> AccountMessage.StateChange
 
@@ -78,6 +89,7 @@ let actorProps
             RejectInternalTransferCommand.create
                (senderId, evt.OrgId)
                evt.CorrelationId
+               evt.InitiatedById
                {
                   RecipientId = recipientId
                   Amount = amount
@@ -107,6 +119,7 @@ let actorProps
                   ApproveInternalTransferCommand.create
                      (senderId, evt.OrgId)
                      evt.CorrelationId
+                     evt.InitiatedById
                      {
                         RecipientId = recipientId
                         Amount = amount
@@ -123,6 +136,7 @@ let actorProps
                   DepositTransferCommand.create
                      recipientAccount.CompositeId
                      evt.CorrelationId
+                     evt.InitiatedById
                      { Amount = amount; Origin = senderId }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange

@@ -62,6 +62,7 @@ module private Stub =
    let depositAmount = 3m
    let balanceAfter3Deposits = depositAmount * 3m
    let orgId = Guid.NewGuid() |> OrgId
+   let initiatedBy = InitiatedById LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
 
    let createAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CreateAccount
@@ -70,18 +71,19 @@ module private Stub =
          Currency = Currency.EUR
          AccountId = accountId
          OrgId = orgId
+         InitiatedBy = initiatedBy
       }
 
    let depositMessage accountId =
       AccountMessage.StateChange << AccountCommand.DepositCash
-      <| DepositCashCommand.create (accountId, orgId) {
+      <| DepositCashCommand.create (accountId, orgId) initiatedBy {
          Amount = depositAmount
          Origin = Some "load-test"
       }
 
    let closeAccountMessage accountId =
       AccountMessage.StateChange << AccountCommand.CloseAccount
-      <| CloseAccountCommand.create (accountId, orgId) {
+      <| CloseAccountCommand.create (accountId, orgId) initiatedBy {
          Reference = Some "load test - clean up"
       }
 

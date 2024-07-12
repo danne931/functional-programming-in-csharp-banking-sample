@@ -40,8 +40,12 @@ let orgId = ORG_ID_REMOVE_SOON
 let createOrg () =
    let query =
       $"""
-      INSERT into {OrganizationSqlMapper.table} ({OrgFields.orgId}, {OrgFields.name})
-      VALUES (@orgId, @name)
+      INSERT into {OrganizationSqlMapper.table} (
+         {OrgFields.orgId},
+         {OrgFields.name},
+         {OrgFields.requiresEmployeeInviteApproval}
+      )
+      VALUES (@orgId, @name, @requiresEmployeeInviteApproval)
       ON CONFLICT ({OrgFields.name})
       DO NOTHING;
       """
@@ -49,7 +53,25 @@ let createOrg () =
    pgPersist query [
       "orgId", OrgSqlWriter.orgId orgId
       "name", OrgSqlWriter.name "test-org"
+      "requiresEmployeeInviteApproval",
+      OrgSqlWriter.requiresEmployeeInviteApproval false
    ]
+
+let mockAccountOwnerCmd =
+   let withModifiedTimestamp (command: CreateAccountOwnerCommand) = {
+      command with
+         Timestamp = command.Timestamp.AddMonths -1
+   }
+
+   CreateAccountOwnerCommand.create {
+      Email = "jellyfish@gmail.com"
+      FirstName = "Daniel"
+      LastName = "Eisenbarger"
+      OrgId = orgId
+   }
+   |> withModifiedTimestamp
+
+let mockAccountOwnerId = mockAccountOwnerCmd.InitiatedBy
 
 let mockEmployees =
    let withModifiedTimestamp (command: CreateEmployeeCommand) = {
@@ -58,18 +80,18 @@ let mockEmployees =
    }
 
    let cmd1 =
-      CreateEmployeeCommand.create {
-         EmployeeId =
-            "ec3e94cc-eba1-4ff4-b3dc-55010ecf69b1" |> Guid.Parse |> EmployeeId
-         Email = "jellyfish@gmail.com"
-         FirstName = "jelly"
-         LastName = "fish"
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "starfish@gmail.com"
+         FirstName = "Star"
+         LastName = "Fish"
          OrgId = orgId
-         Role = EmployeeRole.Admin
+         Role = Role.Admin
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
       }
       |> withModifiedTimestamp
 
-   Map [ cmd1.Data.EmployeeId, cmd1 ]
+   Map [ EmployeeId.fromEntityId cmd1.EntityId, cmd1 ]
 
 
 let mockAccounts =
@@ -85,6 +107,7 @@ let mockAccounts =
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
          OrgId = orgId
+         InitiatedBy = mockAccountOwnerId
       }
       |> withModifiedTimestamp
 
@@ -95,6 +118,7 @@ let mockAccounts =
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
          OrgId = orgId
+         InitiatedBy = mockAccountOwnerId
       }
       |> withModifiedTimestamp
 
@@ -105,6 +129,7 @@ let mockAccounts =
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
          OrgId = orgId
+         InitiatedBy = mockAccountOwnerId
       }
       |> withModifiedTimestamp
 
@@ -143,7 +168,7 @@ let seedAccountTransactions
 
       let msg =
          {
-            DepositCashCommand.create compositeId {
+            DepositCashCommand.create compositeId mockAccountOwnerId {
                Amount = 1500m + randomAmount ()
                Origin = None
             } with
@@ -182,8 +207,26 @@ let seedAccountTransactions
 
       if accountId = Seq.head mockAccounts.Keys then
          let employeeCreateCmd = mockEmployees.Head().Value
-         let employeeId = employeeCreateCmd.Data.EmployeeId
+         let employeeId = EmployeeId.fromEntityId employeeCreateCmd.EntityId
          let employeeRef = getEmployeeRef employeeId
+
+         let msg =
+            employeeCreateCmd
+            |> EmployeeCommand.CreateEmployee
+            |> EmployeeMessage.StateChange
+
+         employeeRef <! msg
+
+         let msg =
+            ConfirmInvitationCommand.create (employeeId, orgId) {
+               Email = Email.deserialize employeeCreateCmd.Data.Email
+               AuthProviderUserId = Guid.NewGuid()
+               Reference = None
+            }
+            |> EmployeeCommand.ConfirmInvitation
+            |> EmployeeMessage.StateChange
+
+         employeeRef <! msg
 
          let createCardCmd =
             CreateCardCommand.create {
@@ -195,6 +238,8 @@ let seedAccountTransactions
                   $"{employeeCreateCmd.Data.FirstName} {employeeCreateCmd.Data.LastName}"
                CardNickname = Some "Lunch"
                Virtual = true
+               DailyPurchaseLimit = None
+               InitiatedBy = mockAccountOwnerId
             }
 
          let msg =
@@ -209,6 +254,7 @@ let seedAccountTransactions
                DebitRequestCommand.create (employeeId, orgId) {
                   AccountId = accountId
                   CardId = createCardCmd.Data.CardId
+                  CardNumberLast4 = 1234
                   Date = DateTime.UtcNow
                   Amount = randomAmount ()
                   Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
@@ -221,7 +267,7 @@ let seedAccountTransactions
 
             if num = 2 || num = 5 then
                let msg =
-                  DepositCashCommand.create compositeId {
+                  DepositCashCommand.create compositeId mockAccountOwnerId {
                      Amount = randomAmount ()
                      Origin = None
                   }
@@ -234,10 +280,13 @@ let seedAccountTransactions
             let createAccountCmd = mockAccounts.Values |> Seq.item num
 
             let internalRecipientCmd =
-               RegisterInternalTransferRecipientCommand.create compositeId {
-                  AccountId = createAccountCmd.Data.AccountId
-                  Name = createAccountCmd.Data.Name
-               }
+               RegisterInternalTransferRecipientCommand.create
+                  compositeId
+                  mockAccountOwnerId
+                  {
+                     AccountId = createAccountCmd.Data.AccountId
+                     Name = createAccountCmd.Data.Name
+                  }
 
             let msg =
                internalRecipientCmd
@@ -247,7 +296,7 @@ let seedAccountTransactions
             accountRef <! msg
 
             let msg =
-               InternalTransferCommand.create compositeId {
+               InternalTransferCommand.create compositeId mockAccountOwnerId {
                   RecipientId = internalRecipientCmd.Data.AccountId
                   Amount = randomAmount ()
                   ScheduledDate = DateTime.UtcNow
@@ -356,17 +405,31 @@ let actorProps
                         if
                            command.Data.AccountId = Seq.head mockAccounts.Keys
                         then
-                           let employeeCmd = mockEmployees.Head().Value
+                           let employeeId =
+                              EmployeeId.fromEntityId
+                                 mockAccountOwnerCmd.EntityId
 
-                           let msg =
-                              employeeCmd
-                              |> EmployeeCommand.CreateEmployee
+                           let cmd = mockAccountOwnerCmd
+
+                           let createMsg =
+                              cmd
+                              |> EmployeeCommand.CreateAccountOwner
                               |> EmployeeMessage.StateChange
 
-                           let employeeRef =
-                              getEmployeeRef employeeCmd.Data.EmployeeId
+                           let confirmInviteCmd =
+                              ConfirmInvitationCommand.create
+                                 (employeeId, cmd.OrgId)
+                                 {
+                                    Email = Email.deserialize cmd.Data.Email
+                                    Reference = None
+                                    AuthProviderUserId = Guid.NewGuid()
+                                 }
+                              |> EmployeeCommand.ConfirmInvitation
+                              |> EmployeeMessage.StateChange
 
-                           employeeRef <! msg
+                           let employeeRef = getEmployeeRef employeeId
+                           employeeRef <! createMsg
+                           employeeRef <! confirmInviteCmd
 
                         let accountRef = getAccountRef command.Data.AccountId
 

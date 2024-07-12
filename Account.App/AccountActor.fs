@@ -80,7 +80,8 @@ let actorProps
          | Persisted mailbox e ->
             let (AccountMessage.Event evt) = unbox e
             let account = Account.applyEvent account evt
-            broadcaster.accountEventPersisted evt account |> ignore
+
+            broadcaster.accountEventPersisted evt account
 
             match evt with
             | DebitedAccount e ->
@@ -94,6 +95,7 @@ let actorProps
                         CorrelationId = e.CorrelationId
                         EmployeeId = employee.EmployeeId
                         CardId = employee.CardId
+                        CardNumberLast4 = employee.EmployeeCardNumberLast4
                         Date = info.Date
                         Amount = info.Amount
                         Origin = info.Origin
@@ -106,14 +108,15 @@ let actorProps
                getEmployeeRef employee.EmployeeId <! msg
             | InternalTransferRecipient e ->
                let msg =
-                  InternalTransferMsg.ConfirmRecipient(
-                     {
+                  InternalTransferMsg.ConfirmRecipient {
+                     Sender = {
                         Name = account.Name
                         OrgId = account.OrgId
                         AccountId = account.AccountId
-                     },
-                     e.Data.Recipient
-                  )
+                     }
+                     Recipient = e.Data.Recipient
+                     InitiatedBy = e.InitiatedById
+                  }
 
                getOrStartInternalTransferActor mailbox <! msg
             | EditedDomesticTransferRecipient e ->
@@ -155,9 +158,9 @@ let actorProps
                *)
             | CreatedAccount _ -> ()
             //getEmailActor mailbox.System <! EmailActor.AccountOpen account
-            | AccountEvent.AccountClosed _ ->
+            | AccountEvent.AccountClosed e ->
                getAccountClosureActor mailbox.System
-               <! AccountClosureMessage.Register account
+               <! AccountClosureMessage.Register(account, e.InitiatedById)
             | BillingCycleStarted _ ->
                billingCycle
                   getBillingStatementActor
@@ -198,8 +201,6 @@ let actorProps
                         | TransferAlreadyProgressedToApprovedOrRejected
                         | AccountNotReadyToActivate ->
                            logDebug mailbox $"AccountTransferActor NOOP msg {e}"
-                        // Send email for declined debit.
-                        // Broadcast validation errors to UI.
                         | InsufficientBalance e ->
                            match cmd with
                            | AccountCommand.Debit cmd ->
@@ -215,6 +216,8 @@ let actorProps
                                           CorrelationId = cmd.CorrelationId
                                           EmployeeId = employee.EmployeeId
                                           CardId = employee.CardId
+                                          CardNumberLast4 =
+                                             employee.EmployeeCardNumberLast4
                                           Date = info.Date
                                           Amount = info.Amount
                                           Origin = info.Origin
@@ -276,7 +279,6 @@ let actorProps
                            broadcaster.accountEventPersistenceFail
                               account.AccountId
                               (Err.DatabaseError err)
-                           |> ignore
 
                            ignored ()
                }

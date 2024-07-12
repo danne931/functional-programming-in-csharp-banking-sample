@@ -8,8 +8,11 @@ open Akka.HealthCheck.Hosting
 open Akka.HealthCheck.Hosting.Web
 open Serilog
 open System.Text.Json.Serialization
+open System
 
 open Bank.Infrastructure
+open Bank.UserSession.Middleware
+open Bank.UserSession.Routes
 open Bank.Account.Routes
 open Bank.Account.Domain
 open Bank.Transfer.Routes
@@ -61,6 +64,7 @@ builder.Services.AddAkka(
                typedefof<Account>
                typedefof<CircuitBreakerMessage>
                typedefof<CircuitBreakerActorState>
+               typedefof<EmailActor.EmailMessage>
                // NOTE: Akka ShardRegionProxy defined in Akka.Hosting below
                //       does not recognize Akkling ShardEnvelope as Akka
                //       ShardingEnvelope so need to explicitly add it for
@@ -90,6 +94,10 @@ builder.Services.AddAkka(
             ActorMetadata.circuitBreaker.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
+         .WithSingletonProxy<ActorMetadata.EmailForwardingMarker>(
+            ActorMetadata.emailForwarding.Name,
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithSingleton<ActorMetadata.AccountLoadTestMarker>(
             ActorMetadata.accountLoadTest.Name,
             (fun system _ _ ->
@@ -110,11 +118,23 @@ builder.Services.AddAkka(
 builder.Services.AddEndpointsApiExplorer().AddSwaggerGen() |> ignore
 builder.Services.WithAkkaHealthCheck(HealthCheckType.All) |> ignore
 
+builder.Services
+   .AddDistributedMemoryCache()
+   .AddSession(fun opts ->
+      opts.Cookie.IsEssential <- true
+      opts.Cookie.HttpOnly <- true
+      opts.IdleTimeout <- TimeSpan.FromMinutes 30)
+|> ignore
+
 let app = builder.Build()
 
-app.UseDefaultFiles() |> ignore
-app.UseStaticFiles() |> ignore
-app.UseSerilogRequestLogging() |> ignore
+app
+   .UseSession()
+   .UseDefaultFiles()
+   .UseStaticFiles()
+   .UseSerilogRequestLogging()
+   .UseMiddleware<RoleMiddleware>()
+|> ignore
 
 // Available at endpoint: /swagger/index.html
 if app.Environment.IsDevelopment() then
@@ -135,6 +155,7 @@ app.MapAkkaHealthCheckRoutes(
 )
 |> ignore
 
+startUserSessionRoutes app
 startTransferRoutes app
 startAccountRoutes app
 startDiagnosticRoutes app

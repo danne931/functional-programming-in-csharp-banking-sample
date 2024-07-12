@@ -3,7 +3,8 @@ module Routes
 
 open Feliz.Router
 
-open Bank.Account.UIDomain
+open UIDomain.Account
+open UIDomain.Employee
 open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]
@@ -16,6 +17,8 @@ type AccountUrl =
 module AccountUrl =
    [<Literal>]
    let BasePath = "account"
+
+   let selectedPath (accountId: AccountId) = [| BasePath; string accountId |]
 
    let parse =
       function
@@ -44,6 +47,7 @@ module AccountUrl =
 [<RequireQualifiedAccess>]
 type EmployeeUrl =
    | Employees
+   | EmployeesWithSearchQuery of EmployeeBrowserQuery
    | NotFound
 
 module EmployeeUrl =
@@ -53,11 +57,41 @@ module EmployeeUrl =
    let parse =
       function
       | [] -> EmployeeUrl.Employees
+      | [ Route.Query queryParams ] ->
+         let query = EmployeeBrowserQuery.fromQueryParams queryParams
+         EmployeeUrl.EmployeesWithSearchQuery query
       | _ -> EmployeeUrl.NotFound
+
+   let employeeIdMaybe =
+      function
+      | EmployeeUrl.EmployeesWithSearchQuery query ->
+         match query.Action with
+         | Some(EmployeeActionView.ViewEmployee id) -> Some id
+         | _ -> None
+      | _ -> None
+
+[<RequireQualifiedAccess>]
+type EmployeeHistoryUrl =
+   | EmployeeHistory
+   | EmployeeHistoryWithSearchQuery of EmployeeHistoryBrowserQuery
+   | NotFound
+
+module EmployeeHistoryUrl =
+   [<Literal>]
+   let BasePath = "employee-history"
+
+   let parse =
+      function
+      | [] -> EmployeeHistoryUrl.EmployeeHistory
+      | [ Route.Query queryParams ] ->
+         let query = EmployeeHistoryBrowserQuery.fromQueryParams queryParams
+         EmployeeHistoryUrl.EmployeeHistoryWithSearchQuery query
+      | _ -> EmployeeHistoryUrl.NotFound
 
 [<RequireQualifiedAccess>]
 type CardUrl =
    | Cards
+   | CardsWithSearchQuery of CardBrowserQuery
    | NotFound
 
 module CardUrl =
@@ -67,11 +101,15 @@ module CardUrl =
    let parse =
       function
       | [] -> CardUrl.Cards
+      | [ Route.Query queryParams ] ->
+         let query = CardBrowserQuery.fromQueryParams queryParams
+         CardUrl.CardsWithSearchQuery query
       | _ -> CardUrl.NotFound
 
 [<RequireQualifiedAccess>]
 type IndexUrl =
    | Account of AccountUrl
+   | EmployeeHistory of EmployeeHistoryUrl
    | Employees of EmployeeUrl
    | Cards of CardUrl
    | Reporting
@@ -91,6 +129,9 @@ module IndexUrl =
       // Matches /account/{AccountUrl}
       | AccountUrl.BasePath :: segments ->
          IndexUrl.Account(AccountUrl.parse segments)
+      // Matches /employee-history/{EmployeeHistoryUrl}
+      | EmployeeHistoryUrl.BasePath :: segments ->
+         IndexUrl.EmployeeHistory(EmployeeHistoryUrl.parse segments)
       // Matches /employees/{EmployeeUrl}
       | EmployeeUrl.BasePath :: segments ->
          IndexUrl.Employees(EmployeeUrl.parse segments)
@@ -98,19 +139,36 @@ module IndexUrl =
       | CardUrl.BasePath :: segments -> IndexUrl.Cards(CardUrl.parse segments)
       | _ -> IndexUrl.NotFound
 
-   let accountBrowserQuery () =
-      let defaultQuery = {
-         Category = None
-         MoneyFlow = None
-         Amount = None
-         Date = None
-         Action = None
-         Transaction = None
-      }
+   let current () = Router.currentUrl () |> parse
 
-      match parse (Router.currentUrl ()) with
+   let accountBrowserQuery () =
+      match current () with
       | IndexUrl.Account url ->
          match url with
          | AccountUrl.AccountSelectedWithQuery(_, query) -> query
-         | _ -> defaultQuery
-      | _ -> defaultQuery
+         | _ -> AccountBrowserQuery.empty
+      | _ -> AccountBrowserQuery.empty
+
+   let employeeBrowserQuery () =
+      match current () with
+      | IndexUrl.Employees url ->
+         match url with
+         | EmployeeUrl.EmployeesWithSearchQuery query -> query
+         | _ -> EmployeeBrowserQuery.empty
+      | _ -> EmployeeBrowserQuery.empty
+
+   let employeeHistoryBrowserQuery () =
+      match current () with
+      | IndexUrl.EmployeeHistory url ->
+         match url with
+         | EmployeeHistoryUrl.EmployeeHistoryWithSearchQuery query -> query
+         | _ -> EmployeeHistoryBrowserQuery.empty
+      | _ -> EmployeeHistoryBrowserQuery.empty
+
+   let cardBrowserQuery () =
+      match current () with
+      | IndexUrl.Cards url ->
+         match url with
+         | CardUrl.CardsWithSearchQuery query -> query
+         | _ -> CardBrowserQuery.empty
+      | _ -> CardBrowserQuery.empty

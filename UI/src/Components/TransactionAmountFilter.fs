@@ -3,7 +3,7 @@ module TransactionAmountFilter
 open Feliz
 open Fable.Core.JS
 
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 open Lib.SharedTypes
 
 let renderMoneyFlowFilter

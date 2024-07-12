@@ -4,13 +4,18 @@ open Feliz
 open Fable.Form.Simple
 
 open Lib.Validators
+open Lib.SharedTypes
 open Bank.Account.Domain
-open AsyncUtil
+open Bank.Employee.Domain
 open FormContainer
 
 type Values = { Amount: string }
 
-let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
+let form
+   (account: Account)
+   (initiatedBy: InitiatedById)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
    let amountField =
       Form.textField {
          Parser =
@@ -28,20 +33,22 @@ let form (account: Account) : Form.Form<Values, Msg<Values>, IReactProperty> =
 
    let onSubmit amount =
       let command =
-         DepositCashCommand.create account.CompositeId {
+         DepositCashCommand.create account.CompositeId initiatedBy {
             Amount = amount
             Origin = Some "ATM"
          }
          |> AccountCommand.DepositCash
-         |> FormCommand.Account
 
-      Msg.Submit(command, Started)
+      Msg.Submit(account, command, Started)
 
    Form.succeed onSubmit |> Form.append amountField
 
-let DepositFormComponent (account: Account) (onSubmit: ParentOnSubmitHandler) =
-   FormContainer
-      (FormDomain.Account account)
+let DepositFormComponent
+   (session: UserSession)
+   (account: Account)
+   (onSubmit: ParentOnSubmitHandler)
+   =
+   AccountFormContainer
       { Amount = "" }
-      (form account)
+      (form account (InitiatedById session.EmployeeId))
       onSubmit

@@ -7,41 +7,23 @@ open Elmish
 open System
 
 open Bank.Account.Domain
-open Bank.Account.UIDomain
+open UIDomain.Account
 open Bank.Account.Forms
+open Bank.Employee.Domain
+open Bank.Employee.Forms
 open Bank.Transfer.Domain
 open Lib.SharedTypes
-open FormContainer
-open EmployeeCardSelectSearch
-
-type private PendingAction = (AccountCommand * CommandProcessingResponse) option
+open EmployeeSearch
 
 // If user wants to view the transfer form but hasn't already added
 // recipients, redirect them to the transfer recipients creation form
 // first.  Once they submit a recipient then transition the view to their
 // intended transfer form.
-let private shouldRedirectToRegisterRecipient (account: Account) selectedView =
-   match selectedView with
-   | Some AccountActionView.Transfer when account.TransferRecipients.IsEmpty ->
-      true
-   | _ -> false
+let shouldRedirectToRegisterRecipient (account: Account) selectedView =
+   selectedView = AccountActionView.Transfer
+   && account.TransferRecipients.IsEmpty
 
-
-// TODO: Try to remove when refactor to just lookup evtId in the
-//       transaction read model instead of account read model.
-let private findEventCorrespondingToPendingAction
-   (realtimeEvents: AccountEvent list)
-   (pendingAction: PendingAction)
-   : AccountEvent option
-   =
-   pendingAction
-   |> Option.bind (fun (_, action) ->
-      realtimeEvents
-      |> List.tryFind (fun evt ->
-         let _, envelope = AccountEnvelope.unwrap evt
-         envelope.CorrelationId = action.CorrelationId))
-
-let private navigate (accountId: AccountId) (view: AccountActionView option) =
+let navigation (accountId: AccountId) (view: AccountActionView option) =
    let queryString =
       {
          Routes.IndexUrl.accountBrowserQuery () with
@@ -50,97 +32,71 @@ let private navigate (accountId: AccountId) (view: AccountActionView option) =
       |> AccountBrowserQuery.toQueryParams
       |> Router.encodeQueryString
 
-   Cmd.navigate (Routes.AccountUrl.BasePath, string accountId, queryString)
+   [| Routes.AccountUrl.BasePath; string accountId; queryString |]
 
 type State = {
    Account: Account
-   View: AccountActionView option
-   PendingAction: PendingAction
+   PendingAction: Envelope option
 }
 
 type Msg =
-   | ShowForm of AccountActionView
-   | CancelForm
-   | NetworkAckCommand of FormCommand * CommandProcessingResponse
-   | AccountEventReceived of AccountEvent list
-   | CheckForEventConfirmation of CommandProcessingResponse * attemptNumber: int
+   | Cancel
+   | NetworkAckCommand of Envelope
+   | AccountEventReceived of AccountEvent
+   | CheckForEventConfirmation of Envelope * attemptNumber: int
    | Noop
 
-let init (account: Account) () =
-   let selectedView = Routes.IndexUrl.accountBrowserQuery().Action
-   let redirect = shouldRedirectToRegisterRecipient account selectedView
-
-   let selected, cmd =
-      if redirect then
+let init (account: Account) (view: AccountActionView) () =
+   let cmd =
+      if shouldRedirectToRegisterRecipient account view then
          let redirectTo = Some AccountActionView.RegisterTransferRecipient
-         redirectTo, navigate account.AccountId redirectTo
+         Cmd.navigate (navigation account.AccountId redirectTo)
       else
-         selectedView, Cmd.none
+         Cmd.none
 
    {
       Account = account
-      View = selected
       PendingAction = None
    },
    cmd
 
-let closeForm state = { state with View = None }
-
 let update
-   (handleConfirmationReceivedViaPolling:
-      AccountEventPersistedConfirmation -> unit)
+   (handlePollingConfirmation: AccountEventPersistedConfirmation -> unit)
    msg
    state
    =
-   let navigate = navigate state.Account.AccountId
+   let navigation = navigation state.Account.AccountId
 
    match msg with
-   | ShowForm form ->
-      let form =
-         if shouldRedirectToRegisterRecipient state.Account (Some form) then
-            AccountActionView.RegisterTransferRecipient
-         else
-            form
-
-      let view = Some form
-
-      { state with View = view }, navigate view
-   | CancelForm -> closeForm state, navigate None
-   | NetworkAckCommand(command, response) ->
+   | Cancel -> state, Cmd.navigate (navigation None)
+   | NetworkAckCommand envelope ->
       // HTTP request returned 200. Command accepted by network.  Wait
       // for account actor cluster to successfully process the command into
       // an event and send out a confirmation via SignalR.
-      match command with
-      | FormCommand.Account command ->
-         let state = {
-            state with
-               PendingAction = Some(command, response)
-         }
+      let state = {
+         state with
+            PendingAction = Some envelope
+      }
 
-         let delayedMsg = Msg.CheckForEventConfirmation(response, 1)
+      let delayedMsg = Msg.CheckForEventConfirmation(envelope, 1)
 
-         state, Cmd.fromTimeout 3000 delayedMsg
-      | FormCommand.Employee _ -> closeForm state, navigate None
+      state, Cmd.fromTimeout 3000 delayedMsg
    | AccountEventReceived _ when state.PendingAction.IsNone -> state, Cmd.none
-   | AccountEventReceived realtimeEvents ->
-      let found =
-         findEventCorrespondingToPendingAction
-            realtimeEvents
-            state.PendingAction
+   | AccountEventReceived realtimeEvent ->
+      let _, realtimeEnvelope = AccountEnvelope.unwrap realtimeEvent
 
-      match found with
-      | None -> state, Cmd.none
-      | Some _ ->
+      match state.PendingAction with
+      | Some envelope when
+         envelope.CorrelationId = realtimeEnvelope.CorrelationId
+         ->
          let state = { state with PendingAction = None }
 
-         match state.View with
+         match Routes.IndexUrl.accountBrowserQuery().Action with
          | Some AccountActionView.RegisterTransferRecipient ->
             let redirectTo = Some AccountActionView.Transfer
-
-            let state = { state with View = redirectTo }
-
-            state, navigate redirectTo
-         | _ -> closeForm state, navigate None
+            state, Cmd.navigate (navigation redirectTo)
+         | _ -> state, Cmd.navigate (navigation None)
+      | _ -> state, Cmd.none
    // Verify the PendingAction was persisted.
    // If a SignalR event doesn't dispatch a Msg.AccountEventReceived within
    // a few seconds of the initial network request to process the command then
@@ -150,213 +106,143 @@ let update
       let checkAgainMsg =
          Msg.CheckForEventConfirmation(commandResponse, attemptNumber + 1)
 
-      if
-         (AccountId.fromEntityId commandResponse.EntityId)
-         <> state.Account.AccountId
-      then
-         Log.info
-            "A different account was selected. Discard event confirmation check."
-
-         state, Cmd.none
-      elif attemptNumber > 10 then
+      if attemptNumber > 10 then
          Log.error
             "Could not confirm event was processed after several attempts."
 
          state, Cmd.none
       else
          match state.PendingAction with
-         | None -> state, Cmd.none
-         | Some(_, action) when
-            action.CorrelationId <> commandResponse.CorrelationId
-            ->
-            state, Cmd.none
-         | Some(_, _) ->
-            // TODO: Refactor to just lookup id in the transaction read model
-            //       instead of account read model
+         | Some action when action.CorrelationId = commandResponse.CorrelationId ->
             let getReadModel = async {
                let! accountMaybe =
                   AccountService.getAccount state.Account.AccountId
 
                match accountMaybe with
                | Error e ->
-                  Log.error
-                     $"Error checking for updated account state. Retry. {e}"
+                  Log.error $"Error checking for updated account state. {e}"
+                  return Msg.Noop
+               | Ok None ->
+                  Log.error $"No account found. Notify devs."
+                  return Msg.Noop
+               | Ok(Some account) ->
+                  let found =
+                     account.Events
+                     |> List.tryFind (fun evt ->
+                        let _, envelope = AccountEnvelope.unwrap evt
+                        envelope.CorrelationId = action.CorrelationId)
 
-                  return checkAgainMsg
-               | Ok accountOpt ->
-                  match accountOpt with
+                  match found with
                   | None ->
-                     Log.error $"No account found. Notify devs."
-                     return Msg.Noop
-                  | Some account ->
-                     let found =
-                        findEventCorrespondingToPendingAction
-                           account.Events
-                           state.PendingAction
+                     do! Async.Sleep 2500
+                     return checkAgainMsg
+                  | Some correspondingEvtFound ->
+                     handlePollingConfirmation {
+                        Account = account
+                        EventPersisted = correspondingEvtFound
+                        Date = DateTime.UtcNow
+                     }
 
-                     match found with
-                     | None ->
-                        do! Async.Sleep 2500
-                        return checkAgainMsg
-                     | Some correspondingEvtFound ->
-                        handleConfirmationReceivedViaPolling {
-                           NewState = account
-                           EventPersisted = correspondingEvtFound
-                           Date = DateTime.UtcNow
-                        }
-
-                        return
-                           Msg.AccountEventReceived [ correspondingEvtFound ]
+                     return Msg.AccountEventReceived correspondingEvtFound
             }
 
             state, Cmd.fromAsync getReadModel
+         | _ -> state, Cmd.none
    | Noop -> state, Cmd.none
-
-let private renderMenuButton dispatch (form: AccountActionView) =
-   Html.button [
-      attr.classes [ "outline" ]
-      attr.onClick (fun _ -> ShowForm form |> dispatch)
-      attr.text (
-         match form with
-         | AccountActionView.RegisterTransferRecipient ->
-            "Add a Transfer Recipient"
-         | AccountActionView.DailyDebitLimit -> "Daily Debit Limit"
-         | AccountActionView.CardAccess -> "Lock Debit Card"
-         | _ -> string form
-      )
-   ]
 
 [<ReactComponent>]
 let AccountActionsComponent
+   (session: UserSession)
    (account: Account)
-   (realtimeEvents: AccountEvent list)
-   (potentialTransferRecipients: PotentialInternalTransferRecipients)
-   (handleConfirmationReceivedViaPolling:
-      AccountEventPersistedConfirmation -> unit)
+   (accountProfiles: Map<AccountId, AccountProfile>)
+   (view: AccountActionView)
+   (handlePollingConfirmation: AccountEventPersistedConfirmation -> unit)
    =
    let state, dispatch =
       React.useElmish (
-         init account,
-         update handleConfirmationReceivedViaPolling,
+         init account view,
+         update handlePollingConfirmation,
          [| box account.AccountId |]
       )
 
-   // TODO: See if I can remove and observe a Option<PendingEvent> on SignalR context
-   React.useEffect (
-      (fun () ->
-         if account.AccountId = state.Account.AccountId then
-            dispatch <| AccountEventReceived realtimeEvents),
-      [| box realtimeEvents.Length |]
-   )
+   SignalRAccountEventProvider.useAccountEventSubscription {
+      ComponentName = "AccountAction"
+      AccountId = Some account.AccountId
+      OnReceive = _.EventPersisted >> Msg.AccountEventReceived >> dispatch
+   }
 
-   let renderMenuButton = renderMenuButton dispatch
-
-   match state.View with
-   | None ->
-      Html.div [
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton AccountActionView.Debit
-            renderMenuButton AccountActionView.Deposit
-         ]
-
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton AccountActionView.Transfer
-         ]
-
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton AccountActionView.RegisterTransferRecipient
-         ]
-
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton AccountActionView.DailyDebitLimit
-         ]
-
-         classyNode Html.div [ "grid" ] [
-            renderMenuButton AccountActionView.CardAccess
-         ]
-      ]
-   | Some form ->
-      classyNode Html.div [ "form-wrapper" ] [
-         Html.h6 (
-            match form with
-            | AccountActionView.RegisterTransferRecipient ->
-               "Add a Transfer Recipient"
-            | AccountActionView.EditTransferRecipient _ ->
-               "Edit Transfer Recipient"
-            | AccountActionView.Transfer -> "Transfer Money"
-            | AccountActionView.Debit -> "Debit Purchase"
-            | AccountActionView.Deposit -> "Deposit Cash"
-            | AccountActionView.DailyDebitLimit -> "Set a Daily Allowance"
-            | AccountActionView.CardAccess -> "Card Access"
-         )
-
-         CloseButton.render (fun _ -> dispatch CancelForm)
-
-         match form with
-         | AccountActionView.Deposit ->
-            DepositForm.DepositFormComponent
-               state.Account
-               (Msg.NetworkAckCommand >> dispatch)
+   classyNode Html.article [ "form-wrapper" ] [
+      Html.h6 (
+         match view with
          | AccountActionView.RegisterTransferRecipient ->
-            RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
-               state.Account
-               potentialTransferRecipients
-               None
-               (Msg.NetworkAckCommand >> dispatch)
-         | AccountActionView.EditTransferRecipient accountId ->
-            let invalidAccount =
-               TransferDeclinedReason.InvalidAccountInfo
-               |> DomesticTransferProgress.Failed
+            "Add a Transfer Recipient"
+         | AccountActionView.EditTransferRecipient _ ->
+            "Edit Transfer Recipient"
+         | AccountActionView.Transfer -> "Transfer Money"
+         | AccountActionView.Debit -> "Debit Purchase"
+         | AccountActionView.Deposit -> "Deposit Cash"
+      )
 
-            let count =
-               account.FailedDomesticTransfers
-               |> Map.filter (fun _ t -> t.Status = invalidAccount)
-               |> Map.count
+      CloseButton.render (fun _ -> dispatch Cancel)
 
-            let msg = "will be retried upon editing recipient info."
+      match view with
+      | AccountActionView.Deposit ->
+         DepositForm.DepositFormComponent
+            session
+            state.Account
+            (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+      | AccountActionView.RegisterTransferRecipient ->
+         RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
+            session
+            state.Account
+            (PotentialInternalTransferRecipients.create account accountProfiles)
+            None
+            (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+      | AccountActionView.EditTransferRecipient accountId ->
+         let invalidAccount =
+            TransferDeclinedReason.InvalidAccountInfo
+            |> DomesticTransferProgress.Failed
 
-            let msg =
-               match count with
-               | 0 -> None
-               | 1 -> Some $"1 failed transfer {msg}"
-               | count -> Some $"{count} failed transfers {msg}"
+         let count =
+            account.FailedDomesticTransfers
+            |> Map.filter (fun _ t -> t.Status = invalidAccount)
+            |> Map.count
 
-            match msg with
-            | Some msg -> Html.div [ Html.ins msg ]
-            | None -> ()
+         let msg = "will be retried upon editing recipient info."
 
-            RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
-               state.Account
-               potentialTransferRecipients
-               (Some accountId)
-               (Msg.NetworkAckCommand >> dispatch)
-         | AccountActionView.Transfer ->
-            TransferForm.TransferFormComponent
-               state.Account
-               (Msg.NetworkAckCommand >> dispatch)
-         | AccountActionView.DailyDebitLimit ->
-            EmployeeCardSelectSearchComponent
-               state.Account.OrgId
-               (fun card employee -> [
-                  DailyDebitLimitForm.DailyDebitLimitFormComponent
-                     (Msg.NetworkAckCommand >> dispatch)
-                     card.CardId
-                     employee
-               ])
-         | AccountActionView.Debit ->
-            EmployeeCardSelectSearchComponent
-               state.Account.OrgId
-               (fun card employee -> [
+         let msg =
+            match count with
+            | 0 -> None
+            | 1 -> Some $"1 failed transfer {msg}"
+            | count -> Some $"{count} failed transfers {msg}"
+
+         match msg with
+         | Some msg -> Html.div [ Html.ins msg ]
+         | None -> ()
+
+         RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
+            session
+            state.Account
+            (PotentialInternalTransferRecipients.create account accountProfiles)
+            (Some accountId)
+            (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+      | AccountActionView.Transfer ->
+         TransferForm.TransferFormComponent
+            session
+            state.Account
+            (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+      | AccountActionView.Debit ->
+         EmployeeCardSelectSearchComponent {|
+            OrgId = state.Account.OrgId
+            MakeChildrenOnSelect =
+               Some
+               <| fun card employee -> [
                   DebitForm.DebitFormComponent
-                     (Msg.NetworkAckCommand >> dispatch)
+                     (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
                      state.Account
                      card.CardId
                      employee
-               ])
-      // TODO: move to employee card list page
-      (*
-         | AccountActionView.CardAccess ->
-            CardAccess.CardAccessFormComponent
-               (Msg.NetworkAckCommand >> dispatch)
-         *)
-      ]
+               ]
+            OnSelect = None
+         |}
+   ]

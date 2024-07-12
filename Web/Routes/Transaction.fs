@@ -9,8 +9,9 @@ open Microsoft.AspNetCore.Builder
 open Bank.Account.Domain
 open Bank.Transaction.Api
 open RoutePaths
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 open Lib.SharedTypes
+open Bank.UserSession.Middleware
 
 /// Parse TransactionQuery-compliant query params from network request and
 /// pass along to dotnet minimal api route handler.
@@ -37,21 +38,13 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
            ([<FromQuery>] amountMin: Nullable<decimal>)
            ([<FromQuery>] amountMax: Nullable<decimal>)
            ([<FromQuery>] date: string) ->
-         let moneyFlowOpt =
-            if not <| String.IsNullOrWhiteSpace moneyFlow then
-               MoneyFlow.fromString moneyFlow
-            else
-               None
-
-         let dateOpt =
-            if not <| String.IsNullOrWhiteSpace date then
-               TransactionQuery.dateRangeFromQueryString date
-            else
-               None
+         let moneyFlowOpt = MoneyFlow.fromString moneyFlow
+         let dateOpt = dateRangeFromQueryString date
+         let categories = CategoryFilter.categoryFromQueryString categoryIds
 
          let categoryOpt =
-            if not <| String.IsNullOrWhiteSpace categoryIds then
-               Some(TransactionQuery.categoryFromQueryString categoryIds)
+            if categories.IsSome then
+               categories
             else if isCategorized.HasValue then
                Some(CategoryFilter.IsCategorized isCategorized.Value)
             else
@@ -78,69 +71,86 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
          })
 
 let startTransactionRoutes (app: WebApplication) =
-   app.MapGet(
-      TransactionPath.AccountTransactions,
-      withQueryParams<Task<IResult>> (
-         getTransactions >> RouteUtil.unwrapTaskResultOption
+   app
+      .MapGet(
+         TransactionPath.AccountTransactions,
+         withQueryParams<Task<IResult>> (
+            getTransactions >> RouteUtil.unwrapTaskResultOption
+         )
       )
-   )
+      .RBAC(Permissions.GetTransactions)
    |> ignore
 
-   app.MapGet(
-      TransactionPath.Categories,
-      Func<Task<IResult>>(getCategories >> RouteUtil.unwrapTaskResultOption)
-   )
+   app
+      .MapGet(
+         TransactionPath.Categories,
+         Func<Task<IResult>>(getCategories >> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.GetCategories)
    |> ignore
 
-   app.MapGet(
-      TransactionPath.TransactionInfo,
-      Func<Guid, Task<IResult>>(fun txnId ->
-         getTransactionInfo (EventId txnId) |> RouteUtil.unwrapTaskResultOption)
-   )
+   app
+      .MapGet(
+         TransactionPath.TransactionInfo,
+         Func<Guid, Task<IResult>>(fun txnId ->
+            getTransactionInfo (EventId txnId)
+            |> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.GetTransactionInfo)
    |> ignore
 
-   app.MapPost(
-      TransactionPath.Category,
-      Func<Guid, int, Task<IResult>>(fun txnId categoryId ->
-         upsertTransactionCategory (EventId txnId) categoryId
-         |> RouteUtil.unwrapTaskResult)
-   )
+   app
+      .MapPost(
+         TransactionPath.Category,
+         Func<Guid, int, Task<IResult>>(fun txnId categoryId ->
+            upsertTransactionCategory (EventId txnId) categoryId
+            |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManageTransactionCategory)
    |> ignore
 
-   app.MapDelete(
-      TransactionPath.CategoryDelete,
-      Func<Guid, Task<IResult>>(fun txnId ->
-         deleteTransactionCategory (EventId txnId)
-         |> RouteUtil.unwrapTaskResult)
-   )
+   app
+      .MapDelete(
+         TransactionPath.CategoryDelete,
+         Func<Guid, Task<IResult>>(fun txnId ->
+            deleteTransactionCategory (EventId txnId)
+            |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManageTransactionCategory)
    |> ignore
 
-   app.MapPost(
-      TransactionPath.Note,
-      Func<Guid, Stream, Task<IResult>>(fun txnId body -> task {
-         try
-            use reader = new StreamReader(body)
-            let! note = reader.ReadToEndAsync()
+   app
+      .MapPost(
+         TransactionPath.Note,
+         Func<Guid, Stream, Task<IResult>>(fun txnId body -> task {
+            try
+               use reader = new StreamReader(body)
+               let! note = reader.ReadToEndAsync()
 
-            return!
-               upsertTransactionNote (EventId txnId) note
-               |> RouteUtil.unwrapTaskResult
-         with e ->
-            return Results.Problem e.Message
-      })
-   )
+               return!
+                  upsertTransactionNote (EventId txnId) note
+                  |> RouteUtil.unwrapTaskResult
+            with e ->
+               return Results.Problem e.Message
+         })
+      )
+      .RBAC(Permissions.ManageTransactionNotes)
    |> ignore
 
-   app.MapGet(
-      TransactionPath.Merchants,
-      Func<Guid, Task<IResult>>(fun orgId ->
-         getMerchants (OrgId orgId) |> RouteUtil.unwrapTaskResultOption)
-   )
+   app
+      .MapGet(
+         TransactionPath.Merchants,
+         Func<Guid, Task<IResult>>(fun orgId ->
+            getMerchants (OrgId orgId) |> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.GetMerchants)
    |> ignore
 
-   app.MapPost(
-      TransactionPath.Merchants,
-      Func<Merchant, Task<IResult>>(fun merchant ->
-         upsertMerchant merchant |> RouteUtil.unwrapTaskResult)
-   )
+   app
+      .MapPost(
+         TransactionPath.Merchants,
+         Func<Merchant, Task<IResult>>(fun merchant ->
+            upsertMerchant merchant |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManageMerchants)
    |> ignore

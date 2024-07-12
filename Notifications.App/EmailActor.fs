@@ -21,7 +21,14 @@ open Bank.Employee.Domain
 
 // TODO: Comment out all account related email messages until
 //       I associate account owners with the account.
-//
+
+
+type EmployeeInvite = {
+   Name: string
+   Email: Email
+   Token: InviteToken
+}
+
 type EmailMessage =
    | AccountOpen of Account
    | AccountClose of Account
@@ -33,6 +40,7 @@ type EmailMessage =
    | DebitDeclinedInsufficientAccountBalance of balance: decimal * Email
    | TransferDeposited of BankEvent<TransferDeposited> * Account
    | ApplicationErrorRequiresSupport of string
+   | EmployeeInvite of EmployeeInvite
 
 type private CircuitBreakerMessage =
    | BreakerHalfOpen
@@ -104,6 +112,16 @@ let private emailPropsFromMessage (msg: EmailMessage) =
       event = "application-error-requires-support"
       email = EnvNotifications.config.SupportEmail |> Option.defaultValue null
       data = {| error = errMsg |}
+     }
+   | EmployeeInvite invite -> {
+      event = "employee-invite"
+      email = string invite.Email
+      data = {|
+         name = invite.Name
+         // TODO: Domain not configured.
+         inviteLink =
+            $"localhost:8080{RoutePaths.UserSessionPath.AuthorizeInvite}?token={invite.Token.Token}"
+      |}
      }
 
 // Side effect: Raise an exception instead of returning Result.Error
@@ -290,3 +308,6 @@ let start
 
 let get (system: ActorSystem) : IActorRef<EmailMessage> =
    typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailMarker>()
+
+let getForwarder (system: ActorSystem) : IActorRef<EmailMessage> =
+   typed <| ActorRegistry.For(system).Get<ActorMetadata.EmailForwardingMarker>()

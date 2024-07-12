@@ -100,7 +100,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          match msg with
          | AccountMessage.Event _ -> "AccountEvent"
          | _ -> "AccountMessage"
-      | :? SignalRMessage -> "SignalRMessage"
+      | :? SignalRActor.Msg -> "SignalRMessage"
       | :? CircuitBreakerActorState -> "CircuitBreakerActorState"
       | :? CircuitBreakerEvent -> "CircuitBreakerEvent"
       | :? CircuitBreakerMessage -> "CircuitBreakerActorMessage"
@@ -114,6 +114,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | :? AccountMessage -> "AccountShardEnvelope"
          | :? EmployeeMessage -> "EmployeeShardEnvelope"
          | _ -> raise <| NotImplementedException()
+      | :? EmailActor.EmailMessage -> "EmailMessage"
       | _ -> raise <| NotImplementedException()
 
    override x.ToBinary(o: obj) =
@@ -174,7 +175,10 @@ type BankSerializer(system: ExtendedActorSystem) =
       // CircuitBreakerActor persistence.
       | :? CircuitBreakerEvent
       // Messages sent over DistributedPubSub to SignalRActor on Web node.
-      | :? SignalRMessage
+      | :? SignalRActor.Msg
+      // Most email sending is done from actors within account nodes.
+      // Allow emails to also be sent from web nodes.
+      | :? EmailActor.EmailMessage
       // AccountActor persistence snapshot.
       | :? Account as o ->
          JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
@@ -239,7 +243,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountEventList" -> typeof<AccountEvent list>
          | "AccountMessage" -> typeof<AccountMessage>
          | "AccountShardEnvelope" -> typeof<AccountShardEnvelope>
-         | "SignalRMessage" -> typeof<SignalRMessage>
+         | "SignalRMessage" -> typeof<SignalRActor.Msg>
          | "CircuitBreakerEvent" -> typeof<CircuitBreakerEvent>
          | "CircuitBreakerActorMessage" -> typeof<CircuitBreakerMessage>
          | "CircuitBreakerActorState" -> typeof<CircuitBreakerActorState>
@@ -251,6 +255,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>
          | "SchedulingActorMessage" -> typeof<SchedulingActor.Message>
          | "AccountSeederMessage" -> typeof<AccountSeederMessage>
+         | "EmailMessage" -> typeof<EmailActor.EmailMessage>
          | _ -> raise <| SerializationException()
 
       let deserialized =

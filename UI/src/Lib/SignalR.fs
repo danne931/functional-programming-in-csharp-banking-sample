@@ -31,19 +31,33 @@ type Connection(conn: IPromiseConnection) =
       |> AsyncUtil.promiseToAsyncResult
       |> AsyncResult.mapError Err.SignalRError
 
-   member x.addAccountToConnectionGroup =
-      AccountId.get
-      >> string
-      >> conn.addAccountToConnectionGroup
-      >> AsyncUtil.promiseToAsyncResult
-      >> AsyncResult.mapError Err.SignalRError
+   member x.addAccountToConnectionGroup(accountId: AccountId) =
+      string accountId
+      |> conn.addAccountToConnectionGroup
+      |> AsyncUtil.promiseToAsyncResult
+      |> AsyncResult.tee (fun _ ->
+         Log.info $"Added account to SignalR connection: {accountId}")
+      |> AsyncResult.teeError (fun err ->
+         Log.error
+            $"Error adding account to SignalR connection: {accountId} {err}")
+      |> AsyncResult.mapError Err.SignalRError
 
-   member x.removeAccountFromConnectionGroup =
-      AccountId.get
-      >> string
-      >> conn.removeAccountFromConnectionGroup
-      >> AsyncUtil.promiseToAsyncResult
-      >> AsyncResult.mapError Err.SignalRError
+   member x.removeAccountFromConnectionGroup(accountId: AccountId) =
+      string accountId
+      |> conn.removeAccountFromConnectionGroup
+      |> AsyncUtil.promiseToAsyncResult
+      |> AsyncResult.tee (fun _ ->
+         Log.info $"Removed account from SignalR connection: {accountId}")
+      |> AsyncResult.teeError (fun err ->
+         if
+            not
+            <| err.Message.Contains(
+               "Invocation canceled due to the underlying connection being closed"
+            )
+         then
+            Log.error
+               $"Error removing account from SignalR connection: {accountId} {err}")
+      |> AsyncResult.mapError Err.SignalRError
 
    member x.on(eventName: string, eventHandler: string -> unit) =
       conn.on (eventName, eventHandler)

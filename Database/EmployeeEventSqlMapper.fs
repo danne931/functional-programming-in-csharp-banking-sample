@@ -14,6 +14,7 @@ module EmployeeEventFields =
    let orgId = OrgFields.orgId
    let employeeId = EmployeeFields.employeeId
    let correlationId = "correlation_id"
+   let initiatedById = "initiated_by_id"
    let name = "name"
    let timestamp = "timestamp"
    let event = "event"
@@ -26,7 +27,13 @@ module EmployeeEventSqlReader =
    let employeeId = EmployeeSqlReader.employeeId
 
    let correlationId (read: RowReader) =
-      EmployeeFields.employeeId |> read.uuid |> CorrelationId
+      EmployeeEventFields.correlationId |> read.uuid |> CorrelationId
+
+   let initiatedById (read: RowReader) =
+      EmployeeEventFields.initiatedById
+      |> read.uuid
+      |> EmployeeId
+      |> InitiatedById
 
    let name (read: RowReader) = read.text EmployeeEventFields.name
 
@@ -46,8 +53,14 @@ module EmployeeEventSqlWriter =
       let (CorrelationId id) = corrId
       Sql.uuid id
 
+   let initiatedById (id: InitiatedById) = id |> InitiatedById.get |> Sql.uuid
+
+   let initiatedByIds (ids: InitiatedById list) =
+      ids |> List.map InitiatedById.get |> List.toArray |> Sql.uuidArray
+
    let orgId = OrgSqlWriter.orgId
    let employeeId = EmployeeSqlWriter.employeeId
+   let employeeIds = EmployeeSqlWriter.employeeIds
    let name = Sql.text
    let timestamp (date: DateTime) = Sql.timestamptz date
 

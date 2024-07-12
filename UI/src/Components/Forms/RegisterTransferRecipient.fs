@@ -5,10 +5,10 @@ open Fable.Form.Simple
 open System
 
 open Fable.Form.Simple.Pico
-open Bank.Account.UIDomain
+open UIDomain.Account
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open AsyncUtil
+open Bank.Employee.Domain
 open Lib.Validators
 open FormContainer
 open Lib.SharedTypes
@@ -32,6 +32,7 @@ type State = {
 
 let internalRecipientForm
    (state: State)
+   (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let accounts =
@@ -72,19 +73,20 @@ let internalRecipientForm
       let cmd =
          RegisterInternalTransferRecipientCommand.create
             state.Account.CompositeId
+            initiatedBy
             {
                AccountId = recipient.AccountId
                Name = recipient.Name
             }
          |> AccountCommand.RegisterInternalTransferRecipient
-         |> FormCommand.Account
 
-      Msg.Submit(cmd, Started)
+      Msg.Submit(state.Account, cmd, Started)
 
    Form.succeed onSubmit |> Form.append accountSelectField
 
 let domesticRecipientForm
    (state: State)
+   (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let fieldFirstName =
@@ -205,6 +207,7 @@ let domesticRecipientForm
          | None ->
             RegisterDomesticTransferRecipientCommand.create
                state.Account.CompositeId
+               initiatedBy
                {
                   LastName = last
                   FirstName = first
@@ -217,6 +220,7 @@ let domesticRecipientForm
          | Some recipient ->
             EditDomesticTransferRecipientCommand.create
                state.Account.CompositeId
+               initiatedBy
                {
                   LastName = last
                   FirstName = first
@@ -228,7 +232,7 @@ let domesticRecipientForm
                }
             |> AccountCommand.EditDomesticTransferRecipient
 
-      Msg.Submit(FormCommand.Account cmd, Started)
+      Msg.Submit(state.Account, cmd, Started)
 
    Form.succeed onSubmit
    |> Form.append fieldPaymentNetwork
@@ -242,7 +246,11 @@ let domesticRecipientForm
    |> Form.append fieldAccountNumber
    |> Form.append fieldRoutingNumber
 
-let form (state: State) : Form.Form<Values, Msg<Values>, IReactProperty> =
+let form
+   (state: State)
+   (initiatedBy: InitiatedById)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
    let fieldAccountEnvironment =
       Form.selectField {
          Parser =
@@ -272,11 +280,14 @@ let form (state: State) : Form.Form<Values, Msg<Values>, IReactProperty> =
    fieldAccountEnvironment
    |> Form.andThen (fun env ->
       match env with
-      | RecipientAccountEnvironment.Internal -> internalRecipientForm state
-      | RecipientAccountEnvironment.Domestic -> domesticRecipientForm state)
+      | RecipientAccountEnvironment.Internal ->
+         internalRecipientForm state initiatedBy
+      | RecipientAccountEnvironment.Domestic ->
+         domesticRecipientForm state initiatedBy)
 
 [<ReactComponent>]
 let RegisterTransferRecipientFormComponent
+   (session: UserSession)
    (account: Account)
    (potentialTransferRecipients: PotentialInternalTransferRecipients)
    (recipientIdForEdit: AccountId option)
@@ -316,8 +327,7 @@ let RegisterTransferRecipientFormComponent
         }
       | _ -> formProps
 
-   FormContainer
-      (FormDomain.Account state.Account)
+   AccountFormContainer
       formProps
-      (form state)
+      (form state (InitiatedById session.EmployeeId))
       onSubmit

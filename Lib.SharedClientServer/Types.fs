@@ -31,6 +31,9 @@ type CorrelationId =
       let (CorrelationId id) = x
       string id
 
+module CorrelationId =
+   let create () = CorrelationId <| Guid.NewGuid()
+
 type EventId =
    | EventId of Guid
 
@@ -43,20 +46,6 @@ type AccountId =
 
    override x.ToString() =
       let (AccountId id) = x
-      string id
-
-type EmployeeId =
-   | EmployeeId of Guid
-
-   override x.ToString() =
-      let (EmployeeId id) = x
-      string id
-
-type CardId =
-   | CardId of Guid
-
-   override x.ToString() =
-      let (CardId id) = x
       string id
 
 module AccountId =
@@ -72,6 +61,13 @@ module AccountId =
       let (EntityId id) = entityId
       AccountId id
 
+type EmployeeId =
+   | EmployeeId of Guid
+
+   override x.ToString() =
+      let (EmployeeId id) = x
+      string id
+
 module EmployeeId =
    let get (employeeId: EmployeeId) : Guid =
       let (EmployeeId id) = employeeId
@@ -85,13 +81,36 @@ module EmployeeId =
       let (EntityId id) = entityId
       EmployeeId id
 
-module CorrelationId =
-   let create () = CorrelationId <| Guid.NewGuid()
+// Employee who initiated the command.
+type InitiatedById =
+   | InitiatedById of EmployeeId
+
+   override x.ToString() =
+      let (InitiatedById initiatedById) = x
+      let (EmployeeId id) = initiatedById
+      string id
+
+module InitiatedById =
+   let toEmployeeId (id: InitiatedById) : EmployeeId =
+      let (InitiatedById employeeId) = id
+      employeeId
+
+   let get (initiatedById: InitiatedById) : Guid =
+      let (EmployeeId id) = toEmployeeId initiatedById
+      id
+
+type CardId =
+   | CardId of Guid
+
+   override x.ToString() =
+      let (CardId id) = x
+      string id
 
 type Command<'C> = {
    Id: EventId
    EntityId: EntityId
    OrgId: OrgId
+   InitiatedBy: InitiatedById
    Timestamp: DateTime
    CorrelationId: CorrelationId
    Data: 'C
@@ -102,6 +121,7 @@ module Command =
       (entityId: EntityId)
       (orgId: OrgId)
       (correlationId: CorrelationId)
+      (initiatedById: InitiatedById)
       (data)
       : Command<'t>
       =
@@ -111,6 +131,7 @@ module Command =
          OrgId = orgId
          Timestamp = DateTime.UtcNow
          CorrelationId = correlationId
+         InitiatedBy = initiatedById
          Data = data
       }
 
@@ -118,6 +139,7 @@ type BankEvent<'E> = {
    Id: EventId
    EntityId: EntityId
    OrgId: OrgId
+   InitiatedById: InitiatedById
    Timestamp: DateTime
    Data: 'E
    CorrelationId: CorrelationId
@@ -134,6 +156,7 @@ module BankEvent =
       EntityId = command.EntityId
       OrgId = command.OrgId
       CorrelationId = command.CorrelationId
+      InitiatedById = command.InitiatedBy
       Timestamp = command.Timestamp
       Data = command.Data
    }
@@ -142,6 +165,7 @@ module BankEvent =
       Id = command.Id
       EntityId = command.EntityId
       OrgId = command.OrgId
+      InitiatedById = command.InitiatedBy
       CorrelationId = command.CorrelationId
       Timestamp = command.Timestamp
       Data = evtData
@@ -154,6 +178,7 @@ type Envelope = {
    Timestamp: DateTime
    EventName: string
    CorrelationId: CorrelationId
+   InitiatedById: InitiatedById
 }
 
 type AccountStateTransitionError =
@@ -173,10 +198,13 @@ type AccountStateTransitionError =
 type EmployeeStateTransitionError =
    | EmployeeNotReadyToActivate
    | EmployeeNotActive
+   | EmployeeStatusDisallowsInviteProgression of string
    | CardNotFound
    | CardLocked
+   | CardExpired
    | ExceededDailyDebit of limit: decimal * accrued: decimal
    | DebitAlreadyProgressedToApprovedOrDeclined
+   | EmployeeStatusDisallowsAccessRestore of string
 
 type Err =
    | DatabaseError of exn
@@ -205,8 +233,8 @@ type Err =
       | DatabaseError _ -> "Database Error"
       | SerializationError _ -> "Serialization Error"
       | SignalRError _ -> "SignalR Error"
-      | NetworkError _ -> "Network Error"
-      | InvalidStatusCodeError _ -> x.ToString()
+      | NetworkError _ -> string x
+      | InvalidStatusCodeError _ -> string x
       | ValidationError e ->
          e
          |> ValidationErrors.toList
@@ -239,16 +267,21 @@ type Err =
             "Transfer progress no change"
       | EmployeeStateTransitionError e ->
          match e with
-         | DebitAlreadyProgressedToApprovedOrDeclined ->
+         | EmployeeStateTransitionError.DebitAlreadyProgressedToApprovedOrDeclined ->
             "Not found in PendingPurchases. Likely already approved or declined."
          | EmployeeStateTransitionError.EmployeeNotActive ->
             "Employee Not Active"
          | EmployeeStateTransitionError.EmployeeNotReadyToActivate ->
             "Employee Not Ready to Activate"
+         | EmployeeStateTransitionError.CardExpired -> "Card Expired"
          | EmployeeStateTransitionError.CardLocked -> "Card Locked"
          | EmployeeStateTransitionError.CardNotFound -> "Card Not Found"
          | EmployeeStateTransitionError.ExceededDailyDebit(limit, _) ->
             $"Exceeded Daily Debit Limit ${limit}"
+         | EmployeeStateTransitionError.EmployeeStatusDisallowsInviteProgression state ->
+            $"Employee not in a state ({state}) to cancel invite."
+         | EmployeeStateTransitionError.EmployeeStatusDisallowsAccessRestore status ->
+            $"Employee not in a state ({status}) to restore access."
 
 [<RequireQualifiedAccess>]
 type MoneyFlow =
@@ -257,10 +290,13 @@ type MoneyFlow =
 
 module MoneyFlow =
    let fromString (flow: string) : MoneyFlow option =
-      match flow.ToLower() with
-      | "in" -> Some MoneyFlow.In
-      | "out" -> Some MoneyFlow.Out
-      | _ -> None
+      if String.IsNullOrEmpty flow then
+         None
+      else
+         match flow.ToLower() with
+         | "in" -> Some MoneyFlow.In
+         | "out" -> Some MoneyFlow.Out
+         | _ -> None
 
 [<RequireQualifiedAccess>]
 type Currency =
@@ -332,6 +368,9 @@ type CircuitBreakerActorState = {
 let ORG_ID_REMOVE_SOON =
    "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9" |> Guid.Parse |> OrgId
 
+let LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf69b1" |> Guid.Parse |> EmployeeId
+
 type AccountNumber =
    | AccountNumber of int64
 
@@ -348,8 +387,52 @@ type RoutingNumber =
       let (RoutingNumber num) = x
       string num
 
-type CommandProcessingResponse = {
-   EventId: EventId
-   CorrelationId: CorrelationId
-   EntityId: EntityId
+type OrgPermissions = { RequiresEmployeeInviteApproval: bool }
+
+type Org = {
+   OrgId: OrgId
+   Name: string
+   Permissions: OrgPermissions
+}
+
+[<RequireQualifiedAccess>]
+type Role =
+   | Admin
+   | CardOnly
+   | Scholar
+   //| Custom of CustomEmployeeBehaviors
+   member x.Display =
+      match x with
+      | Admin -> "Admin"
+      | CardOnly -> "Card Only"
+      | Scholar -> "Scholar"
+
+   override x.ToString() =
+      match x with
+      | Admin -> "admin"
+      | CardOnly -> "cardonly"
+      | Scholar -> "scholar"
+
+   static member fromString(role: string) : Role option =
+      if String.IsNullOrEmpty role then
+         None
+      else
+         match role.ToLower() with
+         | "admin" -> Some Admin
+         | "cardonly" -> Some CardOnly
+         | "scholar" -> Some Scholar
+         | _ -> None
+
+   static member fromStringUnsafe(role: string) : Role =
+      match Role.fromString role with
+      | None -> failwith "Error attempting to cast string to Role"
+      | Some status -> status
+
+type UserSession = {
+   OrgId: OrgId
+   EmployeeId: EmployeeId
+   FirstName: string
+   LastName: string
+   Email: Email
+   Role: Role
 }

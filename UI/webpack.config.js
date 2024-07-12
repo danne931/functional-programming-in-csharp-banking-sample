@@ -19,12 +19,9 @@ module.exports = (env, argv) => {
 
     devServer: {
       proxy: {
-        // TODO: Prepend /api to routes
-        '/accounts': proxyUrl,
-        '/transfers': proxyUrl,
-        '/diagnostic': proxyUrl,
-        '/transactions': proxyUrl,
-        '/employees': proxyUrl,
+        '/api': proxyUrl,
+        '/login': proxyUrl,
+        '/session': proxyUrl,
         '/accountHub': {
           target: 'ws://localhost:3000',
           ws: true

@@ -2,31 +2,19 @@ module AccountDashboard
 
 open Feliz
 open Feliz.UseElmish
-open Elmish
 open Feliz.Router
+open Elmish
 
-open AsyncUtil
 open Bank.Account.Domain
-open Bank.Account.UIDomain
+open UIDomain.Account
 open Lib.SharedTypes
-open AccountActions
 open TransactionDetail
 open AccountSelection
 
 type State = {
-   CurrentUrl: Routes.AccountUrl
-   AccountProfiles: Deferred<AccountProfilesMaybe>
    CurrentAccountId: AccountId option
    CurrentAccountAndTransactions: Deferred<AccountAndTransactionsMaybe>
-   RealtimeTransactions: AccountEvent list
-   SignalRConnection: SignalR.Connection option
-   SignalRCurrentAccountId: AccountId option
 }
-
-let accountProfiles (state: State) : Map<AccountId, AccountProfile> option =
-   match state.AccountProfiles with
-   | Deferred.Resolved(Ok(Some accounts)) -> Some accounts
-   | _ -> None
 
 let selectedAccount (state: State) : Account option =
    match state.CurrentAccountAndTransactions with
@@ -43,112 +31,20 @@ let updateAccountAndTransactions
       state.CurrentAccountAndTransactions
 
 type Msg =
-   | UrlChanged of Routes.AccountUrl
-   | LoadAccountProfiles of AsyncOperationStatus<AccountProfilesMaybe>
    | LoadAccountAndTransactions of
       AccountId *
       AsyncOperationStatus<AccountAndTransactionsMaybe>
-   | SignalRConnected of SignalR.Connection
-   | SignalRDisconnected
-   | AddAccountToSignalRConnectionGroup of
-      AsyncOperationStatus<Result<AccountId, Err>>
    | AccountEventPersisted of AccountEventPersistedConfirmation
 
-let addAccountToSignalRConnectionGroup state : Async<Msg> =
-   let opt =
-      Option.map2
-         (fun conn accountIdToAdd -> conn, accountIdToAdd)
-         state.SignalRConnection
-         state.CurrentAccountId
-
-   match opt with
-   | Some(conn, accountIdToAdd) -> async {
-      let! res =
-         AccountService.addAccountToSignalRConnectionGroup
-            conn
-            state.SignalRCurrentAccountId
-            accountIdToAdd
-
-      return Msg.AddAccountToSignalRConnectionGroup(Finished res)
-     }
-   | None -> async {
-      Log.info "Waiting to add account to SignalR connection group..."
-      do! Async.Sleep 500
-      return Msg.AddAccountToSignalRConnectionGroup Started
-     }
-
-let init
-   (url: Routes.AccountUrl)
-   (signalRConnection: SignalR.Connection option)
-   ()
-   =
+let init () =
    {
-      AccountProfiles = Deferred.Idle
-      CurrentUrl = url
       CurrentAccountId = None
       CurrentAccountAndTransactions = Deferred.Idle
-      RealtimeTransactions = []
-      SignalRConnection = signalRConnection
-      SignalRCurrentAccountId = None
    },
-   Cmd.ofMsg (LoadAccountProfiles Started)
+   Cmd.none
 
 let update msg state =
    match msg with
-   | SignalRConnected conn ->
-      {
-         state with
-            SignalRConnection = Some conn
-      },
-      Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
-   | SignalRDisconnected -> { state with SignalRConnection = None }, Cmd.none
-   | LoadAccountProfiles Started ->
-      let loadAccountProfiles = async {
-         // TODO: Get OrgId from user session.
-         let! res = AccountService.getAccountProfiles ORG_ID_REMOVE_SOON
-         return LoadAccountProfiles(Finished res)
-      }
-
-      {
-         state with
-            AccountProfiles = Deferred.InProgress
-      },
-      Cmd.fromAsync loadAccountProfiles
-   | LoadAccountProfiles(Finished(Ok(Some accounts))) ->
-      let state = {
-         state with
-            AccountProfiles = Deferred.Resolved(Ok(Some accounts))
-      }
-
-      let firstAccount () =
-         let selectedId = accounts |> Map.values |> Seq.head |> _.AccountId
-         state, Cmd.navigate (Routes.AccountUrl.BasePath, string selectedId)
-
-      match Routes.AccountUrl.accountIdMaybe state.CurrentUrl with
-      | None -> firstAccount ()
-      | Some id ->
-         let selected = accounts |> Map.tryFind id
-
-         match selected with
-         | None -> firstAccount ()
-         | Some _ ->
-            {
-               state with
-                  CurrentAccountId = Some id
-            },
-            Cmd.ofMsg <| Msg.LoadAccountAndTransactions(id, Started)
-   | LoadAccountProfiles(Finished(Ok None)) ->
-      {
-         state with
-            AccountProfiles = Deferred.Resolved(Ok None)
-      },
-      Cmd.none
-   | LoadAccountProfiles(Finished(Error err)) ->
-      {
-         state with
-            AccountProfiles = Deferred.Resolved(Error err)
-      },
-      Cmd.none
    | LoadAccountAndTransactions(accountId, Started) ->
       let query =
          TransactionService.transactionQueryFromAccountBrowserQuery
@@ -162,8 +58,8 @@ let update msg state =
 
       {
          state with
-            CurrentAccountAndTransactions = Deferred.Idle
-            RealtimeTransactions = []
+            CurrentAccountId = Some accountId
+            CurrentAccountAndTransactions = Deferred.InProgress
       },
       Cmd.fromAsync load
    | LoadAccountAndTransactions(_, Finished(Ok(Some(account, txns)))) ->
@@ -176,47 +72,12 @@ let update msg state =
    | LoadAccountAndTransactions _ ->
       Log.error "Issue loading account + transactions."
       state, Cmd.none
-   | UrlChanged url ->
-      let idFromUrl = Routes.AccountUrl.accountIdMaybe url
-      let previousAccountId = state.CurrentAccountId
-
-      let state = {
-         state with
-            CurrentUrl = url
-            CurrentAccountId = idFromUrl
-      }
-
-      let accountSelectedCmd currentId =
-         Cmd.batch [
-            Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
-            Cmd.ofMsg (Msg.LoadAccountAndTransactions(currentId, Started))
-         ]
-
-      match previousAccountId, idFromUrl with
-      | None, Some currentId -> state, accountSelectedCmd currentId
-      | Some previousId, Some currentId when currentId <> previousId ->
-         state, accountSelectedCmd currentId
-      | _ -> state, Cmd.none
-   | AddAccountToSignalRConnectionGroup Started ->
-      state, Cmd.fromAsync (addAccountToSignalRConnectionGroup state)
-   | AddAccountToSignalRConnectionGroup(Finished(Error err)) ->
-      Log.error $"Error adding account to Signal R connection group {err}"
-      state, Cmd.none
-   | AddAccountToSignalRConnectionGroup(Finished(Ok accountIdAdded)) ->
-      Log.info $"Added account to SignalR connection group: {accountIdAdded}"
-
-      {
-         state with
-            SignalRCurrentAccountId = Some accountIdAdded
-      },
-      Cmd.none
    | AccountEventPersisted data ->
-      let account = data.NewState
+      let account = data.Account
       let evt = data.EventPersisted
 
       {
          state with
-            RealtimeTransactions = evt :: state.RealtimeTransactions
             CurrentAccountAndTransactions =
                updateAccountAndTransactions
                   (fun (_, txns) -> account, evt :: txns)
@@ -224,94 +85,92 @@ let update msg state =
       },
       Cmd.none
 
-let renderAccountActions state dispatch =
-   let selectedAccountAndPotentialTransferRecipients
-      : (Account * PotentialInternalTransferRecipients) option =
-      Option.map2
-         (fun accountProfiles account ->
-            let potentialRecipients =
-               PotentialInternalTransferRecipients.create
-                  account
-                  accountProfiles
-
-            account, potentialRecipients)
-         (accountProfiles state)
-         (selectedAccount state)
-
-   Html.article [
-      match selectedAccountAndPotentialTransferRecipients with
-      | None -> ()
-      | Some(account, potentialTransferRecipients) ->
-         AccountActionsComponent
-            account
-            state.RealtimeTransactions
-            potentialTransferRecipients
-            (AccountEventPersisted >> dispatch)
-   ]
-
 [<ReactComponent>]
-let AccountDashboardComponent (url: Routes.AccountUrl) =
-   let signalRContext = React.useContext SignalRConnectionProvider.context
-   let signalRConnection = signalRContext.Connection
+let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
+   let state, dispatch = React.useElmish (init, update, [||])
 
-   let state, dispatch =
-      React.useElmish (init url signalRConnection, update, [||])
+   let accountProfiles =
+      (React.useContext OrgAndAccountProfileProvider.context).AccountProfiles
 
-   React.useEffect (fun () ->
-      if url <> state.CurrentUrl then
-         dispatch (UrlChanged url))
+   let accountIdOpt = Routes.AccountUrl.accountIdMaybe url
 
    React.useEffect (
       fun () ->
-         match state.SignalRConnection, signalRConnection with
-         | None, None -> Log.info "Waiting for SignalR connection..."
-         | Some _, None -> dispatch SignalRDisconnected
-         | Some _, Some _ -> ()
-         | None, Some conn ->
-            dispatch (SignalRConnected conn)
-
-            AccountService.listenForSignalRMessages
-               (AccountEventPersisted >> dispatch)
-               conn
-      , [| box signalRConnection |]
+         match accountIdOpt with
+         | Some id -> dispatch <| Msg.LoadAccountAndTransactions(id, Started)
+         | _ -> ()
+      , [| box (string accountIdOpt) |]
    )
+
+   // Redirect /account to /account/{first-account-id}
+   React.useEffect (
+      fun () ->
+         match accountProfiles, url with
+         | Deferred.Resolved(Ok(Some profiles)), Routes.AccountUrl.Account ->
+            profiles
+            |> Map.values
+            |> Seq.head
+            |> _.AccountId
+            |> Routes.AccountUrl.selectedPath
+            |> Router.navigate
+         | _ -> ()
+      , [| box accountProfiles; box (string url) |]
+   )
+
+   SignalRAccountEventProvider.useAccountEventSubscription {
+      ComponentName = "AccountDashboard"
+      AccountId = accountIdOpt
+      OnReceive = Msg.AccountEventPersisted >> dispatch
+   }
 
    let accountOpt = selectedAccount state
 
    classyNode Html.div [ "account-dashboard" ] [
-      match accountProfiles state with
-      | Some accounts ->
-         Navigation.Portal
-         <| AccountSelectionComponent state.CurrentAccountId accounts
-      | None -> ()
+      match accountProfiles with
+      | Deferred.Resolved(Ok(Some accounts)) ->
+         AccountSelectionComponent state.CurrentAccountId accounts
+         |> Navigation.Portal
+      | _ -> ()
 
       ServiceHealth.ServiceHealthComponent()
 
       classyNode Html.main [ "container-fluid" ] [
          classyNode Html.div [ "grid" ] [
             Html.section [
-               Html.h5 "Transactions"
+               Html.h4 "Transactions"
                match accountOpt with
-               | None -> ()
+               | None -> Html.progress []
                | Some account ->
                   TransactionTable.TransactionTableComponent
                      account
                      state.CurrentAccountAndTransactions
-                     state.RealtimeTransactions
             ]
 
-            Html.aside [
-               match Routes.AccountUrl.transactionIdMaybe state.CurrentUrl with
-               | Some txnId ->
-                  Html.h5 "Transaction Detail"
+            match
+               accountProfiles,
+               accountOpt,
+               Routes.IndexUrl.accountBrowserQuery().Action
+            with
+            | Deferred.Resolved(Ok(Some profiles)), Some account, Some action ->
+               AccountActions.AccountActionsComponent
+                  session
+                  account
+                  profiles
+                  action
+                  (AccountEventPersisted >> dispatch)
+               |> ScreenOverlay.Portal
+            | _, Some account, _ ->
+               Html.aside [ AccountActionMenu.render account ]
+            | _ -> ()
 
-                  match accountOpt with
-                  | Some account -> TransactionDetailComponent account txnId
-                  | _ -> Html.div [ attr.ariaBusy true ]
-               | None ->
-                  Html.h5 "Actions"
-                  renderAccountActions state dispatch
-            ]
+            match Routes.AccountUrl.transactionIdMaybe url with
+            | Some txnId ->
+               match accountOpt with
+               | Some account ->
+                  TransactionDetailComponent session account txnId
+               | _ -> Html.progress []
+               |> ScreenOverlay.Portal
+            | None -> ()
          ]
       ]
 

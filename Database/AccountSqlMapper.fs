@@ -19,7 +19,7 @@ module AccountFields =
    let orgId = OrgFields.orgId
    let accountNumber = "account_number"
    let routingNumber = "routing_number"
-   let name = "name"
+   let name = "account_name"
    let depository = "depository"
    let currency = "currency"
    let status = "status"
@@ -126,6 +126,13 @@ module AccountSqlReader =
       read.text AccountFields.failedDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
+   let accountProfile (read: RowReader) : AccountProfile = {
+      AccountId = accountId read
+      OrgId = orgId read
+      Name = name read
+      Depository = depository read
+   }
+
    let account (read: RowReader) : Account = {
       AccountId = accountId read
       OrgId = orgId read
@@ -181,15 +188,13 @@ module AccountSqlWriter =
       let (RoutingNumber routingNum) = num
       Sql.int routingNum
 
-   let depository (dep: AccountDepository) =
-      dep |> string |> _.ToLower() |> Sql.string
+   let depository (dep: AccountDepository) = dep |> string |> Sql.string
 
    let name = Sql.string
    let balance = Sql.money
    let currency (currency: Currency) = Sql.string <| string currency
 
-   let status (status: AccountStatus) =
-      status |> string |> _.ToLower() |> Sql.string
+   let status (status: AccountStatus) = status |> string |> Sql.string
 
    let dailyInternalTransferAccrued = Sql.decimal
    let dailyDomesticTransferAccrued = Sql.decimal

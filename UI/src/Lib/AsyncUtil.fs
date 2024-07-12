@@ -1,3 +1,4 @@
+[<AutoOpen>]
 module AsyncUtil
 
 open Fable.Core

@@ -3,12 +3,24 @@ module Pagination
 open Feliz
 open Fable.FontAwesome
 
+type PaginatedQueryResults<'T> =
+   Map<int, Deferred<Result<'T option, Lib.SharedTypes.Err>>>
+
 let render
+   (paginatedResults: PaginatedQueryResults<'T>)
    (page: int)
-   (endOfPagination: bool)
    (onPageChange: int -> unit)
    (onPageReset: unit -> unit)
    =
+   let currPageData = paginatedResults.TryFind page
+   let nextPageData = paginatedResults.TryFind(page + 1)
+
+   let endOfPagination =
+      match currPageData, nextPageData with
+      | _, (Some(Deferred.Resolved(Ok None))) -> true
+      | (Some(Deferred.Resolved(Ok None))), _ -> true
+      | _, _ -> false
+
    React.fragment [
       Html.a [
          attr.children [ Fa.i [ Fa.Solid.CaretRight ] [] ]

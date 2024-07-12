@@ -6,23 +6,68 @@ open System
 open Lib.SharedTypes
 open Lib.Validators
 
-type CreateEmployeeInput = {
-   EmployeeId: EmployeeId
+type CreateAccountOwnerInput = {
    Email: string
    FirstName: string
    LastName: string
    OrgId: OrgId
-   Role: EmployeeRole
+}
+
+type CreateAccountOwnerCommand = Command<CreateAccountOwnerInput>
+
+module CreateAccountOwnerCommand =
+   // First employee created is created by self, so no initiatedBy.
+   let create (data: CreateAccountOwnerInput) =
+      let employeeId = LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
+
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         data.OrgId
+         (CorrelationId.create ())
+         (InitiatedById employeeId)
+         data
+
+   let toEvent
+      (cmd: CreateAccountOwnerCommand)
+      : ValidationResult<BankEvent<CreatedAccountOwner>>
+      =
+      validate {
+         let input = cmd.Data
+         let! firstName = firstNameValidator input.FirstName
+         and! lastName = lastNameValidator input.LastName
+         and! email = Email.ofString "Create employee email" input.Email
+
+         return
+            BankEvent.create2<CreateAccountOwnerInput, CreatedAccountOwner> cmd {
+               Email = email
+               FirstName = firstName
+               LastName = lastName
+               InviteToken = InviteToken.generate ()
+            }
+      }
+
+type CreateEmployeeInput = {
+   Email: string
+   FirstName: string
+   LastName: string
+   OrgId: OrgId
+   Role: Role
+   OrgRequiresEmployeeInviteApproval: bool
+   CardInfo: EmployeeInviteSupplementaryCardInfo option
 }
 
 type CreateEmployeeCommand = Command<CreateEmployeeInput>
 
 module CreateEmployeeCommand =
-   let create (data: CreateEmployeeInput) =
+   // Remaining employees are created by someone other than self.
+   let create (initiatedBy: InitiatedById) (data: CreateEmployeeInput) =
+      let employeeId = Guid.NewGuid() |> EmployeeId
+
       Command.create
-         (EmployeeId.toEntityId data.EmployeeId)
+         (EmployeeId.toEntityId employeeId)
          data.OrgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -35,14 +80,57 @@ module CreateEmployeeCommand =
          and! lastName = lastNameValidator input.LastName
          and! email = Email.ofString "Create employee email" input.Email
 
+         and! _ =
+            match input.CardInfo with
+            | Some card ->
+               amountValidator "Daily purchase limit" card.DailyPurchaseLimit
+            | None -> ValidationResult.Ok(0m)
+
          return
             BankEvent.create2<CreateEmployeeInput, CreatedEmployee> cmd {
                Email = email
                FirstName = firstName
                LastName = lastName
                Role = input.Role
+               OrgRequiresEmployeeInviteApproval =
+                  input.OrgRequiresEmployeeInviteApproval
+               CardInfo = input.CardInfo
             }
       }
+
+type RefreshInvitationTokenInput = {
+   OrgRequiresEmployeeInviteApproval: bool
+   Reason: string option
+}
+
+type RefreshInvitationTokenCommand = Command<RefreshInvitationTokenInput>
+
+module RefreshInvitationTokenCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: RefreshInvitationTokenInput)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: RefreshInvitationTokenCommand)
+      : ValidationResult<BankEvent<InvitationTokenRefreshed>>
+      =
+      BankEvent.create2<RefreshInvitationTokenInput, InvitationTokenRefreshed>
+         cmd
+         {
+            InviteToken = InviteToken.generate ()
+            OrgRequiresEmployeeInviteApproval =
+               cmd.Data.OrgRequiresEmployeeInviteApproval
+            Reason = cmd.Data.Reason
+         }
+      |> Ok
 
 type CreateCardInput = {
    PersonName: string
@@ -52,6 +140,8 @@ type CreateCardInput = {
    AccountId: AccountId
    CardId: CardId
    Virtual: bool
+   InitiatedBy: InitiatedById
+   DailyPurchaseLimit: decimal option
 }
 
 type CreateCardCommand = Command<CreateCardInput>
@@ -62,6 +152,7 @@ module CreateCardCommand =
          (EmployeeId.toEntityId data.EmployeeId)
          data.OrgId
          (CorrelationId.create ())
+         data.InitiatedBy
          data
 
    let toEvent
@@ -76,6 +167,11 @@ module CreateCardCommand =
             List.init numDigits (fun _ -> random.Next(1, 9) |> string)
             |> String.concat ""
 
+         let! dailyPurchaseLimit =
+            match input.DailyPurchaseLimit with
+            | Some limit -> amountValidator "Daily purchase limit" limit
+            | None -> ValidationResult.Ok 2000m
+
          return
             BankEvent.create2<CreateCardInput, CreatedCard> cmd {
                Info = {
@@ -88,17 +184,18 @@ module CreateCardCommand =
                   CardNickname = input.CardNickname
                   CardId = cmd.Data.CardId
                   AccountId = cmd.Data.AccountId
-                  DailyDebitLimit = 2000m
+                  DailyDebitLimit = dailyPurchaseLimit
                   DailyDebitAccrued = 0m
                   LastDebitDate = None
-                  Locked = false
                   Virtual = input.Virtual
+                  Status = CardStatus.Active
                }
             }
       }
 
 type DebitRequestInput = {
    CardId: CardId
+   CardNumberLast4: int
    AccountId: AccountId
    Amount: decimal
    Origin: string
@@ -118,6 +215,7 @@ module DebitRequestCommand =
          (EmployeeId.toEntityId employeeId)
          orgId
          (CorrelationId.create ())
+         (InitiatedById employeeId)
          data
 
    let toEvent
@@ -136,6 +234,7 @@ module DebitRequestCommand =
                   EmployeeId = EmployeeId.fromEntityId cmd.EntityId
                   CorrelationId = cmd.CorrelationId
                   CardId = input.CardId
+                  CardNumberLast4 = input.CardNumberLast4
                   AccountId = input.AccountId
                   Amount = amount
                   Origin = origin
@@ -153,6 +252,7 @@ module ApproveDebitCommand =
          (EmployeeId.toEntityId employeeId)
          orgId
          data.Info.CorrelationId
+         (InitiatedById employeeId)
          data
 
    let toEvent
@@ -169,6 +269,7 @@ module DeclineDebitCommand =
          (EmployeeId.toEntityId employeeId)
          orgId
          data.Info.CorrelationId
+         (InitiatedById employeeId)
          data
 
    let toEvent
@@ -182,12 +283,14 @@ type LimitDailyDebitsCommand = Command<DailyDebitLimitUpdated>
 module LimitDailyDebitsCommand =
    let create
       (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
       (data: DailyDebitLimitUpdated)
       =
       Command.create
          (EmployeeId.toEntityId employeeId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -203,11 +306,16 @@ module LimitDailyDebitsCommand =
 type LockCardCommand = Command<LockedCard>
 
 module LockCardCommand =
-   let create (employeeId: EmployeeId, orgId: OrgId) (data: LockedCard) =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: LockedCard)
+      =
       Command.create
          (EmployeeId.toEntityId employeeId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -219,11 +327,16 @@ module LockCardCommand =
 type UnlockCardCommand = Command<UnlockedCard>
 
 module UnlockCardCommand =
-   let create (employeeId: EmployeeId, orgId: OrgId) (data: UnlockedCard) =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: UnlockedCard)
+      =
       Command.create
          (EmployeeId.toEntityId employeeId)
          orgId
          (CorrelationId.create ())
+         initiatedBy
          data
 
    let toEvent
@@ -231,3 +344,146 @@ module UnlockCardCommand =
       : ValidationResult<BankEvent<UnlockedCard>>
       =
       Ok <| BankEvent.create<UnlockedCard> cmd
+
+type UpdateRoleCommand = Command<RoleUpdated>
+
+module UpdateRoleCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: RoleUpdated)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: UpdateRoleCommand)
+      : ValidationResult<BankEvent<RoleUpdated>>
+      =
+      validate {
+         let! _ =
+            match cmd.Data.CardInfo with
+            | Some card ->
+               amountValidator "Daily purchase limit" card.DailyPurchaseLimit
+            | None -> ValidationResult.Ok(0m)
+
+         return BankEvent.create<RoleUpdated> cmd
+      }
+
+type CancelInvitationCommand = Command<InvitationCancelled>
+
+module CancelInvitationCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: InvitationCancelled)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: CancelInvitationCommand)
+      : ValidationResult<BankEvent<InvitationCancelled>>
+      =
+      Ok <| BankEvent.create<InvitationCancelled> cmd
+
+type ConfirmInvitationCommand = Command<InvitationConfirmed>
+
+module ConfirmInvitationCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (data: InvitationConfirmed)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         (InitiatedById employeeId)
+         data
+
+   let toEvent
+      (cmd: ConfirmInvitationCommand)
+      : ValidationResult<BankEvent<InvitationConfirmed>>
+      =
+      Ok <| BankEvent.create<InvitationConfirmed> cmd
+
+type ApproveInvitationInput = {
+   Email: Email
+   Approvers: EmployeeId list
+}
+
+type ApproveInvitationCommand = Command<ApproveInvitationInput>
+
+module ApproveInvitationCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: ApproveInvitationInput)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: ApproveInvitationCommand)
+      : ValidationResult<BankEvent<InvitationApproved>>
+      =
+      BankEvent.create2<ApproveInvitationInput, InvitationApproved> cmd {
+         Email = cmd.Data.Email
+         Approvers = cmd.Data.Approvers
+         InviteToken = InviteToken.generate ()
+      }
+      |> Ok
+
+type DenyInvitationCommand = Command<InvitationDenied>
+
+module DenyInvitationCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: InvitationDenied)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: DenyInvitationCommand)
+      : ValidationResult<BankEvent<InvitationDenied>>
+      =
+      Ok <| BankEvent.create<InvitationDenied> cmd
+
+type RestoreAccessCommand = Command<AccessRestored>
+
+module RestoreAccessCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: AccessRestored)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: RestoreAccessCommand)
+      : ValidationResult<BankEvent<AccessRestored>>
+      =
+      Ok <| BankEvent.create<AccessRestored> cmd

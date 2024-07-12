@@ -102,7 +102,12 @@ module Form =
          =
 
          let toOption (key: string, label: string) =
-            Html.option [ attr.value key; attr.text label ]
+            Html.option [
+               attr.value key
+               attr.text label
+               if key = value then
+                  attr.disabled true
+            ]
 
          Html.select [
             attr.disabled disabled
@@ -154,6 +159,32 @@ module Form =
             Html.div []
          ]
 
+      let submitButton (buttonText: string) (state: State) =
+         Html.button [
+            attr.type' "submit"
+            match state with
+            | State.Loading ->
+               attr.text "Processing..."
+               attr.ariaBusy true
+            | _ -> attr.text buttonText
+         ]
+
+      let cancelButton (onCancel: unit -> unit) (state: State) =
+         Html.button [
+            attr.text "Cancel"
+            attr.classes [ "secondary" ]
+            attr.onClick (fun e ->
+               e.preventDefault ()
+               onCancel ())
+
+            match state with
+            | State.Loading -> attr.ariaBusy true
+            | _ -> ()
+         ]
+
+      let submitAndCancelButton buttonText onCancel state =
+         group [ cancelButton onCancel state; submitButton buttonText state ]
+
       let form
          ({
              Dispatch = dispatch
@@ -179,18 +210,13 @@ module Form =
                   attr.children [
                      yield! fields
 
-                     match action with
-                     | Action.SubmitOnly buttonText ->
-                        Html.button [
-                           attr.type' "submit"
-                           attr.style [ style.marginTop 15 ]
-                           match state with
-                           | State.Loading ->
-                              attr.text "Processing..."
-                              attr.ariaBusy true
-                           | _ -> attr.text buttonText
-                        ]
-                     | Action.Custom customAction -> customAction state dispatch
+                     classyNode Html.div [ "form-submit-controls" ] [
+                        match action with
+                        | Action.SubmitOnly buttonText ->
+                           submitButton buttonText state
+                        | Action.Custom customAction ->
+                           customAction state dispatch
+                     ]
                   ]
                ]
             ]

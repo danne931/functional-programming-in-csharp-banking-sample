@@ -5,12 +5,13 @@
 
   <ItemGroup>
     <Compile Include="Types.fs" />
+    <Compile Include="Permissions.fs" /> 
     <Compile Include="Routes.fs" />
     <Compile Include="ActivePatterns.fs" />
     <Compile Include="Time.fs" />
     <Compile Include="Validators.fs" />
     <Compile Include="Serialization.fs" />
-    <Compile Include="TransactionQuery.fs" />
+    <Compile Include="NetworkQuery.fs" />
   </ItemGroup>
 
   <ItemGroup>

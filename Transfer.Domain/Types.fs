@@ -89,6 +89,7 @@ type DomesticTransfer = {
    Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
    TransferId: CorrelationId
+   InitiatedBy: InitiatedById
    Amount: decimal
    ScheduledDate: DateTime
    Status: DomesticTransferProgress

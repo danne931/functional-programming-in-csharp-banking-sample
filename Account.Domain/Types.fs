@@ -59,11 +59,12 @@ type OpenEventEnvelope = AccountEvent * Envelope
 
 [<RequireQualifiedAccess>]
 module AccountEnvelope =
-   let private get (evt: BankEvent<'E>) : Envelope = {
+   let get (evt: BankEvent<'E>) : Envelope = {
       Id = evt.Id
       EntityId = evt.EntityId
       OrgId = evt.OrgId
       CorrelationId = evt.CorrelationId
+      InitiatedById = evt.InitiatedById
       Timestamp = evt.Timestamp
       EventName = evt.EventName
    }
@@ -132,22 +133,33 @@ module AccountEnvelope =
 
 [<RequireQualifiedAccess>]
 type AccountStatus =
+   | InitialEmptyState
    | Pending
    | Active
    | Closed
    | ReadyForDelete
 
-module AccountStatus =
-   let fromString (status: string) : AccountStatus option =
-      match status.ToLower() with
-      | "pending" -> Some AccountStatus.Pending
-      | "active" -> Some AccountStatus.Active
-      | "closed" -> Some AccountStatus.Closed
-      | "readyfordelete" -> Some AccountStatus.ReadyForDelete
-      | _ -> None
+   override x.ToString() =
+      match x with
+      | AccountStatus.InitialEmptyState -> "initialemptystate"
+      | AccountStatus.Pending -> "pending"
+      | AccountStatus.Active -> "active"
+      | AccountStatus.Closed -> "closed"
+      | AccountStatus.ReadyForDelete -> "readyfordelete"
 
-   let fromStringUnsafe (status: string) : AccountStatus =
-      match fromString status with
+   static member fromString(status: string) : AccountStatus option =
+      if String.IsNullOrEmpty status then
+         None
+      else
+         match status.ToLower() with
+         | "pending" -> Some AccountStatus.Pending
+         | "active" -> Some AccountStatus.Active
+         | "closed" -> Some AccountStatus.Closed
+         | "readyfordelete" -> Some AccountStatus.ReadyForDelete
+         | _ -> None
+
+   static member fromStringUnsafe(status: string) : AccountStatus =
+      match AccountStatus.fromString status with
       | None -> failwith "Error attempting to cast string to AccountStatus"
       | Some status -> status
 
@@ -156,15 +168,22 @@ type AccountDepository =
    | Checking
    | Savings
 
-module AccountDepository =
-   let fromString (dep: string) : AccountDepository option =
-      match dep.ToLower() with
-      | "checking" -> Some AccountDepository.Checking
-      | "savings" -> Some AccountDepository.Savings
-      | _ -> None
+   override x.ToString() =
+      match x with
+      | AccountDepository.Checking -> "checking"
+      | AccountDepository.Savings -> "savings"
 
-   let fromStringUnsafe (dep: string) : AccountDepository =
-      match fromString dep with
+   static member fromString(dep: string) : AccountDepository option =
+      if String.IsNullOrEmpty dep then
+         None
+      else
+         match dep.ToLower() with
+         | "checking" -> Some AccountDepository.Checking
+         | "savings" -> Some AccountDepository.Savings
+         | _ -> None
+
+   static member fromStringUnsafe(dep: string) : AccountDepository =
+      match AccountDepository.fromString dep with
       | None -> failwith "Error attempting to cast string to AccountDepository"
       | Some dep -> dep
 
@@ -224,7 +243,7 @@ type AccountMessage =
 
 type AccountEventPersistedConfirmation = {
    EventPersisted: AccountEvent
-   NewState: Account
+   Account: Account
    Date: DateTime
 }
 
@@ -233,13 +252,6 @@ type AccountEventRejected = {
    Error: Err
    Date: DateTime
 }
-
-[<RequireQualifiedAccess>]
-type SignalRMessage =
-   | AccountEventPersisted of AccountEventPersistedConfirmation
-   | AccountEventValidationFail of AccountEventRejected
-   | AccountEventPersistenceFail of AccountEventRejected
-   | CircuitBreaker of CircuitBreakerEvent
 
 type AccountPersistence = {
    getEvents: AccountId -> AccountEvent list Async
@@ -254,7 +266,7 @@ type AccountBroadcast = {
 
 [<RequireQualifiedAccess>]
 type AccountClosureMessage =
-   | Register of Account
+   | Register of Account * InitiatedById
    | ScheduleDeleteAll
    | DeleteAll of AccountId list
    | GetRegisteredAccounts

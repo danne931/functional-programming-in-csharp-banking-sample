@@ -4,7 +4,7 @@ open System
 open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 open Lib.Postgres
 open Bank.Account.Domain
 open CategorySqlMapper

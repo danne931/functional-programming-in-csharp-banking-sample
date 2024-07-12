@@ -198,6 +198,18 @@ builder.Services.AddAkka(
                   Env.config.CircuitBreakerActorSupervisor),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
+         // Forward email messages from web node to Email actors on Account nodes
+         .WithSingleton<ActorMetadata.EmailForwardingMarker>(
+            ActorMetadata.emailForwarding.Name,
+            (fun system _ _ ->
+               (fun (msg: EmailActor.EmailMessage) ->
+                  EmailActor.get system <<! msg
+                  ignored ())
+               |> actorOf
+               |> props
+               |> _.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithActors(fun system registry ->
             let routerEnv = EnvTransfer.config.DomesticTransferRouter
             let broadcast = provider.GetRequiredService<AccountBroadcast>()

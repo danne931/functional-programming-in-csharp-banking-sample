@@ -2,7 +2,6 @@ module MerchantProvider
 
 open Feliz
 
-open Lib.SharedTypes
 open Bank.Account.Domain
 
 type Action =
@@ -30,16 +29,23 @@ let reducer (state: Map<string, Merchant>) (action: Action) =
       Map.add (merchant.Name.ToLower()) merchant state
 
 [<ReactComponent>]
-let MerchantProvider (orgId: OrgId) (child: Fable.React.ReactElement) =
+let MerchantProvider (child: Fable.React.ReactElement) =
+   let session = React.useContext UserSessionProvider.context
    let merchants, dispatch = React.useReducer (reducer, Map.empty)
 
-   React.useEffectOnce (fun () ->
-      async {
-         match! TransactionService.getMerchants orgId with
-         | Ok merchants -> dispatch (SetMerchants merchants)
-         | Error err -> Log.error $"Error fetching merchants: {err}"
-      }
-      |> Async.StartImmediate)
+   React.useEffect (
+      fun () ->
+         match session with
+         | Deferred.Resolved session ->
+            async {
+               match! TransactionService.getMerchants session.OrgId with
+               | Ok merchants -> dispatch (SetMerchants merchants)
+               | Error err -> Log.error $"Error fetching merchants: {err}"
+            }
+            |> Async.StartImmediate
+         | _ -> ()
+      , [| box session |]
+   )
 
    React.contextProvider (
       stateContext,

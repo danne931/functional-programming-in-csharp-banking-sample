@@ -5,10 +5,11 @@ open Fable.SimpleHttp
 open Feliz.Router
 
 open Bank.Account.Domain
-open Bank.Account.UIDomain
+open UIDomain
+open UIDomain.Account
 open Lib.SharedTypes
 open RoutePaths
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 
 let private serviceName = "TransactionService"
 
@@ -75,7 +76,6 @@ let getCategories () : Async<Result<Map<int, TransactionCategory>, Err>> = async
          |> Serialization.deserialize<TransactionCategory list>
          |> Result.map (List.map (fun o -> o.Id, o) >> Map.ofList)
 }
-
 
 let getMerchants (orgId: OrgId) : Async<Result<Map<string, Merchant>, Err>> = async {
    let! (code, responseText) = Http.get <| TransactionPath.merchants orgId

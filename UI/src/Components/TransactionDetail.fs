@@ -4,14 +4,14 @@ open Feliz
 open Feliz.UseElmish
 open Feliz.Router
 open Elmish
-open Fable.FontAwesome
 open System
 
 open Bank.Account.Domain
-open Bank.Account.UIDomain
+open UIDomain.Account
 open Bank.Transfer.Domain
-open AsyncUtil
+open Bank.Employee.Domain
 open Lib.SharedTypes
+open Dropdown
 
 type private TransactionMaybe =
    Deferred<Result<TransactionWithAncillaryInfo, Err>>
@@ -50,6 +50,12 @@ let private updateTransaction
          Transaction = (Deferred.map << Result.map) transform state.Transaction
    }
 
+type RecipientNicknameEditMsg = {
+   CommandInput: RecipientNicknamed
+   Account: Account
+   InitiatedBy: InitiatedById
+}
+
 type Msg =
    | GetTransactionInfo of
       AsyncOperationStatus<Result<TransactionWithAncillaryInfo, Err>>
@@ -59,11 +65,8 @@ type Msg =
    | SaveNote of note: string * AsyncOperationStatus<Result<int, Err>>
    | ToggleNicknameEdit
    | SaveRecipientNickname of
-      Account *
-      recipientId: AccountId *
-      RecipientAccountEnvironment *
-      nickname: string option *
-      AsyncOperationStatus<Result<CommandProcessingResponse, Err>>
+      RecipientNicknameEditMsg *
+      AsyncOperationStatus<Result<AccountCommandReceipt, Err>>
    | SaveMerchantNickname of Merchant * AsyncOperationStatus<Result<int, Err>>
    | EditTransferRecipient of senderId: AccountId * recipientId: AccountId
 
@@ -153,26 +156,17 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
             EditingNickname = not state.EditingNickname
       },
       Cmd.none
-   | SaveRecipientNickname(account, recipientId, recipientEnv, nickname, Started) ->
+   | SaveRecipientNickname(edit, Started) ->
       let command =
-         NicknameRecipientCommand.create account.CompositeId {
-            Nickname = nickname
-            RecipientId = recipientId
-            RecipientAccountEnvironment = recipientEnv
-         }
+         NicknameRecipientCommand.create
+            edit.Account.CompositeId
+            edit.InitiatedBy
+            edit.CommandInput
          |> AccountCommand.NicknameRecipient
 
       let submitCommand = async {
-         let! res = AccountService.submitCommand account command
-
-         return
-            Msg.SaveRecipientNickname(
-               account,
-               recipientId,
-               recipientEnv,
-               nickname,
-               Finished res
-            )
+         let! res = AccountService.submitCommand edit.Account command
+         return Msg.SaveRecipientNickname(edit, Finished res)
       }
 
       {
@@ -180,14 +174,14 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
             NicknamePersistence = Deferred.InProgress
       },
       Cmd.fromAsync submitCommand
-   | SaveRecipientNickname(_, _, _, _, Finished(Ok _)) ->
+   | SaveRecipientNickname(_, Finished(Ok _)) ->
       {
          state with
             EditingNickname = false
             NicknamePersistence = Deferred.Idle
       },
       Cmd.none
-   | SaveRecipientNickname(_, _, _, _, Finished(Error err)) ->
+   | SaveRecipientNickname(_, Finished(Error err)) ->
       {
          state with
             NicknamePersistence = Deferred.Resolved(Error err)
@@ -247,22 +241,23 @@ let private nicknameCancelButton dispatch =
          dispatch Msg.ToggleNicknameEdit)
    ]
 
-let private nicknameSaveButton dispatch msg =
+let private nicknameSaveButton onClick =
    Html.a [
       attr.href ""
       attr.text "Save"
       attr.style [ style.padding 10 ]
       attr.onClick (fun e ->
          e.preventDefault ()
-         dispatch msg)
+         onClick ())
    ]
 
 [<ReactComponent>]
 let RecipientNicknameEditComponent
+   (session: UserSession)
    (account: Account)
+   dispatch
    (recipientId: AccountId)
    (recipientEnv: RecipientAccountEnvironment)
-   dispatch
    =
    let name, nickname = nameAndNicknamePair account recipientId
    let pendingNickname, setNickname = React.useState nickname
@@ -305,15 +300,23 @@ let RecipientNicknameEditComponent
          elif pendingNickname <> nickname then
             nicknameCancelButton dispatch
 
-            nicknameSaveButton
-            <| dispatch
-            <| Msg.SaveRecipientNickname(
-               account,
-               recipientId,
-               recipientEnv,
-               pendingNickname,
-               Started
-            )
+            nicknameSaveButton (fun () ->
+               let msg =
+                  Msg.SaveRecipientNickname(
+                     {
+                        CommandInput = {
+                           RecipientId = recipientId
+                           RecipientAccountEnvironment = recipientEnv
+                           Nickname = pendingNickname
+                        }
+                        Account = account
+                        InitiatedBy = (InitiatedById session.EmployeeId)
+
+                     },
+                     Started
+                  )
+
+               dispatch msg)
       ]
    ]
 
@@ -368,16 +371,18 @@ let MerchantNicknameEditComponent
          elif pendingNickname <> merchantAlias then
             nicknameCancelButton dispatch
 
-            nicknameSaveButton
-            <| dispatch
-            <| Msg.SaveMerchantNickname(
-               {
-                  OrgId = debit.OrgId
-                  Name = debitOrigin.ToLower()
-                  Alias = pendingNickname
-               },
-               Started
-            )
+            nicknameSaveButton (fun () ->
+               let msg =
+                  Msg.SaveMerchantNickname(
+                     {
+                        OrgId = debit.OrgId
+                        Name = debitOrigin.ToLower()
+                        Alias = pendingNickname
+                     },
+                     Started
+                  )
+
+               dispatch msg)
       ]
    ]
 
@@ -386,9 +391,13 @@ let renderTransactionInfo
    (txnInfo: TransactionWithAncillaryInfo)
    (isEditingNickname: bool)
    (merchants: Map<string, Merchant>)
+   (session: UserSession)
    dispatch
    =
    let txn = transactionUIFriendly account txnInfo.Event
+
+   let RecipientNicknameEditComponent =
+      RecipientNicknameEditComponent session account dispatch
 
    React.fragment [
       Html.h6 txn.Name
@@ -418,34 +427,24 @@ let renderTransactionInfo
          match txnInfo.Event with
          | AccountEvent.InternalTransferRecipient e when isEditingNickname ->
             RecipientNicknameEditComponent
-               account
                e.Data.Recipient.AccountId
                RecipientAccountEnvironment.Internal
-               dispatch
          | AccountEvent.InternalTransferPending e when isEditingNickname ->
             RecipientNicknameEditComponent
-               account
                e.Data.RecipientId
                RecipientAccountEnvironment.Internal
-               dispatch
          | AccountEvent.DomesticTransferRecipient e when isEditingNickname ->
             RecipientNicknameEditComponent
-               account
                e.Data.Recipient.AccountId
                RecipientAccountEnvironment.Domestic
-               dispatch
          | AccountEvent.DomesticTransferPending e when isEditingNickname ->
             RecipientNicknameEditComponent
-               account
                e.Data.BaseInfo.Recipient.AccountId
                RecipientAccountEnvironment.Domestic
-               dispatch
          | AccountEvent.DomesticTransferRejected e when isEditingNickname ->
             RecipientNicknameEditComponent
-               account
                e.Data.BaseInfo.Recipient.AccountId
                RecipientAccountEnvironment.Domestic
-               dispatch
          | AccountEvent.DebitedAccount e when isEditingNickname ->
             MerchantNicknameEditComponent e merchants dispatch
          | _ ->
@@ -545,100 +544,69 @@ let renderFooterMenuControls
       match evtOpt with
       | None -> ()
       | Some evt ->
-         Html.details [
-            attr.role "list"
-            attr.custom ("dir", "rtl")
-
-            attr.children [
-               Html.summary [
-                  attr.custom ("aria-haspopup", "listbox")
-                  attr.role "link"
-                  attr.classes [ "contrast" ]
-
-                  attr.children [ Fa.i [ Fa.Solid.EllipsisH ] [] ]
+         DropdownComponent
+            DropdownDirection.RTL
+            false
+            None
+            (match evt with
+             | AccountEvent.DebitedAccount _ -> [
+                {
+                   Text = "Edit merchant nickname"
+                   OnClick = fun _ -> dispatch ToggleNicknameEdit
+                   IsSelected = isEditingNickname
+                }
                ]
+             | AccountEvent.InternalTransferPending _
+             | AccountEvent.DomesticTransferPending _
+             | AccountEvent.InternalTransferRecipient _
+             | AccountEvent.DomesticTransferRecipient _
+             | AccountEvent.DomesticTransferRejected _
+             | AccountEvent.EditedDomesticTransferRecipient _ ->
+                [
+                   {
+                      Text = "Nickname recipient"
+                      OnClick = fun _ -> dispatch ToggleNicknameEdit
+                      IsSelected = isEditingNickname
+                   }
 
-               Html.ul [
-                  attr.id "accounts-list"
-                  attr.role "listbox"
-                  attr.children [
-                     match evt with
-                     | AccountEvent.DebitedAccount _ ->
-                        Html.li [
-                           Html.a [
-                              attr.href ""
-                              attr.text "Edit merchant nickname"
-                              if isEditingNickname then
-                                 attr.classes [ "selected" ]
-
-                              attr.onClick (fun e ->
-                                 e.preventDefault ()
-                                 dispatch ToggleNicknameEdit)
-                           ]
-                        ]
-                     | AccountEvent.InternalTransferPending _
-                     | AccountEvent.DomesticTransferPending _
-                     | AccountEvent.InternalTransferRecipient _
-                     | AccountEvent.DomesticTransferRecipient _
-                     | AccountEvent.DomesticTransferRejected _
-                     | AccountEvent.EditedDomesticTransferRecipient _ ->
-                        Html.li [
-                           Html.a [
-                              attr.href ""
-                              attr.text "Nickname Recipient"
-                              if isEditingNickname then
-                                 attr.classes [ "selected" ]
-
-                              attr.onClick (fun e ->
-                                 e.preventDefault ()
-                                 dispatch ToggleNicknameEdit)
-                           ]
-                        ]
-
-                        match canEditTransferRecipient account evt with
-                        | None -> ()
-                        | Some recipient ->
-                           Html.li [
-                              Html.a [
-                                 attr.onClick (fun e ->
-                                    e.preventDefault ()
-
-                                    dispatch
-                                    <| Msg.EditTransferRecipient(
-                                       account.AccountId,
-                                       recipient.AccountId
-                                    ))
-
-                                 attr.text "Edit Recipient"
-                                 attr.href ""
-                              ]
-                           ]
-
-                     | AccountEvent.TransferDeposited evt ->
-                        Html.li [
-                           Html.a [
-                              attr.onClick (fun e -> e.preventDefault ())
-                              attr.text "Nickname Sender"
-                              attr.href ""
-                           ]
-                        ]
-
-                        Html.li [
-                           Html.a [
-                              attr.onClick (fun e -> e.preventDefault ())
-                              attr.text "View Sender"
-                              attr.href ""
-                           ]
-                        ]
-                     | _ -> ()
-                  ]
+                ]
+                @ match canEditTransferRecipient account evt with
+                  | None -> []
+                  | Some recipient -> [
+                     {
+                        Text = "Edit recipient"
+                        OnClick =
+                           fun _ ->
+                              dispatch (
+                                 Msg.EditTransferRecipient(
+                                    account.AccountId,
+                                    recipient.AccountId
+                                 )
+                              )
+                        IsSelected = isEditingNickname
+                     }
+                    ]
+             | AccountEvent.TransferDeposited evt -> [
+                {
+                   Text = "Nickname sender"
+                   OnClick = fun _ -> ()
+                   IsSelected = false
+                }
+                {
+                   Text = "View sender"
+                   OnClick = fun _ -> ()
+                   IsSelected = false
+                }
                ]
-            ]
-         ]
+             | _ -> [])
    ]
 
 [<ReactComponent>]
-let TransactionDetailComponent (account: Account) (txnId: EventId) =
+let TransactionDetailComponent
+   (session: UserSession)
+   (account: Account)
+   (txnId: EventId)
+   =
    let merchants = React.useContext MerchantProvider.stateContext
    let merchantDispatchCtx = React.useContext MerchantProvider.dispatchContext
 
@@ -647,7 +615,7 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
 
    let categories = React.useContext TransactionCategoryProvider.context
 
-   classyNode Html.div [ "transaction-detail" ] [
+   classyNode Html.article [ "transaction-detail" ] [
       CloseButton.render (fun _ ->
          let browserQuery = Routes.IndexUrl.accountBrowserQuery ()
 
@@ -669,8 +637,9 @@ let TransactionDetailComponent (account: Account) (txnId: EventId) =
             txn
             state.EditingNickname
             merchants
+            session
             dispatch
-      | _ -> Html.div [ attr.ariaBusy true ]
+      | _ -> Html.progress []
 
       Html.section [
          renderCategorySelect categories state.Transaction dispatch

@@ -4,9 +4,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="SignalRHub.fs" />
-    <Compile Include="SignalRActor.fs" />
     <Compile Include="AccountLoadTestActor.fs" />
+    <Compile Include="Routes/UserSessionMiddleware.fs" />
+    <Compile Include="Routes/UserSession.fs" />
     <Compile Include="Routes/Diagnostic.fs" />
     <Compile Include="Routes/Transaction.fs" /> 
     <Compile Include="Routes/Account.fs" />
@@ -27,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="../Infrastructure/Infrastructure.fsproj" />
     <ProjectReference Include="../Transfer.Domain/Transfer.Domain.fsproj" />
+    <ProjectReference Include="../SignalR.App/SignalR.App.fsproj" /> 
     <ProjectReference Include="../Account.App/Account.App.fsproj" />
     <ProjectReference Include="../Employee.App/Employee.App.fsproj" /> 
   </ItemGroup>

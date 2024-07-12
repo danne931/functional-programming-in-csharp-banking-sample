@@ -233,6 +233,13 @@ let upsertReadModels
          "cards", EmployeeSqlWriter.cards employee.Cards
          "pendingPurchases",
          EmployeeSqlWriter.pendingPurchases employee.PendingPurchases
+         "onboardingTasks",
+         EmployeeSqlWriter.onboardingTasks employee.OnboardingTasks
+         "inviteToken", EmployeeSqlWriter.inviteTokenFromStatus employee.Status
+         "inviteExpiration",
+         EmployeeSqlWriter.inviteExpirationFromStatus employee.Status
+         "authProviderUserId",
+         EmployeeSqlWriter.authProviderUserId employee.AuthProviderUserId
       ])
 
    let eventSqlParams =
@@ -247,6 +254,9 @@ let upsertReadModels
             envelope.EntityId
             |> EmployeeId.fromEntityId
             |> EmployeeEventSqlWriter.employeeId
+
+            "initiatedById",
+            envelope.InitiatedById |> EmployeeEventSqlWriter.initiatedById
 
             "orgId", EmployeeEventSqlWriter.orgId envelope.OrgId
 
@@ -269,23 +279,35 @@ let upsertReadModels
           {EmployeeFields.lastName},
           {EmployeeFields.cards},
           {EmployeeFields.status},
-          {EmployeeFields.pendingPurchases})
+          {EmployeeFields.pendingPurchases},
+          {EmployeeFields.onboardingTasks},
+          {EmployeeFields.inviteToken},
+          {EmployeeFields.inviteExpiration},
+          {EmployeeFields.authProviderUserId})
       VALUES
          (@employeeId,
           @orgId,
-          @role,
+          @role::{EmployeeTypeCast.role},
           @email,
           @firstName,
           @lastName,
           @cards,
           @status::{EmployeeTypeCast.status},
-          @pendingPurchases)
+          @pendingPurchases,
+          @onboardingTasks,
+          @inviteToken,
+          @inviteExpiration,
+          @authProviderUserId)
       ON CONFLICT ({EmployeeFields.employeeId})
       DO UPDATE SET
          {EmployeeFields.status} = @status::{EmployeeTypeCast.status},
          {EmployeeFields.cards} = @cards,
          {EmployeeFields.pendingPurchases} = @pendingPurchases,
-         {EmployeeFields.role} = @role;
+         {EmployeeFields.onboardingTasks} = @onboardingTasks,
+         {EmployeeFields.role} = @role::{EmployeeTypeCast.role},
+         {EmployeeFields.inviteToken} = @inviteToken,
+         {EmployeeFields.inviteExpiration} = @inviteExpiration,
+         {EmployeeFields.authProviderUserId} = @authProviderUserId;
       """,
       employeeSqlParams
 
@@ -294,6 +316,7 @@ let upsertReadModels
          ({EmployeeEventFields.eventId},
           {EmployeeEventFields.orgId},
           {EmployeeEventFields.employeeId},
+          {EmployeeEventFields.initiatedById},
           {EmployeeEventFields.correlationId},
           {EmployeeEventFields.name},
           {EmployeeEventFields.timestamp},
@@ -302,6 +325,7 @@ let upsertReadModels
          (@eventId,
           @orgId,
           @employeeId,
+          @initiatedById,
           @correlationId,
           @name,
           @timestamp,

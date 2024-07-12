@@ -390,7 +390,7 @@ module private StateTransition =
          (evt, applyEvent state evt))
 
    let create (state: Account) (cmd: CreateAccountCommand) =
-      if state.Status <> AccountStatus.Pending then
+      if state.Status <> AccountStatus.InitialEmptyState then
          transitionErr AccountNotReadyToActivate
       else
          map CreatedAccount state (CreateAccountCommand.toEvent cmd)
@@ -731,7 +731,7 @@ let empty: Account = {
    Name = ""
    Depository = AccountDepository.Checking
    Currency = Currency.USD
-   Status = AccountStatus.Pending
+   Status = AccountStatus.InitialEmptyState
    Balance = 0m
    DailyInternalTransferAccrued = 0m
    DailyDomesticTransferAccrued = 0m

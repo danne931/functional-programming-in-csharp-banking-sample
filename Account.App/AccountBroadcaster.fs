@@ -24,11 +24,11 @@ let init (system: ActorSystem) : AccountBroadcast =
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventPersisted(
+                  SignalRActor.Msg.AccountEventPersisted(
                      {
                         Date = DateTime.UtcNow
                         EventPersisted = event
-                        NewState = account
+                        Account = account
                      }
                   )
                )
@@ -50,7 +50,7 @@ let init (system: ActorSystem) : AccountBroadcast =
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventValidationFail {
+                  SignalRActor.Msg.AccountEventValidationFail {
                      AccountId = accountId
                      Error = err
                      Date = DateTime.UtcNow
@@ -62,7 +62,7 @@ let init (system: ActorSystem) : AccountBroadcast =
             mediator.Tell(
                Send(
                   signalRPath,
-                  SignalRMessage.AccountEventPersistenceFail {
+                  SignalRActor.Msg.AccountEventPersistenceFail {
                      AccountId = accountId
                      Error = err
                      Date = DateTime.UtcNow
@@ -74,5 +74,7 @@ let init (system: ActorSystem) : AccountBroadcast =
             let circuitBreakerAref = CircuitBreakerActor.get system
             circuitBreakerAref <! CircuitBreakerMessage.CircuitBreaker msg
 
-            mediator.Tell(Send(signalRPath, SignalRMessage.CircuitBreaker msg))
+            mediator.Tell(
+               Send(signalRPath, SignalRActor.Msg.CircuitBreaker msg)
+            )
    }

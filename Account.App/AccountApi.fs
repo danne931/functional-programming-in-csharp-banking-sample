@@ -8,7 +8,7 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 open Validus
 
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 open Lib.Postgres
 open Lib.SharedTypes
 open Bank.Account.Domain
@@ -17,6 +17,7 @@ open Bank.Transfer.Domain
 module Fields = AccountSqlMapper.AccountFields
 module Reader = AccountSqlMapper.AccountSqlReader
 module Writer = AccountSqlMapper.AccountSqlWriter
+module TypeCast = AccountSqlMapper.AccountTypeCast
 let accountTable = AccountSqlMapper.table
 
 let getAccount (id: AccountId) =
@@ -55,27 +56,44 @@ let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
             |> Serialization.deserializeUnsafe<AccountEvent list>)
 }
 
-let getAccountProfiles (orgId: OrgId) =
-   let query =
-      $"""
-      SELECT
-         {Fields.accountId},
-         {Fields.orgId},
-         {Fields.name},
-         {Fields.depository}
-      FROM {accountTable}
-      WHERE {Fields.orgId} = @orgId
-      """
+open OrganizationSqlMapper
 
-   pgQuery<AccountProfile>
-      query
-      (Some [ "orgId", Writer.orgId orgId ])
-      (fun read -> {
-         AccountId = Reader.accountId read
-         OrgId = Reader.orgId read
-         Name = Reader.name read
-         Depository = Reader.depository read
-      })
+let getOrg (id: OrgId) =
+   pgQuerySingle<Org>
+      $"SELECT * FROM {OrganizationSqlMapper.table} 
+        WHERE {Fields.orgId} = @orgId"
+      (Some [ "orgId", OrgSqlWriter.orgId id ])
+      OrgSqlReader.org
+
+let getOrgAndAccountProfiles
+   (orgId: OrgId)
+   : Task<Result<Option<Org * AccountProfile list>, Err>>
+   =
+   taskResultOption {
+      let orgTable = OrganizationSqlMapper.table
+
+      let query =
+         $"""
+         SELECT
+            {orgTable}.{OrgFields.orgId},
+            {orgTable}.{OrgFields.name},
+            {orgTable}.{OrgFields.requiresEmployeeInviteApproval},
+            {accountTable}.{Fields.accountId},
+            {accountTable}.{Fields.name},
+            {accountTable}.{Fields.depository}
+         FROM {orgTable}
+         LEFT JOIN {accountTable} using({OrgFields.orgId})
+         WHERE {Fields.orgId} = @orgId
+         """
+
+      let! res =
+         pgQuery<Org * AccountProfile>
+            query
+            (Some [ "orgId", Writer.orgId orgId ])
+            (fun read -> OrgSqlReader.org read, Reader.accountProfile read)
+
+      return fst (List.head res), List.map snd res
+   }
 
 let getAccountsByIds (accountIds: AccountId list) =
    pgQuery<Account>
@@ -88,31 +106,32 @@ let getAccountsByIds (accountIds: AccountId list) =
       Reader.account
 
 let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult {
-   let ids (cmd: BankEvent<_>) : CommandProcessingResponse = {
-      EntityId = cmd.EntityId
-      CorrelationId = cmd.CorrelationId
-      EventId = cmd.Id
-   }
-
    let validation =
       match command with
-      | CreateAccount cmd -> CreateAccountCommand.toEvent cmd |> Result.map ids
-      | DepositCash cmd -> DepositCashCommand.toEvent cmd |> Result.map ids
+      | CreateAccount cmd ->
+         CreateAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | DepositCash cmd ->
+         DepositCashCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | InternalTransfer cmd ->
-         InternalTransferCommand.toEvent cmd |> Result.map ids
+         InternalTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | DomesticTransfer cmd ->
-         DomesticTransferCommand.toEvent cmd |> Result.map ids
+         DomesticTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | RegisterInternalTransferRecipient cmd ->
-         RegisterInternalTransferRecipientCommand.toEvent cmd |> Result.map ids
+         RegisterInternalTransferRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | RegisterDomesticTransferRecipient cmd ->
-         RegisterDomesticTransferRecipientCommand.toEvent cmd |> Result.map ids
+         RegisterDomesticTransferRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | EditDomesticTransferRecipient cmd ->
-         EditDomesticTransferRecipientCommand.toEvent cmd |> Result.map ids
+         EditDomesticTransferRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | DeactivateInternalRecipient cmd ->
-         DeactivateInternalRecipientCommand.toEvent cmd |> Result.map ids
+         DeactivateInternalRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | NicknameRecipient cmd ->
-         NicknameRecipientCommand.toEvent cmd |> Result.map ids
-      | CloseAccount cmd -> CloseAccountCommand.toEvent cmd |> Result.map ids
+         NicknameRecipientCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | CloseAccount cmd ->
+         CloseAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | cmd ->
          Error
          <| ValidationErrors.create "" [
@@ -122,7 +141,7 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
    let! res = validation |> Result.mapError Err.ValidationError
    let ref = AccountActor.get system (AccountId.fromEntityId res.EntityId)
    ref <! AccountMessage.StateChange command
-   return validation
+   return res
 }
 
 // Diagnostic

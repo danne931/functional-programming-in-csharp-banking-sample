@@ -5,10 +5,10 @@ open Fable.SimpleHttp
 open FsToolkit.ErrorHandling
 open Feliz.Router
 
-open Bank.Account.UIDomain
+open UIDomain.Account
 open Bank.Account.Domain
 open Lib.SharedTypes
-open Lib.TransactionQuery
+open Lib.NetworkQuery
 open RoutePaths
 
 let private notImplemented (cmd: AccountCommand) =
@@ -37,25 +37,31 @@ let postJson (command: AccountCommand) =
 
    Http.postJson url serialized
 
-let getAccountProfiles (orgId: OrgId) : Async<AccountProfilesMaybe> = async {
-   let path =
-      AccountPath.Base + Router.encodeQueryString [ "orgId", string orgId ]
+let getOrgAndAccountProfiles
+   (orgId: OrgId)
+   : Async<OrgAndAccountProfilesMaybe>
+   =
+   async {
+      let path =
+         AccountPath.Base + Router.encodeQueryString [ "orgId", string orgId ]
 
-   let! (code, responseText) = Http.get path
+      let! (code, responseText) = Http.get path
 
-   if code = 404 then
-      return Ok None
-   elif code <> 200 then
-      return Error <| Err.InvalidStatusCodeError("AccountService", code)
-   else
-      return
-         responseText
-         |> Serialization.deserialize<AccountProfile list>
-         |> Result.map (fun accounts ->
-            [ for account in accounts -> account.AccountId, account ]
-            |> Map.ofList
-            |> Some)
-}
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
+         return Error <| Err.InvalidStatusCodeError("AccountService", code)
+      else
+         return
+            responseText
+            |> Serialization.deserialize<Org * AccountProfile list>
+            |> Result.map (fun (org, accounts) ->
+               Some(
+                  org,
+                  [ for account in accounts -> account.AccountId, account ]
+                  |> Map.ofList
+               ))
+   }
 
 let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = async {
    let path = AccountPath.account accountId
@@ -101,7 +107,7 @@ let getAccountAndTransactions
 let submitCommand
    (account: Account)
    (command: AccountCommand)
-   : Async<Result<CommandProcessingResponse, Err>>
+   : Async<Result<AccountCommandReceipt, Err>>
    =
    asyncResult {
       // Pre-network request validation checks the command itself
@@ -109,7 +115,7 @@ let submitCommand
       // to the current state (Err.StateTransitionError).
       // This same validation occurs on the server when an actor is
       // processing a command.
-      let! _ = Account.stateTransition account command
+      let! evt, updatedAccount = Account.stateTransition account command
 
       let! res = postJson command
       let code = res.statusCode
@@ -117,44 +123,12 @@ let submitCommand
       if code <> 200 then
          return! Error <| Err.InvalidStatusCodeError("AccountService", code)
       else
-         let! deserialized =
-            Serialization.deserialize<Result<CommandProcessingResponse, Err>>
-               res.responseText
+         let! envelope = Serialization.deserialize<Envelope> res.responseText
 
-         return! deserialized
+         return {
+            Envelope = envelope
+            PendingState = updatedAccount
+            PendingEvent = evt
+            PendingCommand = command
+         }
    }
-
-let addAccountToSignalRConnectionGroup
-   (connection: SignalR.Connection)
-   (existingAccountId: AccountId option)
-   (accountIdToAdd: AccountId)
-   : Async<Result<AccountId, Err>>
-   =
-   asyncResult {
-      if
-         existingAccountId.IsSome && existingAccountId <> Some accountIdToAdd
-      then
-         let! _ =
-            connection.removeAccountFromConnectionGroup existingAccountId.Value
-
-         ()
-
-      let! _ = connection.addAccountToConnectionGroup accountIdToAdd
-
-      return accountIdToAdd
-   }
-
-let listenForSignalRMessages
-   (onAccountEventPersisted: AccountEventPersistedConfirmation -> unit)
-   (conn: SignalR.Connection)
-   =
-   conn.on (
-      "AccountEventPersistenceConfirmation",
-      fun (msg: string) ->
-         let deseri =
-            Serialization.deserialize<AccountEventPersistedConfirmation> msg
-
-         match deseri with
-         | Error err -> Log.error (string err)
-         | Ok msg -> onAccountEventPersisted msg
-   )
