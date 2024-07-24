@@ -28,15 +28,6 @@ let startDiagnosticRoutes (app: WebApplication) =
 
    app
       .MapGet(
-         DiagnosticPath.AccountEvents,
-         Func<ActorSystem, Guid, Task<IResult>>(fun sys id ->
-            getAccountEventsFromAkka sys (AccountId id) |> RouteUtil.unwrapTask)
-      )
-      .RBAC(Permissions.Diagnostic)
-   |> ignore
-
-   app
-      .MapGet(
          DiagnosticPath.CircuitBreaker,
          Func<ActorSystem, Task<IResult>>(fun sys ->
             let ref = CircuitBreakerActor.get sys

@@ -63,16 +63,23 @@ module EmployeePath =
    let search (orgId: OrgId) (searchQuery: string) =
       $"{Base}/search/{orgId}/{searchQuery}"
 
-   let Debit = Base + "/debit"
-   let DailyDebitLimit = Base + "/daily-debit-limit"
-   let LockCard = Base + "/lock"
-   let UnlockCard = Base + "/unlock"
    let UpdateRole = Base + "/role"
    let CancelEmployeeInvitation = Base + "/cancel-employee-invitation"
    let ResendInviteNotification = Base + "/resend-invite-notification"
    let RestoreAccess = Base + "/restore-access"
    let History = Get + "/history"
    let history (orgId: OrgId) = get orgId + "/history"
+
+module CardPath =
+   let Base = $"{API}/cards"
+   let Get = Base + "/{orgId}"
+   let get (orgId: OrgId) = $"{Base}/{orgId}"
+   let DailyPurchaseLimit = Base + "/daily-purchase-limit"
+   let MonthlyPurchaseLimit = Base + "/monthly-purchase-limit"
+   let LockCard = Base + "/lock"
+   let UnlockCard = Base + "/unlock"
+   let Purchase = Base + "/purchase"
+   let UpdateNickname = Base + "/nickname"
 
 module UserSessionPath =
    let Login = "/login"

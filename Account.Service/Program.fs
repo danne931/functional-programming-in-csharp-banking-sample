@@ -88,7 +88,6 @@ builder.Services.AddAkka(
 
                let props =
                   EmployeeActor.initProps
-                  <| system
                   // TODO: Create employee-specific Environment file & replace
                   //       account env var here.
                   <| Env.config.AccountActorSupervisor

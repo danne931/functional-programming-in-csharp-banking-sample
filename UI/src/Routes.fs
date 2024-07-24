@@ -5,6 +5,7 @@ open Feliz.Router
 
 open UIDomain.Account
 open UIDomain.Employee
+open UIDomain.Card
 open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]

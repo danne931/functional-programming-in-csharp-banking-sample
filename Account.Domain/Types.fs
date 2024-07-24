@@ -236,7 +236,6 @@ type AccountProfile = {
 
 type AccountMessage =
    | GetAccount
-   | GetEvents
    | StateChange of AccountCommand
    | Event of AccountEvent
    | Delete
@@ -251,10 +250,6 @@ type AccountEventRejected = {
    AccountId: AccountId
    Error: Err
    Date: DateTime
-}
-
-type AccountPersistence = {
-   getEvents: AccountId -> AccountEvent list Async
 }
 
 type AccountBroadcast = {

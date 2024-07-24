@@ -11,6 +11,7 @@ open Lib.SharedTypes
 open Bank.Employee.Domain
 open Lib.NetworkQuery
 
+module AccountFields = AccountSqlMapper.AccountFields
 module Fields = EmployeeSqlMapper.EmployeeFields
 module Reader = EmployeeSqlMapper.EmployeeSqlReader
 module Writer = EmployeeSqlMapper.EmployeeSqlWriter
@@ -37,16 +38,23 @@ let processCommand (system: ActorSystem) (command: EmployeeCommand) = taskResult
       match command with
       | CreateEmployee cmd ->
          CreateEmployeeCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
+      | EmployeeCommand.CreateCard cmd ->
+         CreateCardCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | DebitRequest cmd ->
          DebitRequestCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | LimitDailyDebits cmd ->
          LimitDailyDebitsCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
+      | LimitMonthlyDebits cmd ->
+         LimitMonthlyDebitsCommand.toEvent cmd
+         |> Result.map EmployeeEnvelope.get
       | LockCard cmd ->
          LockCardCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | UnlockCard cmd ->
          UnlockCardCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | UpdateRole cmd ->
          UpdateRoleCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
+      | EditCardNickname cmd ->
+         EditCardNicknameCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | CancelInvitation cmd ->
          CancelInvitationCommand.toEvent cmd |> Result.map EmployeeEnvelope.get
       | RefreshInvitationToken cmd ->
@@ -175,8 +183,9 @@ let filtersToEventNames
            | EmployeeEventGroupFilter.UpdatedRole -> [
               typeof<RoleUpdated>.Name
              ]
-           | EmployeeEventGroupFilter.DailyDebitLimitUpdated -> [
+           | EmployeeEventGroupFilter.PurchaseLimitUpdated -> [
               typeof<DailyDebitLimitUpdated>.Name
+              typeof<MonthlyDebitLimitUpdated>.Name
              ])
       []
    |> List.toArray
@@ -260,4 +269,100 @@ let getEmployeeHistory
       InitiatedByName = read.string "initiator"
       EmployeeName = read.string "name"
       Event = Reader.event read
+   })
+
+module Fields = CardSqlMapper.CardFields
+module Reader = CardSqlMapper.CardSqlReader
+module Writer = CardSqlMapper.CardSqlWriter
+
+let getCards (orgId: OrgId) (query: Lib.NetworkQuery.CardQuery) =
+   let table = CardSqlMapper.table
+   let employeeTable = EmployeeSqlMapper.table
+   let dpaView = "daily_purchase_accrued"
+   let mpaView = "monthly_purchase_accrued"
+
+   let agg = [ "orgId", Writer.orgId orgId ], $"{table}.{Fields.orgId} = @orgId"
+
+   let agg =
+      Option.fold
+         (fun (queryParams, where) ids ->
+            [ "eIds", Writer.employeeIds ids ] @ queryParams,
+            $"{where} AND {table}.{Fields.employeeId} = ANY(@eIds)")
+         agg
+         query.EmployeeIds
+
+   let agg =
+      Option.fold
+         (fun (queryParams, where) ids ->
+            [ "aIds", Writer.accountIds ids ] @ queryParams,
+            $"{where} AND {table}.{Fields.accountId} = ANY(@aIds)")
+         agg
+         query.AccountIds
+
+   let agg =
+      Option.fold
+         (fun (queryParams, where) (startDate, endDate) ->
+            [
+               "start", Writer.createdAt startDate
+               "end", Writer.createdAt endDate
+            ]
+            @ queryParams,
+            $"{where} AND {table}.{Fields.createdAt} >= @start 
+              AND {table}.{Fields.createdAt} <= @end")
+         agg
+         query.CreatedAtDateRange
+
+   let monthlyAccrued = $"{mpaView}.amount_accrued"
+
+   let agg =
+      Option.fold
+         (fun (queryParams, where) amountFilter ->
+            let where, amountParams =
+               match amountFilter with
+               | AmountFilter.LessThanOrEqualTo max ->
+                  $"{where} AND {monthlyAccrued} <= @max",
+                  [ "max", Sql.moneyOrNone (Some max) ]
+               | AmountFilter.GreaterThanOrEqualTo min ->
+                  $"{where} AND {monthlyAccrued} >= @min",
+                  [ "min", Sql.money min ]
+               | AmountFilter.Between(min, max) ->
+                  $"{where} AND {monthlyAccrued} >= @min AND {monthlyAccrued} <= @max",
+                  [ "min", Sql.money min; "max", Sql.money max ]
+
+            amountParams @ queryParams, where)
+         agg
+         query.Amount
+
+   let queryParams, where = agg
+
+   let query =
+      $"SELECT
+           {table}.{Fields.cardNumberLast4},
+           {table}.{Fields.cardNickname},
+           {table}.{Fields.dailyPurchaseLimit},
+           {table}.{Fields.monthlyPurchaseLimit},
+           {table}.{Fields.cardId},
+           {table}.{Fields.accountId},
+           {table}.{Fields.cardType},
+           {table}.{Fields.isVirtual},
+           {table}.{Fields.status},
+           {table}.{Fields.expYear},
+           {table}.{Fields.expMonth},
+           {table}.{Fields.lastPurchaseAt},
+           {mpaView}.amount_accrued as mpa,
+           {dpaView}.amount_accrued as dpa,
+           {employeeTable}.*
+        FROM {table}
+        LEFT JOIN {employeeTable} using({Fields.employeeId})
+        LEFT OUTER JOIN {dpaView} using({Fields.cardId})
+        LEFT OUTER JOIN {mpaView} using({Fields.cardId})
+        WHERE {where}
+        ORDER BY {table}.{Fields.lastPurchaseAt} desc"
+
+   pgQuery<CardWithMetrics> query (Some queryParams) (fun read -> {
+      Card = Reader.card read
+      DailyPurchaseAccrued = read.decimalOrNone "dpa" |> Option.defaultValue 0m
+      MonthlyPurchaseAccrued =
+         read.decimalOrNone "mpa" |> Option.defaultValue 0m
+      Employee = Reader.employee read
    })

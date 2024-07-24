@@ -84,47 +84,6 @@ let startEmployeeRoutes (app: WebApplication) =
 
    app
       .MapPost(
-         EmployeePath.Debit,
-         Func<ActorSystem, DebitRequestCommand, Task<IResult>>(fun sys cmd ->
-            processCommand sys (EmployeeCommand.DebitRequest cmd)
-            |> RouteUtil.unwrapTaskResult)
-      )
-      .RBAC(Permissions.DebitRequest)
-   |> ignore
-
-   app
-      .MapPost(
-         EmployeePath.DailyDebitLimit,
-         Func<ActorSystem, LimitDailyDebitsCommand, Task<IResult>>
-            (fun sys cmd ->
-               processCommand sys (EmployeeCommand.LimitDailyDebits cmd)
-               |> RouteUtil.unwrapTaskResult)
-      )
-      .RBAC(Permissions.UpdateDailyDebitLimit)
-   |> ignore
-
-   app
-      .MapPost(
-         EmployeePath.LockCard,
-         Func<ActorSystem, LockCardCommand, Task<IResult>>(fun sys cmd ->
-            processCommand sys (EmployeeCommand.LockCard cmd)
-            |> RouteUtil.unwrapTaskResult)
-      )
-      .RBAC(Permissions.LockCard)
-   |> ignore
-
-   app
-      .MapPost(
-         EmployeePath.UnlockCard,
-         Func<ActorSystem, UnlockCardCommand, Task<IResult>>(fun sys cmd ->
-            processCommand sys (EmployeeCommand.UnlockCard cmd)
-            |> RouteUtil.unwrapTaskResult)
-      )
-      .RBAC(Permissions.UnlockCard)
-   |> ignore
-
-   app
-      .MapPost(
          EmployeePath.UpdateRole,
          Func<ActorSystem, UpdateRoleCommand, Task<IResult>>(fun sys cmd ->
             processCommand sys (EmployeeCommand.UpdateRole cmd)

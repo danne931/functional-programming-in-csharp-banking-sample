@@ -51,8 +51,7 @@ let form
       let cmd =
          DebitRequestCommand.create employee.CompositeId {
             CardId = selectedCardId
-            CardNumberLast4 =
-               employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
+            CardNumberLast4 = employee.Cards[selectedCardId].CardNumberLast4
             AccountId = account.AccountId
             Amount = amount
             Origin = origin

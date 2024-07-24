@@ -12,7 +12,6 @@ open Lib.SharedTypes
 open Lib.NetworkQuery
 open EmployeeDetail
 open Bank.Employee.Forms.EmployeeCreateForm
-open Bank.Employee.Forms.EmployeeRoleForm
 open EmployeeSearch
 open TableControlPanel
 
@@ -30,14 +29,6 @@ type State = {
    Query: EmployeeQuery
    Employees: Deferred<EmployeesMaybe>
 }
-
-let private setEmployee
-   (employees: Deferred<EmployeesMaybe>)
-   (updatedEmployee: Employee)
-   =
-   (Deferred.map << Result.map << Option.map)
-      (Map.add updatedEmployee.EmployeeId updatedEmployee)
-      employees
 
 let private actionNav (action: EmployeeActionView option) =
    let queryString =
@@ -117,7 +108,10 @@ let update (session: UserSession) msg state =
 
       {
          state with
-            Employees = setEmployee state.Employees employee
+            Employees =
+               (Deferred.map << Result.map << Option.map)
+                  (Map.add employee.EmployeeId employee)
+                  state.Employees
       },
       Cmd.none
 

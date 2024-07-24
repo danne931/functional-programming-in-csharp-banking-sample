@@ -5,7 +5,6 @@ open System
 open Akka.Actor
 open Akka.Persistence
 open Akka.Persistence.Extras
-open Akka.Streams
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
@@ -19,19 +18,24 @@ open Bank.Employee.Domain
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
-   (getEvents: EmployeeId -> EmployeeEvent list Async)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
 
-      let rec loop (employeeOpt: Employee option) = actor {
+      let rec loop (employeeOpt: EmployeeWithEvents option) = actor {
          let! msg = mailbox.Receive()
-         let employee = Option.defaultValue Employee.empty employeeOpt
+
+         let state =
+            employeeOpt
+            |> Option.defaultValue { Info = Employee.empty; Events = [] }
+
+         let employee = state.Info
 
          match box msg with
          | Persisted mailbox e ->
             let (EmployeeMessage.Event evt) = unbox e
-            let employee = Employee.applyEvent employee evt
+            let state = Employee.applyEvent state evt
+            let employee = state.Info
 
             match evt with
             | EmployeeEvent.CreatedAccountOwner e ->
@@ -73,12 +77,14 @@ let actorProps
                         CreateCardCommand.create {
                            AccountId = info.LinkedAccountId
                            DailyPurchaseLimit = Some info.DailyPurchaseLimit
+                           MonthlyPurchaseLimit = Some info.MonthlyPurchaseLimit
                            PersonName = employee.Name
                            CardNickname = None
                            OrgId = employee.OrgId
                            EmployeeId = employee.EmployeeId
                            CardId = CardId <| Guid.NewGuid()
                            Virtual = true
+                           CardType = CardType.Debit
                            InitiatedBy = e.InitiatedById
                         }
                         |> EmployeeCommand.CreateCard
@@ -92,12 +98,14 @@ let actorProps
                      CreateCardCommand.create {
                         AccountId = info.LinkedAccountId
                         DailyPurchaseLimit = Some info.DailyPurchaseLimit
+                        MonthlyPurchaseLimit = Some info.MonthlyPurchaseLimit
                         PersonName = employee.Name
                         CardNickname = None
                         OrgId = employee.OrgId
                         EmployeeId = employee.EmployeeId
                         CardId = CardId <| Guid.NewGuid()
                         Virtual = true
+                        CardType = CardType.Debit
                         InitiatedBy = e.InitiatedById
                      }
                      |> EmployeeCommand.CreateCard
@@ -142,14 +150,14 @@ let actorProps
                ()
             | _ -> ()
 
-            return! loop <| Some employee
+            return! loop <| Some state
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? ConfirmableMessageEnvelope as envelope ->
             match envelope.Message with
             | :? EmployeeMessage as msg ->
                match msg with
                | StateChange cmd ->
-                  let validation = Employee.stateTransition employee cmd
+                  let validation = Employee.stateTransition state cmd
 
                   match validation with
                   | Ok(evt, _) ->
@@ -188,21 +196,16 @@ let actorProps
          | :? EmployeeMessage as msg ->
             match msg with
             | GetEmployee -> mailbox.Sender() <! employeeOpt
-            | GetEvents ->
-               match employeeOpt with
-               | None -> mailbox.Sender() <! []
-               | Some employee ->
-                  mailbox.Sender() <!| getEvents employee.EmployeeId
             | Delete ->
                let newState = {
-                  employee with
-                     Status = EmployeeStatus.ReadyForDelete
+                  state with
+                     Info.Status = EmployeeStatus.ReadyForDelete
                }
 
                return! loop (Some newState) <@> DeleteMessages Int64.MaxValue
          // Event replay on actor start
          | :? EmployeeEvent as e when mailbox.IsRecovering() ->
-            return! loop <| Some(Employee.applyEvent employee e)
+            return! loop <| Some(Employee.applyEvent state e)
          | msg ->
             PersistentActorEventHandler.handleEvent
                {
@@ -235,21 +238,6 @@ let get
       ClusterMetadata.employeeShardRegion
       (EmployeeId.get employeeId)
 
-let private getEmployeeEvents
-   (actorSystem: ActorSystem)
-   (id: EmployeeId)
-   : EmployeeEvent list Async
-   =
-   ActorUtil
-      .readJournal(actorSystem)
-      .CurrentEventsByPersistenceId(string id, 0, Int64.MaxValue)
-      .RunAggregate(
-         [],
-         (fun acc envelope -> unbox envelope.Event :: acc),
-         actorSystem.Materializer()
-      )
-   |> Async.AwaitTask
-
 let isPersistableMessage (msg: obj) =
    match msg with
    | :? EmployeeMessage as msg ->
@@ -259,17 +247,12 @@ let isPersistableMessage (msg: obj) =
    | _ -> false
 
 let initProps
-   (system: ActorSystem)
    (supervisorOpts: PersistenceSupervisorOptions)
    (persistenceId: string)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    =
-
-   let childProps =
-      actorProps getAccountRef EmailActor.get (getEmployeeEvents system)
-
    persistenceSupervisor
       supervisorOpts
       isPersistableMessage
-      childProps
+      (actorProps getAccountRef EmailActor.get)
       persistenceId

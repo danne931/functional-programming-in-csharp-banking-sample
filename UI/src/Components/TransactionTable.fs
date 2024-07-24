@@ -25,6 +25,7 @@ type TransactionFilter =
    | MoneyFlow of MoneyFlow option
    | Amount of AmountFilter option
    | Category of CategoryFilter option
+   | Cards of (SelectedCard list) option
 
 type State = {
    Transactions: Map<int, Deferred<TransactionsMaybe>>
@@ -85,6 +86,10 @@ let update msg state =
          | TransactionFilter.Category cat -> {
             browserQuery with
                Category = cat
+           }
+         | TransactionFilter.Cards cards -> {
+            browserQuery with
+               SelectedCards = cards
            }
 
       let browserQueryParams =
@@ -245,6 +250,19 @@ let renderControlPanel
                   dispatch <| Msg.UpdateFilter(TransactionFilter.Category None)
             Content =
                query.Category |> Option.bind (CategoryFilter.display categories)
+         }
+         {
+            View = TransactionFilterView.Date
+            OnDelete =
+               fun () ->
+                  dispatch <| Msg.UpdateFilter(TransactionFilter.Cards None)
+            Content =
+               query.SelectedCards
+               |> Option.map (fun cards ->
+                  if cards.Length = 1 then
+                     $"Card: {cards |> List.head |> _.Display}"
+                  else
+                     $"Cards ({cards.Length})")
          }
       ]
       SubsequentChildren =

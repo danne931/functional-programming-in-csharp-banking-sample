@@ -40,7 +40,7 @@ type InvitationTokenRefreshed = {
 
 type InvitationCancelled = { Reason: string option }
 
-type CreatedCard = { Info: Card }
+type CreatedCard = { PersonName: string; Card: Card }
 
 type DebitRequested = { Info: DebitInfo }
 
@@ -50,20 +50,27 @@ type DebitDeclined = { Info: DebitInfo }
 
 type DailyDebitLimitUpdated = {
    CardId: CardId
-   CardNumberLast4: int
+   CardNumberLast4: string
+   PriorLimit: decimal
+   DebitLimit: decimal
+}
+
+type MonthlyDebitLimitUpdated = {
+   CardId: CardId
+   CardNumberLast4: string
    PriorLimit: decimal
    DebitLimit: decimal
 }
 
 type LockedCard = {
    CardId: CardId
-   CardNumberLast4: int
+   CardNumberLast4: string
    Reference: string option
 }
 
 type UnlockedCard = {
    CardId: CardId
-   CardNumberLast4: int
+   CardNumberLast4: string
    Reference: string option
 }
 
@@ -71,6 +78,12 @@ type RoleUpdated = {
    Role: Role
    PriorRole: Role
    CardInfo: EmployeeInviteSupplementaryCardInfo option
+}
+
+type CardNicknamed = {
+   Name: string
+   PriorName: string option
+   CardId: CardId
 }
 
 type AccessRestored = { Reference: string option }

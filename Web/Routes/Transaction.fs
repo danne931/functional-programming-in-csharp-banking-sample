@@ -23,6 +23,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
       string,
       Nullable<bool>,
       string,
+      string,
       Nullable<decimal>,
       Nullable<decimal>,
       string,
@@ -35,6 +36,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
            ([<FromQuery>] moneyFlow: string)
            ([<FromQuery>] isCategorized: Nullable<bool>)
            ([<FromQuery>] categoryIds: string)
+           ([<FromQuery>] cardIds: string)
            ([<FromQuery>] amountMin: Nullable<decimal>)
            ([<FromQuery>] amountMax: Nullable<decimal>)
            ([<FromQuery>] date: string) ->
@@ -50,24 +52,15 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
             else
                None
 
-         let amountOpt =
-            match amountMin.HasValue, amountMax.HasValue with
-            | true, false ->
-               Some(AmountFilter.GreaterThanOrEqualTo amountMin.Value)
-            | false, true ->
-               Some(AmountFilter.LessThanOrEqualTo amountMax.Value)
-            | true, true ->
-               Some(AmountFilter.Between(amountMin.Value, amountMax.Value))
-            | _ -> None
-
          func {
             AccountId = AccountId id
             Diagnostic = diagnostic
             Page = page
             MoneyFlow = moneyFlowOpt
             Category = categoryOpt
-            Amount = amountOpt
+            Amount = AmountFilter.fromQuery amountMin amountMax
             DateRange = dateOpt
+            CardIds = TransactionQuery.cardIdsFromQueryString cardIds
          })
 
 let startTransactionRoutes (app: WebApplication) =

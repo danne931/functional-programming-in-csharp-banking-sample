@@ -5,7 +5,6 @@ open System
 open Akka.Actor
 open Akka.Persistence
 open Akka.Persistence.Extras
-open Akka.Streams
 open Akkling
 open Akkling.Persistence
 open Akkling.Cluster.Sharding
@@ -60,7 +59,6 @@ let private billingCycle
 //getEmailActor mailbox.System <! EmailActor.BillingStatement account
 
 let actorProps
-   (persistence: AccountPersistence)
    (broadcaster: AccountBroadcast)
    (getOrStartInternalTransferActor: Actor<_> -> IActorRef<InternalTransferMsg>)
    (getDomesticTransferActor: ActorSystem -> IActorRef<DomesticTransferMessage>)
@@ -248,11 +246,6 @@ let actorProps
          | :? AccountMessage as msg ->
             match msg with
             | AccountMessage.GetAccount -> mailbox.Sender() <! accountOpt
-            | AccountMessage.GetEvents ->
-               match accountOpt with
-               | None -> mailbox.Sender() <! []
-               | Some account ->
-                  mailbox.Sender() <!| persistence.getEvents account.AccountId
             | AccountMessage.Delete ->
                let account = {
                   account with
@@ -293,21 +286,6 @@ let actorProps
 let get (sys: ActorSystem) (accountId: AccountId) : IEntityRef<AccountMessage> =
    getEntityRef sys ClusterMetadata.accountShardRegion (AccountId.get accountId)
 
-let private getAccountEvents
-   (actorSystem: ActorSystem)
-   (id: AccountId)
-   : AccountEvent list Async
-   =
-   ActorUtil
-      .readJournal(actorSystem)
-      .CurrentEventsByPersistenceId(string id, 0, Int64.MaxValue)
-      .RunAggregate(
-         [],
-         (fun acc envelope -> unbox envelope.Event :: acc),
-         actorSystem.Materializer()
-      )
-   |> Async.AwaitTask
-
 let isPersistableMessage (msg: obj) =
    match msg with
    | :? AccountMessage as msg ->
@@ -328,7 +306,6 @@ let initProps
 
    let childProps =
       actorProps
-         { getEvents = getAccountEvents system }
          broadcaster
          getOrStartInternalTransferActor
          DomesticTransferRecipientActor.get

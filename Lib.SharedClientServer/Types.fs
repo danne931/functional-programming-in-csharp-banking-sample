@@ -106,6 +106,11 @@ type CardId =
       let (CardId id) = x
       string id
 
+module CardId =
+   let get (cardId: CardId) : Guid =
+      let (CardId id) = cardId
+      id
+
 type Command<'C> = {
    Id: EventId
    EntityId: EntityId
@@ -203,6 +208,7 @@ type EmployeeStateTransitionError =
    | CardLocked
    | CardExpired
    | ExceededDailyDebit of limit: decimal * accrued: decimal
+   | ExceededMonthlyDebit of limit: decimal * accrued: decimal
    | DebitAlreadyProgressedToApprovedOrDeclined
    | EmployeeStatusDisallowsAccessRestore of string
 
@@ -277,7 +283,9 @@ type Err =
          | EmployeeStateTransitionError.CardLocked -> "Card Locked"
          | EmployeeStateTransitionError.CardNotFound -> "Card Not Found"
          | EmployeeStateTransitionError.ExceededDailyDebit(limit, _) ->
-            $"Exceeded Daily Debit Limit ${limit}"
+            $"Exceeded Daily Purchase Limit ${limit}"
+         | EmployeeStateTransitionError.ExceededMonthlyDebit(limit, _) ->
+            $"Exceeded Monthly Purchase Limit ${limit}"
          | EmployeeStateTransitionError.EmployeeStatusDisallowsInviteProgression state ->
             $"Employee not in a state ({state}) to cancel invite."
          | EmployeeStateTransitionError.EmployeeStatusDisallowsAccessRestore status ->
@@ -370,6 +378,10 @@ let ORG_ID_REMOVE_SOON =
 
 let LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON =
    "ec3e94cc-eba1-4ff4-b3dc-55010ecf69b1" |> Guid.Parse |> EmployeeId
+
+module Card =
+   let DAILY_PURCHASE_LIMIT_DEFAULT = 2000m
+   let MONTHLY_PURCHASE_LIMIT_DEFAULT = 150_000m
 
 type AccountNumber =
    | AccountNumber of int64

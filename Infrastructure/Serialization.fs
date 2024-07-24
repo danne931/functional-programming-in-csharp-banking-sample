@@ -79,9 +79,8 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
       | :? ReadModelSyncActor.State -> "ReadModelSyncState"
       | :? EmployeeReadModelSyncActor.State -> "EmployeeReadModelSyncState"
-      | :? List<EmployeeEvent> -> "EmployeeEventList"
-      | :? Employee -> "Employee"
-      | :? Option<Employee> -> "EmployeeOption"
+      | :? EmployeeWithEvents -> "EmployeeWithEvents"
+      | :? Option<EmployeeWithEvents> -> "EmployeeWithEventsOption"
       | :? EmployeeMessage as msg ->
          match msg with
          | EmployeeMessage.Event _ -> "EmployeeEvent"
@@ -189,14 +188,11 @@ type BankSerializer(system: ExtendedActorSystem) =
             JsonSerializer.SerializeToUtf8Bytes(e, Serialization.jsonOptions)
          | msg ->
             JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
-      // EmployeeMessage.GetEvents response serialized for message sent
-      // from account cluster nodes to Web node.
-      | :? List<EmployeeEvent>
       // EmployeeMessage.GetEmployee response serialized for message sent
       // from account cluster nodes to Web node.
-      | :? Option<Employee>
+      | :? Option<EmployeeWithEvents>
       // EmployeeActor persistence snapshot.
-      | :? Employee as o ->
+      | :? EmployeeWithEvents as o ->
          JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
       | :? EmployeeMessage as msg ->
          match msg with
@@ -229,10 +225,9 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "ReadModelSyncState" -> typeof<ReadModelSyncActor.State>
          | "EmployeeReadModelSyncState" ->
             typeof<EmployeeReadModelSyncActor.State>
-         | "Employee" -> typeof<Employee>
-         | "EmployeeOption" -> typeof<Employee option>
+         | "EmployeeWithEvents" -> typeof<EmployeeWithEvents>
+         | "EmployeeWithEventsOption" -> typeof<EmployeeWithEvents option>
          | "EmployeeEvent" -> typeof<EmployeeEvent>
-         | "EmployeeEventList" -> typeof<EmployeeEvent list>
          | "EmployeeMessage" -> typeof<EmployeeMessage>
          | "EmployeeShardEnvelope" -> typeof<EmployeeShardEnvelope>
          | "Account" -> typeof<Account>

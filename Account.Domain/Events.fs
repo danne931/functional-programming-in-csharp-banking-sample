@@ -18,7 +18,7 @@ type DepositedCash = { Amount: decimal; Origin: string }
 
 type EmployeePurchaseReference = {
    EmployeeName: string
-   EmployeeCardNumberLast4: int
+   EmployeeCardNumberLast4: string
    EmployeeId: EmployeeId
    CardId: CardId
 }

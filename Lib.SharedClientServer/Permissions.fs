@@ -19,12 +19,16 @@ let GetEmployeeHistory = Access all
 let CreateEmployee = Access [ admin ]
 let UpdateRole = Access [ admin ]
 let DebitRequest = Access [ admin; card ]
-let UpdateDailyDebitLimit = Access [ admin ]
-let LockCard = Access [ admin ]
-let UnlockCard = Access [ admin ]
 let CancelEmployeeInvitation = Access [ admin ]
 let RestoreEmployeeAccess = Access [ admin ]
 let ResendInviteNotification = Access [ admin; scholar ]
+
+// Card
+let UpdatePurchaseLimit = Access [ admin ]
+let LockCard = Access [ admin ]
+let UnlockCard = Access [ admin ]
+let CreateCard = Access [ admin ]
+let EditCardNickname = Access [ admin; card ]
 
 // Transfer
 let ManageTransferRecipient = Access [ admin ]

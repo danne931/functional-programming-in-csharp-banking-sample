@@ -35,6 +35,10 @@ module DateTime =
          date.Day
       )
 
+   let isThisMonth (date: DateTime) =
+      let today = DateTime.UtcNow
+      (today.Month, today.Year) = (date.Month, date.Year)
+
    let parseOptional (date: string) =
       try
          Some

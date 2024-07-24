@@ -4,24 +4,24 @@ open System
 
 open Lib.SharedTypes
 
-type CardNumber =
-   | CardNumber of int64
+[<RequireQualifiedAccess>]
+type CardType =
+   | Credit
+   | Debit
 
-   override x.ToString() =
-      let (CardNumber num) = x
-      string num
+   static member fromString(status: string) : CardType option =
+      if String.IsNullOrEmpty status then
+         None
+      else
+         match status.ToLower() with
+         | "credit" -> Some Credit
+         | "debit" -> Some Debit
+         | _ -> None
 
-   member x.Last4 =
-      x |> string |> (fun str -> str.Substring(str.Length - 4)) |> int
-
-type CVV = CVV of int16
-
-type CardSecurityInfo = {
-   PersonName: string
-   Expiration: DateTime
-   CVV: CVV
-   CardNumber: CardNumber
-}
+   static member fromStringUnsafe(cardType: string) : CardType =
+      match CardType.fromString cardType with
+      | None -> failwith "Error attempting to cast string to CardType"
+      | Some status -> status
 
 [<RequireQualifiedAccess>]
 type CardStatus =
@@ -30,23 +30,60 @@ type CardStatus =
    | Frozen
    | Closed
 
+   override x.ToString() =
+      match x with
+      | Active -> "active"
+      | Frozen -> "frozen"
+      | Closed -> "closed"
+
+   static member fromString(status: string) : CardStatus option =
+      if String.IsNullOrEmpty status then
+         None
+      else
+         match status.ToLower() with
+         | "active" -> Some Active
+         | "frozen" -> Some Frozen
+         | "closed" -> Some Closed
+         | _ -> None
+
+   static member fromStringUnsafe(status: string) : CardStatus =
+      match CardStatus.fromString status with
+      | None -> failwith "Error attempting to cast string to CardStatus"
+      | Some status -> status
+
+type CardExpiration = { Month: int; Year: int }
+
+module CardExpiration =
+   let create () : CardExpiration =
+      let exp = DateTime.Now.AddYears(3)
+      { Month = exp.Month; Year = exp.Year }
+
 type Card = {
-   SecurityInfo: CardSecurityInfo
-   CardNickname: string option
-   DailyDebitLimit: decimal
-   DailyDebitAccrued: decimal
-   LastDebitDate: DateTime option
-   CardId: CardId
-   AccountId: AccountId
+   CardType: CardType
+   CardNumberLast4: string
+   DailyPurchaseLimit: decimal
+   MonthlyPurchaseLimit: decimal
    Virtual: bool // virtual vs. physical card
    Status: CardStatus
+   CardNickname: string option
+   LastPurchaseAt: DateTime option
+   Expiration: CardExpiration
+   CardId: CardId
+   AccountId: AccountId
 } with
 
    member x.IsExpired() =
-      x.SecurityInfo.Expiration <= DateTime.UtcNow
+      DateTime(x.Expiration.Year, x.Expiration.Month, 1) <= DateTime.UtcNow
+
+   member x.Display =
+      $"""
+      {x.CardNickname |> Option.defaultValue ""}
+      **{x.CardNumberLast4}
+      """
 
 type EmployeeInviteSupplementaryCardInfo = {
    DailyPurchaseLimit: decimal
+   MonthlyPurchaseLimit: decimal
    LinkedAccountId: AccountId
 }
 
@@ -99,7 +136,7 @@ type DebitInfo = {
    EmployeeId: EmployeeId
    CorrelationId: CorrelationId
    CardId: CardId
-   CardNumberLast4: int
+   CardNumberLast4: string
    Date: DateTime
    Amount: decimal
    Origin: string
@@ -108,32 +145,3 @@ type DebitInfo = {
 
 /// Tasks to initiate upon employee invite confirmation.
 type EmployeeOnboardingTask = CreateCard of EmployeeInviteSupplementaryCardInfo
-
-type Employee = {
-   EmployeeId: EmployeeId
-   OrgId: OrgId
-   Role: Role
-   Email: Email
-   FirstName: string
-   LastName: string
-   Cards: Map<CardId, Card>
-   Status: EmployeeStatus
-   PendingPurchases: Map<CorrelationId, DebitInfo>
-   OnboardingTasks: EmployeeOnboardingTask list
-   AuthProviderUserId: Guid option
-} with
-
-   member x.Name = $"{x.FirstName} {x.LastName}"
-
-   member x.CompositeId = x.EmployeeId, x.OrgId
-
-   member x.PendingAccessApproval =
-      match x.Status with
-      | EmployeeStatus.PendingInviteApproval
-      | EmployeeStatus.PendingRestoreAccessApproval -> true
-      | _ -> false
-
-   member x.HasCard =
-      x.Cards.Values
-      |> Seq.exists (fun card ->
-         not (card.IsExpired()) && card.Status <> CardStatus.Closed)

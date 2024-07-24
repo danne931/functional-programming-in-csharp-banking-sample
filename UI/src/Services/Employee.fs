@@ -8,6 +8,7 @@ open Feliz.Router
 open Bank.Employee.Domain
 open UIDomain
 open UIDomain.Employee
+open UIDomain.Card
 open Lib.SharedTypes
 open Lib.NetworkQuery
 open RoutePaths
@@ -31,6 +32,13 @@ let networkQueryFromHistoryBrowserQuery
          |> Option.map (List.map (_.Id >> InitiatedById))
    }
 
+let networkQueryFromCardBrowserQuery (query: CardBrowserQuery) : CardQuery = {
+   AccountIds = query.SelectedAccounts |> Option.map (List.map _.Id)
+   EmployeeIds = query.SelectedEmployees |> Option.map (List.map _.Id)
+   CreatedAtDateRange = query.CreatedAt |> Option.map DateFilter.toDateRange
+   Amount = query.Amount
+}
+
 let serviceName = "EmployeeService"
 
 let private notImplemented (cmd: EmployeeCommand) =
@@ -44,13 +52,19 @@ let private postJson (command: EmployeeCommand) =
       | EmployeeCommand.CreateEmployee cmd ->
          Serialization.serialize cmd, EmployeePath.Base
       | EmployeeCommand.DebitRequest cmd ->
-         Serialization.serialize cmd, EmployeePath.Debit
+         Serialization.serialize cmd, CardPath.Purchase
       | EmployeeCommand.LimitDailyDebits cmd ->
-         Serialization.serialize cmd, EmployeePath.DailyDebitLimit
+         Serialization.serialize cmd, CardPath.DailyPurchaseLimit
+      | EmployeeCommand.LimitMonthlyDebits cmd ->
+         Serialization.serialize cmd, CardPath.MonthlyPurchaseLimit
+      | EmployeeCommand.CreateCard cmd ->
+         Serialization.serialize cmd, CardPath.Base
       | EmployeeCommand.LockCard cmd ->
-         Serialization.serialize cmd, EmployeePath.LockCard
+         Serialization.serialize cmd, CardPath.LockCard
       | EmployeeCommand.UnlockCard cmd ->
-         Serialization.serialize cmd, EmployeePath.UnlockCard
+         Serialization.serialize cmd, CardPath.UnlockCard
+      | EmployeeCommand.EditCardNickname cmd ->
+         Serialization.serialize cmd, CardPath.UpdateNickname
       | EmployeeCommand.UpdateRole cmd ->
          Serialization.serialize cmd, EmployeePath.UpdateRole
       | EmployeeCommand.CancelInvitation cmd ->
@@ -61,27 +75,22 @@ let private postJson (command: EmployeeCommand) =
 
    Http.postJson url serialized
 
-let private getEmployeesWithPath
-   (orgId: OrgId)
-   (path: string)
-   : Async<EmployeesMaybe>
-   =
-   async {
-      let! (code, responseText) = Http.get path
+let private getEmployeesWithPath (path: string) : Async<EmployeesMaybe> = async {
+   let! (code, responseText) = Http.get path
 
-      if code = 404 then
-         return Ok None
-      elif code <> 200 then
-         return Error <| Err.InvalidStatusCodeError(serviceName, code)
-      else
-         return
-            responseText
-            |> Serialization.deserialize<Employee list>
-            |> Result.map (fun employees ->
-               [ for employee in employees -> employee.EmployeeId, employee ]
-               |> Map.ofList
-               |> Some)
-   }
+   if code = 404 then
+      return Ok None
+   elif code <> 200 then
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
+   else
+      return
+         responseText
+         |> Serialization.deserialize<Employee list>
+         |> Result.map (fun employees ->
+            [ for employee in employees -> employee.EmployeeId, employee ]
+            |> Map.ofList
+            |> Some)
+}
 
 let getEmployees (orgId: OrgId) (query: EmployeeQuery) : Async<EmployeesMaybe> =
    let qParams =
@@ -97,10 +106,10 @@ let getEmployees (orgId: OrgId) (query: EmployeeQuery) : Async<EmployeesMaybe> =
       |> Router.encodeQueryString
 
    let path = EmployeePath.get orgId + qParams
-   getEmployeesWithPath orgId path
+   getEmployeesWithPath path
 
 let searchEmployees (orgId: OrgId) (query: string) : Async<EmployeesMaybe> =
-   getEmployeesWithPath orgId (EmployeePath.search orgId query)
+   getEmployeesWithPath (EmployeePath.search orgId query)
 
 let submitCommand
    (employee: Employee)
@@ -113,7 +122,8 @@ let submitCommand
       // to the current state (Err.EmployeeStateTransitionError).
       // This same validation occurs on the server when an actor is
       // processing a command.
-      let! evt, updatedEmployee = Employee.stateTransition employee command
+      let! evt, newState =
+         Employee.stateTransition { Info = employee; Events = [] } command
 
       let! res = postJson command
       let code = res.statusCode
@@ -125,7 +135,7 @@ let submitCommand
 
          return {
             Envelope = envelope
-            PendingState = updatedEmployee
+            PendingState = newState.Info
             PendingEvent = evt
             PendingCommand = command
          }
@@ -187,3 +197,39 @@ let getEmployeeHistory
             |> Serialization.deserialize<EmployeeHistory list>
             |> Result.map Some
    }
+
+let getCards (orgId: OrgId) (query: CardQuery) : Async<CardsMaybe> = async {
+   let queryParams =
+      [
+         match query.Amount with
+         | None -> ()
+         | Some amount -> yield! AmountFilter.toQuery amount
+
+         match query.EmployeeIds with
+         | None -> ()
+         | Some ids -> "employeeIds", listToQueryString ids
+
+         match query.AccountIds with
+         | None -> ()
+         | Some ids -> "accountIds", listToQueryString ids
+
+         match query.CreatedAtDateRange with
+         | None -> ()
+         | Some(startDate, endDate) ->
+            "createdAt", DateTime.rangeAsQueryString startDate endDate
+      ]
+      |> Router.encodeQueryString
+
+   let path = CardPath.get orgId + queryParams
+   let! (code, responseText) = Http.get path
+
+   if code = 404 then
+      return Ok None
+   elif code <> 200 then
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
+   else
+      return
+         responseText
+         |> Serialization.deserialize<CardWithMetrics list>
+         |> Result.map Some
+}

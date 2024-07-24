@@ -11,7 +11,7 @@ type Values = { Locked: bool }
 
 let form
    (employee: Employee)
-   (selectedCardId: CardId)
+   (card: Card)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
@@ -28,17 +28,15 @@ let form
       let cmd =
          if isLocked then
             LockCardCommand.create employee.CompositeId initiatedBy {
-               CardId = selectedCardId
-               CardNumberLast4 =
-                  employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
+               CardId = card.CardId
+               CardNumberLast4 = card.CardNumberLast4
                Reference = None
             }
             |> EmployeeCommand.LockCard
          else
             UnlockCardCommand.create employee.CompositeId initiatedBy {
-               CardId = selectedCardId
-               CardNumberLast4 =
-                  employee.Cards[selectedCardId].SecurityInfo.CardNumber.Last4
+               CardId = card.CardId
+               CardNumberLast4 = card.CardNumberLast4
                Reference = None
             }
             |> EmployeeCommand.UnlockCard
@@ -50,11 +48,13 @@ let form
 let CardAccessFormComponent
    (session: UserSession)
    (onSubmit: ParentOnSubmitHandler)
-   (selectedCardId: CardId)
+   (card: Card)
    (employee: Employee)
    =
    EmployeeFormContainer
-      { Locked = false }
-      (form employee selectedCardId (InitiatedById session.EmployeeId))
+      {
+         Locked = card.Status = CardStatus.Frozen
+      }
+      (form employee card (InitiatedById session.EmployeeId))
       onSubmit
       None

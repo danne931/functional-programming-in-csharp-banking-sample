@@ -38,7 +38,7 @@ let App () =
       | Routes.IndexUrl.Cards url ->
          CardDashboard.CardDashboardComponent url
          |> UserSessionSuspense
-         |> UserSessionProvider
+         |> (UserSessionProvider << OrgAndAccountProfileProvider)
       | Routes.IndexUrl.Account url ->
          AccountDashboard.AccountDashboardComponent url
          |> UserSessionSuspense

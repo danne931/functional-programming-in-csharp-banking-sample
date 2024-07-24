@@ -9,7 +9,6 @@ open System
 open Bank.Account.Domain
 open UIDomain.Account
 open Bank.Transfer.Domain
-open Bank.Employee.Domain
 open Lib.SharedTypes
 open Dropdown
 
@@ -269,7 +268,7 @@ let RecipientNicknameEditComponent
       | None -> ()
       | Some input -> input.focus ())
 
-   classyNode Html.div [ "transaction-destination-nickname" ] [
+   classyNode Html.div [ "nickname" ] [
       Html.input [
          attr.ref nicknameInputRef
          attr.ariaLabel "Transfer Recipient Nickname"
@@ -294,7 +293,7 @@ let RecipientNicknameEditComponent
             Html.small
                $"Transactions for {name} will display as {alias} for past and future transactions."
 
-      classyNode Html.div [ "transaction-nickname-controls" ] [
+      classyNode Html.div [ "nickname-controls" ] [
          if pendingNickname = (Some name) then
             nicknameCancelButton dispatch
          elif pendingNickname <> nickname then
@@ -340,7 +339,7 @@ let MerchantNicknameEditComponent
       | None -> ()
       | Some input -> input.focus ())
 
-   classyNode Html.div [ "transaction-destination-nickname" ] [
+   classyNode Html.div [ "nickname" ] [
       Html.input [
          attr.ref nicknameInputRef
          attr.ariaLabel "Merchant Recipient Nickname"
@@ -365,7 +364,7 @@ let MerchantNicknameEditComponent
             Html.small
                $"Transactions for {debitOrigin} will display as {name} for past and future transactions."
 
-      classyNode Html.div [ "transaction-nickname-controls" ] [
+      classyNode Html.div [ "nickname-controls" ] [
          if pendingNickname = (Some debitOrigin) then
             nicknameCancelButton dispatch
          elif pendingNickname <> merchantAlias then

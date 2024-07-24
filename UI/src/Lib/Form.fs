@@ -149,7 +149,6 @@ module Form =
                Html.input [
                   attr.type' "checkbox"
                   attr.role "switch"
-                  attr.ariaInvalid true
                   attr.disabled disabled
                   attr.isChecked value
                   attr.onCheckedChange (onChange >> dispatch)

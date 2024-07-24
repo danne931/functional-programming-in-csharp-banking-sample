@@ -61,6 +61,14 @@ type AmountFilter =
    | GreaterThanOrEqualTo of decimal
    | Between of decimal * decimal
 
+module AmountFilter =
+   let fromQuery (amountMin: Nullable<decimal>) (amountMax: Nullable<decimal>) =
+      match Option.ofNullable amountMin, Option.ofNullable amountMax with
+      | Some min, None -> Some(AmountFilter.GreaterThanOrEqualTo min)
+      | None, Some max -> Some(AmountFilter.LessThanOrEqualTo max)
+      | Some min, Some max -> Some(AmountFilter.Between(min, max))
+      | _ -> None
+
 type TransactionQuery = {
    AccountId: AccountId
    Diagnostic: bool
@@ -69,14 +77,19 @@ type TransactionQuery = {
    Category: CategoryFilter option
    Amount: AmountFilter option
    DateRange: (DateTime * DateTime) option
+   CardIds: (CardId list) option
 }
+
+module TransactionQuery =
+   let cardIdsFromQueryString: string -> CardId list option =
+      listFromQueryString (Guid.parseOptional >> Option.map CardId)
 
 [<RequireQualifiedAccess>]
 type EmployeeEventGroupFilter =
    | Invitation
    | CreatedCard
    | Purchase
-   | DailyDebitLimitUpdated
+   | PurchaseLimitUpdated
    | CardFrozenUnfrozen
    | UpdatedRole
    | AccessRestored
@@ -86,7 +99,7 @@ type EmployeeEventGroupFilter =
       | EmployeeEventGroupFilter.Invitation -> "Invitations"
       | EmployeeEventGroupFilter.CreatedCard -> "Cards Issued"
       | EmployeeEventGroupFilter.Purchase -> "Purchases"
-      | EmployeeEventGroupFilter.DailyDebitLimitUpdated ->
+      | EmployeeEventGroupFilter.PurchaseLimitUpdated ->
          "Purchase Limit Applied"
       | EmployeeEventGroupFilter.CardFrozenUnfrozen -> "Card Frozen/Unfrozen"
       | EmployeeEventGroupFilter.UpdatedRole -> "Employee Role Altered"
@@ -98,8 +111,8 @@ module EmployeeEventGroupFilter =
       | "Invitation" -> Some EmployeeEventGroupFilter.Invitation
       | "CreatedCard" -> Some EmployeeEventGroupFilter.CreatedCard
       | "Purchase" -> Some EmployeeEventGroupFilter.Purchase
-      | "DailyDebitLimitUpdated" ->
-         Some EmployeeEventGroupFilter.DailyDebitLimitUpdated
+      | "PurchaseLimitUpdated" ->
+         Some EmployeeEventGroupFilter.PurchaseLimitUpdated
       | "CardFrozenUnfrozen" -> Some EmployeeEventGroupFilter.CardFrozenUnfrozen
       | "UpdatedRole" -> Some EmployeeEventGroupFilter.UpdatedRole
       | "AccessRestored" -> Some EmployeeEventGroupFilter.AccessRestored
@@ -154,3 +167,16 @@ module EmployeeQuery =
 
    let employeeIdsFromQueryString =
       EmployeeHistoryQuery.employeeIdsFromQueryString
+
+type CardQuery = {
+   AccountIds: (AccountId list) option
+   EmployeeIds: (EmployeeId list) option
+   CreatedAtDateRange: (DateTime * DateTime) option
+   Amount: AmountFilter option
+}
+
+module CardQuery =
+   let employeeIdsFromQueryString = EmployeeQuery.employeeIdsFromQueryString
+
+   let accountIdsFromQueryString =
+      listFromQueryString (Guid.parseOptional >> Option.map AccountId)

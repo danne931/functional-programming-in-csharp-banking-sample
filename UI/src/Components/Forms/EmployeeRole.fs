@@ -9,11 +9,13 @@ open Bank.Account.Domain
 open FormContainer
 open Lib.SharedTypes
 open DailyPurchaseLimitForm
+open MonthlyPurchaseLimitForm
 open AccountProfileForm
 
 type Values = {
    Role: string
    DailyPurchaseLimit: string
+   MonthlyPurchaseLimit: string
    LinkedAccountId: string
 }
 
@@ -67,14 +69,16 @@ let private form
    |> Form.andThen (fun role ->
       match role with
       | Role.CardOnly when not employee.HasCard ->
-         Form.succeed (fun accountId purchaseLimit ->
-            let cardInfo =
-               Some {
-                  LinkedAccountId = accountId
-                  DailyPurchaseLimit = purchaseLimit
-               }
+         Form.succeed
+            (fun accountId dailyPurchaseLimit monthlyPurchaseLimit ->
+               let cardInfo =
+                  Some {
+                     LinkedAccountId = accountId
+                     DailyPurchaseLimit = dailyPurchaseLimit
+                     MonthlyPurchaseLimit = monthlyPurchaseLimit
+                  }
 
-            onSubmit role cardInfo)
+               onSubmit role cardInfo)
          |> Form.append (
             accountProfileSelect accountProfiles
             |> Form.mapValues {
@@ -91,6 +95,17 @@ let private form
             |> Form.mapValues {
                Value = fun a -> { Amount = a.DailyPurchaseLimit }
                Update = fun a b -> { b with DailyPurchaseLimit = a.Amount }
+            }
+         )
+         |> Form.append (
+            monthlyPurchaseLimitField
+            |> Form.mapValues {
+               Value = fun a -> { Amount = a.MonthlyPurchaseLimit }
+               Update =
+                  fun a b -> {
+                     b with
+                        MonthlyPurchaseLimit = a.Amount
+                  }
             }
          )
       | _ -> Form.succeed (onSubmit role None))
@@ -112,7 +127,8 @@ let EmployeeRoleFormComponent
 
    let formProps: Values = {
       Role = string employee.Role
-      DailyPurchaseLimit = ""
+      DailyPurchaseLimit = string Card.DAILY_PURCHASE_LIMIT_DEFAULT
+      MonthlyPurchaseLimit = string Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
       LinkedAccountId = ""
    }
 

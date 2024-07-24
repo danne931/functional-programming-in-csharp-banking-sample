@@ -345,7 +345,7 @@ let EmployeeCardSelectSearchComponent
                                              setSelected (Some pair))
                                     ]
                                     Html.text
-                                       $"{employee.Name} {cardName}**{card.SecurityInfo.CardNumber.Last4}"
+                                       $"{employee.Name} {cardName}**{card.CardNumberLast4}"
                                  ]
                               ]
                         ]

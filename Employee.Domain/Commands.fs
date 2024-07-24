@@ -135,13 +135,15 @@ module RefreshInvitationTokenCommand =
 type CreateCardInput = {
    PersonName: string
    CardNickname: string option
-   OrgId: OrgId
-   EmployeeId: EmployeeId
-   AccountId: AccountId
-   CardId: CardId
    Virtual: bool
+   CardType: CardType
    InitiatedBy: InitiatedById
    DailyPurchaseLimit: decimal option
+   MonthlyPurchaseLimit: decimal option
+   AccountId: AccountId
+   OrgId: OrgId
+   EmployeeId: EmployeeId
+   CardId: CardId
 }
 
 type CreateCardCommand = Command<CreateCardInput>
@@ -163,39 +165,42 @@ module CreateCardCommand =
          let input = cmd.Data
          let random = System.Random()
 
-         let randomNum (numDigits: int) =
-            List.init numDigits (fun _ -> random.Next(1, 9) |> string)
+         let last4 =
+            List.init 4 (fun _ -> random.Next(1, 9) |> string)
             |> String.concat ""
 
          let! dailyPurchaseLimit =
             match input.DailyPurchaseLimit with
             | Some limit -> amountValidator "Daily purchase limit" limit
-            | None -> ValidationResult.Ok 2000m
+            | None -> ValidationResult.Ok Card.DAILY_PURCHASE_LIMIT_DEFAULT
+
+         let! monthlyPurchaseLimit =
+            match input.MonthlyPurchaseLimit with
+            | Some limit -> amountValidator "Monthly purchase limit" limit
+            | None -> ValidationResult.Ok Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
 
          return
             BankEvent.create2<CreateCardInput, CreatedCard> cmd {
-               Info = {
-                  SecurityInfo = {
-                     PersonName = input.PersonName
-                     CardNumber = randomNum 16 |> Int64.Parse |> CardNumber
-                     Expiration = DateTime.Now.AddYears(3)
-                     CVV = randomNum 3 |> Int16.Parse |> CVV
-                  }
+               PersonName = input.PersonName
+               Card = {
+                  CardNumberLast4 = last4
                   CardNickname = input.CardNickname
                   CardId = cmd.Data.CardId
                   AccountId = cmd.Data.AccountId
-                  DailyDebitLimit = dailyPurchaseLimit
-                  DailyDebitAccrued = 0m
-                  LastDebitDate = None
+                  DailyPurchaseLimit = dailyPurchaseLimit
+                  MonthlyPurchaseLimit = monthlyPurchaseLimit
                   Virtual = input.Virtual
                   Status = CardStatus.Active
+                  CardType = input.CardType
+                  Expiration = CardExpiration.create ()
+                  LastPurchaseAt = None
                }
             }
       }
 
 type DebitRequestInput = {
    CardId: CardId
-   CardNumberLast4: int
+   CardNumberLast4: string
    AccountId: AccountId
    Amount: decimal
    Origin: string
@@ -298,9 +303,40 @@ module LimitDailyDebitsCommand =
       : ValidationResult<BankEvent<DailyDebitLimitUpdated>>
       =
       validate {
-         let! _ = amountValidator "Debit limit" cmd.Data.DebitLimit
+         let! _ =
+            dailyPurchaseLimitValidator
+               "Daily purchase limit"
+               cmd.Data.DebitLimit
 
          return BankEvent.create<DailyDebitLimitUpdated> cmd
+      }
+
+type LimitMonthlyDebitsCommand = Command<MonthlyDebitLimitUpdated>
+
+module LimitMonthlyDebitsCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: MonthlyDebitLimitUpdated)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: LimitMonthlyDebitsCommand)
+      : ValidationResult<BankEvent<MonthlyDebitLimitUpdated>>
+      =
+      validate {
+         let! _ =
+            monthlyPurchaseLimitValidator
+               "Monthly purchase limit"
+               cmd.Data.DebitLimit
+
+         return BankEvent.create<MonthlyDebitLimitUpdated> cmd
       }
 
 type LockCardCommand = Command<LockedCard>
@@ -373,6 +409,28 @@ module UpdateRoleCommand =
 
          return BankEvent.create<RoleUpdated> cmd
       }
+
+type EditCardNicknameCommand = Command<CardNicknamed>
+
+module EditCardNicknameCommand =
+   let create
+      (employeeId: EmployeeId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: CardNicknamed)
+      =
+      Command.create
+         (EmployeeId.toEntityId employeeId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: EditCardNicknameCommand)
+      : ValidationResult<BankEvent<CardNicknamed>>
+      =
+      Ok <| BankEvent.create<CardNicknamed> cmd
+
 
 type CancelInvitationCommand = Command<InvitationCancelled>
 

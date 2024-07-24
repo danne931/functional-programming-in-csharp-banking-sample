@@ -43,6 +43,17 @@ module AmountFilter =
       | Some min, Some max -> Some(AmountFilter.Between(min, max))
       | _ -> None
 
+   let toQuery (amount: AmountFilter) =
+      match amount with
+      | AmountFilter.GreaterThanOrEqualTo amount -> [
+         "amountMin", string amount
+        ]
+      | AmountFilter.LessThanOrEqualTo amount -> [ "amountMax", string amount ]
+      | AmountFilter.Between(min, max) -> [
+         "amountMin", string min
+         "amountMax", string max
+        ]
+
 module MoneyFlow =
    let display =
       function

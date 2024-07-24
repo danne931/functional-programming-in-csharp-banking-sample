@@ -9,11 +9,12 @@
     <Compile Include="AccountSqlMapper.fs" />
     <Compile Include="CategorySqlMapper.fs" />
     <Compile Include="TransactionMerchantSqlMapper.fs" />
-    <Compile Include="TransactionSqlMapper.fs" />
-    <Compile Include="AncillaryTransactionInfoSqlMapper.fs" /> 
     <Compile Include="BillingSqlMapper.fs" />
     <Compile Include="EmployeeSqlMapper.fs" />
     <Compile Include="EmployeeEventSqlMapper.fs" />
+    <Compile Include="CardSqlMapper.fs" /> 
+    <Compile Include="TransactionSqlMapper.fs" />
+    <Compile Include="AncillaryTransactionInfoSqlMapper.fs" /> 
   </ItemGroup>
 
   <ItemGroup>

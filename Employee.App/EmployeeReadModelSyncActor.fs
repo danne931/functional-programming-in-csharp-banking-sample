@@ -21,11 +21,12 @@ open Bank.Employee.Domain
 open Lib.BulkWriteStreamFlow
 open EmployeeSqlMapper
 open EmployeeEventSqlMapper
+open CardSqlMapper
 
-type EventsGroupedByEmployee = Employee * EmployeeEvent list
+type EventsGroupedByEmployee = EmployeeWithEvents * EmployeeEvent list
 
 type ReadModelUpsert =
-   Employee list * EmployeeEvent list -> Result<List<int>, Err> Task
+   EmployeeWithEvents list * EmployeeEvent list -> Result<List<int>, Err> Task
 
 type State = {
    Offset: Akka.Persistence.Query.Sequence
@@ -125,7 +126,7 @@ let startProjection
       (employeeId: EmployeeId, employeeEvents: EmployeeEvent list)
       =
       task {
-         let! (employeeOpt: Employee option) =
+         let! (employeeOpt: EmployeeWithEvents option) =
             getEmployeeRef employeeId <? GetEmployee
 
          return
@@ -218,29 +219,33 @@ let actorProps
    propsPersist handler
 
 let upsertReadModels
-   (employees: Employee list, employeeEvents: EmployeeEvent list)
+   (employees: EmployeeWithEvents list, employeeEvents: EmployeeEvent list)
    =
    let employeeSqlParams =
       employees
-      |> List.map (fun employee -> [
-         "employeeId", EmployeeSqlWriter.employeeId employee.EmployeeId
-         "orgId", EmployeeSqlWriter.orgId employee.OrgId
-         "email", EmployeeSqlWriter.email employee.Email
-         "firstName", EmployeeSqlWriter.firstName employee.FirstName
-         "lastName", EmployeeSqlWriter.lastName employee.LastName
-         "status", EmployeeSqlWriter.status employee.Status
-         "role", EmployeeSqlWriter.role employee.Role
-         "cards", EmployeeSqlWriter.cards employee.Cards
-         "pendingPurchases",
-         EmployeeSqlWriter.pendingPurchases employee.PendingPurchases
-         "onboardingTasks",
-         EmployeeSqlWriter.onboardingTasks employee.OnboardingTasks
-         "inviteToken", EmployeeSqlWriter.inviteTokenFromStatus employee.Status
-         "inviteExpiration",
-         EmployeeSqlWriter.inviteExpirationFromStatus employee.Status
-         "authProviderUserId",
-         EmployeeSqlWriter.authProviderUserId employee.AuthProviderUserId
-      ])
+      |> List.map (fun employee ->
+         let employee = employee.Info
+
+         [
+            "employeeId", EmployeeSqlWriter.employeeId employee.EmployeeId
+            "orgId", EmployeeSqlWriter.orgId employee.OrgId
+            "email", EmployeeSqlWriter.email employee.Email
+            "firstName", EmployeeSqlWriter.firstName employee.FirstName
+            "lastName", EmployeeSqlWriter.lastName employee.LastName
+            "status", EmployeeSqlWriter.status employee.Status
+            "role", EmployeeSqlWriter.role employee.Role
+            "cards", EmployeeSqlWriter.cards employee.Cards
+            "pendingPurchases",
+            EmployeeSqlWriter.pendingPurchases employee.PendingPurchases
+            "onboardingTasks",
+            EmployeeSqlWriter.onboardingTasks employee.OnboardingTasks
+            "inviteToken",
+            EmployeeSqlWriter.inviteTokenFromStatus employee.Status
+            "inviteExpiration",
+            EmployeeSqlWriter.inviteExpirationFromStatus employee.Status
+            "authProviderUserId",
+            EmployeeSqlWriter.authProviderUserId employee.AuthProviderUserId
+         ])
 
    let eventSqlParams =
       employeeEvents
@@ -268,7 +273,7 @@ let upsertReadModels
             "event", EmployeeEventSqlWriter.event evt
          ])
 
-   pgTransaction [
+   let query = [
       $"""
       INSERT into {EmployeeSqlMapper.table}
          ({EmployeeFields.employeeId},
@@ -335,6 +340,105 @@ let upsertReadModels
       """,
       eventSqlParams
    ]
+
+   let cardSqlParams =
+      let employeeMap =
+         [ for e in employees -> e.Info.EmployeeId, e.Info ] |> Map.ofList
+
+      employeeEvents
+      |> List.choose (fun evt ->
+         (match evt with
+          | EmployeeEvent.CreatedCard e -> Some(e.EntityId, e.Data.Card.CardId)
+          | EmployeeEvent.DebitApproved e ->
+             Some(e.EntityId, e.Data.Info.CardId)
+          | EmployeeEvent.LockedCard e -> Some(e.EntityId, e.Data.CardId)
+          | EmployeeEvent.UnlockedCard e -> Some(e.EntityId, e.Data.CardId)
+          | EmployeeEvent.DailyDebitLimitUpdated e ->
+             Some(e.EntityId, e.Data.CardId)
+          | EmployeeEvent.CardNicknamed e -> Some(e.EntityId, e.Data.CardId)
+          | _ -> None)
+         |> Option.bind (fun (entityId, cardId) ->
+            employeeMap
+            |> Map.tryFind (EmployeeId.fromEntityId entityId)
+            |> Option.bind (fun employee ->
+               employee.Cards
+               |> Map.tryFind cardId
+               |> Option.map (fun card -> [
+                  "cardId", CardSqlWriter.cardId card.CardId
+                  "accountId", CardSqlWriter.accountId card.AccountId
+                  "orgId", CardSqlWriter.orgId employee.OrgId
+                  "employeeId", CardSqlWriter.employeeId employee.EmployeeId
+
+                  "cardNumberLast4",
+                  CardSqlWriter.cardNumberLast4 card.CardNumberLast4
+
+                  "cardType", CardSqlWriter.cardType card.CardType
+                  "status", CardSqlWriter.status card.Status
+                  "virtual", CardSqlWriter.isVirtual card.Virtual
+
+                  "dailyPurchaseLimit",
+                  CardSqlWriter.dailyPurchaseLimit card.DailyPurchaseLimit
+
+                  "monthlyPurchaseLimit",
+                  CardSqlWriter.monthlyPurchaseLimit
+                     card.MonthlyPurchaseLimit
+
+                  "lastPurchaseAt",
+                  CardSqlWriter.lastPurchaseAt card.LastPurchaseAt
+
+                  "cardNickname",
+                  CardSqlWriter.cardNickname card.CardNickname
+
+                  "expMonth", CardSqlWriter.expMonth card.Expiration.Month
+
+                  "expYear", CardSqlWriter.expMonth card.Expiration.Year
+               ]))))
+
+   let cardQuery =
+      $"""
+      INSERT into {CardSqlMapper.table}
+         ({CardFields.cardId},
+          {CardFields.accountId},
+          {CardFields.orgId},
+          {CardFields.employeeId},
+          {CardFields.cardNumberLast4},
+          {CardFields.cardType},
+          {CardFields.status},
+          {CardFields.isVirtual},
+          {CardFields.dailyPurchaseLimit},
+          {CardFields.monthlyPurchaseLimit},
+          {CardFields.lastPurchaseAt},
+          {CardFields.cardNickname},
+          {CardFields.expMonth},
+          {CardFields.expYear})
+      VALUES
+         (@cardId,
+          @accountId,
+          @orgId,
+          @employeeId,
+          @cardNumberLast4,
+          @cardType::{CardTypeCast.cardType},
+          @status::{CardTypeCast.status},
+          @virtual,
+          @dailyPurchaseLimit,
+          @monthlyPurchaseLimit,
+          @lastPurchaseAt,
+          @cardNickname,
+          @expMonth,
+          @expYear)
+      ON CONFLICT ({CardFields.cardId})
+      DO UPDATE SET
+         {CardFields.status} = @status::{CardTypeCast.status},
+         {CardFields.dailyPurchaseLimit} = @dailyPurchaseLimit,
+         {CardFields.monthlyPurchaseLimit} = @monthlyPurchaseLimit,
+         {CardFields.lastPurchaseAt} = @lastPurchaseAt,
+         {CardFields.cardNickname} = @cardNickname;
+      """,
+      cardSqlParams
+
+   let query = if cardSqlParams.IsEmpty then query else cardQuery :: query
+
+   pgTransaction query
 
 let initProps
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)

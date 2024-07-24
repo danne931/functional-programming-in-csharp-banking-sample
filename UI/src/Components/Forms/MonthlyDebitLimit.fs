@@ -1,4 +1,4 @@
-module Bank.Employee.Forms.DailyPurchaseLimitForm
+module Bank.Employee.Forms.MonthlyPurchaseLimitForm
 
 open Fable.Form.Simple
 open Validus.Operators
@@ -10,34 +10,35 @@ open FormContainer
 
 type Values = { Amount: string }
 
-let dailyPurchaseLimitField =
+let monthlyPurchaseLimitField =
    Form.textField {
       Parser =
-         (parseDecimal >=> dailyPurchaseLimitValidator) "Daily purchase limit"
+         (parseDecimal >=> monthlyPurchaseLimitValidator)
+            "Monthly purchase limit"
          >> validationErrorsHumanFriendly
       Value = fun values -> values.Amount
       Update = fun newValue values -> { values with Amount = newValue }
       Error = fun _ -> None
       Attributes = {
-         Label = "Daily Purchase Limit:"
-         Placeholder = Money.format Card.DAILY_PURCHASE_LIMIT_DEFAULT
+         Label = "Monthly Purchase Limit:"
+         Placeholder = Money.format Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
          HtmlAttributes = []
       }
    }
 
 let onSubmit (card: Card) (employee: Employee) initiatedBy amount =
    let cmd =
-      LimitDailyDebitsCommand.create employee.CompositeId initiatedBy {
+      LimitMonthlyDebitsCommand.create employee.CompositeId initiatedBy {
          CardId = card.CardId
          CardNumberLast4 = card.CardNumberLast4
-         PriorLimit = card.DailyPurchaseLimit
+         PriorLimit = card.MonthlyPurchaseLimit
          DebitLimit = amount
       }
-      |> EmployeeCommand.LimitDailyDebits
+      |> EmployeeCommand.LimitMonthlyDebits
 
    Msg.Submit(employee, cmd, Started)
 
-let DailyPurchaseLimitFormComponent
+let MonthlyPurchaseLimitFormComponent
    (session: UserSession)
    (notifyParentOnSubmit: ParentOnSubmitHandler)
    (card: Card)
@@ -45,6 +46,6 @@ let DailyPurchaseLimitFormComponent
    =
    let form =
       Form.succeed (onSubmit card employee (InitiatedById session.EmployeeId))
-      |> Form.append dailyPurchaseLimitField
+      |> Form.append monthlyPurchaseLimitField
 
    EmployeeFormContainer { Amount = "" } form notifyParentOnSubmit None

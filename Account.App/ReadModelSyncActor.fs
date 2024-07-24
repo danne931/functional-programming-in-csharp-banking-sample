@@ -329,10 +329,17 @@ let upsertReadModels
                Some evt.Data.Amount, Some MoneyFlow.Out
             | _ -> None, None
 
+         let cardIdOpt =
+            match evt with
+            | AccountEvent.DebitedAccount e ->
+               Some e.Data.EmployeePurchaseReference.CardId
+            | _ -> None
+
          sqlParams
          @ [
             ("amount", TransactionSqlWriter.amount amountOpt)
             ("moneyFlow", TransactionSqlWriter.moneyFlow moneyFlowOpt)
+            ("cardId", TransactionSqlWriter.cardId cardIdOpt)
          ])
 
    pgTransaction [
@@ -421,6 +428,7 @@ let upsertReadModels
           {TransactionFields.accountId},
           {TransactionFields.orgId},
           {TransactionFields.correlationId},
+          {TransactionFields.cardId},
           {TransactionFields.name},
           {TransactionFields.timestamp},
           {TransactionFields.event},
@@ -431,6 +439,7 @@ let upsertReadModels
           @accountId,
           @orgId,
           @correlationId,
+          @cardId,
           @name,
           @timestamp,
           @event,

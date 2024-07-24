@@ -2,10 +2,14 @@ begin;
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-DROP TABLE IF EXISTS ancillarytransactioninfo;
-DROP TABLE IF EXISTS transaction;
+DROP VIEW IF EXISTS daily_purchase_accrued;
+DROP VIEW IF EXISTS monthly_purchase_accrued;
+
 DROP TABLE IF EXISTS billingstatement;
 DROP TABLE IF EXISTS merchant;
+DROP TABLE IF EXISTS ancillarytransactioninfo;
+DROP TABLE IF EXISTS transaction;
+DROP TABLE IF EXISTS card;
 DROP TABLE IF EXISTS account;
 DROP TABLE IF EXISTS employee_event;
 DROP TABLE IF EXISTS employee;
@@ -17,6 +21,8 @@ DROP TYPE IF EXISTS employee_status;
 DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
 DROP TYPE IF EXISTS account_status;
+DROP TYPE IF EXISTS card_status;
+DROP TYPE IF EXISTS card_type;
 
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -131,27 +137,6 @@ VALUES
    ('Vehicle Expenses'),
    ('Other');
 
-CREATE TYPE money_flow AS ENUM ('in', 'out');
-CREATE TABLE transaction (
-   name VARCHAR(50) NOT NULL,
-   amount MONEY,
-   money_flow money_flow,
-   timestamp TIMESTAMPTZ NOT NULL,
-   transaction_id UUID PRIMARY KEY,
-   account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
-   correlation_id UUID NOT NULL,
-   event JSONB NOT NULL,
-   org_id UUID NOT NULL REFERENCES organization
-);
-
-CREATE TABLE ancillarytransactioninfo (
-   note TEXT,
-   category_id SMALLSERIAL REFERENCES category,
-   transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
-);
-ALTER TABLE ancillarytransactioninfo
-ALTER COLUMN category_id DROP NOT NULL;
-
 CREATE TYPE employee_status AS ENUM (
   'pendinginviteconfirmation',
   'pendinginviteapproval',
@@ -205,15 +190,70 @@ CREATE TABLE employee_event (
    org_id UUID NOT NULL REFERENCES organization
 );
 
-/*
-TODO: implement card read model for easy query
+CREATE TYPE card_status AS ENUM ('active', 'frozen', 'closed');
+CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
 CREATE TABLE card (
-   daily_debit_limit MONEY NOT NULL,
-   -- TODO: Compute accrued amounts in view.
-   --       Storing accrued amounts here results in stale values.
-   daily_debit_accrued MONEY NOT NULL,
-   last_debit_at TIMESTAMPTZ,
-)
-*/
+   card_number_last_4 VARCHAR(4) NOT NULL,
+   daily_purchase_limit MONEY NOT NULL,
+   monthly_purchase_limit MONEY NOT NULL,
+   virtual BOOLEAN NOT NULL,
+   card_status card_status NOT NULL,
+   card_type card_type NOT NULL,
+   card_nickname VARCHAR(50),
+   last_purchase_at TIMESTAMPTZ,
+   exp_month INT NOT NULL,
+   exp_year INT NOT NULL,
+   card_id UUID PRIMARY KEY,
+   employee_id UUID NOT NULL REFERENCES employee,
+   account_id UUID NOT NULL REFERENCES account,
+   org_id UUID NOT NULL REFERENCES organization,
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE money_flow AS ENUM ('in', 'out');
+CREATE TABLE transaction (
+   name VARCHAR(50) NOT NULL,
+   amount MONEY,
+   money_flow money_flow,
+   timestamp TIMESTAMPTZ NOT NULL,
+   transaction_id UUID PRIMARY KEY,
+   account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
+   correlation_id UUID NOT NULL,
+   card_id UUID REFERENCES card,
+   event JSONB NOT NULL,
+   org_id UUID NOT NULL REFERENCES organization
+);
+CREATE INDEX transaction_accrued_purchase_view_query_idx
+ON transaction(amount, name, timestamp);
+
+CREATE TABLE ancillarytransactioninfo (
+   note TEXT,
+   category_id SMALLSERIAL REFERENCES category,
+   transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
+);
+ALTER TABLE ancillarytransactioninfo
+ALTER COLUMN category_id DROP NOT NULL;
+
+CREATE VIEW daily_purchase_accrued AS
+SELECT
+   card_id,
+   COALESCE(SUM(amount), 0::MONEY) as amount_accrued
+FROM transaction
+WHERE
+   amount IS NOT NULL
+   AND name = 'DebitedAccount'
+   AND timestamp::DATE = CURRENT_DATE
+GROUP BY card_id;
+
+CREATE VIEW monthly_purchase_accrued AS
+SELECT
+   card_id,
+   COALESCE(SUM(amount), 0::MONEY) as amount_accrued
+FROM transaction
+WHERE
+   amount IS NOT NULL
+   AND name = 'DebitedAccount'
+   AND timestamp::DATE >= date_trunc('month', CURRENT_DATE)
+GROUP BY card_id;
 
 commit;

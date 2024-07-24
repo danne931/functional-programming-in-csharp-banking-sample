@@ -267,7 +267,7 @@ let EmployeeHistoryDashboardComponent
                                  EmployeeEventGroupFilter.CreatedCard
                                  EmployeeEventGroupFilter.UpdatedRole
                                  EmployeeEventGroupFilter.CardFrozenUnfrozen
-                                 EmployeeEventGroupFilter.DailyDebitLimitUpdated
+                                 EmployeeEventGroupFilter.PurchaseLimitUpdated
                                  EmployeeEventGroupFilter.AccessRestored
                               ]
                               |> List.map (fun o -> {

@@ -8,8 +8,6 @@ type EmployeesMaybe = Result<Map<EmployeeId, Employee> option, Err>
 
 type EmployeeHistoryMaybe = Result<EmployeeHistory list option, Err>
 
-type EmployeeCardPairsMaybe = Result<Map<CardId, (Card * Employee)> option, Err>
-
 type EmployeeCommandReceipt = {
    PendingCommand: EmployeeCommand
    PendingEvent: EmployeeEvent
@@ -73,7 +71,7 @@ let employeeEventUIFriendly (txn: EmployeeHistory) : EmployeeHistoryUIFriendly =
       props with
          Name = "Card Created"
          Info =
-            $"Created card **{e.Data.Info.SecurityInfo.CardNumber.Last4} for {txn.EmployeeName}"
+            $"Created card **{e.Data.Card.CardNumberLast4} for {txn.EmployeeName}"
      }
    | EmployeeEvent.CreatedAccountOwner e -> {
       props with
@@ -105,7 +103,19 @@ let employeeEventUIFriendly (txn: EmployeeHistory) : EmployeeHistoryUIFriendly =
       props with
          Name = "Daily Purchase Limit Updated"
          Info =
-            $"Daily purchase limit changed from {e.Data.PriorLimit} to {e.Data.DebitLimit} for {txn.EmployeeName}'s card {e.Data.CardNumberLast4}"
+            $"Updated daily purchase limit from ${e.Data.PriorLimit} to ${e.Data.DebitLimit} for {txn.EmployeeName}'s card **{e.Data.CardNumberLast4}"
+     }
+   | EmployeeEvent.MonthlyDebitLimitUpdated e -> {
+      props with
+         Name = "Monthly Purchase Limit Updated"
+         Info =
+            $"Updated monthly purchase limit from ${e.Data.PriorLimit} to ${e.Data.DebitLimit} for {txn.EmployeeName}'s card **{e.Data.CardNumberLast4}"
+     }
+   | EmployeeEvent.CardNicknamed e -> {
+      props with
+         Name = "Card Nickname Updated"
+         Info =
+            $"Card nickname updated from {e.Data.PriorName} to {e.Data.Name} for {txn.EmployeeName}'s card"
      }
    | EmployeeEvent.InvitationDenied e -> {
       props with
@@ -159,7 +169,7 @@ type EmployeeBrowserQuery = {
          SelectedEmployees = x.SelectedEmployees
       |}
 
-let private parseEmployees =
+let parseEmployees =
    Serialization.deserialize<SelectedEmployee list> >> Result.toOption
 
 module EmployeeBrowserQuery =
@@ -289,43 +299,3 @@ module EmployeeHistoryBrowserQuery =
       SelectedEmployees = None
       SelectedInitiatedBy = None
    }
-
-[<RequireQualifiedAccess>]
-type CardActionView =
-   | DailyDebitLimit
-   | CardAccess
-
-type CardBrowserQuery = {
-   //Date: DateFilter option
-   Action: CardActionView option
-}
-
-module CardBrowserQuery =
-   let toQueryParams (query: CardBrowserQuery) : (string * string) list =
-      let agg = []
-
-      let agg =
-         match query.Action with
-         | Some view -> ("action", string view) :: agg
-         | None -> agg
-
-      agg
-
-   let fromQueryParams
-      (queryParams: (string * string) list)
-      : CardBrowserQuery
-      =
-      let queryParams = Map.ofList queryParams
-
-      {
-         Action =
-            Map.tryFind "action" queryParams
-            |> Option.bind (function
-               | "CardAccess" -> Some CardActionView.CardAccess
-               | "DailyDebitLimit" -> Some CardActionView.DailyDebitLimit
-               | view ->
-                  Log.error $"Card action view not implemented: {view}"
-                  None)
-      }
-
-   let empty: CardBrowserQuery = { Action = None }

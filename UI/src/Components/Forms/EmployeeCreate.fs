@@ -10,6 +10,7 @@ open Lib.Validators
 open FormContainer
 open EmployeeRoleForm
 open DailyPurchaseLimitForm
+open MonthlyPurchaseLimitForm
 open AccountProfileForm
 open Lib.SharedTypes
 
@@ -19,6 +20,7 @@ type Values = {
    Email: string
    Role: string
    DailyPurchaseLimit: string
+   MonthlyPurchaseLimit: string
    LinkedAccountId: string
 }
 
@@ -101,6 +103,7 @@ let form
          fun a -> {
             Role = a.Role
             DailyPurchaseLimit = ""
+            MonthlyPurchaseLimit = ""
             LinkedAccountId = ""
          }
       Update = fun a b -> { b with Role = a.Role }
@@ -108,14 +111,22 @@ let form
    |> Form.andThen (fun role ->
       match role with
       | Role.CardOnly ->
-         Form.succeed (fun fName lName email accountId purchaseLimit ->
-            let cardInfo =
-               Some {
-                  LinkedAccountId = accountId
-                  DailyPurchaseLimit = purchaseLimit
-               }
+         Form.succeed
+            (fun
+                 fName
+                 lName
+                 email
+                 accountId
+                 dailyPurchaseLimit
+                 monthlyPurchaseLimit ->
+               let cardInfo =
+                  Some {
+                     LinkedAccountId = accountId
+                     DailyPurchaseLimit = dailyPurchaseLimit
+                     MonthlyPurchaseLimit = monthlyPurchaseLimit
+                  }
 
-            onSubmit role cardInfo fName lName email)
+               onSubmit role cardInfo fName lName email)
          |> Form.append fieldFirstName
          |> Form.append fieldLastName
          |> Form.append fieldEmail
@@ -135,6 +146,17 @@ let form
             |> Form.mapValues {
                Value = fun a -> { Amount = a.DailyPurchaseLimit }
                Update = fun a b -> { b with DailyPurchaseLimit = a.Amount }
+            }
+         )
+         |> Form.append (
+            monthlyPurchaseLimitField
+            |> Form.mapValues {
+               Value = fun a -> { Amount = a.MonthlyPurchaseLimit }
+               Update =
+                  fun a b -> {
+                     b with
+                        MonthlyPurchaseLimit = a.Amount
+                  }
             }
          )
       | _ ->
@@ -159,7 +181,8 @@ let EmployeeCreateFormComponent
       Email = ""
       Role = string Role.CardOnly
       LinkedAccountId = ""
-      DailyPurchaseLimit = ""
+      DailyPurchaseLimit = string Card.DAILY_PURCHASE_LIMIT_DEFAULT
+      MonthlyPurchaseLimit = string Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
    }
 
    classyNode Html.div [ "grid" ] [

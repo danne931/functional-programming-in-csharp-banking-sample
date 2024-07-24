@@ -4,7 +4,7 @@ open Feliz
 open Lib.SharedTypes
 
 type private MenuUrl =
-   | Account
+   | Transaction
    | EmployeeHistory
    | Employee
    | Card
@@ -19,7 +19,7 @@ type private MenuItem = {
 let private renderListItem (item: MenuItem) =
    Html.li [
       match item.Url, item.SelectedUrl with
-      | Account, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
+      | Transaction, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
       | EmployeeHistory, Routes.IndexUrl.EmployeeHistory _ ->
          attr.classes [ "selected" ]
       | Employee, Routes.IndexUrl.Employees _ -> attr.classes [ "selected" ]
@@ -37,9 +37,9 @@ let render (currentUrl: Routes.IndexUrl) (session: UserSession) =
          attr.role "listbox"
          attr.children [
             renderListItem {
-               Url = Account
+               Url = Transaction
                SelectedUrl = currentUrl
-               Name = "Accounts"
+               Name = "Transactions"
                Href = Routes.AccountUrl.BasePath
             }
 

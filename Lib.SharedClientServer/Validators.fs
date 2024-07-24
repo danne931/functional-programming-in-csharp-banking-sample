@@ -30,6 +30,12 @@ let amountValidator = Check.Decimal.greaterThan 0m
 
 let amountValidatorFromString = parseDecimal >=> amountValidator
 
+let dailyPurchaseLimitValidator =
+   Check.Decimal.between 0m Card.DAILY_PURCHASE_LIMIT_DEFAULT
+
+let monthlyPurchaseLimitValidator =
+   Check.Decimal.between 0m Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+
 let accountNameValidator = Check.String.betweenLen 2 50 "Account name"
 let firstNameValidator = Check.String.betweenLen 2 50 "First name"
 let lastNameValidator = Check.String.betweenLen 2 50 "Last name"

@@ -30,6 +30,15 @@ let transactionQuery (query: TransactionQuery) =
 
    let agg =
       Option.fold
+         (fun (queryParams, where, joinAncillary) cardIds ->
+            [ "cardIds", Writer.cardIds cardIds ] @ queryParams,
+            $"{where} AND {Fields.cardId} = ANY(@cardIds)",
+            joinAncillary)
+         agg
+         query.CardIds
+
+   let agg =
+      Option.fold
          (fun (queryParams, where, joinAncillary) (startDate, endDate) ->
             [
                "start", Writer.timestamp startDate

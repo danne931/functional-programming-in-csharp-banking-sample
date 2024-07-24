@@ -145,17 +145,6 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
 }
 
 // Diagnostic
-let getAccountEventsFromAkka
-   (sys: ActorSystem)
-   (accountId: AccountId)
-   : AccountEvent list Task
-   =
-   let ref = AccountActor.get sys accountId
-
-   ref.Ask(AccountMessage.GetEvents, Some(TimeSpan.FromSeconds 3))
-   |> Async.toTask
-
-// Diagnostic
 let getAccountFromAkka
    (sys: ActorSystem)
    (accountId: AccountId)

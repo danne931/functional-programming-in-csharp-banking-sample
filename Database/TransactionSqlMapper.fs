@@ -6,6 +6,7 @@ open Bank.Account.Domain
 open Lib.SharedTypes
 open AccountSqlMapper
 open OrganizationSqlMapper
+open CardSqlMapper
 
 let table = "transaction"
 
@@ -17,6 +18,7 @@ module TransactionFields =
    let accountId = AccountFields.accountId
    let orgId = OrgFields.orgId
    let correlationId = "correlation_id"
+   let cardId = CardFields.cardId
    let name = "name"
    let amount = "amount"
    let moneyFlow = "money_flow"
@@ -33,6 +35,9 @@ module TransactionSqlReader =
 
    let correlationId (read: RowReader) =
       TransactionFields.correlationId |> read.uuid |> CorrelationId
+
+   let cardId (read: RowReader) : CardId option =
+      read.uuidOrNone TransactionFields.cardId |> Option.map CardId
 
    let name (read: RowReader) = read.text TransactionFields.name
    let amount (read: RowReader) = read.decimal TransactionFields.amount
@@ -56,6 +61,18 @@ module TransactionSqlWriter =
    let correlationId (corrId: CorrelationId) =
       let (CorrelationId id) = corrId
       Sql.uuid id
+
+   let cardId (cardId: CardId option) =
+      let uuidOpt =
+         cardId
+         |> Option.map (fun cardId ->
+            let (CardId id) = cardId
+            id)
+
+      Sql.uuidOrNone uuidOpt
+
+   let cardIds (ids: CardId list) =
+      ids |> List.map CardId.get |> Array.ofList |> Sql.uuidArray
 
    let accountId = AccountSqlWriter.accountId
    let orgId = OrgSqlWriter.orgId

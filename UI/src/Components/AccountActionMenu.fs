@@ -2,13 +2,14 @@ module AccountActionMenu
 
 open Feliz
 open Feliz.Router
+open Fable.FontAwesome
 
 open Bank.Account.Domain
 open UIDomain.Account
 
 let private renderMenuButton (account: Account) (view: AccountActionView) =
    Html.button [
-      attr.classes [ "outline" ]
+      attr.classes [ "outline"; "grid" ]
 
       attr.onClick (fun _ ->
          let view =
@@ -22,13 +23,21 @@ let private renderMenuButton (account: Account) (view: AccountActionView) =
          AccountActions.navigation account.AccountId (Some view)
          |> Router.navigate)
 
-      attr.text (
+      attr.children [
          match view with
-         | AccountActionView.Debit -> "Debit Card Purchase"
+         | AccountActionView.Deposit ->
+            Html.span [ Fa.i [ Fa.Solid.PiggyBank ] [] ]
+            Html.span "Deposit"
+         | AccountActionView.Debit ->
+            Html.span [ Fa.i [ Fa.Solid.CreditCard ] [] ]
+            Html.span "Debit Card Purchase"
+         | AccountActionView.Transfer ->
+            Html.span [ Fa.i [ Fa.Solid.ArrowsAltH ] [] ]
+            Html.span "Transfer"
          | AccountActionView.RegisterTransferRecipient ->
-            "Add a Transfer Recipient"
-         | _ -> string view
-      )
+            Html.span [ Fa.i [ Fa.Solid.UserPlus ] [] ]
+            Html.span "Add a Transfer Recipient"
+      ]
    ]
 
 let render (account: Account) =

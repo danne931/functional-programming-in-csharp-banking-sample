@@ -332,6 +332,8 @@ module PotentialInternalTransferRecipients =
 
    let value (PotentialInternalTransferRecipients recipients) = recipients
 
+type SelectedCard = { Display: string; CardId: CardId }
+
 [<RequireQualifiedAccess>]
 type AccountActionView =
    | Debit
@@ -347,6 +349,7 @@ type AccountBrowserQuery = {
    Date: DateFilter option
    Action: AccountActionView option
    Transaction: EventId option
+   SelectedCards: (SelectedCard list) option
 } with
 
    member x.ChangeDetection =
@@ -355,23 +358,15 @@ type AccountBrowserQuery = {
          Category = x.Category
          Amount = x.Amount
          Date = x.Date
+         CardIds = x.SelectedCards
       |}
 
 module AccountBrowserQuery =
    let toQueryParams (query: AccountBrowserQuery) : (string * string) list =
       let agg =
-         match query.Amount with
-         | None -> []
-         | Some(AmountFilter.GreaterThanOrEqualTo amount) -> [
-            "amountMin", string amount
-           ]
-         | Some(AmountFilter.LessThanOrEqualTo amount) -> [
-            "amountMax", string amount
-           ]
-         | Some(AmountFilter.Between(min, max)) -> [
-            "amountMin", string min
-            "amountMax", string max
-           ]
+         query.Amount
+         |> Option.map AmountFilter.toQuery
+         |> Option.defaultValue []
 
       let agg =
          match query.MoneyFlow with
@@ -391,14 +386,7 @@ module AccountBrowserQuery =
       let agg =
          match query.Category with
          | Some(CategoryFilter.CategoryIds catIds) ->
-            let queryString =
-               List.fold
-                  (fun acc id ->
-                     if acc = "" then string id else $"{acc},{string id}")
-                  ""
-                  catIds
-
-            ("categoryIds", queryString) :: agg
+            ("categoryIds", listToQueryString catIds) :: agg
          | Some(CategoryFilter.IsCategorized isCat) ->
             ("isCategorized", string isCat) :: agg
          | None -> agg
@@ -413,6 +401,11 @@ module AccountBrowserQuery =
             @ agg
          | Some view -> ("action", string view) :: agg
          | None -> agg
+
+      let agg =
+         match query.SelectedCards with
+         | None -> agg
+         | Some cards -> ("cards", Serialization.serialize cards) :: agg
 
       match query.Transaction with
       | Some txnId -> ("transaction", string txnId) :: agg
@@ -459,6 +452,12 @@ module AccountBrowserQuery =
          Transaction =
             Map.tryFind "transaction" queryParams
             |> Option.bind (Guid.parseOptional >> Option.map EventId)
+         SelectedCards =
+            queryParams
+            |> Map.tryFind "cards"
+            |> Option.bind (
+               Serialization.deserialize<SelectedCard list> >> Result.toOption
+            )
       }
 
    let empty: AccountBrowserQuery = {
@@ -468,6 +467,7 @@ module AccountBrowserQuery =
       Date = None
       Action = None
       Transaction = None
+      SelectedCards = None
    }
 
 /// May edit transfer recipient if domestic and status is not Closed.

@@ -228,6 +228,8 @@ let seedAccountTransactions
 
          employeeRef <! msg
 
+         do! Task.Delay 7000
+
          let createCardCmd =
             CreateCardCommand.create {
                CardId = Guid.NewGuid() |> CardId
@@ -237,8 +239,10 @@ let seedAccountTransactions
                PersonName =
                   $"{employeeCreateCmd.Data.FirstName} {employeeCreateCmd.Data.LastName}"
                CardNickname = Some "Lunch"
+               CardType = CardType.Debit
                Virtual = true
                DailyPurchaseLimit = None
+               MonthlyPurchaseLimit = None
                InitiatedBy = mockAccountOwnerId
             }
 
@@ -254,7 +258,7 @@ let seedAccountTransactions
                DebitRequestCommand.create (employeeId, orgId) {
                   AccountId = accountId
                   CardId = createCardCmd.Data.CardId
-                  CardNumberLast4 = 1234
+                  CardNumberLast4 = "1234"
                   Date = DateTime.UtcNow
                   Amount = randomAmount ()
                   Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
