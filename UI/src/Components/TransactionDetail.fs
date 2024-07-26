@@ -430,7 +430,7 @@ let renderTransactionInfo
                RecipientAccountEnvironment.Internal
          | AccountEvent.InternalTransferPending e when isEditingNickname ->
             RecipientNicknameEditComponent
-               e.Data.RecipientId
+               e.Data.BaseInfo.RecipientId
                RecipientAccountEnvironment.Internal
          | AccountEvent.DomesticTransferRecipient e when isEditingNickname ->
             RecipientNicknameEditComponent

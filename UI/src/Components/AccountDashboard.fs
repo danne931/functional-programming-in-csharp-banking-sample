@@ -174,7 +174,10 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
          ]
       ]
 
-      match accountOpt with
-      | None -> ()
-      | Some account -> AccountSummary.render account
+      match accountProfiles, accountIdOpt with
+      | Deferred.Resolved(Ok(Some profiles)), Some accountId ->
+         match profiles.TryFind accountId with
+         | Some profile -> AccountSummary.render profile
+         | None -> ()
+      | _ -> ()
    ]

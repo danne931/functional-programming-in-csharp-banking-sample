@@ -71,6 +71,7 @@ let getOrgAndAccountProfiles
    =
    taskResultOption {
       let orgTable = OrganizationSqlMapper.table
+      let dtaView = "daily_transfer_accrued"
 
       let query =
          $"""
@@ -80,9 +81,13 @@ let getOrgAndAccountProfiles
             {orgTable}.{OrgFields.requiresEmployeeInviteApproval},
             {accountTable}.{Fields.accountId},
             {accountTable}.{Fields.name},
-            {accountTable}.{Fields.depository}
+            {accountTable}.{Fields.depository},
+            {accountTable}.{Fields.balance},
+            {dtaView}.internal_transfer_accrued,
+            {dtaView}.domestic_transfer_accrued
          FROM {orgTable}
          LEFT JOIN {accountTable} using({OrgFields.orgId})
+         LEFT OUTER JOIN {dtaView} using({Fields.accountId})
          WHERE {Fields.orgId} = @orgId
          """
 
@@ -90,7 +95,21 @@ let getOrgAndAccountProfiles
          pgQuery<Org * AccountProfile>
             query
             (Some [ "orgId", Writer.orgId orgId ])
-            (fun read -> OrgSqlReader.org read, Reader.accountProfile read)
+            (fun read ->
+               OrgSqlReader.org read,
+               {
+                  AccountId = Reader.accountId read
+                  OrgId = Reader.orgId read
+                  Name = Reader.name read
+                  Depository = Reader.depository read
+                  Balance = Reader.balance read
+                  DailyInternalTransferAccrued =
+                     read.decimalOrNone "internal_transfer_accrued"
+                     |> Option.defaultValue 0m
+                  DailyDomesticTransferAccrued =
+                     read.decimalOrNone "domestic_transfer_accrued"
+                     |> Option.defaultValue 0m
+               })
 
       return fst (List.head res), List.map snd res
    }

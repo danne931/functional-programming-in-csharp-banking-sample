@@ -221,23 +221,6 @@ let upsertReadModels
          "balance", AccountSqlWriter.balance account.Balance
          "currency", AccountSqlWriter.currency account.Currency
          "status", AccountSqlWriter.status account.Status
-
-         "dailyInternalTransferAccrued",
-         AccountSqlWriter.dailyInternalTransferAccrued
-            account.DailyInternalTransferAccrued
-
-         "dailyDomesticTransferAccrued",
-         AccountSqlWriter.dailyDomesticTransferAccrued
-            account.DailyDomesticTransferAccrued
-
-         "lastInternalTransferDate",
-         AccountSqlWriter.lastInternalTransferDate
-            account.LastInternalTransferDate
-
-         "lastDomesticTransferDate",
-         AccountSqlWriter.lastDomesticTransferDate
-            account.LastDomesticTransferDate
-
          "lastBillingCycleDate",
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
 
@@ -316,9 +299,9 @@ let upsertReadModels
             | AccountEvent.DebitedAccount evt ->
                Some evt.Data.Amount, Some MoneyFlow.Out
             | AccountEvent.InternalTransferPending evt ->
-               Some evt.Data.Amount, Some MoneyFlow.Out
+               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.Out
             | AccountEvent.InternalTransferRejected evt ->
-               Some evt.Data.Amount, Some MoneyFlow.In
+               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.In
             | AccountEvent.TransferDeposited evt ->
                Some evt.Data.Amount, Some MoneyFlow.In
             | AccountEvent.DomesticTransferPending evt ->
@@ -354,10 +337,6 @@ let upsertReadModels
           {AccountFields.balance},
           {AccountFields.currency},
           {AccountFields.status},
-          {AccountFields.dailyInternalTransferAccrued},
-          {AccountFields.dailyDomesticTransferAccrued},
-          {AccountFields.lastInternalTransferDate},
-          {AccountFields.lastDomesticTransferDate},
           {AccountFields.lastBillingCycleDate},
           {AccountFields.internalTransferRecipients},
           {AccountFields.domesticTransferRecipients},
@@ -381,10 +360,6 @@ let upsertReadModels
           @balance,
           @currency,
           @status::{AccountTypeCast.status},
-          @dailyInternalTransferAccrued,
-          @dailyDomesticTransferAccrued,
-          @lastInternalTransferDate,
-          @lastDomesticTransferDate,
           @lastBillingCycleDate,
           @internalTransferRecipients,
           @domesticTransferRecipients,
@@ -402,10 +377,6 @@ let upsertReadModels
       DO UPDATE SET
          {AccountFields.balance} = @balance,
          {AccountFields.status} = @status::{AccountTypeCast.status},
-         {AccountFields.dailyInternalTransferAccrued} = @dailyInternalTransferAccrued,
-         {AccountFields.dailyDomesticTransferAccrued} = @dailyDomesticTransferAccrued,
-         {AccountFields.lastInternalTransferDate} = @lastInternalTransferDate,
-         {AccountFields.lastDomesticTransferDate} = @lastDomesticTransferDate,
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
          {AccountFields.internalTransferRecipients} = @internalTransferRecipients,
          {AccountFields.domesticTransferRecipients} = @domesticTransferRecipients,

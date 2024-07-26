@@ -24,10 +24,6 @@ module AccountFields =
    let currency = "currency"
    let status = "status"
    let balance = "balance"
-   let dailyInternalTransferAccrued = "daily_internal_transfer_accrued"
-   let dailyDomesticTransferAccrued = "daily_domestic_transfer_accrued"
-   let lastInternalTransferDate = "last_internal_transfer_at"
-   let lastDomesticTransferDate = "last_domestic_transfer_at"
    let lastBillingCycleDate = "last_billing_cycle_at"
    let internalTransferRecipients = "internal_transfer_recipients"
    let domesticTransferRecipients = "domestic_transfer_recipients"
@@ -76,18 +72,6 @@ module AccountSqlReader =
 
    let balance (read: RowReader) = read.decimal AccountFields.balance
 
-   let dailyInternalTransferAccrued (read: RowReader) =
-      read.decimal AccountFields.dailyInternalTransferAccrued
-
-   let dailyDomesticTransferAccrued (read: RowReader) =
-      read.decimal AccountFields.dailyDomesticTransferAccrued
-
-   let lastInternalTransferDate (read: RowReader) =
-      read.dateTimeOrNone AccountFields.lastInternalTransferDate
-
-   let lastDomesticTransferDate (read: RowReader) =
-      read.dateTimeOrNone AccountFields.lastDomesticTransferDate
-
    let lastBillingCycleDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastBillingCycleDate
 
@@ -126,13 +110,6 @@ module AccountSqlReader =
       read.text AccountFields.failedDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
-   let accountProfile (read: RowReader) : AccountProfile = {
-      AccountId = accountId read
-      OrgId = orgId read
-      Name = name read
-      Depository = depository read
-   }
-
    let account (read: RowReader) : Account = {
       AccountId = accountId read
       OrgId = orgId read
@@ -143,10 +120,6 @@ module AccountSqlReader =
       Currency = currency read
       Status = status read
       Balance = balance read
-      DailyInternalTransferAccrued = dailyInternalTransferAccrued read
-      DailyDomesticTransferAccrued = dailyDomesticTransferAccrued read
-      LastInternalTransferDate = lastInternalTransferDate read
-      LastDomesticTransferDate = lastDomesticTransferDate read
       LastBillingCycleDate = lastBillingCycleDate read
       InternalTransferRecipients =
          internalTransferRecipients read

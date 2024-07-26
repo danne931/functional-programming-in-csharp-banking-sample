@@ -173,3 +173,8 @@ module IndexUrl =
          | CardUrl.CardsWithSearchQuery query -> query
          | _ -> CardBrowserQuery.empty
       | _ -> CardBrowserQuery.empty
+
+   let accountIdMaybe () =
+      match current () with
+      | IndexUrl.Account url -> AccountUrl.accountIdMaybe url
+      | _ -> None

@@ -26,5 +26,5 @@ let scheduleMonthly (logInfo: string -> unit) =
 
       builder
          .WithSimpleSchedule(fun s ->
-            s.WithIntervalInMinutes(2).RepeatForever() |> ignore)
+            s.WithIntervalInMinutes(20).RepeatForever() |> ignore)
          .Build()

@@ -43,9 +43,9 @@ let App () =
          AccountDashboard.AccountDashboardComponent url
          |> UserSessionSuspense
          |> (UserSessionProvider
-             << OrgAndAccountProfileProvider
              << SignalRConnectionProvider
              << SignalRAccountEventProvider
+             << OrgAndAccountProfileProvider
              << MerchantProvider
              << TransactionCategoryProvider)
       | Routes.IndexUrl.NotFound -> Html.h1 "Not Found"

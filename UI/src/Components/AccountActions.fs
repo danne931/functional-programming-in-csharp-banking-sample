@@ -230,6 +230,7 @@ let AccountActionsComponent
          TransferForm.TransferFormComponent
             session
             state.Account
+            accountProfiles
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.Debit ->
          EmployeeCardSelectSearchComponent {|

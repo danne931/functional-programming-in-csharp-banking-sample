@@ -6,7 +6,6 @@ open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
-open Bank.Employee.Domain
 open Bank.Transfer.Domain
 open Lib.Validators
 open FormContainer
@@ -20,6 +19,7 @@ type Values = {
 
 let form
    (account: Account)
+   (accountProfiles: Map<AccountId, AccountProfile>)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
@@ -29,7 +29,12 @@ let form
             let name =
                match recipient with
                | TransferRecipient.Internal o ->
-                  o.Nickname |> Option.defaultValue o.Name
+                  let nick = o.Nickname |> Option.defaultValue o.Name
+
+                  accountProfiles
+                  |> Map.tryFind recipientId
+                  |> Option.map (fun a -> $"{nick} ({Money.format a.Balance})")
+                  |> Option.defaultValue nick
                | TransferRecipient.Domestic o ->
                   o.Nickname |> Option.defaultValue o.Name
 
@@ -95,9 +100,11 @@ let form
       |> Option.map (fun recipient ->
          let cmd =
             InternalTransferCommand.create account.CompositeId initiatedBy {
-               ScheduledDate = DateTime.UtcNow
-               Amount = amount
-               RecipientId = recipient.AccountId
+               BaseInfo = {
+                  ScheduledDate = DateTime.UtcNow
+                  Amount = amount
+                  RecipientId = recipient.AccountId
+               }
                Memo = memo
             }
             |> AccountCommand.InternalTransfer
@@ -132,6 +139,7 @@ let form
 let TransferFormComponent
    (session: UserSession)
    (account: Account)
+   (accountProfiles: Map<AccountId, AccountProfile>)
    (onSubmit: ParentOnSubmitHandler)
    =
    AccountFormContainer
@@ -140,5 +148,5 @@ let TransferFormComponent
          RecipientId = ""
          Memo = ""
       }
-      (form account (InitiatedById session.EmployeeId))
+      (form account accountProfiles (InitiatedById session.EmployeeId))
       onSubmit

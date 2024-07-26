@@ -185,35 +185,44 @@ let transactionUIFriendly
          Info =
             $"Recipient {recipientName evt.Data.RecipientId} closed their account."
      }
-   | InternalTransferPending evt -> {
-      props with
-         Name = "Internal Transfer Pending"
-         Info = $"Internal transfer to {recipientName evt.Data.RecipientId}"
-         AmountNaked = Some evt.Data.Amount
-         Amount = Some <| Money.format evt.Data.Amount
-         MoneyFlow = Some MoneyFlow.Out
-         Source = Some accountName
-         Destination = Some <| recipientName evt.Data.RecipientId
-     }
-   | InternalTransferApproved evt -> {
-      props with
-         Name = "Internal Transfer Approved"
-         Info =
-            $"Internal transfer approved to {recipientName evt.Data.RecipientId}"
-         AmountNaked = Some evt.Data.Amount
-         Amount = Some <| Money.format evt.Data.Amount
-     }
-   | InternalTransferRejected evt -> {
-      props with
-         Name = "Internal Transfer Rejected"
-         Info =
-            $"Internal transfer declined to {recipientName evt.Data.RecipientId} 
+   | InternalTransferPending evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Internal Transfer Pending"
+            Info = $"Internal transfer to {recipientName info.RecipientId}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.Out
+            Source = Some accountName
+            Destination = Some <| recipientName info.RecipientId
+      }
+   | InternalTransferApproved evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Internal Transfer Approved"
+            Info =
+               $"Internal transfer approved to {recipientName info.RecipientId}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+      }
+   | InternalTransferRejected evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Internal Transfer Rejected"
+            Info =
+               $"Internal transfer declined to {recipientName info.RecipientId} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
-         AmountNaked = Some evt.Data.Amount
-         Amount = Some <| Money.format evt.Data.Amount
-         MoneyFlow = Some MoneyFlow.In
-     }
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.In
+      }
    | DomesticTransferPending evt ->
       let info = evt.Data.BaseInfo
 

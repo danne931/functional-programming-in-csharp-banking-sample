@@ -306,7 +306,8 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                                     |> List.ofSeq
                                     |> List.map (fun o -> {
                                        Id = o.AccountId
-                                       Display = o.Name
+                                       Display =
+                                          $"{o.Name} ({Money.format o.Balance})"
                                     })
                                  SelectedItems =
                                     browserQuery.SelectedAccounts

@@ -2,6 +2,7 @@
 module Account
 
 open Validus
+open System
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -12,51 +13,56 @@ module TransferLimits =
    let DailyInternalLimit = 999_999_999m
    let DailyDomesticLimit = 100_000m
 
+   let private transferAccrued
+      (satisfiesDate: DateTime -> bool)
+      (eventToAccrual: AccountEvent -> (DateTime * decimal) option)
+      (events: AccountEvent list)
+      : decimal
+      =
+      List.fold
+         (fun acc evt ->
+            match eventToAccrual evt with
+            | Some(date, amount) ->
+               if satisfiesDate date then acc + amount else acc
+            | None -> acc)
+         0m
+         events
+
+   let dailyInternalTransferAccrued =
+      transferAccrued DateTime.isToday (function
+         | AccountEvent.InternalTransferPending e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, info.Amount)
+         | AccountEvent.InternalTransferRejected e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, -info.Amount)
+         | _ -> None)
+
+   let dailyDomesticTransferAccrued =
+      transferAccrued DateTime.isToday (function
+         | AccountEvent.DomesticTransferPending e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, info.Amount)
+         | AccountEvent.DomesticTransferRejected e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, -info.Amount)
+         | _ -> None)
+
    let exceedsDailyInternalTransferLimit
       (account: Account)
       (cmd: InternalTransferCommand)
       =
-      DateTime.isToday cmd.Data.ScheduledDate
-      && account.DailyInternalTransferAccrued + cmd.Data.Amount > DailyInternalLimit
+      let info = cmd.Data.BaseInfo
+
+      DateTime.isToday info.ScheduledDate
+      && (dailyInternalTransferAccrued account.Events) + info.Amount > DailyInternalLimit
 
    let exceedsDailyDomesticTransferLimit
       (account: Account)
       (cmd: DomesticTransferCommand)
       =
       DateTime.isToday cmd.Data.ScheduledDate
-      && account.DailyDomesticTransferAccrued + cmd.Data.Amount > DailyDomesticLimit
-
-   let accruedDailyInternalTransfers
-      (account: Account)
-      (evt: BankEvent<InternalTransferPending>)
-      =
-      let accrued =
-         match account.LastInternalTransferDate with
-         | Some date when DateTime.isToday date ->
-            account.DailyInternalTransferAccrued
-         | _ -> 0m
-
-      if DateTime.isToday evt.Data.ScheduledDate then
-         accrued + evt.Data.Amount
-      else
-         accrued
-
-   let accruedDailyDomesticTransfers
-      (account: Account)
-      (evt: BankEvent<DomesticTransferPending>)
-      =
-      let accrued =
-         match account.LastDomesticTransferDate with
-         | Some date when DateTime.isToday date ->
-            account.DailyDomesticTransferAccrued
-         | _ -> 0m
-
-      let info = evt.Data.BaseInfo
-
-      if DateTime.isToday info.ScheduledDate then
-         accrued + info.Amount
-      else
-         accrued
+      && (dailyDomesticTransferAccrued account.Events) + cmd.Data.Amount > DailyDomesticLimit
 
 let applyEvent (state: Account) (evt: AccountEvent) =
    let newState =
@@ -76,10 +82,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
          Currency = e.Data.Currency
          Balance = e.Data.Balance
          Status = AccountStatus.Active
-         DailyInternalTransferAccrued = 0m
-         DailyDomesticTransferAccrued = 0m
-         LastInternalTransferDate = None
-         LastDomesticTransferDate = None
          LastBillingCycleDate = None
          InternalTransferRecipients = Map.empty
          InProgressInternalTransfers = Map.empty
@@ -144,9 +146,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                      e.CorrelationId
                      (TransferEventToDomesticTransfer.fromPending e)
                      state.InProgressDomesticTransfers
-               DailyDomesticTransferAccrued =
-                  TransferLimits.accruedDailyDomesticTransfers state e
-               LastDomesticTransferDate = Some info.ScheduledDate
          }
       | DomesticTransferProgress e -> {
          state with
@@ -219,15 +218,9 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                      (TransferEventToDomesticTransfer.fromRejection e)
                      state.FailedDomesticTransfers
                DomesticTransferRecipients = updatedRecipients
-               // Revert daily accrued transfer sum
-               DailyDomesticTransferAccrued =
-                  if DateTime.isToday info.ScheduledDate then
-                     state.DailyDomesticTransferAccrued - info.Amount
-                  else
-                     state.DailyDomesticTransferAccrued
          }
       | InternalTransferPending e ->
-         let balance = state.Balance - e.Data.Amount
+         let balance = state.Balance - e.Data.BaseInfo.Amount
 
          {
             state with
@@ -236,9 +229,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                   MaintenanceFee.fromDebit state.MaintenanceFeeCriteria balance
                InProgressInternalTransfers =
                   Map.add e.CorrelationId e state.InProgressInternalTransfers
-               DailyInternalTransferAccrued =
-                  TransferLimits.accruedDailyInternalTransfers state e
-               LastInternalTransferDate = Some e.Data.ScheduledDate
          }
       | InternalTransferApproved e -> {
          state with
@@ -246,7 +236,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                Map.remove e.CorrelationId state.InProgressInternalTransfers
         }
       | InternalTransferRejected e ->
-         let balance = state.Balance + e.Data.Amount
+         let balance = state.Balance + e.Data.BaseInfo.Amount
 
          let updatedRecipientStatus =
             match e.Data.Reason with
@@ -261,7 +251,7 @@ let applyEvent (state: Account) (evt: AccountEvent) =
             | None -> state.InternalTransferRecipients
             | Some status ->
                Map.change
-                  e.Data.RecipientId
+                  e.Data.BaseInfo.RecipientId
                   (Option.map (fun recipient -> {
                      recipient with
                         Status = status
@@ -278,11 +268,6 @@ let applyEvent (state: Account) (evt: AccountEvent) =
                InProgressInternalTransfers =
                   Map.remove e.CorrelationId state.InProgressInternalTransfers
                InternalTransferRecipients = updatedRecipients
-               DailyInternalTransferAccrued =
-                  if DateTime.isToday e.Data.ScheduledDate then
-                     state.DailyInternalTransferAccrued - e.Data.Amount
-                  else
-                     state.DailyInternalTransferAccrued
          }
       | TransferDeposited e -> {
          state with
@@ -432,7 +417,7 @@ module private StateTransition =
          map MaintenanceFeeSkipped state (SkipMaintenanceFeeCommand.toEvent cmd)
 
    let internalTransfer (state: Account) (cmd: InternalTransferCommand) =
-      let input = cmd.Data
+      let input = cmd.Data.BaseInfo
 
       if state.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
@@ -733,10 +718,6 @@ let empty: Account = {
    Currency = Currency.USD
    Status = AccountStatus.InitialEmptyState
    Balance = 0m
-   DailyInternalTransferAccrued = 0m
-   DailyDomesticTransferAccrued = 0m
-   LastInternalTransferDate = None
-   LastDomesticTransferDate = None
    LastBillingCycleDate = None
    InternalTransferRecipients = Map.empty
    InProgressInternalTransfers = Map.empty

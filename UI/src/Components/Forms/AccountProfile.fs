@@ -22,8 +22,8 @@ let accountProfileSelect (accountProfiles: Map<AccountId, AccountProfile>) =
          Label = "Select an account to link the card to:"
          Placeholder = "No account selected"
          Options = [
-            for profile in accountProfiles.Values ->
-               string profile.AccountId, profile.Name
+            for a in accountProfiles.Values ->
+               string a.AccountId, $"{a.Name} ({Money.format a.Balance})"
          ]
       }
    }

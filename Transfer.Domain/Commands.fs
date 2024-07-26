@@ -26,7 +26,7 @@ module InternalTransferCommand =
       : ValidationResult<BankEvent<InternalTransferPending>>
       =
       validate {
-         let input = cmd.Data
+         let input = cmd.Data.BaseInfo
          let! _ = amountValidator "Transfer amount" input.Amount
 
          let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate

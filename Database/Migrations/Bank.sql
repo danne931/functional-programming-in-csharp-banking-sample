@@ -4,6 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DROP VIEW IF EXISTS daily_purchase_accrued;
 DROP VIEW IF EXISTS monthly_purchase_accrued;
+DROP VIEW IF EXISTS daily_transfer_accrued;
 
 DROP TABLE IF EXISTS billingstatement;
 DROP TABLE IF EXISTS merchant;
@@ -42,8 +43,6 @@ CREATE TABLE account (
    balance MONEY NOT NULL,
    currency VARCHAR(3) NOT NULL,
    status account_status NOT NULL,
-   daily_internal_transfer_accrued MONEY NOT NULL,
-   daily_domestic_transfer_accrued MONEY NOT NULL,
    internal_transfer_recipients JSONB NOT NULL,
    domestic_transfer_recipients JSONB NOT NULL,
    internal_transfer_senders JSONB NOT NULL,
@@ -58,8 +57,6 @@ CREATE TABLE account (
    failed_domestic_transfers_count INT NOT NULL,
    org_id UUID NOT NULL REFERENCES organization,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-   last_internal_transfer_at TIMESTAMPTZ,
-   last_domestic_transfer_at TIMESTAMPTZ,
    last_billing_cycle_at TIMESTAMPTZ
 );
 
@@ -223,7 +220,7 @@ CREATE TABLE transaction (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
-CREATE INDEX transaction_accrued_purchase_view_query_idx
+CREATE INDEX transaction_accrued_amount_view_query_idx
 ON transaction(amount, name, timestamp);
 
 CREATE TABLE ancillarytransactioninfo (
@@ -237,7 +234,7 @@ ALTER COLUMN category_id DROP NOT NULL;
 CREATE VIEW daily_purchase_accrued AS
 SELECT
    card_id,
-   COALESCE(SUM(amount), 0::MONEY) as amount_accrued
+   COALESCE(SUM(amount::NUMERIC), 0) as amount_accrued
 FROM transaction
 WHERE
    amount IS NOT NULL
@@ -248,12 +245,51 @@ GROUP BY card_id;
 CREATE VIEW monthly_purchase_accrued AS
 SELECT
    card_id,
-   COALESCE(SUM(amount), 0::MONEY) as amount_accrued
+   COALESCE(SUM(amount::NUMERIC), 0) as amount_accrued
 FROM transaction
 WHERE
    amount IS NOT NULL
    AND name = 'DebitedAccount'
    AND timestamp::DATE >= date_trunc('month', CURRENT_DATE)
 GROUP BY card_id;
+
+CREATE VIEW daily_transfer_accrued AS
+SELECT
+   account.account_id,
+
+   COALESCE(
+      SUM(
+         CASE 
+         WHEN t.name = 'InternalTransferPending' THEN t.amount::NUMERIC
+         WHEN t.name = 'InternalTransferRejected' THEN -t.amount::NUMERIC
+         ELSE 0
+         END
+      ),
+      0
+   ) AS internal_transfer_accrued,
+
+   COALESCE(
+      SUM(
+         CASE 
+         WHEN t.name = 'DomesticTransferPending' THEN t.amount::NUMERIC
+         WHEN t.name = 'DomesticTransferRejected' THEN -t.amount::NUMERIC
+         ELSE 0
+         END
+      ),
+      0
+   ) AS domestic_transfer_accrued
+FROM transaction t
+LEFT JOIN account using(account_id)
+WHERE
+   t.amount IS NOT NULL
+   AND t.name IN (
+      'InternalTransferPending', 'DomesticTransferPending',
+      'InternalTransferRejected', 'DomesticTransferRejected'
+   )
+   AND t.timestamp > account.last_billing_cycle_at
+   -- TODO: Create internal/domestic transfer read model tables 
+   --       and read from scheduled_date column.
+   AND (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date = CURRENT_DATE
+GROUP BY account.account_id;
 
 commit;

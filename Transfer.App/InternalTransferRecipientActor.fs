@@ -76,11 +76,11 @@ let actorProps
 
                recipientAccountRef <! msg
       | InternalTransferMessage.TransferRequest evt ->
-         let recipientId = evt.Data.RecipientId
+         let info = evt.Data.BaseInfo
+         let recipientId = info.RecipientId
          let senderId = AccountId.fromEntityId evt.EntityId
          let recipientAccountRef = getAccountRef recipientId
          let senderAccountRef = getAccountRef senderId
-         let amount = evt.Data.Amount
 
          let! (recipientAccountOpt: Account option) =
             recipientAccountRef <? AccountMessage.GetAccount
@@ -91,10 +91,8 @@ let actorProps
                evt.CorrelationId
                evt.InitiatedById
                {
-                  RecipientId = recipientId
-                  Amount = amount
+                  BaseInfo = evt.Data.BaseInfo
                   Reason = reason
-                  ScheduledDate = evt.Data.ScheduledDate
                }
             |> AccountCommand.RejectInternalTransfer
             |> AccountMessage.StateChange
@@ -120,11 +118,7 @@ let actorProps
                      (senderId, evt.OrgId)
                      evt.CorrelationId
                      evt.InitiatedById
-                     {
-                        RecipientId = recipientId
-                        Amount = amount
-                        ScheduledDate = evt.Data.ScheduledDate
-                     }
+                     { BaseInfo = info }
                   |> AccountCommand.ApproveInternalTransfer
                   |> AccountMessage.StateChange
 
@@ -137,7 +131,10 @@ let actorProps
                      recipientAccount.CompositeId
                      evt.CorrelationId
                      evt.InitiatedById
-                     { Amount = amount; Origin = senderId }
+                     {
+                        Amount = info.Amount
+                        Origin = senderId
+                     }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange
 

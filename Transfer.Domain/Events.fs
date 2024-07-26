@@ -4,24 +4,22 @@ open System
 
 open Lib.SharedTypes
 
-type InternalTransferPending = {
+type BaseInternalTransferInfo = {
    RecipientId: AccountId
    Amount: decimal
-   Memo: string option
    ScheduledDate: DateTime
 }
 
-type InternalTransferApproved = {
-   RecipientId: AccountId
-   Amount: decimal
-   ScheduledDate: DateTime
+type InternalTransferPending = {
+   BaseInfo: BaseInternalTransferInfo
+   Memo: string option
 }
+
+type InternalTransferApproved = { BaseInfo: BaseInternalTransferInfo }
 
 type InternalTransferRejected = {
-   RecipientId: AccountId
-   Amount: decimal
+   BaseInfo: BaseInternalTransferInfo
    Reason: TransferDeclinedReason
-   ScheduledDate: DateTime
 }
 
 // Info received from the initial domestic transfer request will

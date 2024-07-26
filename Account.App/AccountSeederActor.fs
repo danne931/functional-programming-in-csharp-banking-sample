@@ -301,9 +301,11 @@ let seedAccountTransactions
 
             let msg =
                InternalTransferCommand.create compositeId mockAccountOwnerId {
-                  RecipientId = internalRecipientCmd.Data.AccountId
-                  Amount = randomAmount ()
-                  ScheduledDate = DateTime.UtcNow
+                  BaseInfo = {
+                     RecipientId = internalRecipientCmd.Data.AccountId
+                     Amount = randomAmount ()
+                     ScheduledDate = DateTime.UtcNow
+                  }
                   Memo = None
                }
                |> AccountCommand.InternalTransfer

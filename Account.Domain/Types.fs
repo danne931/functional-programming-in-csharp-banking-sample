@@ -195,10 +195,6 @@ type Account = {
    Currency: Currency
    Status: AccountStatus
    Balance: decimal
-   DailyInternalTransferAccrued: decimal
-   DailyDomesticTransferAccrued: decimal
-   LastInternalTransferDate: DateTime option
-   LastDomesticTransferDate: DateTime option
    LastBillingCycleDate: DateTime option
    InternalTransferSenders: Map<AccountId, InternalTransferSender>
    InternalTransferRecipients: Map<AccountId, InternalTransferRecipient>
@@ -230,6 +226,9 @@ type AccountProfile = {
    OrgId: OrgId
    Name: string
    Depository: AccountDepository
+   Balance: decimal
+   DailyInternalTransferAccrued: decimal
+   DailyDomesticTransferAccrued: decimal
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
