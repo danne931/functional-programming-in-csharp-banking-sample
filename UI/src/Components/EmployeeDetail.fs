@@ -150,55 +150,58 @@ let EmployeeDetailComponent
 
          Html.div [ Html.small (string employee.Email) ]
 
-         DropdownComponent
-            DropdownDirection.LTR
-            false
-            None
-            (match employee.Status with
-             | EmployeeStatus.Active -> [
-                {
-                   Text = "Edit Role"
-                   OnClick = fun _ -> dispatch Msg.OpenRoleEdit
-                   IsSelected = state.IsEditingRole
-                }
-               ]
-             | EmployeeStatus.PendingInviteApproval -> [
-                {
-                   Text = "Remove Invite"
-                   OnClick =
-                      fun _ ->
-                         dispatch
-                         <| Msg.ShowInviteCancellationConfirmation employee
-                   IsSelected = false
-                }
-               ]
-             | EmployeeStatus.PendingInviteConfirmation _ -> [
-                {
-                   Text = "Remove Invite"
-                   OnClick =
-                      fun _ ->
-                         dispatch
-                         <| Msg.ShowInviteCancellationConfirmation employee
-                   IsSelected = false
-                }
-                {
-                   Text = "Resend Invite"
-                   OnClick =
-                      fun _ ->
-                         dispatch
-                         <| Msg.ResendInviteNotification(employee, Started)
-                   IsSelected = false
-                }
-               ]
-             | EmployeeStatus.Closed -> [
-                {
-                   IsSelected = false
-                   Text = "Restore Access"
-                   OnClick =
-                      fun _ -> dispatch <| Msg.RestoreAccess(employee, Started)
-                }
-               ]
-             | _ -> [])
+         DropdownComponent {|
+            Direction = DropdownDirection.LTR
+            ShowCaret = false
+            Button = None
+            Items =
+               match employee.Status with
+               | EmployeeStatus.Active -> [
+                  {
+                     Text = "Edit Role"
+                     OnClick = fun _ -> dispatch Msg.OpenRoleEdit
+                     IsSelected = state.IsEditingRole
+                  }
+                 ]
+               | EmployeeStatus.PendingInviteApproval -> [
+                  {
+                     Text = "Remove Invite"
+                     OnClick =
+                        fun _ ->
+                           dispatch
+                           <| Msg.ShowInviteCancellationConfirmation employee
+                     IsSelected = false
+                  }
+                 ]
+               | EmployeeStatus.PendingInviteConfirmation _ -> [
+                  {
+                     Text = "Remove Invite"
+                     OnClick =
+                        fun _ ->
+                           dispatch
+                           <| Msg.ShowInviteCancellationConfirmation employee
+                     IsSelected = false
+                  }
+                  {
+                     Text = "Resend Invite"
+                     OnClick =
+                        fun _ ->
+                           dispatch
+                           <| Msg.ResendInviteNotification(employee, Started)
+                     IsSelected = false
+                  }
+                 ]
+               | EmployeeStatus.Closed -> [
+                  {
+                     IsSelected = false
+                     Text = "Restore Access"
+                     OnClick =
+                        fun _ ->
+                           dispatch <| Msg.RestoreAccess(employee, Started)
+                  }
+                 ]
+               | _ -> []
+         |}
       ]
 
       Html.hr []

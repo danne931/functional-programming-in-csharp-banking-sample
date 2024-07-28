@@ -253,7 +253,7 @@ let EmployeeHistoryDashboardComponent
                               >> dispatch
                         |}
                      | EmployeeHistoryFilterView.Date ->
-                        TransactionDateFilter.TransactionDateFilterComponent
+                        DateFilter.DateFilterComponent
                            browserQuery.Date
                            (EmployeeHistoryFilter.Date
                             >> Msg.UpdateFilter
@@ -353,16 +353,18 @@ let EmployeeHistoryDashboardComponent
                      ]
                   SubsequentChildren =
                      Some [
-                        Pagination.render
-                           state.History
-                           state.Query.Page
-                           (fun page ->
-                              dispatch
-                              <| Msg.LoadHistory(
-                                 { state.Query with Page = page },
-                                 Started
-                              ))
-                           (fun () -> dispatch Msg.ResetPageIndex)
+                        Pagination.render {|
+                           PaginatedResults = state.History
+                           Page = state.Query.Page
+                           OnPageChange =
+                              fun page ->
+                                 dispatch
+                                 <| Msg.LoadHistory(
+                                    { state.Query with Page = page },
+                                    Started
+                                 )
+                           OnPageReset = fun () -> dispatch Msg.ResetPageIndex
+                        |}
                      ]
                |}
 

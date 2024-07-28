@@ -1,4 +1,4 @@
-module TransactionDateFilter
+module DateFilter
 
 open Feliz
 open System
@@ -6,7 +6,7 @@ open System
 open UIDomain
 
 [<ReactComponent>]
-let TransactionDateFilterComponent
+let DateFilterComponent
    (dateFilter: DateFilter option)
    (onChange: DateFilter option -> unit)
    =

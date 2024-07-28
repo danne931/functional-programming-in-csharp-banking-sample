@@ -7,11 +7,16 @@ type PaginatedQueryResults<'T> =
    Map<int, Deferred<Result<'T option, Lib.SharedTypes.Err>>>
 
 let render
-   (paginatedResults: PaginatedQueryResults<'T>)
-   (page: int)
-   (onPageChange: int -> unit)
-   (onPageReset: unit -> unit)
+   (props:
+      {|
+         PaginatedResults: PaginatedQueryResults<'T>
+         Page: int
+         OnPageChange: int -> unit
+         OnPageReset: unit -> unit
+      |})
    =
+   let page = props.Page
+   let paginatedResults = props.PaginatedResults
    let currPageData = paginatedResults.TryFind page
    let nextPageData = paginatedResults.TryFind(page + 1)
 
@@ -40,7 +45,7 @@ let render
             e.preventDefault ()
 
             if not endOfPagination then
-               onPageChange (page + 1))
+               props.OnPageChange(page + 1))
       ]
 
       Html.a [
@@ -61,8 +66,8 @@ let render
             e.preventDefault ()
 
             if page = 2 then
-               onPageReset ()
+               props.OnPageReset()
             elif page > 2 then
-               onPageChange (page - 1))
+               props.OnPageChange(page - 1))
       ]
    ]

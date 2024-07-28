@@ -391,30 +391,35 @@ let CardDetailComponent
          ]
       ]
 
-      DropdownComponent DropdownDirection.LTR true None [
-         {
-            Text = "Edit Nickname"
-            OnClick = fun _ -> dispatch Msg.ToggleNicknameEdit
-            IsSelected = state.IsEditingNickname
-         }
-         {
-            Text = "Edit Daily Purchase Limit"
-            OnClick = fun _ -> dispatch Msg.ToggleDailyPurchaseLimitEdit
-            IsSelected = state.IsEditingDailyPurchaseLimit
-         }
-         {
-            Text = "Edit Monthly Purchase Limit"
-            OnClick = fun _ -> dispatch Msg.ToggleMonthlyPurchaseLimitEdit
-            IsSelected = state.IsEditingMonthlyPurchaseLimit
-         }
-      (*
-         {
-            Text = "Deactivate Card"
-            OnClick = fun _ -> ()
-            IsSelected = false
-         }
-         *)
-      ]
+      DropdownComponent {|
+         Direction = DropdownDirection.LTR
+         ShowCaret = true
+         Button = None
+         Items = [
+            {
+               Text = "Edit Nickname"
+               OnClick = fun _ -> dispatch Msg.ToggleNicknameEdit
+               IsSelected = state.IsEditingNickname
+            }
+            {
+               Text = "Edit Daily Purchase Limit"
+               OnClick = fun _ -> dispatch Msg.ToggleDailyPurchaseLimitEdit
+               IsSelected = state.IsEditingDailyPurchaseLimit
+            }
+            {
+               Text = "Edit Monthly Purchase Limit"
+               OnClick = fun _ -> dispatch Msg.ToggleMonthlyPurchaseLimitEdit
+               IsSelected = state.IsEditingMonthlyPurchaseLimit
+            }
+         (*
+            {
+               Text = "Deactivate Card"
+               OnClick = fun _ -> ()
+               IsSelected = false
+            }
+            *)
+         ]
+      |}
 
       classyNode Html.div [ "card-summary" ] [
          classyNode Html.div [ "grid" ] [

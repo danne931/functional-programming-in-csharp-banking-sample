@@ -21,18 +21,21 @@ type DropdownDirection =
 
 [<ReactComponent>]
 let DropdownComponent
-   (dir: DropdownDirection)
-   (showCaret: bool)
-   (button: (ReactElement list) option)
-   (items: DropdownItem list)
+   (props:
+      {|
+         Direction: DropdownDirection
+         ShowCaret: bool
+         Button: (ReactElement list) option
+         Items: DropdownItem list
+      |})
    =
    let isOpen, setIsOpen = React.useState false
 
    Html.details [
-      if not showCaret then
+      if not props.ShowCaret then
          attr.classes [ "no-caret" ]
       attr.role "list"
-      attr.custom ("dir", string dir)
+      attr.custom ("dir", string props.Direction)
       attr.isOpen isOpen
       attr.onClick (fun e ->
          e.preventDefault ()
@@ -45,7 +48,7 @@ let DropdownComponent
             attr.classes [ "contrast" ]
 
             attr.children (
-               match button with
+               match props.Button with
                | Some button -> button
                | None -> [ Fa.i [ Fa.Solid.EllipsisH ] [] ]
             )
@@ -54,7 +57,7 @@ let DropdownComponent
          Html.ul [
             attr.role "listbox"
             attr.children [
-               for item in items ->
+               for item in props.Items ->
                   Html.li [
                      Html.a [
                         attr.href ""

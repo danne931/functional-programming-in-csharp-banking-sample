@@ -543,61 +543,63 @@ let renderFooterMenuControls
       match evtOpt with
       | None -> ()
       | Some evt ->
-         DropdownComponent
-            DropdownDirection.RTL
-            false
-            None
-            (match evt with
-             | AccountEvent.DebitedAccount _ -> [
-                {
-                   Text = "Edit merchant nickname"
-                   OnClick = fun _ -> dispatch ToggleNicknameEdit
-                   IsSelected = isEditingNickname
-                }
-               ]
-             | AccountEvent.InternalTransferPending _
-             | AccountEvent.DomesticTransferPending _
-             | AccountEvent.InternalTransferRecipient _
-             | AccountEvent.DomesticTransferRecipient _
-             | AccountEvent.DomesticTransferRejected _
-             | AccountEvent.EditedDomesticTransferRecipient _ ->
-                [
-                   {
-                      Text = "Nickname recipient"
-                      OnClick = fun _ -> dispatch ToggleNicknameEdit
-                      IsSelected = isEditingNickname
-                   }
-
-                ]
-                @ match canEditTransferRecipient account evt with
-                  | None -> []
-                  | Some recipient -> [
+         DropdownComponent {|
+            Direction = DropdownDirection.RTL
+            ShowCaret = false
+            Button = None
+            Items =
+               match evt with
+               | AccountEvent.DebitedAccount _ -> [
+                  {
+                     Text = "Edit merchant nickname"
+                     OnClick = fun _ -> dispatch ToggleNicknameEdit
+                     IsSelected = isEditingNickname
+                  }
+                 ]
+               | AccountEvent.InternalTransferPending _
+               | AccountEvent.DomesticTransferPending _
+               | AccountEvent.InternalTransferRecipient _
+               | AccountEvent.DomesticTransferRecipient _
+               | AccountEvent.DomesticTransferRejected _
+               | AccountEvent.EditedDomesticTransferRecipient _ ->
+                  [
                      {
-                        Text = "Edit recipient"
-                        OnClick =
-                           fun _ ->
-                              dispatch (
-                                 Msg.EditTransferRecipient(
-                                    account.AccountId,
-                                    recipient.AccountId
-                                 )
-                              )
+                        Text = "Nickname recipient"
+                        OnClick = fun _ -> dispatch ToggleNicknameEdit
                         IsSelected = isEditingNickname
                      }
-                    ]
-             | AccountEvent.TransferDeposited evt -> [
-                {
-                   Text = "Nickname sender"
-                   OnClick = fun _ -> ()
-                   IsSelected = false
-                }
-                {
-                   Text = "View sender"
-                   OnClick = fun _ -> ()
-                   IsSelected = false
-                }
-               ]
-             | _ -> [])
+
+                  ]
+                  @ match canEditTransferRecipient account evt with
+                    | None -> []
+                    | Some recipient -> [
+                       {
+                          Text = "Edit recipient"
+                          OnClick =
+                             fun _ ->
+                                dispatch (
+                                   Msg.EditTransferRecipient(
+                                      account.AccountId,
+                                      recipient.AccountId
+                                   )
+                                )
+                          IsSelected = isEditingNickname
+                       }
+                      ]
+               | AccountEvent.TransferDeposited evt -> [
+                  {
+                     Text = "Nickname sender"
+                     OnClick = fun _ -> ()
+                     IsSelected = false
+                  }
+                  {
+                     Text = "View sender"
+                     OnClick = fun _ -> ()
+                     IsSelected = false
+                  }
+                 ]
+               | _ -> []
+         |}
    ]
 
 [<ReactComponent>]

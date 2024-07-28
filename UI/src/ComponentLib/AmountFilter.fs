@@ -1,4 +1,4 @@
-module TransactionAmountFilter
+module AmountFilter
 
 open Feliz
 open Fable.Core.JS

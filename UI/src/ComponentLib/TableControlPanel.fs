@@ -43,10 +43,11 @@ let TableControlPanelComponent
             match config.Content with
             | None -> ()
             | Some content ->
-               FilterPill.render
-                  content
-                  (fun () -> setFilterView (Some config.View))
-                  config.OnDelete
+               FilterPill.render {|
+                  Content = content
+                  OnSelect = fun () -> setFilterView (Some config.View)
+                  OnDelete = config.OnDelete
+               |}
 
          match props.SubsequentChildren with
          | Some children -> React.keyedFragment (Guid.NewGuid(), children)

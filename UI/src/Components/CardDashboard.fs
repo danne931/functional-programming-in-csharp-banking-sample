@@ -288,11 +288,11 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                                  >> dispatch
                            |}
                         | CardFilterView.Amount ->
-                           TransactionAmountFilter.AmountFilterComponent
+                           AmountFilter.AmountFilterComponent
                               browserQuery.Amount
                               (CardFilter.Amount >> Msg.UpdateFilter >> dispatch)
                         | CardFilterView.CreatedAt ->
-                           TransactionDateFilter.TransactionDateFilterComponent
+                           DateFilter.DateFilterComponent
                               browserQuery.CreatedAt
                               (CardFilter.CreatedAt
                                >> Msg.UpdateFilter

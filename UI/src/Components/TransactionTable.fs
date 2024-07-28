@@ -208,16 +208,16 @@ let renderControlPanel
                (TransactionFilter.Category >> Msg.UpdateFilter >> dispatch)
          | TransactionFilterView.Amount ->
             React.fragment [
-               TransactionAmountFilter.renderMoneyFlowFilter
+               AmountFilter.renderMoneyFlowFilter
                   query.MoneyFlow
                   (TransactionFilter.MoneyFlow >> Msg.UpdateFilter >> dispatch)
 
-               TransactionAmountFilter.AmountFilterComponent
+               AmountFilter.AmountFilterComponent
                   query.Amount
                   (TransactionFilter.Amount >> Msg.UpdateFilter >> dispatch)
             ]
          | TransactionFilterView.Date ->
-            TransactionDateFilter.TransactionDateFilterComponent
+            DateFilter.DateFilterComponent
                query.Date
                (TransactionFilter.Date >> Msg.UpdateFilter >> dispatch)
       FilterPills = [
@@ -267,16 +267,18 @@ let renderControlPanel
       ]
       SubsequentChildren =
          Some [
-            Pagination.render
-               state.Transactions
-               state.Query.Page
-               (fun page ->
-                  dispatch
-                  <| Msg.LoadTransactions(
-                     { state.Query with Page = page },
-                     Started
-                  ))
-               (fun () -> dispatch ResetPageIndex)
+            Pagination.render {|
+               PaginatedResults = state.Transactions
+               Page = state.Query.Page
+               OnPageChange =
+                  fun page ->
+                     dispatch
+                     <| Msg.LoadTransactions(
+                        { state.Query with Page = page },
+                        Started
+                     )
+               OnPageReset = fun () -> dispatch ResetPageIndex
+            |}
 
             Html.a [
                attr.children [
