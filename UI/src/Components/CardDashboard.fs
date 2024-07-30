@@ -9,7 +9,6 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Employee.Domain
 open UIDomain
-open UIDomain.Account
 open UIDomain.Employee
 open UIDomain.Card
 open Bank.Employee.Forms
@@ -149,7 +148,7 @@ let private close () = actionNav None
 
 let renderTableRow
    (card: CardWithMetrics)
-   (accounts: Deferred<AccountProfilesMaybe>)
+   (accountProfiles: Map<AccountId, AccountProfile>)
    (selectedCardId: CardId option)
    =
    Html.tr [
@@ -180,19 +179,16 @@ let renderTableRow
          Html.td (if card.Card.Virtual then "Virtual" else "Physical")
 
          Html.td (
-            match accounts with
-            | Deferred.Resolved(Ok(Some profiles)) ->
-               profiles.TryFind card.Card.AccountId
-               |> Option.map _.Name
-               |> Option.defaultValue "-"
-            | _ -> "-"
+            accountProfiles.TryFind card.Card.AccountId
+            |> Option.map _.Name
+            |> Option.defaultValue "-"
          )
       ]
    ]
 
 let renderTable
    (cards: CardWithMetrics list)
-   (accounts: Deferred<AccountProfilesMaybe>)
+   (accounts: Map<AccountId, AccountProfile>)
    (selectedCardId: CardId option)
    =
    Html.table [
@@ -227,10 +223,7 @@ let renderTable
 let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
    let browserQuery = Routes.IndexUrl.cardBrowserQuery ()
 
-   let accounts =
-      OrgAndAccountProfileProvider.context
-      |> React.useContext
-      |> _.AccountProfiles
+   let orgCtx = React.useContext OrgProvider.context
 
    let state, dispatch =
       React.useElmish (
@@ -298,11 +291,11 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                                >> Msg.UpdateFilter
                                >> dispatch)
                         | CardFilterView.Accounts ->
-                           match accounts with
-                           | Deferred.Resolved(Ok(Some accounts)) ->
+                           match orgCtx with
+                           | Deferred.Resolved(Ok(Some org)) ->
                               CheckboxFieldset.render {|
                                  Options =
-                                    accounts.Values
+                                    org.AccountProfiles.Values
                                     |> List.ofSeq
                                     |> List.map (fun o -> {
                                        Id = o.AccountId
@@ -316,7 +309,7 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                                     Option.map (fun accountIds ->
                                        List.choose
                                           (fun (accountId: AccountId) ->
-                                             accounts
+                                             org.AccountProfiles
                                              |> Map.tryFind accountId
                                              |> Option.map (fun account -> {
                                                 Id = accountId
@@ -392,12 +385,12 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                      SubsequentChildren = None
                   |}
 
-                  match state.Cards with
-                  | Resolved(Error err) ->
+                  match state.Cards, orgCtx with
+                  | Resolved(Error err), _ ->
                      Html.small "Uh oh. Error getting cards."
-                  | Resolved(Ok None) -> Html.small "No cards."
-                  | Resolved(Ok(Some cards)) ->
-                     renderTable cards accounts selectedCardId
+                  | Resolved(Ok None), _ -> Html.small "No cards."
+                  | Resolved(Ok(Some cards)), Resolved(Ok(Some org)) ->
+                     renderTable cards org.AccountProfiles selectedCardId
                   | _ -> ()
                ]
             ]

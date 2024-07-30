@@ -7,7 +7,7 @@ open MaintenanceFee
 
 type CreatedAccount = {
    Name: string
-   //Depository: AccountDepository
+   Depository: AccountDepository
    Balance: decimal
    Currency: Currency
    AccountNumber: AccountNumber

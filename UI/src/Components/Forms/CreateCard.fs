@@ -156,26 +156,22 @@ let CreateCardFormComponent
    (employee: Employee)
    =
    let session = React.useContext UserSessionProvider.context
-
-   let accounts =
-      OrgAndAccountProfileProvider.context
-      |> React.useContext
-      |> _.AccountProfiles
+   let orgCtx = React.useContext OrgProvider.context
 
    let formProps: Values = {
       CardType = string CardType.Debit
       Nickname = ""
-      DailyPurchaseLimit = string Card.DAILY_PURCHASE_LIMIT_DEFAULT
-      MonthlyPurchaseLimit = string Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+      DailyPurchaseLimit = string Constants.DAILY_PURCHASE_LIMIT_DEFAULT
+      MonthlyPurchaseLimit = string Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
       LinkedAccountId = ""
       IsVirtual = true
    }
 
-   match accounts, session with
-   | Deferred.Resolved(Ok(Some profiles)), Deferred.Resolved session ->
+   match orgCtx, session with
+   | Deferred.Resolved(Ok(Some org)), Deferred.Resolved session ->
       EmployeeFormContainer
       <| formProps
-      <| form session employee profiles
+      <| form session employee org.AccountProfiles
       <| onSubmit
       <| Some(
          Form.View.Action.Custom(fun state _ ->

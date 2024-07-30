@@ -18,7 +18,7 @@ type CreateAccountOwnerCommand = Command<CreateAccountOwnerInput>
 module CreateAccountOwnerCommand =
    // First employee created is created by self, so no initiatedBy.
    let create (data: CreateAccountOwnerInput) =
-      let employeeId = LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
+      let employeeId = Constants.LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
 
       Command.create
          (EmployeeId.toEntityId employeeId)
@@ -172,12 +172,13 @@ module CreateCardCommand =
          let! dailyPurchaseLimit =
             match input.DailyPurchaseLimit with
             | Some limit -> amountValidator "Daily purchase limit" limit
-            | None -> ValidationResult.Ok Card.DAILY_PURCHASE_LIMIT_DEFAULT
+            | None -> ValidationResult.Ok Constants.DAILY_PURCHASE_LIMIT_DEFAULT
 
          let! monthlyPurchaseLimit =
             match input.MonthlyPurchaseLimit with
             | Some limit -> amountValidator "Monthly purchase limit" limit
-            | None -> ValidationResult.Ok Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+            | None ->
+               ValidationResult.Ok Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
 
          return
             BankEvent.create2<CreateCardInput, CreatedCard> cmd {
@@ -304,7 +305,7 @@ module LimitDailyDebitsCommand =
       =
       validate {
          let! _ =
-            dailyPurchaseLimitValidator
+            Card.dailyPurchaseLimitValidator
                "Daily purchase limit"
                cmd.Data.DebitLimit
 
@@ -332,7 +333,7 @@ module LimitMonthlyDebitsCommand =
       =
       validate {
          let! _ =
-            monthlyPurchaseLimitValidator
+            Card.monthlyPurchaseLimitValidator
                "Monthly purchase limit"
                cmd.Data.DebitLimit
 

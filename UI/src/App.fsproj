@@ -51,6 +51,7 @@
     <Compile Include="Components/Forms/Deposit.fs" />
     <Compile Include="Components/Forms/EmployeeRole.fs" />
     <Compile Include="Components/Forms/EmployeeCreate.fs" />
+    <Compile Include="Components/Forms/AccountCreate.fs" />
     <Compile Include="Components/Forms/CreateCard.fs" />
     <Compile Include="Components/ServiceHealth.fs" />
     <Compile Include="Components/AccountSelection.fs" />
@@ -63,6 +64,7 @@
     <Compile Include="Components/AccountActionMenu.fs" />
     <Compile Include="Components/CardActionMenu.fs" />
     <Compile Include="Components/AccountSummary.fs" />
+    <Compile Include="Components/TransactionDashboard.fs" />
     <Compile Include="Components/AccountDashboard.fs" />
     <Compile Include="Components/CardDetail.fs" />
     <Compile Include="Components/CardDashboard.fs" />

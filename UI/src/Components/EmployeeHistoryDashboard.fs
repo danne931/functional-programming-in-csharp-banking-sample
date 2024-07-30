@@ -10,7 +10,6 @@ open UIDomain
 open UIDomain.Employee
 open Lib.SharedTypes
 open TableControlPanel
-open Lib.NetworkQuery
 open EmployeeSearch
 
 [<RequireQualifiedAccess>]

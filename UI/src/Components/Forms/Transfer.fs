@@ -7,6 +7,7 @@ open System
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.Employee.Domain
 open Lib.Validators
 open FormContainer
 open Lib.SharedTypes

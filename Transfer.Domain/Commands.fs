@@ -235,10 +235,10 @@ module RegisterDomesticTransferRecipientCommand =
       =
       validate {
          let! accountNumber =
-            accountNumberValidator "Account Number" cmd.Data.AccountNumber
+            AccountNumber.fromString "Account Number" cmd.Data.AccountNumber
 
          and! routingNumber =
-            routingNumberValidator "Routing Number" cmd.Data.RoutingNumber
+            RoutingNumber.fromString "Routing Number" cmd.Data.RoutingNumber
 
          and! firstName = firstNameValidator cmd.Data.FirstName
          and! lastName = lastNameValidator cmd.Data.LastName
@@ -296,10 +296,10 @@ module EditDomesticTransferRecipientCommand =
       =
       validate {
          let! accountNumber =
-            accountNumberValidator "Account Number" cmd.Data.AccountNumber
+            AccountNumber.fromString "Account Number" cmd.Data.AccountNumber
 
          and! routingNumber =
-            routingNumberValidator "Routing Number" cmd.Data.RoutingNumber
+            RoutingNumber.fromString "Routing Number" cmd.Data.RoutingNumber
 
          and! firstName = firstNameValidator cmd.Data.FirstName
          and! lastName = lastNameValidator cmd.Data.LastName

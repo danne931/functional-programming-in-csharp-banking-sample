@@ -7,11 +7,6 @@ open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.NetworkQuery
 
-type OrgAndAccountProfilesMaybe =
-   Result<(Org * Map<AccountId, AccountProfile>) option, Err>
-
-type OrgMaybe = Result<Org option, Err>
-
 type AccountProfilesMaybe = Result<Map<AccountId, AccountProfile> option, Err>
 
 type AccountAndTransactionsMaybe =

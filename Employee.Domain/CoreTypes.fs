@@ -1,8 +1,10 @@
 namespace Bank.Employee.Domain
 
 open System
+open Validus
 
 open Lib.SharedTypes
+open Lib.NetworkQuery
 
 [<RequireQualifiedAccess>]
 type CardType =
@@ -81,6 +83,13 @@ type Card = {
       **{x.CardNumberLast4}
       """
 
+module Card =
+   let dailyPurchaseLimitValidator =
+      Check.Decimal.between 0m Constants.DAILY_PURCHASE_LIMIT_DEFAULT
+
+   let monthlyPurchaseLimitValidator =
+      Check.Decimal.between 0m Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
+
 type EmployeeInviteSupplementaryCardInfo = {
    DailyPurchaseLimit: decimal
    MonthlyPurchaseLimit: decimal
@@ -145,3 +154,142 @@ type DebitInfo = {
 
 /// Tasks to initiate upon employee invite confirmation.
 type EmployeeOnboardingTask = CreateCard of EmployeeInviteSupplementaryCardInfo
+
+type Email = private {
+   Email: string
+} with
+
+   override x.ToString() = x.Email
+
+   static member ofString: Validator<string, Email> =
+      fun field input ->
+         let rule (x: string) =
+            if String.IsNullOrEmpty x then
+               false
+            elif String.length x > 255 then
+               false
+            else
+#if FABLE_COMPILER
+               true
+#else
+               try
+                  (System.Net.Mail.MailAddress x).Address = x
+               with :? FormatException ->
+                  false
+#endif
+
+         let message = sprintf "%s must be a valid email address"
+
+         input
+         |> Validator.create message rule field
+         |> Result.map (fun v -> { Email = v })
+
+   static member deserialize(email: string) : Email = { Email = email }
+
+   static member empty = { Email = "" }
+
+type UserSession = {
+   OrgId: OrgId
+   EmployeeId: EmployeeId
+   FirstName: string
+   LastName: string
+   Email: Email
+   Role: Role
+}
+
+[<RequireQualifiedAccess>]
+type EmployeeEventGroupFilter =
+   | Invitation
+   | CreatedCard
+   | Purchase
+   | PurchaseLimitUpdated
+   | CardFrozenUnfrozen
+   | UpdatedRole
+   | AccessRestored
+
+   member x.Display =
+      match x with
+      | EmployeeEventGroupFilter.Invitation -> "Invitations"
+      | EmployeeEventGroupFilter.CreatedCard -> "Cards Issued"
+      | EmployeeEventGroupFilter.Purchase -> "Purchases"
+      | EmployeeEventGroupFilter.PurchaseLimitUpdated ->
+         "Purchase Limit Applied"
+      | EmployeeEventGroupFilter.CardFrozenUnfrozen -> "Card Frozen/Unfrozen"
+      | EmployeeEventGroupFilter.UpdatedRole -> "Employee Role Altered"
+      | EmployeeEventGroupFilter.AccessRestored -> "Employee Access Restored"
+
+module EmployeeEventGroupFilter =
+   let fromString =
+      function
+      | "Invitation" -> Some EmployeeEventGroupFilter.Invitation
+      | "CreatedCard" -> Some EmployeeEventGroupFilter.CreatedCard
+      | "Purchase" -> Some EmployeeEventGroupFilter.Purchase
+      | "PurchaseLimitUpdated" ->
+         Some EmployeeEventGroupFilter.PurchaseLimitUpdated
+      | "CardFrozenUnfrozen" -> Some EmployeeEventGroupFilter.CardFrozenUnfrozen
+      | "UpdatedRole" -> Some EmployeeEventGroupFilter.UpdatedRole
+      | "AccessRestored" -> Some EmployeeEventGroupFilter.AccessRestored
+      | _ -> None
+
+   let fromQueryString: string -> EmployeeEventGroupFilter list option =
+      listFromQueryString fromString
+
+   let listToDisplay (items: EmployeeEventGroupFilter list) =
+      List.fold
+         (fun acc (filter: EmployeeEventGroupFilter) ->
+            if acc = "" then
+               filter.Display
+            else
+               $"{acc}, {filter.Display}")
+         ""
+         items
+
+type EmployeeHistoryQuery = {
+   Page: int
+   DateRange: (DateTime * DateTime) option
+   EventType: (EmployeeEventGroupFilter list) option
+   EmployeeIds: (EmployeeId list) option
+   InitiatedByIds: (InitiatedById list) option
+}
+
+module EmployeeHistoryQuery =
+   let employeeIdsFromQueryString: string -> EmployeeId list option =
+      listFromQueryString (Guid.parseOptional >> Option.map EmployeeId)
+
+   let initiatedByIdsFromQueryString: string -> InitiatedById list option =
+      listFromQueryString (
+         Guid.parseOptional >> Option.map (EmployeeId >> InitiatedById)
+      )
+
+type EmployeeQuery = {
+   EmployeeIds: (EmployeeId list) option
+   Roles: (Role list) option
+}
+
+module EmployeeQuery =
+   let rolesFromQueryString = listFromQueryString Role.fromString
+
+   let rolesToDisplay =
+      List.fold
+         (fun acc (filter: Role) ->
+            if acc = "" then
+               filter.Display
+            else
+               $"{acc}, {filter.Display}")
+         ""
+
+   let employeeIdsFromQueryString =
+      EmployeeHistoryQuery.employeeIdsFromQueryString
+
+type CardQuery = {
+   AccountIds: (AccountId list) option
+   EmployeeIds: (EmployeeId list) option
+   CreatedAtDateRange: (DateTime * DateTime) option
+   Amount: AmountFilter option
+}
+
+module CardQuery =
+   let employeeIdsFromQueryString = EmployeeQuery.employeeIdsFromQueryString
+
+   let accountIdsFromQueryString =
+      listFromQueryString (Guid.parseOptional >> Option.map AccountId)

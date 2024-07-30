@@ -162,7 +162,7 @@ footer
       margin-bottom: 0
       padding-right: 0.4rem
 
-.account-dashboard, .employee-dashboard
+.transaction-dashboard, .employee-dashboard, .employee-history-dashboard, .card-dashboard
   h1, h2, h3, h4, h5, h6
     margin-bottom: .7rem
 
@@ -228,15 +228,44 @@ p[role='employee-role']
       &:last-child
         text-align: left
 
-.table-title-container
-  > *
-    display: inline
-
+.title-and-button-container
+  margin-bottom: 1rem
+  display: flex
+  align-items: center
+  justify-content: space-between
+  h4
+    margin-bottom: 0
   button
     width: auto
-    padding: .5rem
+    padding: .4rem
+    margin-bottom: 0
     i
       padding-right: .5rem
+
+.account-dashboard
+  .org-summary
+    margin-bottom: 1rem
+    padding-bottom: 1rem
+    box-shadow: 0px 6px 8px -6px rgba(0, 0, 0, 0.8)
+    .balance
+      margin-bottom: 0
+      padding-left: 1rem
+  .accounts
+    grid-template-columns: 30% 30% 30%
+    p
+      color: var(--primary)
+      margin-bottom: 0
+    small
+      display: block
+    a
+      padding: 1rem
+    article
+      > div
+        margin-bottom: 1rem
+    button
+      margin-top: 2rem
+      i
+        padding: 0 .5rem
 
 .control-panel-and-table-container
   position: relative

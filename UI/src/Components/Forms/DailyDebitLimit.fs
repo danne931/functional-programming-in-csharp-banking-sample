@@ -13,14 +13,15 @@ type Values = { Amount: string }
 let dailyPurchaseLimitField =
    Form.textField {
       Parser =
-         (parseDecimal >=> dailyPurchaseLimitValidator) "Daily purchase limit"
+         (parseDecimal >=> Card.dailyPurchaseLimitValidator)
+            "Daily purchase limit"
          >> validationErrorsHumanFriendly
       Value = fun values -> values.Amount
       Update = fun newValue values -> { values with Amount = newValue }
       Error = fun _ -> None
       Attributes = {
          Label = "Daily Purchase Limit:"
-         Placeholder = Money.format Card.DAILY_PURCHASE_LIMIT_DEFAULT
+         Placeholder = Money.format Constants.DAILY_PURCHASE_LIMIT_DEFAULT
          HtmlAttributes = []
       }
    }

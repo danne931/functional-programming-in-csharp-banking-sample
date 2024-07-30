@@ -286,7 +286,7 @@ WHERE
       'InternalTransferPending', 'DomesticTransferPending',
       'InternalTransferRejected', 'DomesticTransferRejected'
    )
-   AND t.timestamp > account.last_billing_cycle_at
+   AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
    -- TODO: Create internal/domestic transfer read model tables 
    --       and read from scheduled_date column.
    AND (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date = CURRENT_DATE

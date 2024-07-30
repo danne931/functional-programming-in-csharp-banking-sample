@@ -8,7 +8,7 @@ open System.Text.RegularExpressions
 open Validus
 open Validus.Operators
 
-open Lib.Validators
+open Lib.SharedTypes
 open Lib.Time
 
 module Interpreter =

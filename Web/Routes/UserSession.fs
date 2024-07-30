@@ -47,10 +47,14 @@ let startUserSessionRoutes (app: WebApplication) =
 
          context.Session.SetString(
             "EmployeeId",
-            string LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
+            string Constants.LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
          )
 
-         context.Session.SetString("OrgId", string ORG_ID_REMOVE_SOON)
+         context.Session.SetString(
+            "OrgId",
+            string Constants.ORG_ID_REMOVE_SOON
+         )
+
          context.Session.SetString("Role", string Role.Admin)
          return Results.Ok()
       })

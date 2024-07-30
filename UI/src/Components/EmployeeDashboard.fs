@@ -9,7 +9,6 @@ open Fable.FontAwesome
 open Bank.Employee.Domain
 open UIDomain.Employee
 open Lib.SharedTypes
-open Lib.NetworkQuery
 open EmployeeDetail
 open Bank.Employee.Forms.EmployeeCreateForm
 open EmployeeSearch

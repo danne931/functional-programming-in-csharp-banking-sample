@@ -127,7 +127,8 @@ let startEmployeeRoutes (app: WebApplication) =
                      let cmd =
                         RefreshInvitationTokenCommand.create
                            employee.CompositeId
-                           (InitiatedById LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON)
+                           (InitiatedById
+                              Constants.LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON)
                            {
                               OrgRequiresEmployeeInviteApproval =
                                  org.Permissions.RequiresEmployeeInviteApproval

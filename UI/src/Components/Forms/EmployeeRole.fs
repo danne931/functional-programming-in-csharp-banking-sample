@@ -118,7 +118,7 @@ let EmployeeRoleFormComponent
    (employee: Employee)
    =
    let session = React.useContext UserSessionProvider.context
-   let orgCtx = React.useContext OrgAndAccountProfileProvider.context
+   let orgCtx = React.useContext OrgProvider.context
    let selectedRole, setSelectedRole = React.useState employee.Role
 
    let onSelect (role: Role) =
@@ -127,16 +127,16 @@ let EmployeeRoleFormComponent
 
    let formProps: Values = {
       Role = string employee.Role
-      DailyPurchaseLimit = string Card.DAILY_PURCHASE_LIMIT_DEFAULT
-      MonthlyPurchaseLimit = string Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+      DailyPurchaseLimit = string Constants.DAILY_PURCHASE_LIMIT_DEFAULT
+      MonthlyPurchaseLimit = string Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
       LinkedAccountId = ""
    }
 
-   match orgCtx.AccountProfiles, session with
-   | Deferred.Resolved(Ok(Some profiles)), Deferred.Resolved session ->
+   match orgCtx, session with
+   | Deferred.Resolved(Ok(Some org)), Deferred.Resolved session ->
       EmployeeFormContainer
       <| formProps
-      <| form session employee profiles onSelect
+      <| form session employee org.AccountProfiles onSelect
       <| onSubmit
       <| Some(
          Form.View.Action.Custom(fun state _ ->

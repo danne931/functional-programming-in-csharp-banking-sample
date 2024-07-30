@@ -170,9 +170,7 @@ let EmployeeCreateFormComponent
    (session: UserSession)
    (onSubmit: ParentOnSubmitHandler)
    =
-   let orgCtx = React.useContext OrgAndAccountProfileProvider.context
-   let accountProfiles = orgCtx.AccountProfiles
-   let org = orgCtx.Org
+   let orgCtx = React.useContext OrgProvider.context
    let pendingRole, setRole = React.useState Role.CardOnly
 
    let formProps: Values = {
@@ -181,24 +179,24 @@ let EmployeeCreateFormComponent
       Email = ""
       Role = string Role.CardOnly
       LinkedAccountId = ""
-      DailyPurchaseLimit = string Card.DAILY_PURCHASE_LIMIT_DEFAULT
-      MonthlyPurchaseLimit = string Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+      DailyPurchaseLimit = string Constants.DAILY_PURCHASE_LIMIT_DEFAULT
+      MonthlyPurchaseLimit = string Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
    }
 
    classyNode Html.div [ "grid" ] [
       EmployeePermissions.render pendingRole
 
-      match org, accountProfiles with
-      | Deferred.Resolved(Ok(Some org)), Deferred.Resolved(Ok(Some profiles)) ->
+      match orgCtx with
+      | Deferred.Resolved(Ok(Some org)) ->
          let submitText =
-            if org.Permissions.RequiresEmployeeInviteApproval then
+            if org.Org.Permissions.RequiresEmployeeInviteApproval then
                "Request Employee Invite Approval"
             else
                "Invite Employee"
 
          EmployeeFormContainer
             formProps
-            (form session org profiles setRole)
+            (form session org.Org org.AccountProfiles setRole)
             onSubmit
             (Some <| Form.View.Action.SubmitOnly submitText)
       | _ -> Html.progress []

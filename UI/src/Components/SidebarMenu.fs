@@ -1,9 +1,10 @@
 module SidebarMenu
 
 open Feliz
-open Lib.SharedTypes
+open Bank.Employee.Domain
 
 type private MenuUrl =
+   | Account
    | Transaction
    | EmployeeHistory
    | Employee
@@ -19,7 +20,9 @@ type private MenuItem = {
 let private renderListItem (item: MenuItem) =
    Html.li [
       match item.Url, item.SelectedUrl with
-      | Transaction, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
+      | Account, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
+      | Transaction, Routes.IndexUrl.Transaction _ ->
+         attr.classes [ "selected" ]
       | EmployeeHistory, Routes.IndexUrl.EmployeeHistory _ ->
          attr.classes [ "selected" ]
       | Employee, Routes.IndexUrl.Employees _ -> attr.classes [ "selected" ]
@@ -37,10 +40,17 @@ let render (currentUrl: Routes.IndexUrl) (session: UserSession) =
          attr.role "listbox"
          attr.children [
             renderListItem {
+               Url = Account
+               SelectedUrl = currentUrl
+               Name = "Accounts"
+               Href = Routes.AccountUrl.BasePath
+            }
+
+            renderListItem {
                Url = Transaction
                SelectedUrl = currentUrl
                Name = "Transactions"
-               Href = Routes.AccountUrl.BasePath
+               Href = Routes.TransactionUrl.BasePath
             }
 
             renderListItem {

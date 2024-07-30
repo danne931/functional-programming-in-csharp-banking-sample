@@ -99,7 +99,7 @@ let update msg state =
 
       state,
       Cmd.navigate (
-         Routes.AccountUrl.BasePath,
+         Routes.TransactionUrl.BasePath,
          string state.Query.AccountId,
          browserQueryParams
       )
@@ -181,7 +181,7 @@ let update msg state =
 
       state,
       Cmd.navigate (
-         Routes.AccountUrl.BasePath,
+         Routes.TransactionUrl.BasePath,
          string state.Query.AccountId,
          queryString
       )

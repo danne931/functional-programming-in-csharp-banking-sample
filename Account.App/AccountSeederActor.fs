@@ -35,7 +35,7 @@ type State = {
 }
 
 // TODO: Temporarily create org here until fleshed out
-let orgId = ORG_ID_REMOVE_SOON
+let orgId = Constants.ORG_ID_REMOVE_SOON
 
 let createOrg () =
    let query =
@@ -104,8 +104,10 @@ let mockAccounts =
       CreateAccountCommand.create {
          Name = "AR"
          Currency = Currency.USD
+         Depository = AccountDepository.Checking
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
+         AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
       }
@@ -115,8 +117,10 @@ let mockAccounts =
       CreateAccountCommand.create {
          Name = "AP"
          Currency = Currency.USD
+         Depository = AccountDepository.Checking
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
+         AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
       }
@@ -126,8 +130,10 @@ let mockAccounts =
       CreateAccountCommand.create {
          Name = "Operations"
          Currency = Currency.USD
+         Depository = AccountDepository.Checking
          AccountId =
             "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
+         AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
       }

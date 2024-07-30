@@ -67,7 +67,7 @@ let getOrg (id: OrgId) =
 
 let getOrgAndAccountProfiles
    (orgId: OrgId)
-   : Task<Result<Option<Org * AccountProfile list>, Err>>
+   : Task<Result<Option<OrgWithAccountProfiles>, Err>>
    =
    taskResultOption {
       let orgTable = OrganizationSqlMapper.table
@@ -83,6 +83,8 @@ let getOrgAndAccountProfiles
             {accountTable}.{Fields.name},
             {accountTable}.{Fields.depository},
             {accountTable}.{Fields.balance},
+            {accountTable}.{Fields.accountNumber},
+            {accountTable}.{Fields.routingNumber},
             {dtaView}.internal_transfer_accrued,
             {dtaView}.domestic_transfer_accrued
          FROM {orgTable}
@@ -103,6 +105,8 @@ let getOrgAndAccountProfiles
                   Name = Reader.name read
                   Depository = Reader.depository read
                   Balance = Reader.balance read
+                  AccountNumber = Reader.accountNumber read
+                  RoutingNumber = Reader.routingNumber read
                   DailyInternalTransferAccrued =
                      read.decimalOrNone "internal_transfer_accrued"
                      |> Option.defaultValue 0m
@@ -111,7 +115,13 @@ let getOrgAndAccountProfiles
                      |> Option.defaultValue 0m
                })
 
-      return fst (List.head res), List.map snd res
+      return {
+         Org = fst (List.head res)
+         AccountProfiles =
+            [ for _, account in res -> account.AccountId, account ]
+            |> Map.ofList
+         Balance = res |> List.sumBy (snd >> _.Balance)
+      }
    }
 
 let getAccountsByIds (accountIds: AccountId list) =

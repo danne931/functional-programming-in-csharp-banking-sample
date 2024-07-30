@@ -4,7 +4,7 @@ open Feliz
 open Fable.Core.JS
 
 open Lib.NetworkQuery
-open Lib.SharedTypes
+open UIDomain
 
 let renderMoneyFlowFilter
    (direction: MoneyFlow option)

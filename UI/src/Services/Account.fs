@@ -8,7 +8,6 @@ open Feliz.Router
 open UIDomain.Account
 open Bank.Account.Domain
 open Lib.SharedTypes
-open Lib.NetworkQuery
 open RoutePaths
 
 let private notImplemented (cmd: AccountCommand) =
@@ -19,6 +18,8 @@ let private notImplemented (cmd: AccountCommand) =
 let postJson (command: AccountCommand) =
    let serialized, url =
       match command with
+      | AccountCommand.CreateAccount cmd ->
+         Serialization.serialize cmd, AccountPath.Base
       | AccountCommand.DepositCash cmd ->
          Serialization.serialize cmd, AccountPath.Deposit
       | AccountCommand.InternalTransfer cmd ->
@@ -39,7 +40,7 @@ let postJson (command: AccountCommand) =
 
 let getOrgAndAccountProfiles
    (orgId: OrgId)
-   : Async<OrgAndAccountProfilesMaybe>
+   : Async<Result<OrgWithAccountProfiles option, Err>>
    =
    async {
       let path =
@@ -54,13 +55,8 @@ let getOrgAndAccountProfiles
       else
          return
             responseText
-            |> Serialization.deserialize<Org * AccountProfile list>
-            |> Result.map (fun (org, accounts) ->
-               Some(
-                  org,
-                  [ for account in accounts -> account.AccountId, account ]
-                  |> Map.ofList
-               ))
+            |> Serialization.deserialize<OrgWithAccountProfiles>
+            |> Result.map Some
    }
 
 let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = async {

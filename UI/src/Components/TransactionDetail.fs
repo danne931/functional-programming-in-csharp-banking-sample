@@ -7,6 +7,7 @@ open Elmish
 open System
 
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open UIDomain.Account
 open Bank.Transfer.Domain
 open Lib.SharedTypes
@@ -227,7 +228,11 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
          |> Router.encodeQueryString
 
       state,
-      Cmd.navigate (Routes.AccountUrl.BasePath, string senderId, queryString)
+      Cmd.navigate (
+         Routes.TransactionUrl.BasePath,
+         string senderId,
+         queryString
+      )
 
 let private nicknameCancelButton dispatch =
    Html.a [
@@ -626,7 +631,7 @@ let TransactionDetailComponent
             |> Router.encodeQueryString
 
          Router.navigate (
-            Routes.AccountUrl.BasePath,
+            Routes.TransactionUrl.BasePath,
             string account.AccountId,
             queryString
          ))

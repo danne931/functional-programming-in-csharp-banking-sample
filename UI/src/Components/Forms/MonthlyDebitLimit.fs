@@ -13,7 +13,7 @@ type Values = { Amount: string }
 let monthlyPurchaseLimitField =
    Form.textField {
       Parser =
-         (parseDecimal >=> monthlyPurchaseLimitValidator)
+         (parseDecimal >=> Card.monthlyPurchaseLimitValidator)
             "Monthly purchase limit"
          >> validationErrorsHumanFriendly
       Value = fun values -> values.Amount
@@ -21,7 +21,7 @@ let monthlyPurchaseLimitField =
       Error = fun _ -> None
       Attributes = {
          Label = "Monthly Purchase Limit:"
-         Placeholder = Money.format Card.MONTHLY_PURCHASE_LIMIT_DEFAULT
+         Placeholder = Money.format Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
          HtmlAttributes = []
       }
    }

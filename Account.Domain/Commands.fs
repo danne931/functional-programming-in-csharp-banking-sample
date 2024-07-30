@@ -7,7 +7,8 @@ open Lib.Validators
 
 type CreateAccountInput = {
    Name: string
-   //Depository: AccountDepository
+   AccountNumber: string
+   Depository: AccountDepository
    Currency: Currency
    AccountId: AccountId
    OrgId: OrgId
@@ -31,26 +32,19 @@ module CreateAccountCommand =
       =
       validate {
          let input = cmd.Data
-         let routingNumberInput = "123456789"
-         // TODO: Provide a workflow to check account numbers against DB
-         let accountNumberInput =
-            let random = System.Random()
-
-            List.init 15 (fun _ -> random.Next(1, 9) |> string)
-            |> String.concat ""
 
          let! accountName = accountNameValidator input.Name
 
          and! accountNumber =
-            accountNumberValidator "Account Number" accountNumberInput
+            AccountNumber.fromString "Account Number" input.AccountNumber
 
          and! routingNumber =
-            routingNumberValidator "Routing Number" routingNumberInput
+            RoutingNumber.fromString "Routing Number" "123456789"
 
          return
             BankEvent.create2<CreateAccountInput, CreatedAccount> cmd {
                Name = accountName
-               //Depository = input.Depository
+               Depository = input.Depository
                Balance = 0m
                Currency = input.Currency
                RoutingNumber = routingNumber

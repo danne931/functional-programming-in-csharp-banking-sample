@@ -12,7 +12,7 @@ open SignalRAccountEventProvider
 open TransactionCategoryProvider
 open UserSessionProvider
 open MerchantProvider
-open OrgAndAccountProfileProvider
+open OrgProvider
 
 [<ReactComponent>]
 let App () =
@@ -26,26 +26,29 @@ let App () =
 
    let activePage =
       match currentUrl with
-      | Routes.IndexUrl.Reporting -> Html.h1 "Reporting"
-      | Routes.IndexUrl.Employees url ->
-         EmployeeDashboard.EmployeeDashboardComponent url
-         |> UserSessionSuspense
-         |> (UserSessionProvider << OrgAndAccountProfileProvider)
-      | Routes.IndexUrl.EmployeeHistory url ->
-         EmployeeHistoryDashboard.EmployeeHistoryDashboardComponent url
-         |> UserSessionSuspense
-         |> UserSessionProvider
-      | Routes.IndexUrl.Cards url ->
-         CardDashboard.CardDashboardComponent url
-         |> UserSessionSuspense
-         |> (UserSessionProvider << OrgAndAccountProfileProvider)
       | Routes.IndexUrl.Account url ->
          AccountDashboard.AccountDashboardComponent url
          |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
+      | Routes.IndexUrl.Employees url ->
+         EmployeeDashboard.EmployeeDashboardComponent url
+         |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
+      | Routes.IndexUrl.EmployeeHistory url ->
+         EmployeeHistoryDashboard.EmployeeHistoryDashboardComponent url
+         |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
+      | Routes.IndexUrl.Cards url ->
+         CardDashboard.CardDashboardComponent url
+         |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
+      | Routes.IndexUrl.Transaction url ->
+         TransactionDashboard.TransactionDashboardComponent url
+         |> UserSessionSuspense
          |> (UserSessionProvider
+             << OrgProvider
              << SignalRConnectionProvider
              << SignalRAccountEventProvider
-             << OrgAndAccountProfileProvider
              << MerchantProvider
              << TransactionCategoryProvider)
       | Routes.IndexUrl.NotFound -> Html.h1 "Not Found"

@@ -3,7 +3,7 @@ module UserSessionProvider
 open Feliz
 open Fable.SimpleHttp
 
-open Lib.SharedTypes
+open Bank.Employee.Domain
 open RoutePaths
 
 let context =

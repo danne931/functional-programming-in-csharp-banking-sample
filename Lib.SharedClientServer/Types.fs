@@ -2,6 +2,7 @@ module Lib.SharedTypes
 
 open System
 open Validus
+open Validus.Operators
 
 module Guid =
    let parseOptional (id: string) =
@@ -291,60 +292,11 @@ type Err =
          | EmployeeStateTransitionError.EmployeeStatusDisallowsAccessRestore status ->
             $"Employee not in a state ({status}) to restore access."
 
-[<RequireQualifiedAccess>]
-type MoneyFlow =
-   | In
-   | Out
-
-module MoneyFlow =
-   let fromString (flow: string) : MoneyFlow option =
-      if String.IsNullOrEmpty flow then
-         None
-      else
-         match flow.ToLower() with
-         | "in" -> Some MoneyFlow.In
-         | "out" -> Some MoneyFlow.Out
-         | _ -> None
-
-[<RequireQualifiedAccess>]
-type Currency =
-   | USD
-   | EUR
-   | THB
-   | VND
-
-type Email = private {
-   Email: string
-} with
-
-   override x.ToString() = x.Email
-
-   static member ofString: Validator<string, Email> =
-      fun field input ->
-         let rule (x: string) =
-            if String.IsNullOrEmpty x then
-               false
-            elif String.length x > 255 then
-               false
-            else
-#if FABLE_COMPILER
-               true
-#else
-               try
-                  (System.Net.Mail.MailAddress x).Address = x
-               with :? FormatException ->
-                  false
-#endif
-
-         let message = sprintf "%s must be a valid email address"
-
-         input
-         |> Validator.create message rule field
-         |> Result.map (fun v -> { Email = v })
-
-   static member deserialize(email: string) : Email = { Email = email }
-
-   static member empty = { Email = "" }
+let validationErrorsHumanFriendly
+   (result: ValidationResult<'t>)
+   : Result<'t, string>
+   =
+   result |> Result.mapError (Err.ValidationError >> _.HumanFriendly)
 
 [<RequireQualifiedAccess>]
 type CircuitBreakerService =
@@ -371,40 +323,6 @@ type CircuitBreakerMessage =
 type CircuitBreakerActorState = {
    DomesticTransfer: CircuitBreakerStatus
    Email: CircuitBreakerStatus
-}
-
-let ORG_ID_REMOVE_SOON =
-   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67b9" |> Guid.Parse |> OrgId
-
-let LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON =
-   "ec3e94cc-eba1-4ff4-b3dc-55010ecf69b1" |> Guid.Parse |> EmployeeId
-
-module Card =
-   let DAILY_PURCHASE_LIMIT_DEFAULT = 2000m
-   let MONTHLY_PURCHASE_LIMIT_DEFAULT = 150_000m
-
-type AccountNumber =
-   | AccountNumber of int64
-
-   override x.ToString() =
-      let (AccountNumber num) = x
-      string num
-
-   member x.Last4 = x |> string |> (fun str -> str.Substring(str.Length - 4))
-
-type RoutingNumber =
-   | RoutingNumber of int
-
-   override x.ToString() =
-      let (RoutingNumber num) = x
-      string num
-
-type OrgPermissions = { RequiresEmployeeInviteApproval: bool }
-
-type Org = {
-   OrgId: OrgId
-   Name: string
-   Permissions: OrgPermissions
 }
 
 [<RequireQualifiedAccess>]
@@ -440,11 +358,32 @@ type Role =
       | None -> failwith "Error attempting to cast string to Role"
       | Some status -> status
 
-type UserSession = {
-   OrgId: OrgId
-   EmployeeId: EmployeeId
-   FirstName: string
-   LastName: string
-   Email: Email
-   Role: Role
-}
+type AccountNumber =
+   | AccountNumber of int64
+
+   override x.ToString() =
+      let (AccountNumber num) = x
+      string num
+
+   member x.Last4 = x |> string |> (fun str -> str.Substring(str.Length - 4))
+
+   static member fromString: Validator<string, AccountNumber> =
+      Lib.Validators.parseInt64 *|* string
+      >=> Check.String.betweenLen 6 15 *|* (Int64.Parse >> AccountNumber)
+
+   // TODO: Remove this & provide a workflow to check account numbers against DB
+   static member generate() : string =
+      let random = System.Random()
+
+      List.init 15 (fun _ -> random.Next(1, 9) |> string) |> String.concat ""
+
+type RoutingNumber =
+   | RoutingNumber of int
+
+   override x.ToString() =
+      let (RoutingNumber num) = x
+      string num
+
+   static member fromString: Validator<string, RoutingNumber> =
+      Lib.Validators.parseInt *|* string
+      >=> Check.String.equalsLen 9 *|* (Int32.Parse >> RoutingNumber)

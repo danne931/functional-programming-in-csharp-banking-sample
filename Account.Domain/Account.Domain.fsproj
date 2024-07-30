@@ -4,10 +4,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="CoreTypes.fs" />
     <Compile Include="MaintenanceFee.fs" />
     <Compile Include="Events.fs" />
     <Compile Include="Commands.fs" />
-    <Compile Include="Types.fs" />
+    <Compile Include="AggregateTypes.fs" />
     <Compile Include="Account.fs" />
   </ItemGroup>
 

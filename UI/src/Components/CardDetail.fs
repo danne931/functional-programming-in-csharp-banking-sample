@@ -279,10 +279,7 @@ let CardDetailComponent
    let state, dispatch =
       React.useElmish (init, update notifyParentOnUpdate, [||])
 
-   let accounts =
-      OrgAndAccountProfileProvider.context
-      |> React.useContext
-      |> _.AccountProfiles
+   let orgCtx = React.useContext OrgProvider.context
 
    let lockCardMsg = {
       InitiatedBy = InitiatedById userSession.EmployeeId
@@ -371,7 +368,7 @@ let CardDetailComponent
             ]
             attr.onClick (fun _ ->
                let pathArray =
-                  Routes.AccountUrl.selectedPath card.Card.AccountId
+                  Routes.TransactionUrl.selectedPath card.Card.AccountId
 
                let queryString =
                   {
@@ -425,9 +422,9 @@ let CardDetailComponent
          classyNode Html.div [ "grid" ] [
             Html.small "Account"
             Html.p (
-               match accounts with
-               | Deferred.Resolved(Ok(Some profiles)) ->
-                  profiles.TryFind card.Card.AccountId
+               match orgCtx with
+               | Deferred.Resolved(Ok(Some org)) ->
+                  org.AccountProfiles.TryFind card.Card.AccountId
                   |> Option.map _.Name
                   |> Option.defaultValue "-"
                | _ -> "-"

@@ -1,5 +1,6 @@
 module UIDomain.Employee
 
+open Bank.Account.Domain
 open Bank.Employee.Domain
 open Lib.SharedTypes
 open Lib.NetworkQuery

@@ -1,6 +1,7 @@
 module OrganizationSqlMapper
 
 open Lib.SharedTypes
+open Bank.Account.Domain
 
 let table = "organization"
 

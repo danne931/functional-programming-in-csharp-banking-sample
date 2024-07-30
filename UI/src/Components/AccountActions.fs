@@ -32,7 +32,7 @@ let navigation (accountId: AccountId) (view: AccountActionView option) =
       |> AccountBrowserQuery.toQueryParams
       |> Router.encodeQueryString
 
-   [| Routes.AccountUrl.BasePath; string accountId; queryString |]
+   [| Routes.TransactionUrl.BasePath; string accountId; queryString |]
 
 type State = {
    Account: Account

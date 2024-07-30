@@ -19,7 +19,9 @@ let renderAccountListItem
          attr.onClick (fun e ->
             e.preventDefault ()
 
-            Router.navigate ("account", string account.AccountId))
+            Router.navigate (
+               Routes.TransactionUrl.selectedPath account.AccountId
+            ))
 
          match selectedAccountId with
          | Some selectedId when selectedId = account.AccountId ->

@@ -118,7 +118,7 @@ let domesticRecipientForm
    let fieldAccountNumber =
       Form.textField {
          Parser =
-            accountNumberValidator "Account Number"
+            AccountNumber.fromString "Account Number"
             >> validationErrorsHumanFriendly
             >> Result.map string
          Value = fun (values: Values) -> values.AccountNumber
@@ -135,7 +135,7 @@ let domesticRecipientForm
    let fieldRoutingNumber =
       Form.textField {
          Parser =
-            routingNumberValidator "Routing Number"
+            RoutingNumber.fromString "Routing Number"
             >> validationErrorsHumanFriendly
             >> Result.map string
          Value = fun (values: Values) -> values.RoutingNumber

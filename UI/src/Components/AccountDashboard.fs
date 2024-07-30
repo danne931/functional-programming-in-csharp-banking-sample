@@ -1,183 +1,133 @@
 module AccountDashboard
 
 open Feliz
-open Feliz.UseElmish
 open Feliz.Router
-open Elmish
+open Fable.FontAwesome
 
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open UIDomain.Account
-open Lib.SharedTypes
-open TransactionDetail
-open AccountSelection
+open Bank.Account.Forms.AccountCreateForm
 
-type State = {
-   CurrentAccountId: AccountId option
-   CurrentAccountAndTransactions: Deferred<AccountAndTransactionsMaybe>
-}
+[<ReactComponent>]
+let AccountNumberComponent (profile: AccountProfile) =
+   let display, toggleDisplay = React.useState false
 
-let selectedAccount (state: State) : Account option =
-   match state.CurrentAccountAndTransactions with
-   | Resolved(Ok(Some(account, _))) -> Some account
-   | _ -> None
+   React.fragment [
+      if display then
+         Html.b (string profile.AccountNumber)
+      else
+         Html.b $"*****{profile.AccountNumber.Last4}"
 
-let updateAccountAndTransactions
-   (transform: Account * AccountEvent list -> Account * AccountEvent list)
-   (state: State)
-   : Deferred<AccountAndTransactionsMaybe>
-   =
-   (Deferred.map << Result.map << Option.map)
-      transform
-      state.CurrentAccountAndTransactions
+      Html.a [
+         attr.href ""
 
-type Msg =
-   | LoadAccountAndTransactions of
-      AccountId *
-      AsyncOperationStatus<AccountAndTransactionsMaybe>
-   | AccountEventPersisted of AccountEventPersistedConfirmation
+         attr.onClick (fun e ->
+            e.preventDefault ()
+            toggleDisplay (not display))
 
-let init () =
-   {
-      CurrentAccountId = None
-      CurrentAccountAndTransactions = Deferred.Idle
-   },
-   Cmd.none
+         attr.children [
+            if display then
+               Fa.i [ Fa.Solid.EyeSlash ] []
+            else
+               Fa.i [ Fa.Solid.Eye ] []
+         ]
+      ]
+   ]
 
-let update msg state =
-   match msg with
-   | LoadAccountAndTransactions(accountId, Started) ->
-      let query =
-         TransactionService.transactionQueryFromAccountBrowserQuery
-            accountId
-            (Routes.IndexUrl.accountBrowserQuery ())
-
-      let load = async {
-         let! res = AccountService.getAccountAndTransactions query
-         return Msg.LoadAccountAndTransactions(accountId, Finished res)
-      }
-
-      {
-         state with
-            CurrentAccountId = Some accountId
-            CurrentAccountAndTransactions = Deferred.InProgress
-      },
-      Cmd.fromAsync load
-   | LoadAccountAndTransactions(_, Finished(Ok(Some(account, txns)))) ->
-      {
-         state with
-            CurrentAccountAndTransactions =
-               Deferred.Resolved(Ok(Some(account, txns)))
-      },
-      Cmd.none
-   | LoadAccountAndTransactions _ ->
-      Log.error "Issue loading account + transactions."
-      state, Cmd.none
-   | AccountEventPersisted data ->
-      let account = data.Account
-      let evt = data.EventPersisted
-
-      {
-         state with
-            CurrentAccountAndTransactions =
-               updateAccountAndTransactions
-                  (fun (_, txns) -> account, evt :: txns)
-                  state
-      },
-      Cmd.none
+let private onClose _ =
+   Router.navigate Routes.AccountUrl.BasePath
 
 [<ReactComponent>]
 let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
-   let state, dispatch = React.useElmish (init, update, [||])
-
-   let accountProfiles =
-      (React.useContext OrgAndAccountProfileProvider.context).AccountProfiles
-
-   let accountIdOpt = Routes.AccountUrl.accountIdMaybe url
-
-   React.useEffect (
-      fun () ->
-         match accountIdOpt with
-         | Some id -> dispatch <| Msg.LoadAccountAndTransactions(id, Started)
-         | _ -> ()
-      , [| box (string accountIdOpt) |]
-   )
-
-   // Redirect /account to /account/{first-account-id}
-   React.useEffect (
-      fun () ->
-         match accountProfiles, url with
-         | Deferred.Resolved(Ok(Some profiles)), Routes.AccountUrl.Account ->
-            profiles
-            |> Map.values
-            |> Seq.head
-            |> _.AccountId
-            |> Routes.AccountUrl.selectedPath
-            |> Router.navigate
-         | _ -> ()
-      , [| box accountProfiles; box (string url) |]
-   )
-
-   SignalRAccountEventProvider.useAccountEventSubscription {
-      ComponentName = "AccountDashboard"
-      AccountId = accountIdOpt
-      OnReceive = Msg.AccountEventPersisted >> dispatch
-   }
-
-   let accountOpt = selectedAccount state
+   let orgCtx = React.useContext OrgProvider.context
+   let orgDispatch = React.useContext OrgProvider.dispatchContext
 
    classyNode Html.div [ "account-dashboard" ] [
-      match accountProfiles with
-      | Deferred.Resolved(Ok(Some accounts)) ->
-         AccountSelectionComponent state.CurrentAccountId accounts
-         |> Navigation.Portal
-      | _ -> ()
+      match url with
+      | Routes.AccountUrl.CreateAccount ->
+         classyNode Html.article [ "form-wrapper" ] [
+            Html.h6 "Create Account"
+            CloseButton.render onClose
 
-      ServiceHealth.ServiceHealthComponent()
+            AccountCreateFormComponent
+               session
+               (_.PendingState
+                >> AccountProfile.fromAccount
+                >> OrgProvider.Msg.AccountCreated
+                >> orgDispatch
+                >> onClose)
+         ]
+         |> ScreenOverlay.Portal
+      | _ -> ()
 
       classyNode Html.main [ "container-fluid" ] [
-         classyNode Html.div [ "grid" ] [
-            Html.section [
-               Html.h4 "Transactions"
-               match accountOpt with
-               | None -> Html.progress []
-               | Some account ->
-                  TransactionTable.TransactionTableComponent
-                     account
-                     state.CurrentAccountAndTransactions
+         classyNode Html.div [ "title-and-button-container" ] [
+            Html.h4 "Accounts"
+            Html.button [
+               attr.children [
+                  Fa.i [ Fa.Solid.Plus ] []
+                  Html.span "Create Account"
+               ]
+
+               attr.onClick (fun _ ->
+                  Router.navigate Routes.AccountUrl.CreateAccountPath)
+            ]
+         ]
+
+         Html.progress [
+            match orgCtx with
+            | Deferred.Resolved _ -> attr.value 100
+            | _ -> ()
+         ]
+
+         match orgCtx with
+         | Deferred.Resolved(Ok(Some org)) ->
+            classyNode Html.div [ "org-summary" ] [
+               Html.small "Balance across all accounts: "
+
+               Html.h2 [
+                  attr.classes [ "balance" ]
+                  attr.text (Money.format org.Balance)
+               ]
             ]
 
-            match
-               accountProfiles,
-               accountOpt,
-               Routes.IndexUrl.accountBrowserQuery().Action
-            with
-            | Deferred.Resolved(Ok(Some profiles)), Some account, Some action ->
-               AccountActions.AccountActionsComponent
-                  session
-                  account
-                  profiles
-                  action
-                  (AccountEventPersisted >> dispatch)
-               |> ScreenOverlay.Portal
-            | _, Some account, _ ->
-               Html.aside [ AccountActionMenu.render account ]
-            | _ -> ()
+            classyNode Html.div [ "grid"; "accounts" ] [
+               for account in org.AccountProfiles.Values do
+                  Html.article [
+                     Html.div [
+                        Html.p account.Name
+                        Html.h5 [
+                           attr.style [ style.margin 0 ]
+                           attr.text (Money.format account.Balance)
+                        ]
+                     ]
 
-            match Routes.AccountUrl.transactionIdMaybe url with
-            | Some txnId ->
-               match accountOpt with
-               | Some account ->
-                  TransactionDetailComponent session account txnId
-               | _ -> Html.progress []
-               |> ScreenOverlay.Portal
-            | None -> ()
-         ]
+                     Html.div [
+                        Html.small "Account Number:"
+                        AccountNumberComponent account
+                     ]
+
+                     Html.div [
+                        Html.small "Routing Number:"
+                        Html.b (string account.RoutingNumber)
+                     ]
+
+                     Html.button [
+                        attr.classes [ "outline" ]
+                        attr.children [
+                           Fa.i [ Fa.Solid.History ] []
+                           Html.span "View Transactions"
+                        ]
+
+                        attr.onClick (fun _ ->
+                           Router.navigate (
+                              Routes.TransactionUrl.selectedPath
+                                 account.AccountId
+                           ))
+                     ]
+                  ]
+            ]
+         | _ -> ()
       ]
-
-      match accountProfiles, accountIdOpt with
-      | Deferred.Resolved(Ok(Some profiles)), Some accountId ->
-         match profiles.TryFind accountId with
-         | Some profile -> AccountSummary.render profile
-         | None -> ()
-      | _ -> ()
    ]

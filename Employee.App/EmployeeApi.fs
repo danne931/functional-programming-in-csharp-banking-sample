@@ -190,10 +190,7 @@ let filtersToEventNames
       []
    |> List.toArray
 
-let getEmployeeHistory
-   (orgId: OrgId)
-   (query: Lib.NetworkQuery.EmployeeHistoryQuery)
-   =
+let getEmployeeHistory (orgId: OrgId) (query: EmployeeHistoryQuery) =
    let employeeTable = EmployeeSqlMapper.table
    let eventTable = EmployeeEventSqlMapper.table
    let limit = 10
@@ -275,7 +272,7 @@ module Fields = CardSqlMapper.CardFields
 module Reader = CardSqlMapper.CardSqlReader
 module Writer = CardSqlMapper.CardSqlWriter
 
-let getCards (orgId: OrgId) (query: Lib.NetworkQuery.CardQuery) =
+let getCards (orgId: OrgId) (query: CardQuery) =
    let table = CardSqlMapper.table
    let employeeTable = EmployeeSqlMapper.table
    let dpaView = "daily_purchase_accrued"

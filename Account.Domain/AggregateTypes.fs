@@ -131,62 +131,6 @@ module AccountEnvelope =
       | AccountClosed evt -> wrap evt, get evt
       | BillingCycleStarted evt -> wrap evt, get evt
 
-[<RequireQualifiedAccess>]
-type AccountStatus =
-   | InitialEmptyState
-   | Pending
-   | Active
-   | Closed
-   | ReadyForDelete
-
-   override x.ToString() =
-      match x with
-      | AccountStatus.InitialEmptyState -> "initialemptystate"
-      | AccountStatus.Pending -> "pending"
-      | AccountStatus.Active -> "active"
-      | AccountStatus.Closed -> "closed"
-      | AccountStatus.ReadyForDelete -> "readyfordelete"
-
-   static member fromString(status: string) : AccountStatus option =
-      if String.IsNullOrEmpty status then
-         None
-      else
-         match status.ToLower() with
-         | "pending" -> Some AccountStatus.Pending
-         | "active" -> Some AccountStatus.Active
-         | "closed" -> Some AccountStatus.Closed
-         | "readyfordelete" -> Some AccountStatus.ReadyForDelete
-         | _ -> None
-
-   static member fromStringUnsafe(status: string) : AccountStatus =
-      match AccountStatus.fromString status with
-      | None -> failwith "Error attempting to cast string to AccountStatus"
-      | Some status -> status
-
-[<RequireQualifiedAccess>]
-type AccountDepository =
-   | Checking
-   | Savings
-
-   override x.ToString() =
-      match x with
-      | AccountDepository.Checking -> "checking"
-      | AccountDepository.Savings -> "savings"
-
-   static member fromString(dep: string) : AccountDepository option =
-      if String.IsNullOrEmpty dep then
-         None
-      else
-         match dep.ToLower() with
-         | "checking" -> Some AccountDepository.Checking
-         | "savings" -> Some AccountDepository.Savings
-         | _ -> None
-
-   static member fromStringUnsafe(dep: string) : AccountDepository =
-      match AccountDepository.fromString dep with
-      | None -> failwith "Error attempting to cast string to AccountDepository"
-      | Some dep -> dep
-
 type Account = {
    AccountId: AccountId
    OrgId: OrgId
@@ -226,12 +170,33 @@ type AccountProfile = {
    OrgId: OrgId
    Name: string
    Depository: AccountDepository
+   AccountNumber: AccountNumber
+   RoutingNumber: RoutingNumber
    Balance: decimal
    DailyInternalTransferAccrued: decimal
    DailyDomesticTransferAccrued: decimal
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
+
+module AccountProfile =
+   let fromAccount (account: Account) : AccountProfile = {
+      AccountId = account.AccountId
+      OrgId = account.OrgId
+      Name = account.Name
+      Depository = account.Depository
+      AccountNumber = account.AccountNumber
+      RoutingNumber = account.RoutingNumber
+      Balance = account.Balance
+      DailyInternalTransferAccrued = 0m
+      DailyDomesticTransferAccrued = 0m
+   }
+
+type OrgWithAccountProfiles = {
+   Org: Org
+   AccountProfiles: Map<AccountId, AccountProfile>
+   Balance: decimal
+}
 
 type AccountMessage =
    | GetAccount
@@ -290,17 +255,9 @@ module AccountLoadTestTypes =
       | Lookup
       | AccountEventPersisted of LoadTestEventPersisted
 
-type TransactionCategory = { Id: int; Name: string }
-
 type TransactionWithAncillaryInfo = {
    Id: EventId
    Event: AccountEvent
    Category: TransactionCategory option
    Note: string option
-}
-
-type Merchant = {
-   OrgId: OrgId
-   Name: string
-   Alias: string option
 }

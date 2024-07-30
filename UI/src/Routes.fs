@@ -11,38 +11,57 @@ open Lib.SharedTypes
 [<RequireQualifiedAccess>]
 type AccountUrl =
    | Account
-   | AccountSelected of AccountId
-   | AccountSelectedWithQuery of AccountId * AccountBrowserQuery
+   | CreateAccount
    | NotFound
 
 module AccountUrl =
    [<Literal>]
-   let BasePath = "account"
+   let BasePath = "accounts"
+
+   let CreateAccountPath = [| BasePath; "create" |]
+
+   let parse =
+      function
+      // Matches /
+      | [] -> AccountUrl.Account
+      | [ "create" ] -> AccountUrl.CreateAccount
+      | _ -> AccountUrl.NotFound
+
+[<RequireQualifiedAccess>]
+type TransactionUrl =
+   | Account
+   | AccountSelected of AccountId
+   | AccountSelectedWithQuery of AccountId * AccountBrowserQuery
+   | NotFound
+
+module TransactionUrl =
+   [<Literal>]
+   let BasePath = "transactions"
 
    let selectedPath (accountId: AccountId) = [| BasePath; string accountId |]
 
    let parse =
       function
       // Matches /
-      | [] -> AccountUrl.Account
+      | [] -> TransactionUrl.Account
       // Matches /{accountId:Guid}
       | [ Route.Guid accountId ] ->
-         AccountUrl.AccountSelected(AccountId accountId)
+         TransactionUrl.AccountSelected(AccountId accountId)
       // /{accountId:Guid}?action=deposit&isCategorized=false&date=Last30Days
       | [ Route.Guid accountId; Route.Query queryParams ] ->
          let query = AccountBrowserQuery.fromQueryParams queryParams
-         AccountUrl.AccountSelectedWithQuery(AccountId accountId, query)
-      | _ -> AccountUrl.NotFound
+         TransactionUrl.AccountSelectedWithQuery(AccountId accountId, query)
+      | _ -> TransactionUrl.NotFound
 
    let accountIdMaybe =
       function
-      | AccountUrl.AccountSelected id -> Some id
-      | AccountUrl.AccountSelectedWithQuery(id, _) -> Some id
+      | TransactionUrl.AccountSelected id -> Some id
+      | TransactionUrl.AccountSelectedWithQuery(id, _) -> Some id
       | _ -> None
 
    let transactionIdMaybe =
       function
-      | AccountUrl.AccountSelectedWithQuery(_, query) -> query.Transaction
+      | TransactionUrl.AccountSelectedWithQuery(_, query) -> query.Transaction
       | _ -> None
 
 [<RequireQualifiedAccess>]
@@ -110,10 +129,10 @@ module CardUrl =
 [<RequireQualifiedAccess>]
 type IndexUrl =
    | Account of AccountUrl
+   | Transaction of TransactionUrl
    | EmployeeHistory of EmployeeHistoryUrl
    | Employees of EmployeeUrl
    | Cards of CardUrl
-   | Reporting
    | NotFound
 
 module IndexUrl =
@@ -121,15 +140,16 @@ module IndexUrl =
       // Temporarily redirect Index page to Accounts.
       let segments =
          if segments.IsEmpty then
-            [ AccountUrl.BasePath ]
+            [ TransactionUrl.BasePath ]
          else
             segments
 
       match segments with
-      //| "reporting" :: reportingSegments ->
-      // Matches /account/{AccountUrl}
       | AccountUrl.BasePath :: segments ->
          IndexUrl.Account(AccountUrl.parse segments)
+      // Matches /transactions/{TransactionUrl}
+      | TransactionUrl.BasePath :: segments ->
+         IndexUrl.Transaction(TransactionUrl.parse segments)
       // Matches /employee-history/{EmployeeHistoryUrl}
       | EmployeeHistoryUrl.BasePath :: segments ->
          IndexUrl.EmployeeHistory(EmployeeHistoryUrl.parse segments)
@@ -144,9 +164,9 @@ module IndexUrl =
 
    let accountBrowserQuery () =
       match current () with
-      | IndexUrl.Account url ->
+      | IndexUrl.Transaction url ->
          match url with
-         | AccountUrl.AccountSelectedWithQuery(_, query) -> query
+         | TransactionUrl.AccountSelectedWithQuery(_, query) -> query
          | _ -> AccountBrowserQuery.empty
       | _ -> AccountBrowserQuery.empty
 
@@ -176,5 +196,5 @@ module IndexUrl =
 
    let accountIdMaybe () =
       match current () with
-      | IndexUrl.Account url -> AccountUrl.accountIdMaybe url
+      | IndexUrl.Transaction url -> TransactionUrl.accountIdMaybe url
       | _ -> None
