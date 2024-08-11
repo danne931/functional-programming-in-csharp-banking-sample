@@ -15,6 +15,7 @@
     <Compile Include="Lib/AccountDomain.fs" />
     <Compile Include="Lib/EmployeeDomain.fs" />
     <Compile Include="Lib/CardDomain.fs" />
+    <Compile Include="Services/Analytics.fs" />
     <Compile Include="Services/Diagnostics.fs" />
     <Compile Include="Services/Transaction.fs" />
     <Compile Include="Services/Account.fs" />
@@ -71,6 +72,7 @@
     <Compile Include="Components/EmployeeDetail.fs" />
     <Compile Include="Components/EmployeeDashboard.fs" />
     <Compile Include="Components/EmployeeHistoryDashboard.fs" />
+    <Compile Include="Components/AnalyticsDashboard.fs" />
     <Compile Include="Components/SidebarMenu.fs" /> 
     <Compile Include="App.fs" />
   </ItemGroup>
@@ -81,6 +83,7 @@
     <PackageReference Include="Fable.Form.Simple" />
     <PackageReference Include="Fable.SimpleHttp" />
     <PackageReference Include="Feliz" />
+    <PackageReference Include="Feliz.Recharts" />
     <PackageReference Include="Feliz.Router" />
     <PackageReference Include="Feliz.UseElmish" />
     <PackageReference Include="FSharp.Core" />

@@ -93,6 +93,16 @@ let startTransactionRoutes (app: WebApplication) =
    |> ignore
 
    app
+      .MapGet(
+         TransactionPath.TransactionConfirmation,
+         Func<Guid, Task<IResult>>(fun correlationId ->
+            getCorrelatedTransactionConfirmations (CorrelationId correlationId)
+            |> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.GetTransactionInfo)
+   |> ignore
+
+   app
       .MapPost(
          TransactionPath.Category,
          Func<Guid, int, Task<IResult>>(fun txnId categoryId ->

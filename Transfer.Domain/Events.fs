@@ -5,9 +5,12 @@ open System
 open Lib.SharedTypes
 
 type BaseInternalTransferInfo = {
+   RecipientOrgId: OrgId
    RecipientId: AccountId
+   RecipientName: string
    Amount: decimal
    ScheduledDate: DateTime
+   Sender: InternalTransferSender
 }
 
 type InternalTransferPending = {
@@ -71,7 +74,10 @@ type InternalRecipientDeactivated = {
 
 type InternalSenderRegistered = { Sender: InternalTransferSender }
 
-type TransferDeposited = { Amount: decimal; Origin: AccountId }
+type TransferDeposited = {
+   Amount: decimal
+   Source: InternalTransferSender
+}
 
 type RecipientNicknamed = {
    RecipientId: AccountId

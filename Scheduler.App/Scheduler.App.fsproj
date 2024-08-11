@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <Compile Include="Environment.fs" />
+    <Compile Include="BalanceHistoryTriggers.fs" /> 
     <Compile Include="AccountClosureTriggers.fs" />
     <Compile Include="BillingCycleTriggers.fs" />
     <Compile Include="TransferProgressTriggers.fs" />
@@ -19,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Database/Database.fsproj" />
     <ProjectReference Include="../Lib/Lib.fsproj" />
     <ProjectReference Include="../Billing.Domain/Billing.Domain.fsproj" />
     <ProjectReference Include="../Account.Domain/Account.Domain.fsproj" />

@@ -2,41 +2,15 @@ module Lib.Time
 
 open System
 
-type ComputedDuration = {
-   Start: DateTime
-   End: DateTime
-   Duration: TimeSpan
-} with
-
-   static member empty = {
-      Start = DateTime.MinValue
-      End = DateTime.MinValue
-      Duration = TimeSpan.Zero
-   }
-
-   member x.start() = { x with Start = DateTime.UtcNow }
-
-   member x.computeDuration(endTime: DateTime option) =
-      let endTime = endTime |> Option.defaultValue DateTime.UtcNow
-
-      {
-         x with
-            End = endTime
-            Duration = endTime - x.Start
-      }
-
 module DateTime =
    let isToday (date: DateTime) =
-      let today = DateTime.UtcNow
-
-      DateTime(today.Year, today.Month, today.Day) = DateTime(
-         date.Year,
-         date.Month,
-         date.Day
-      )
+      let date = date.ToLocalTime().Date
+      let today = DateTime.Now.Date
+      date = today
 
    let isThisMonth (date: DateTime) =
-      let today = DateTime.UtcNow
+      let date = date.ToLocalTime()
+      let today = DateTime.Now
       (today.Month, today.Year) = (date.Month, date.Year)
 
    let parseOptional (date: string) =
@@ -49,6 +23,25 @@ module DateTime =
          )
       with _ ->
          None
+
+   let numberToDisplayMonth =
+      Map [
+         1, "Jan"
+         2, "Feb"
+         3, "Mar"
+         4, "Apr"
+         5, "May"
+         6, "Jun"
+         7, "Jul"
+         8, "Aug"
+         9, "Sep"
+         10, "Oct"
+         11, "Nov"
+         12, "Dec"
+      ]
+
+   let formatShort (date: DateTime) =
+      $"{numberToDisplayMonth[date.Month]} {date.Day}"
 
    let formatRangeShort (dateStart: DateTime) (dateEnd: DateTime) =
       let withYear =

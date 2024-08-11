@@ -3,7 +3,6 @@ module UIDomain
 open System
 
 open Lib.NetworkQuery
-open Lib.SharedTypes
 open Lib.Time
 
 module CategoryFilter =
@@ -97,6 +96,11 @@ module DateFilter =
       | DateFilter.LastYear ->
          DateTime(DateTime.Today.AddYears(-1).Year, 1, 1),
          DateTime(DateTime.Today.Year, 1, 1).AddMilliseconds(-1)
+
+   let toQueryString (filter: DateFilter) =
+      filter
+      |> toDateRange
+      |> fun (st, en) -> DateTime.rangeAsQueryString st en
 
    let dateRangeDisplay (dates: DateTime * DateTime) =
       let dateStart, dateEnd = DateTime.formatRangeShort (fst dates) (snd dates)

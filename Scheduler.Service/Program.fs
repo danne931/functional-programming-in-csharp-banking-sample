@@ -142,6 +142,9 @@ builder.Services.AddAkka(
 
                schedulingActor
                <! SchedulingActor.TransferProgressCronJobSchedule
+
+               schedulingActor
+               <! SchedulingActor.BalanceHistoryCronJobSchedule
             })
          )
       |> ignore

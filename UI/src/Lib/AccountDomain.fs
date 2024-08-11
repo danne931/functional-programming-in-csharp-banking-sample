@@ -285,11 +285,7 @@ let transactionUIFriendly
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
       }
    | TransferDeposited evt ->
-      let sender =
-         account.InternalTransferSenders
-         |> Map.tryFind evt.Data.Origin
-         |> Option.map _.Name
-         |> Option.defaultValue (accountIdLast4 evt.Data.Origin)
+      let sender = evt.Data.Source.Name
 
       {
          props with

@@ -26,6 +26,10 @@ let App () =
 
    let activePage =
       match currentUrl with
+      | Routes.IndexUrl.Analytics url ->
+         AnalyticsDashboard.AnalyticsDashboardComponent url
+         |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
       | Routes.IndexUrl.Account url ->
          AccountDashboard.AccountDashboardComponent url
          |> UserSessionSuspense

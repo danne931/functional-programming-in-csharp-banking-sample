@@ -11,6 +11,7 @@ open Bank.Transfer.Domain
 open BillingStatement
 open ActorUtil
 open Lib.SharedTypes
+open Lib.Postgres
 
 // NOTE:
 // Using a QuartzMessageEnvelope type for messages serialized with
@@ -24,12 +25,15 @@ type Message =
    | BillingCycleCronJobSchedule
    | DeleteAccountsJobSchedule of AccountId list
    | TransferProgressCronJobSchedule
+   | BalanceHistoryCronJobSchedule
+   | TriggerBalanceHistoryCronJob
 
 let actorProps (quartzPersistentActorRef: IActorRef) =
-   let handler (ctx: Actor<Message>) =
+   let handler (ctx: Actor<Message>) = actor {
       let logInfo = logInfo ctx
+      let! msg = ctx.Receive()
 
-      function
+      match msg with
       | AccountClosureCronJobSchedule ->
          logInfo $"Scheduling nightly account closure checker"
 
@@ -102,8 +106,37 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
          ignored ()
+      | BalanceHistoryCronJobSchedule ->
+         logInfo "Scheduling daily balance history update."
+         let trigger = BalanceHistoryTriggers.scheduleNightly logInfo
+         let path = ctx.Self.Path
 
-   props <| actorOf2 handler
+         let job =
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "SchedulingActorMessage"
+                  Message = Message.TriggerBalanceHistoryCronJob
+               },
+               trigger
+            )
+
+         quartzPersistentActorRef.Tell(job)
+         ignored ()
+      | TriggerBalanceHistoryCronJob ->
+         logInfo "Balance history daily update triggered."
+         let! res = pgProcedure "update_balance_history_for_yesterday" None
+
+         match res with
+         | Ok _ ->
+            logInfo $"Balance history daily update complete."
+            return ignored ()
+         | Error err ->
+            logError ctx $"Daily balance history update error: {err}"
+            return unhandled ()
+   }
+
+   props handler
 
 let get (registry: IActorRegistry) : IActorRef<Message> =
    typed <| registry.Get<ActorMetadata.SchedulingMarker>()

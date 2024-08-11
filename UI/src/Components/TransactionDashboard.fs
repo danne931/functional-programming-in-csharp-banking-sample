@@ -35,7 +35,7 @@ type Msg =
    | LoadAccountAndTransactions of
       AccountId *
       AsyncOperationStatus<AccountAndTransactionsMaybe>
-   | AccountEventPersisted of AccountEventPersistedConfirmation
+   | AccountEventPersisted of AccountEventPersistedConfirmation list
 
 let init () =
    {
@@ -63,28 +63,31 @@ let update msg state =
             CurrentAccountAndTransactions = Deferred.InProgress
       },
       Cmd.fromAsync load
-   | LoadAccountAndTransactions(_, Finished(Ok(Some(account, txns)))) ->
+   | LoadAccountAndTransactions(_, Finished(Ok res)) ->
       {
          state with
-            CurrentAccountAndTransactions =
-               Deferred.Resolved(Ok(Some(account, txns)))
+            CurrentAccountAndTransactions = Deferred.Resolved(Ok res)
       },
       Cmd.none
-   | LoadAccountAndTransactions _ ->
-      Log.error "Issue loading account + transactions."
+   | LoadAccountAndTransactions(_, Finished(Error err)) ->
+      Log.error $"Issue loading account + transactions. {err}"
       state, Cmd.none
-   | AccountEventPersisted data ->
-      let account = data.Account
-      let evt = data.EventPersisted
+   | AccountEventPersisted items ->
+      if items.IsEmpty then
+         Log.error "AccountEventPersisted with no items."
+         state, Cmd.none
+      else
+         let account = items |> List.head |> _.Account
+         let evts = items |> List.map _.EventPersisted
 
-      {
-         state with
-            CurrentAccountAndTransactions =
-               updateAccountAndTransactions
-                  (fun (_, txns) -> account, evt :: txns)
-                  state
-      },
-      Cmd.none
+         {
+            state with
+               CurrentAccountAndTransactions =
+                  updateAccountAndTransactions
+                     (fun (_, txns) -> account, evts @ txns)
+                     state
+         },
+         Cmd.none
 
 [<ReactComponent>]
 let TransactionDashboardComponent
@@ -138,7 +141,7 @@ let TransactionDashboardComponent
                   PersistedEvent = conf.EventPersisted
                |}
 
-            dispatch <| Msg.AccountEventPersisted conf
+            dispatch <| Msg.AccountEventPersisted [ conf ]
    }
 
    let accountOpt = selectedAccount state
@@ -156,12 +159,14 @@ let TransactionDashboardComponent
          classyNode Html.div [ "grid" ] [
             Html.section [
                Html.h4 "Transactions"
-               match accountOpt with
-               | None -> Html.progress []
-               | Some account ->
+               match state.CurrentAccountAndTransactions with
+               | Deferred.Resolved(Error _)
+               | Deferred.Resolved(Ok None) -> Html.p "No transactions."
+               | Deferred.Resolved(Ok(Some(account, _))) ->
                   TransactionTable.TransactionTableComponent
                      account
                      state.CurrentAccountAndTransactions
+               | _ -> Html.progress []
             ]
 
             match

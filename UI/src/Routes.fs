@@ -9,6 +9,20 @@ open UIDomain.Card
 open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]
+type AnalyticsUrl =
+   | Analytics
+   | NotFound
+
+module AnalyticsUrl =
+   [<Literal>]
+   let BasePath = "analytics"
+
+   let parse =
+      function
+      | [] -> AnalyticsUrl.Analytics
+      | _ -> AnalyticsUrl.NotFound
+
+[<RequireQualifiedAccess>]
 type AccountUrl =
    | Account
    | CreateAccount
@@ -128,6 +142,7 @@ module CardUrl =
 
 [<RequireQualifiedAccess>]
 type IndexUrl =
+   | Analytics of AnalyticsUrl
    | Account of AccountUrl
    | Transaction of TransactionUrl
    | EmployeeHistory of EmployeeHistoryUrl
@@ -137,14 +152,15 @@ type IndexUrl =
 
 module IndexUrl =
    let parse (segments: string list) =
-      // Temporarily redirect Index page to Accounts.
       let segments =
          if segments.IsEmpty then
-            [ TransactionUrl.BasePath ]
+            [ AnalyticsUrl.BasePath ]
          else
             segments
 
       match segments with
+      | AnalyticsUrl.BasePath :: segments ->
+         IndexUrl.Analytics(AnalyticsUrl.parse segments)
       | AccountUrl.BasePath :: segments ->
          IndexUrl.Account(AccountUrl.parse segments)
       // Matches /transactions/{TransactionUrl}

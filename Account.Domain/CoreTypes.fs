@@ -1,8 +1,6 @@
 namespace Bank.Account.Domain
 
 open System
-open Validus
-open Validus.Operators
 
 open Lib.SharedTypes
 open Lib.NetworkQuery
@@ -115,3 +113,60 @@ type TransactionQuery = {
 module TransactionQuery =
    let cardIdsFromQueryString: string -> CardId list option =
       listFromQueryString (Guid.parseOptional >> Option.map CardId)
+
+type MoneyFlowTopN = {
+   MoneyFlow: MoneyFlow
+   Amount: decimal
+   Source: string
+}
+
+type BalanceHistory = {
+   Balance: decimal
+   PreviousBalance: decimal
+   PercentChange: decimal
+}
+
+type MoneyFlowDailyTimeSeriesByOrg = {
+   Day: DateTime
+   AmountIn: decimal
+   AmountOut: decimal
+   BalanceHistory: BalanceHistory
+}
+
+type MoneyFlowDailyTimeSeriesByAccount = {
+   Day: DateTime
+   AccountId: AccountId
+   AmountIn: decimal
+   AmountOut: decimal
+   BalanceHistory: BalanceHistory
+}
+
+type MoneyFlowTopNAnalytics = {
+   AmountInTotal: decimal
+   AmountOutTotal: decimal
+   In: MoneyFlowTopN list
+   Out: MoneyFlowTopN list
+}
+
+type MoneyFlowDailyTimeSeriesAnalytics = {
+   ByOrg: MoneyFlowDailyTimeSeriesByOrg list
+   ByAccount: MoneyFlowDailyTimeSeriesByAccount list
+}
+
+type MoneyFlowMonthlyTimeSeriesByOrg = {
+   Month: DateTime
+   AmountIn: decimal
+   AmountOut: decimal
+}
+
+type MoneyFlowMonthlyTimeSeriesAnalytics = {
+   ByOrg: MoneyFlowMonthlyTimeSeriesByOrg list
+   AverageIn: decimal
+   AverageOut: decimal
+}
+
+type MoneyFlowAnalytics = {
+   TimeSeriesMonthly: MoneyFlowMonthlyTimeSeriesAnalytics option
+   TimeSeriesDaily: MoneyFlowDailyTimeSeriesAnalytics option
+   TopN: MoneyFlowTopNAnalytics option
+}

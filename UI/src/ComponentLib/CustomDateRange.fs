@@ -111,22 +111,6 @@ module Interpreter =
          "december", 12
       ]
 
-   let numberToDisplayMonth =
-      Map [
-         1, "Jan"
-         2, "Feb"
-         3, "Mar"
-         4, "Apr"
-         5, "May"
-         6, "Jun"
-         7, "Jul"
-         8, "Aug"
-         9, "Sep"
-         10, "Oct"
-         11, "Nov"
-         12, "Dec"
-      ]
-
    [<RequireQualifiedAccess>]
    type ValidDay =
       | Number of int
@@ -154,7 +138,7 @@ module Interpreter =
             let (ValidMonth month) = month
             let (ValidYear year) = year
 
-            $"{numberToDisplayMonth[month]} {day}, {year}",
+            $"{DateTime.numberToDisplayMonth[month]} {day}, {year}",
             DateTime(year, month, day)
 
       match signifier with

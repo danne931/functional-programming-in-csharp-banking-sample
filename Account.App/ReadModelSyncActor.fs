@@ -236,8 +236,6 @@ let upsertReadModels
          AccountSqlWriter.internalTransferSenders
             account.InternalTransferSenders
 
-         "events", AccountSqlWriter.events account.Events
-
          "maintenanceFeeQualifyingDepositFound",
          AccountSqlWriter.maintenanceFeeQualifyingDepositFound
             account.MaintenanceFeeCriteria.QualifyingDepositFound
@@ -291,26 +289,35 @@ let upsertReadModels
             "event", TransactionSqlWriter.event evt
          ]
 
-         let amountOpt, moneyFlowOpt =
+         let amountOpt, moneyFlowOpt, sourceOpt =
             match evt with
-            | AccountEvent.CreatedAccount evt -> Some evt.Data.Balance, None
             | AccountEvent.DepositedCash evt ->
-               Some evt.Data.Amount, Some MoneyFlow.In
+               Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Origin
             | AccountEvent.DebitedAccount evt ->
-               Some evt.Data.Amount, Some MoneyFlow.Out
+               Some evt.Data.Amount, Some MoneyFlow.Out, Some evt.Data.Origin
             | AccountEvent.InternalTransferPending evt ->
-               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.Out
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.Out,
+               Some evt.Data.BaseInfo.RecipientName
             | AccountEvent.InternalTransferRejected evt ->
-               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.In
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.In,
+               Some evt.Data.BaseInfo.RecipientName
             | AccountEvent.TransferDeposited evt ->
-               Some evt.Data.Amount, Some MoneyFlow.In
+               Some evt.Data.Amount,
+               Some MoneyFlow.In,
+               Some evt.Data.Source.Name
             | AccountEvent.DomesticTransferPending evt ->
-               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.Out
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.Out,
+               Some evt.Data.BaseInfo.Recipient.Name
             | AccountEvent.DomesticTransferRejected evt ->
-               Some evt.Data.BaseInfo.Amount, Some MoneyFlow.In
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.In,
+               Some evt.Data.BaseInfo.Recipient.Name
             | AccountEvent.MaintenanceFeeDebited evt ->
-               Some evt.Data.Amount, Some MoneyFlow.Out
-            | _ -> None, None
+               Some evt.Data.Amount, Some MoneyFlow.Out, Some "Maintenance Fee"
+            | _ -> None, None, None
 
          let cardIdOpt =
             match evt with
@@ -320,9 +327,10 @@ let upsertReadModels
 
          sqlParams
          @ [
-            ("amount", TransactionSqlWriter.amount amountOpt)
-            ("moneyFlow", TransactionSqlWriter.moneyFlow moneyFlowOpt)
-            ("cardId", TransactionSqlWriter.cardId cardIdOpt)
+            "amount", TransactionSqlWriter.amount amountOpt
+            "moneyFlow", TransactionSqlWriter.moneyFlow moneyFlowOpt
+            "source", TransactionSqlWriter.source sourceOpt
+            "cardId", TransactionSqlWriter.cardId cardIdOpt
          ])
 
    pgTransaction [
@@ -341,7 +349,6 @@ let upsertReadModels
           {AccountFields.internalTransferRecipients},
           {AccountFields.domesticTransferRecipients},
           {AccountFields.internalTransferSenders},
-          {AccountFields.events},
           {AccountFields.maintenanceFeeQualifyingDepositFound},
           {AccountFields.maintenanceFeeDailyBalanceThreshold},
           {AccountFields.inProgressInternalTransfers},
@@ -364,7 +371,6 @@ let upsertReadModels
           @internalTransferRecipients,
           @domesticTransferRecipients,
           @internalTransferSenders,
-          @events,
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold,
           @inProgressInternalTransfers,
@@ -381,7 +387,6 @@ let upsertReadModels
          {AccountFields.internalTransferRecipients} = @internalTransferRecipients,
          {AccountFields.domesticTransferRecipients} = @domesticTransferRecipients,
          {AccountFields.internalTransferSenders} = @internalTransferSenders,
-         {AccountFields.events} = @events,
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,
          {AccountFields.maintenanceFeeDailyBalanceThreshold} = @maintenanceFeeDailyBalanceThreshold,
          {AccountFields.inProgressInternalTransfers} = @inProgressInternalTransfers,
@@ -404,6 +409,7 @@ let upsertReadModels
           {TransactionFields.timestamp},
           {TransactionFields.event},
           {TransactionFields.amount},
+          {TransactionFields.source},
           {TransactionFields.moneyFlow})
       VALUES
          (@transactionId,
@@ -415,6 +421,7 @@ let upsertReadModels
           @timestamp,
           @event,
           @amount,
+          @source,
           @moneyFlow::{TransactionTypeCast.moneyFlow})
       ON CONFLICT ({TransactionFields.transactionId})
       DO NOTHING;

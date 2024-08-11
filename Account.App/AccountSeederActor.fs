@@ -11,10 +11,13 @@ open Akka.Cluster
 open Akkling
 open Akkling.Cluster.Sharding
 open FSharp.Control
+open FsToolkit.ErrorHandling
 
 open Lib.SharedTypes
 open Lib.Postgres
 open OrganizationSqlMapper
+open EmployeeEventSqlMapper
+open TransactionSqlMapper
 open Bank.Account.Api
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -57,47 +60,103 @@ let createOrg () =
       OrgSqlWriter.requiresEmployeeInviteApproval false
    ]
 
-let mockAccountOwnerCmd =
-   let withModifiedTimestamp (command: CreateAccountOwnerCommand) = {
-      command with
-         Timestamp = command.Timestamp.AddMonths -1
-   }
+// NOTE:
+// Initial employee purchase requests are configured with timestamps
+// in the past.  However, subsequent employee purchase approval/decline
+// in the employee_event table as well as recording of debits in the
+// account transaction table have current timestamps since we
+// don't have control over the creation of system-produced events.
+// Modifying system-produced event timestamps via update statements on
+// the read models as demonstrated below should be a sufficient strategy
+// for observing time based analytics on seed data.
+let seedBalanceHistory () = taskResultOption {
+   let query =
+      $"SELECT {EmployeeEventFields.timestamp}, {EmployeeEventFields.correlationId}
+        FROM {EmployeeEventSqlMapper.table}
+        WHERE {EmployeeEventFields.name} = 'DebitRequested'"
 
-   CreateAccountOwnerCommand.create {
-      Email = "jellyfish@gmail.com"
-      FirstName = "Daniel"
-      LastName = "Eisenbarger"
-      OrgId = orgId
+   let! employeePurchaseRequests =
+      pgQuery query None (fun read -> {|
+         CorrelationId = EmployeeEventSqlReader.correlationId read
+         Timestamp = EmployeeEventSqlReader.timestamp read
+      |})
+
+   let sqlParams =
+      employeePurchaseRequests
+      |> List.map (fun o -> [
+         "correlationId", EmployeeEventSqlWriter.correlationId o.CorrelationId
+         "timestamp",
+         EmployeeEventSqlWriter.timestamp (o.Timestamp.AddSeconds 3)
+      ])
+
+   let query = [
+      $"""
+      UPDATE {EmployeeEventSqlMapper.table}
+      SET
+         {EmployeeEventFields.timestamp} = @timestamp,
+         {EmployeeEventFields.event} = jsonb_set(
+            {EmployeeEventFields.event},
+            '{{1,Timestamp}}',
+            to_jsonb(@timestamp),
+            false
+         )
+      WHERE
+         {EmployeeEventFields.correlationId} = @correlationId
+         AND {EmployeeEventFields.name} <> 'DebitRequested';
+      """,
+      sqlParams
+
+      $"""
+      UPDATE {TransactionSqlMapper.table}
+      SET
+         {TransactionFields.timestamp} = @timestamp,
+         {TransactionFields.event} = jsonb_set(
+            {TransactionFields.event},
+            '{{1,Timestamp}}',
+            to_jsonb(@timestamp),
+            false
+         )
+      WHERE
+         {TransactionFields.correlationId} = @correlationId
+         AND {TransactionFields.name} = 'DebitedAccount';
+      """,
+      sqlParams
+   ]
+
+   let! _ = pgTransaction query |> TaskResult.map Some
+   let! res = pgProcedure "seed_balance_history" None |> TaskResult.map Some
+   return res
+}
+
+let mockAccountOwnerCmd =
+   let date = DateTime.Today
+   let startOfMonth = DateTime(date.Year, date.Month, 1).ToUniversalTime()
+
+   {
+      CreateAccountOwnerCommand.create {
+         Email = "jellyfish@gmail.com"
+         FirstName = "Daniel"
+         LastName = "Eisenbarger"
+         OrgId = orgId
+      } with
+         Timestamp = startOfMonth.AddMonths -3
    }
-   |> withModifiedTimestamp
 
 let mockAccountOwnerId = mockAccountOwnerCmd.InitiatedBy
 
-let mockEmployees =
-   let withModifiedTimestamp (command: CreateEmployeeCommand) = {
-      command with
-         Timestamp = command.Timestamp.AddMonths -1
-   }
+let arCheckingAccountId =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
 
-   let cmd1 =
-      CreateEmployeeCommand.create mockAccountOwnerId {
-         Email = "starfish@gmail.com"
-         FirstName = "Star"
-         LastName = "Fish"
-         OrgId = orgId
-         Role = Role.Admin
-         OrgRequiresEmployeeInviteApproval = false
-         CardInfo = None
-      }
-      |> withModifiedTimestamp
+let apCheckingAccountId =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
 
-   Map [ EmployeeId.fromEntityId cmd1.EntityId, cmd1 ]
-
+let opsCheckingAccountId =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
 
 let mockAccounts =
    let withModifiedTimestamp (command: CreateAccountCommand) = {
       command with
-         Timestamp = command.Timestamp.AddMonths -1
+         Timestamp = mockAccountOwnerCmd.Timestamp
    }
 
    let cmd1 =
@@ -105,8 +164,7 @@ let mockAccounts =
          Name = "AR"
          Currency = Currency.USD
          Depository = AccountDepository.Checking
-         AccountId =
-            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a4" |> Guid.Parse |> AccountId
+         AccountId = arCheckingAccountId
          AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
@@ -118,8 +176,7 @@ let mockAccounts =
          Name = "AP"
          Currency = Currency.USD
          Depository = AccountDepository.Checking
-         AccountId =
-            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a5" |> Guid.Parse |> AccountId
+         AccountId = apCheckingAccountId
          AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
@@ -131,8 +188,7 @@ let mockAccounts =
          Name = "Operations"
          Currency = Currency.USD
          Depository = AccountDepository.Checking
-         AccountId =
-            "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
+         AccountId = opsCheckingAccountId
          AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
@@ -147,7 +203,320 @@ let mockAccounts =
       cmd3.Data.AccountId, cmd3
    ]
 
+let accountInitialDeposits =
+   Map [ arCheckingAccountId, 2_500_931m; opsCheckingAccountId, 1_391_100m ]
+
+let mockAccountOwnerCards =
+   let cmd = mockAccountOwnerCmd
+   let emId = EmployeeId.fromEntityId mockAccountOwnerCmd.EntityId
+
+   let cardCmd1 = {
+      CreateCardCommand.create {
+         CardId = Guid.NewGuid() |> CardId
+         EmployeeId = emId
+         OrgId = orgId
+         AccountId = arCheckingAccountId
+         PersonName = $"{cmd.Data.FirstName} {cmd.Data.LastName}"
+         CardNickname = Some "Travel"
+         CardType = CardType.Debit
+         Virtual = true
+         DailyPurchaseLimit = Some 10_000m
+         MonthlyPurchaseLimit = None
+         InitiatedBy = mockAccountOwnerId
+      } with
+         Timestamp = cmd.Timestamp.AddHours 1
+   }
+
+   let cardCmd2 = {
+      cardCmd1 with
+         Data.CardId = Guid.NewGuid() |> CardId
+         Data.CardNickname = Some "Web Services"
+         Data.DailyPurchaseLimit = Some 40_000m
+         Timestamp = cmd.Timestamp.AddHours 1.1
+   }
+
+   cardCmd1, cardCmd2
+
+let mockEmployees =
+   let cmd1 = {
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "starfish@gmail.com"
+         FirstName = "Star"
+         LastName = "Fish"
+         OrgId = orgId
+         Role = Role.Admin
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      } with
+         Timestamp = mockAccountOwnerCmd.Timestamp.AddHours 5
+   }
+
+   let cmd2 = {
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "blowfish@gmail.com"
+         FirstName = "Blow"
+         LastName = "Fish"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      } with
+         Timestamp = mockAccountOwnerCmd.Timestamp.AddDays 1
+   }
+
+   let createCard (cmd: CreateEmployeeCommand) = {
+      CreateCardCommand.create {
+         CardId = Guid.NewGuid() |> CardId
+         EmployeeId = EmployeeId.fromEntityId cmd.EntityId
+         OrgId = orgId
+         AccountId = arCheckingAccountId
+         PersonName = $"{cmd.Data.FirstName} {cmd.Data.LastName}"
+         CardNickname = Some "Travel"
+         CardType = CardType.Debit
+         Virtual = true
+         DailyPurchaseLimit = Some 10_000m
+         MonthlyPurchaseLimit = None
+         InitiatedBy = mockAccountOwnerId
+      } with
+         Timestamp = cmd.Timestamp.AddHours 1
+   }
+
+   Map [
+      EmployeeId.fromEntityId cmd1.EntityId, (cmd1, createCard cmd1)
+      EmployeeId.fromEntityId cmd2.EntityId, (cmd2, createCard cmd2)
+   ]
+
+let randomAmount min max =
+   let rnd = new Random()
+   decimal (rnd.Next(min, max)) + decimal (rnd.NextDouble())
+
+let seedAccountOwnerActions
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   (card: Card)
+   (employeeId: EmployeeId)
+   (timestamp: DateTime)
+   =
+   for month in [ 1..3 ] do
+      let timestamp = timestamp.AddMonths month
+      let accountRef = getAccountRef arCheckingAccountId
+
+      (*
+      if month = 3 then
+         let msg =
+            {
+               StartBillingCycleCommand.create (arCheckingAccountId, orgId) {
+                  Reference = None
+               } with
+                  Timestamp = timestamp
+            }
+            |> AccountCommand.StartBillingCycle
+            |> AccountMessage.StateChange
+
+         accountRef <! msg
+      *)
+
+      let purchaseCmd = {
+         DebitRequestCommand.create (employeeId, orgId) {
+            AccountId = card.AccountId
+            CardId = card.CardId
+            CardNumberLast4 = card.CardNumberLast4
+            Date = timestamp
+            Amount = 30_000m + (randomAmount 1000 7000)
+            Origin = "Microsoft Azure"
+            Reference = None
+         } with
+            Timestamp = timestamp
+      }
+
+      let msg =
+         purchaseCmd
+         |> EmployeeCommand.DebitRequest
+         |> EmployeeMessage.StateChange
+
+      getEmployeeRef employeeId <! msg
+
+      for num in [ 1..3 ] do
+         let maxDays =
+            let daysToAdd = num * (5 + num)
+
+            if month = 3 then
+               let today = DateTime.UtcNow.Day
+               if today / daysToAdd >= 1 then daysToAdd else 0
+            else
+               daysToAdd
+
+         if maxDays = 0 && num > 1 then
+            ()
+         else
+            let msg =
+               {
+                  DepositCashCommand.create
+                     (card.AccountId, orgId)
+                     mockAccountOwnerId
+                     {
+                        Amount = 5000m + randomAmount 1000 10_000
+                        Origin = Some "Deposit"
+                     } with
+                     Timestamp = timestamp.AddDays(float maxDays)
+               }
+               |> AccountCommand.DepositCash
+               |> AccountMessage.StateChange
+
+            getAccountRef card.AccountId <! msg
+
+let seedEmployeeActions
+   (card: Card)
+   (employee: Employee)
+   (employeeRef: IEntityRef<EmployeeMessage>)
+   (timestamp: DateTime)
+   =
+   let purchaseOrigins = [
+      [ "Cozy Hotel"; "Trader Joe's"; "In N Out"; "Lyft" ]
+      [
+         "Barn House BBQ and Beer"
+         "Nem nướng Happy Belly"
+         "Nhà Lồng Coffee"
+         "Cơm Chay All Day"
+         "Chickpea Eatery"
+         "Pho Number 1"
+         "Big C"
+         "Grab"
+         "Thai Spice ++"
+         "ร้าน บ้านไร่ยามเย็น"
+         "GoGym"
+         "Coffee Window @ 14 Soi 7"
+         "ร้านอาหารทับริมธาร"
+      ]
+      [
+         "Lidl"
+         "Coop"
+         "Carrefour"
+         "Baita Resch"
+         "Mercato di Mezzo"
+         "La Locanda Dei Grulli"
+         "Rosso Vivo Pizzeria Verace"
+         "CAFFE' GM S.R.L."
+         "Pizzeria Via Cassia"
+         "Cantina Tramin"
+         "La Mora Viola (gelateria artigianale)"
+      ]
+   ]
+
+   let rnd = new Random()
+   let compositeId = employee.EmployeeId, orgId
+
+   for month in [ 1..3 ] do
+      let timestamp = timestamp.AddMonths month
+      let purchaseOrigins = purchaseOrigins[month - 1]
+
+      for purchaseNum in [ 1..30 ] do
+         let maxDays =
+            if month = 3 then
+               let today = DateTime.UtcNow.Day
+               if today = 1 then None else Some(today - 1)
+            else
+               Some(DateTime.DaysInMonth(timestamp.Year, timestamp.Month) - 1)
+
+         let purchaseDate =
+            match (month = 3 && purchaseNum > 29), maxDays with
+            | false, Some days -> timestamp.AddDays(float (randomAmount 0 days))
+            | false, None -> timestamp
+            | true, _ -> DateTime.UtcNow
+
+         let purchaseCmd = {
+            DebitRequestCommand.create compositeId {
+               AccountId = card.AccountId
+               CardId = card.CardId
+               CardNumberLast4 = card.CardNumberLast4
+               Date = purchaseDate
+               Amount = randomAmount 50 333
+               Origin = purchaseOrigins[rnd.Next(0, purchaseOrigins.Length)]
+               Reference = None
+            } with
+               Timestamp = purchaseDate
+         }
+
+         let msg =
+            purchaseCmd
+            |> EmployeeCommand.DebitRequest
+            |> EmployeeMessage.StateChange
+
+         employeeRef <! msg
+
+let createEmployees
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   =
+   for employeeId, (employeeCreateCmd, _) in Map.toSeq mockEmployees do
+      let employeeRef = getEmployeeRef employeeId
+
+      let msg =
+         employeeCreateCmd
+         |> EmployeeCommand.CreateEmployee
+         |> EmployeeMessage.StateChange
+
+      employeeRef <! msg
+
+      let confirmInviteCmd = {
+         ConfirmInvitationCommand.create (employeeId, orgId) {
+            Email = Email.deserialize employeeCreateCmd.Data.Email
+            AuthProviderUserId = Guid.NewGuid()
+            Reference = None
+         } with
+            Timestamp = employeeCreateCmd.Timestamp.AddHours 1
+      }
+
+      let msg =
+         confirmInviteCmd
+         |> EmployeeCommand.ConfirmInvitation
+         |> EmployeeMessage.StateChange
+
+      employeeRef <! msg
+
+let createEmployeeCards
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   =
+   let accountOwnerTravelCardCreateCmd, accountOwnerBusinessCardCreateCmd =
+      mockAccountOwnerCards
+
+   let employeeCardCreateCmds =
+      mockEmployees.Values |> Seq.toList |> List.map snd
+
+   let cardCreateCmds =
+      [ accountOwnerBusinessCardCreateCmd; accountOwnerTravelCardCreateCmd ]
+      @ employeeCardCreateCmds
+
+   for cmd in cardCreateCmds do
+      let employeeRef = getEmployeeRef (EmployeeId.fromEntityId cmd.EntityId)
+
+      let msg = cmd |> EmployeeCommand.CreateCard |> EmployeeMessage.StateChange
+
+      employeeRef <! msg
+
+   {|
+      AccountOwnerTravelCard = accountOwnerTravelCardCreateCmd
+      AccountOwnerBusinessCard = accountOwnerBusinessCardCreateCmd
+      Employee = employeeCardCreateCmds
+   |}
+
+let getEmployeeCardPair
+   (employeeRef: IEntityRef<EmployeeMessage>)
+   (cardId: CardId)
+   =
+   async {
+      let! (employeeOpt: EmployeeWithEvents option) =
+         employeeRef <? EmployeeMessage.GetEmployee
+
+      return option {
+         let! employee = employeeOpt
+         let em = employee.Info
+         let! card = em.Cards.TryFind cardId
+         return em, card
+      }
+   }
+
 let seedAccountTransactions
+   (mailbox: Actor<AccountSeederMessage>)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    (command: CreateAccountCommand)
@@ -157,167 +526,69 @@ let seedAccountTransactions
       let compositeId = accountId, command.OrgId
       let accountRef = getAccountRef accountId
 
-      let rnd = new Random()
+      let timestamp = command.Timestamp.AddHours 2
 
-      let randomAmount () =
-         decimal (rnd.Next(13, 42)) + decimal (rnd.NextDouble())
-
-      let txnOrigins = [
-         "Trader Joe's"
-         "Nem nướng Happy Belly"
-         "Cơm Chay All Day"
-         "Thai Spice ++"
-         "Pho Number 1"
-      ]
-
-      let timestamp = command.Timestamp.AddDays(rnd.Next(1, 3))
-
-      let msg =
-         {
-            DepositCashCommand.create compositeId mockAccountOwnerId {
-               Amount = 1500m + randomAmount ()
-               Origin = None
-            } with
-               Timestamp = timestamp
-         }
-         |> AccountCommand.DepositCash
-         |> AccountMessage.StateChange
-
-      accountRef <! msg
-
-      (*
-      for num in [ 1..3 ] do
-         let timestamp = timestamp.AddDays((double num) * 2.3)
-
-         let command = {
-            DebitCommand.create compositeId {
-               Date = timestamp
-               Amount = randomAmount ()
-               Origin = txnOrigins[num]
-               Reference = None
-            } with
-               Timestamp = timestamp
-         }
-
-         aref <! (StateChange << Debit) command
-      *)
-
-      let msg =
-         StartBillingCycleCommand.create compositeId { Reference = None }
-         |> AccountCommand.StartBillingCycle
-         |> AccountMessage.StateChange
-
-      accountRef <! msg
-
-      do! Task.Delay 1300
-
-      if accountId = Seq.head mockAccounts.Keys then
-         let employeeCreateCmd = mockEmployees.Head().Value
-         let employeeId = EmployeeId.fromEntityId employeeCreateCmd.EntityId
-         let employeeRef = getEmployeeRef employeeId
-
+      match Map.tryFind accountId accountInitialDeposits with
+      | Some depositAmount ->
          let msg =
-            employeeCreateCmd
-            |> EmployeeCommand.CreateEmployee
-            |> EmployeeMessage.StateChange
-
-         employeeRef <! msg
-
-         let msg =
-            ConfirmInvitationCommand.create (employeeId, orgId) {
-               Email = Email.deserialize employeeCreateCmd.Data.Email
-               AuthProviderUserId = Guid.NewGuid()
-               Reference = None
+            {
+               DepositCashCommand.create compositeId mockAccountOwnerId {
+                  Amount = depositAmount
+                  Origin = Some "Deposit"
+               } with
+                  Timestamp = timestamp
             }
-            |> EmployeeCommand.ConfirmInvitation
-            |> EmployeeMessage.StateChange
+            |> AccountCommand.DepositCash
+            |> AccountMessage.StateChange
 
-         employeeRef <! msg
+         accountRef <! msg
+      | None -> ()
 
-         do! Task.Delay 7000
 
-         let createCardCmd =
-            CreateCardCommand.create {
-               CardId = Guid.NewGuid() |> CardId
-               EmployeeId = employeeId
-               OrgId = orgId
-               AccountId = accountId
-               PersonName =
-                  $"{employeeCreateCmd.Data.FirstName} {employeeCreateCmd.Data.LastName}"
-               CardNickname = Some "Lunch"
-               CardType = CardType.Debit
-               Virtual = true
-               DailyPurchaseLimit = None
-               MonthlyPurchaseLimit = None
-               InitiatedBy = mockAccountOwnerId
-            }
+      if accountId = arCheckingAccountId then
+         createEmployees getEmployeeRef
+         do! Task.Delay 10_000
+         let cardCreateCmds = createEmployeeCards getEmployeeRef
+         do! Task.Delay 10_000
 
-         let msg =
-            createCardCmd
-            |> EmployeeCommand.CreateCard
-            |> EmployeeMessage.StateChange
+         let businessCardCreateCmd = cardCreateCmds.AccountOwnerBusinessCard
 
-         employeeRef <! msg
+         let accountOwnerId =
+            EmployeeId.fromEntityId businessCardCreateCmd.EntityId
 
-         for num in [ 1..7 ] do
-            let msg =
-               DebitRequestCommand.create (employeeId, orgId) {
-                  AccountId = accountId
-                  CardId = createCardCmd.Data.CardId
-                  CardNumberLast4 = "1234"
-                  Date = DateTime.UtcNow
-                  Amount = randomAmount ()
-                  Origin = txnOrigins[rnd.Next(0, txnOrigins.Length - 1)]
-                  Reference = None
-               }
-               |> EmployeeCommand.DebitRequest
-               |> EmployeeMessage.StateChange
+         let accountOwnerBusinessCardId = businessCardCreateCmd.Data.CardId
+         let employeeRef = getEmployeeRef accountOwnerId
 
-            employeeRef <! msg
+         let! accountOwnerCardPairOpt =
+            getEmployeeCardPair employeeRef accountOwnerBusinessCardId
 
-            if num = 2 || num = 5 then
-               let msg =
-                  DepositCashCommand.create compositeId mockAccountOwnerId {
-                     Amount = randomAmount ()
-                     Origin = None
-                  }
-                  |> AccountCommand.DepositCash
-                  |> AccountMessage.StateChange
+         match accountOwnerCardPairOpt with
+         | None ->
+            logError
+               mailbox
+               $"Can not proceed with account owner actions - eId: {accountOwnerId} cId: {accountOwnerBusinessCardId}"
+         | Some(_, card) ->
+            seedAccountOwnerActions
+               getEmployeeRef
+               getAccountRef
+               card
+               accountOwnerId
+               businessCardCreateCmd.Timestamp
 
-               accountRef <! msg
+         for cmd in
+            cardCreateCmds.AccountOwnerTravelCard :: cardCreateCmds.Employee do
+            let employeeId = EmployeeId.fromEntityId cmd.EntityId
+            let cardId = cmd.Data.CardId
+            let employeeRef = getEmployeeRef employeeId
+            let! employeeCardPairOpt = getEmployeeCardPair employeeRef cardId
 
-         for num in [ 1..2 ] do
-            let createAccountCmd = mockAccounts.Values |> Seq.item num
-
-            let internalRecipientCmd =
-               RegisterInternalTransferRecipientCommand.create
-                  compositeId
-                  mockAccountOwnerId
-                  {
-                     AccountId = createAccountCmd.Data.AccountId
-                     Name = createAccountCmd.Data.Name
-                  }
-
-            let msg =
-               internalRecipientCmd
-               |> AccountCommand.RegisterInternalTransferRecipient
-               |> AccountMessage.StateChange
-
-            accountRef <! msg
-
-            let msg =
-               InternalTransferCommand.create compositeId mockAccountOwnerId {
-                  BaseInfo = {
-                     RecipientId = internalRecipientCmd.Data.AccountId
-                     Amount = randomAmount ()
-                     ScheduledDate = DateTime.UtcNow
-                  }
-                  Memo = None
-               }
-               |> AccountCommand.InternalTransfer
-               |> AccountMessage.StateChange
-
-            accountRef <! msg
+            match employeeCardPairOpt with
+            | None ->
+               logError
+                  mailbox
+                  $"Can not proceed with purchases - eId: {employeeId} cId: {cardId}"
+            | Some(employee, card) ->
+               seedEmployeeActions card employee employeeRef timestamp
    }
 
 // Creates a new Map consisting of initial state of accounts to create
@@ -414,9 +685,7 @@ let actorProps
                            state.AccountsToCreate
 
                      for command in remaining.Values do
-                        if
-                           command.Data.AccountId = Seq.head mockAccounts.Keys
-                        then
+                        if command.Data.AccountId = arCheckingAccountId then
                            let employeeId =
                               EmployeeId.fromEntityId
                                  mockAccountOwnerCmd.EntityId
@@ -470,6 +739,7 @@ let actorProps
             for acct in accountsToSeedWithTxns do
                do!
                   seedAccountTransactions
+                     ctx
                      getAccountRef
                      getEmployeeRef
                      state.AccountsToCreate[acct.AccountId]
@@ -485,12 +755,25 @@ let actorProps
             if verified.Length = state.AccountsToCreate.Count then
                logInfo "Finished seeding accounts"
 
-               return!
-                  loop {
-                     Status = FinishedSeeding
-                     AccountsToCreate = Map.empty
-                     AccountsToSeedWithTransactions = txnsSeedMap
-                  }
+               do! Task.Delay 35_000
+               let! res = seedBalanceHistory ()
+
+               match res with
+               | Ok(Some _) ->
+                  logInfo "Seeded balance history"
+
+                  return!
+                     loop {
+                        Status = FinishedSeeding
+                        AccountsToCreate = Map.empty
+                        AccountsToSeedWithTransactions = txnsSeedMap
+                     }
+               | Ok None ->
+                  logError ctx "Error seeding balance history.  No purchases."
+                  return unhandled ()
+               | Error err ->
+                  logError ctx $"Error seeding balance history {err}"
+                  return unhandled ()
             else
                let remaining =
                   getRemainingAccountsToCreate verified state.AccountsToCreate

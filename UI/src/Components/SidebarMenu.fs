@@ -4,6 +4,7 @@ open Feliz
 open Bank.Employee.Domain
 
 type private MenuUrl =
+   | Analytics
    | Account
    | Transaction
    | EmployeeHistory
@@ -20,6 +21,7 @@ type private MenuItem = {
 let private renderListItem (item: MenuItem) =
    Html.li [
       match item.Url, item.SelectedUrl with
+      | Analytics, Routes.IndexUrl.Analytics _ -> attr.classes [ "selected" ]
       | Account, Routes.IndexUrl.Account _ -> attr.classes [ "selected" ]
       | Transaction, Routes.IndexUrl.Transaction _ ->
          attr.classes [ "selected" ]
@@ -39,6 +41,13 @@ let render (currentUrl: Routes.IndexUrl) (session: UserSession) =
       Html.ul [
          attr.role "listbox"
          attr.children [
+            renderListItem {
+               Url = Analytics
+               SelectedUrl = currentUrl
+               Name = "Analytics"
+               Href = Routes.AnalyticsUrl.BasePath
+            }
+
             renderListItem {
                Url = Account
                SelectedUrl = currentUrl

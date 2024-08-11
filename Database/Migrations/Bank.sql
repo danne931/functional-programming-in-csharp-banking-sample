@@ -6,6 +6,7 @@ DROP VIEW IF EXISTS daily_purchase_accrued;
 DROP VIEW IF EXISTS monthly_purchase_accrued;
 DROP VIEW IF EXISTS daily_transfer_accrued;
 
+DROP TABLE IF EXISTS balance_history;
 DROP TABLE IF EXISTS billingstatement;
 DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS ancillarytransactioninfo;
@@ -17,7 +18,7 @@ DROP TABLE IF EXISTS employee;
 DROP TABLE IF EXISTS organization;
 DROP TABLE IF EXISTS category;
 
-DROP TYPE IF EXISTS money_flow;
+DROP TYPE IF EXISTS money_flow CASCADE;
 DROP TYPE IF EXISTS employee_status;
 DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
@@ -48,7 +49,6 @@ CREATE TABLE account (
    internal_transfer_senders JSONB NOT NULL,
    maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
    maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
-   events JSONB NOT NULL,
    in_progress_internal_transfers JSONB NOT NULL,
    in_progress_internal_transfers_count INT NOT NULL,
    in_progress_domestic_transfers JSONB NOT NULL,
@@ -94,10 +94,9 @@ CREATE TABLE merchant (
 
 INSERT INTO category (name)
 VALUES
-   ('Advertising'),
    ('Airlines'),
    ('Alcohol and Bars'),
-   ('Books and Newspaper'),
+   ('Books'),
    ('Car Rental'),
    ('Charity'),
    ('Clothing'),
@@ -105,15 +104,8 @@ VALUES
    ('Education'),
    ('Electronics'),
    ('Entertainment'),
-   ('Facilities Expenses'),
-   ('Fees'),
    ('Food Delivery'),
-   ('Fuel and Gas'),
-   ('Gambling'),
-   ('Government Services'),
    ('Grocery'),
-   ('Ground Transportation'),
-   ('Insurance'),
    ('Internet and Telephone'),
    ('Legal'),
    ('Lodging'),
@@ -121,15 +113,11 @@ VALUES
    ('Memberships'),
    ('Office Supplies'),
    ('Parking'),
-   ('Political'),
-   ('Professional Services'),
    ('Restaurants'),
    ('Retail'),
    ('Rideshare and Taxis'),
    ('Shipping'),
    ('Software'),
-   ('Taxes'),
-   ('Travel'),
    ('Utilities'),
    ('Vehicle Expenses'),
    ('Other');
@@ -207,11 +195,15 @@ CREATE TABLE card (
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TYPE money_flow AS ENUM ('in', 'out');
+CREATE TYPE money_flow AS ENUM ('In', 'Out');
 CREATE TABLE transaction (
    name VARCHAR(50) NOT NULL,
    amount MONEY,
    money_flow money_flow,
+   -- NOTE:
+   -- Source may be a merchant name, transfer recipient name, etc. depending on the transaction type.
+   -- This property is used only for analytics queries.
+   source VARCHAR(100),
    timestamp TIMESTAMPTZ NOT NULL,
    transaction_id UUID PRIMARY KEY,
    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
@@ -220,6 +212,7 @@ CREATE TABLE transaction (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+
 CREATE INDEX transaction_accrued_amount_view_query_idx
 ON transaction(amount, name, timestamp);
 
@@ -231,26 +224,226 @@ CREATE TABLE ancillarytransactioninfo (
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
 
+CREATE TABLE balance_history(
+   account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
+   date DATE NOT NULL,
+   balance NUMERIC NOT NULL,
+   CONSTRAINT account_date UNIQUE (account_id, date)
+);
+
+CREATE OR REPLACE PROCEDURE seed_balance_history()
+AS $$
+BEGIN
+   INSERT INTO balance_history(account_id, date, balance)
+   WITH RECURSIVE date_series AS (
+      SELECT
+         account_id,
+         MIN(timestamp::date) AS start_date,
+         (CURRENT_DATE - interval '1 day')::date AS end_date
+      FROM transaction
+      GROUP BY account_id
+
+      UNION ALL
+
+      SELECT
+         account_id,
+         (start_date + interval '1 day')::date,
+         end_date
+      FROM date_series
+      WHERE start_date < end_date
+   ),
+   transactions_by_date AS (
+      SELECT
+         account_id,
+         timestamp::date AS date,
+         SUM(CASE WHEN money_flow = 'In' THEN amount::numeric ELSE -amount::numeric END) AS daily_diff
+      FROM transaction
+      GROUP BY account_id, timestamp::date
+   )
+   SELECT
+      ds.account_id,
+      ds.start_date AS date,
+
+      COALESCE(
+         SUM(tbd.daily_diff) OVER (
+            PARTITION BY ds.account_id  -- calculate daily_diff sum for each account separately
+            ORDER BY ds.start_date      -- calculate sum in chronological order
+         ),
+         0
+      ) AS balance
+   FROM date_series ds
+   LEFT JOIN transactions_by_date tbd ON ds.account_id = tbd.account_id AND ds.start_date = tbd.date
+   ORDER BY ds.account_id, ds.start_date
+   ON CONFLICT(account_id, date) DO NOTHING;
+END
+$$ LANGUAGE plpgsql;
+
+/*
+NOTE: A balance history record is created daily for the previous day.
+Shortly after midnight we need to compute the balance for the previous
+day (CURRENT_DATE - 1).  We get the balance from balance history record
+pertaining to (CURRENT_DATE - 2) summed up with the computed diff of
+transaction amounts pertaining to (CURRENT_DATE - 1).
+*/
+CREATE OR REPLACE PROCEDURE update_balance_history_for_yesterday()
+AS $$
+BEGIN
+   INSERT INTO balance_history (account_id, date, balance)
+   SELECT
+      t.account_id,
+      t.date,
+      COALESCE(bh.balance, 0) + t.daily_diff AS balance
+   FROM (
+      SELECT
+         t.account_id,
+         t.day AS date,
+         t.amount_in - t.amount_out AS daily_diff
+      FROM money_flow_time_series_daily(
+         CURRENT_DATE - interval '1 day',
+         CURRENT_DATE - interval '1 day'
+      ) t
+   ) t
+   JOIN balance_history bh
+      ON bh.account_id = t.account_id
+      -- Join on the balance_history date 1 day prior to yesterday.
+      AND bh.date = CURRENT_DATE - interval '2 day'
+   ON CONFLICT(account_id, date) DO NOTHING;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION money_flow_time_series_daily(
+   orgId UUID,
+   startDate TIMESTAMPTZ,
+   endDate TIMESTAMPTZ
+)
+RETURNS TABLE (
+   day DATE,
+   amount_in NUMERIC,
+   amount_out NUMERIC,
+   account_id UUID
+) AS $$
+BEGIN
+   RETURN QUERY
+   SELECT
+      ds.day::date,
+
+      COALESCE(
+         SUM(t.amount::numeric) filter(where t.money_flow = 'In'),
+         0
+      ) AS amount_in,
+
+      COALESCE(
+         SUM(t.amount::numeric) filter(where t.money_flow = 'Out'),
+         0
+      ) AS amount_out,
+
+      ids.account_id
+   FROM generate_series(startDate, endDate, '1 day'::interval) AS ds(day)
+   CROSS JOIN (
+      SELECT account.account_id
+      FROM account
+      WHERE account.org_id = orgId
+   ) ids
+   LEFT JOIN transaction t
+      ON t.account_id = ids.account_id
+      AND t.timestamp::date = ds.day
+      AND t.money_flow IS NOT NULL
+   GROUP BY ds.day, ids.account_id
+   ORDER BY ds.day;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION money_flow_time_series_monthly(
+   orgId UUID,
+   lookbackMonths INT
+)
+RETURNS TABLE (
+   month DATE,
+   amount_in NUMERIC,
+   amount_out NUMERIC
+) AS $$
+BEGIN
+   RETURN QUERY
+   SELECT
+      months.month::date,
+
+      COALESCE(
+         SUM(t.amount::numeric) filter(where t.money_flow = 'In'),
+         0
+      ) AS amount_in,
+
+      COALESCE(
+         SUM(t.amount::numeric) filter(where t.money_flow = 'Out'),
+         0
+      ) AS amount_out
+   FROM generate_series(
+      DATE_TRUNC('month', CURRENT_DATE) - (lookbackMonths - 1 || ' months')::interval,
+      DATE_TRUNC('month', CURRENT_DATE),
+      '1 month'
+   ) AS months(month)
+   LEFT JOIN LATERAL (
+      SELECT t.money_flow, t.amount
+      FROM transaction t
+      WHERE
+         t.org_id = orgId
+         AND t.money_flow IS NOT NULL
+         AND DATE_TRUNC('month', t.timestamp) = months.month
+   ) t ON true
+   GROUP BY months.month
+   ORDER BY months.month;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION money_flow_top_n_source_by_month(
+   orgId UUID,
+   flow money_flow,
+   topN INT,
+   d TIMESTAMPTZ
+)
+RETURNS TABLE (
+   money_flow money_flow,
+   amount NUMERIC,
+   source VARCHAR
+) AS $$
+BEGIN
+   RETURN QUERY
+   SELECT
+      flow as money_flow,
+      COALESCE(SUM(t.amount::numeric), 0) AS amount,
+      t.source
+   FROM transaction t
+   WHERE
+      t.org_id = orgId
+      AND t.money_flow = flow
+      AND t.timestamp::date
+         BETWEEN DATE_TRUNC('month', d)
+         AND (DATE_TRUNC('month', d) + INTERVAL '1 month' - INTERVAL '1 day')
+   GROUP BY t.source
+   ORDER BY amount DESC
+   LIMIT topN;
+END
+$$ LANGUAGE plpgsql;
+
 CREATE VIEW daily_purchase_accrued AS
 SELECT
    card_id,
-   COALESCE(SUM(amount::NUMERIC), 0) as amount_accrued
+   COALESCE(SUM(amount::numeric), 0) as amount_accrued
 FROM transaction
 WHERE
    amount IS NOT NULL
    AND name = 'DebitedAccount'
-   AND timestamp::DATE = CURRENT_DATE
+   AND timestamp::date = CURRENT_DATE
 GROUP BY card_id;
 
 CREATE VIEW monthly_purchase_accrued AS
 SELECT
    card_id,
-   COALESCE(SUM(amount::NUMERIC), 0) as amount_accrued
+   COALESCE(SUM(amount::numeric), 0) as amount_accrued
 FROM transaction
 WHERE
    amount IS NOT NULL
    AND name = 'DebitedAccount'
-   AND timestamp::DATE >= date_trunc('month', CURRENT_DATE)
+   AND timestamp::date >= date_trunc('month', CURRENT_DATE)
 GROUP BY card_id;
 
 CREATE VIEW daily_transfer_accrued AS
@@ -260,8 +453,8 @@ SELECT
    COALESCE(
       SUM(
          CASE 
-         WHEN t.name = 'InternalTransferPending' THEN t.amount::NUMERIC
-         WHEN t.name = 'InternalTransferRejected' THEN -t.amount::NUMERIC
+         WHEN t.name = 'InternalTransferPending' THEN t.amount::numeric
+         WHEN t.name = 'InternalTransferRejected' THEN -t.amount::numeric
          ELSE 0
          END
       ),
@@ -271,8 +464,8 @@ SELECT
    COALESCE(
       SUM(
          CASE 
-         WHEN t.name = 'DomesticTransferPending' THEN t.amount::NUMERIC
-         WHEN t.name = 'DomesticTransferRejected' THEN -t.amount::NUMERIC
+         WHEN t.name = 'DomesticTransferPending' THEN t.amount::numeric
+         WHEN t.name = 'DomesticTransferRejected' THEN -t.amount::numeric
          ELSE 0
          END
       ),

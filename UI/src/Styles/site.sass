@@ -162,7 +162,7 @@ footer
       margin-bottom: 0
       padding-right: 0.4rem
 
-.transaction-dashboard, .employee-dashboard, .employee-history-dashboard, .card-dashboard
+.transaction-dashboard, .employee-dashboard, .employee-history-dashboard, .card-dashboard, .analytics-dashboard
   h1, h2, h3, h4, h5, h6
     margin-bottom: .7rem
 
@@ -241,6 +241,40 @@ p[role='employee-role']
     margin-bottom: 0
     i
       padding-right: .5rem
+
+.analytics-dashboard
+  .analytics-chart-filter
+    grid-template-columns: 25% 18% 18%
+  .analytics-top-money-flow
+    margin-top: 3rem
+    .grid
+      grid-template-columns: 50% 50%
+      article
+        margin-top: 0
+        margin-right: 2rem
+        button
+          width: auto
+          padding: .3rem 1rem
+          i
+            padding-right: 0.5rem
+    .analytics-topN-filter
+      align-items: center
+      &.grid
+        grid-template-columns: 20% 20%
+    .top-n-list-container
+      min-height: 13rem
+      > *
+        display: flex
+        align-items: center
+        justify-content: space-between
+        margin-bottom: 1rem
+        p
+          margin-bottom: 0
+    .analytics-monthly-time-series
+      p
+        margin-bottom: 0
+      &.grid
+        align-items: center
 
 .account-dashboard
   .org-summary

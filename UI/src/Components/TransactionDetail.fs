@@ -14,7 +14,7 @@ open Lib.SharedTypes
 open Dropdown
 
 type private TransactionMaybe =
-   Deferred<Result<TransactionWithAncillaryInfo, Err>>
+   Deferred<Result<TransactionWithAncillaryInfo option, Err>>
 
 /// Is the transaction detail component implemented for a given AccountEvent
 let hasRenderImplementation =
@@ -47,7 +47,10 @@ let private updateTransaction
    =
    {
       state with
-         Transaction = (Deferred.map << Result.map) transform state.Transaction
+         Transaction =
+            (Deferred.map << Result.map << Option.map)
+               transform
+               state.Transaction
    }
 
 type RecipientNicknameEditMsg = {
@@ -58,7 +61,7 @@ type RecipientNicknameEditMsg = {
 
 type Msg =
    | GetTransactionInfo of
-      AsyncOperationStatus<Result<TransactionWithAncillaryInfo, Err>>
+      AsyncOperationStatus<Result<TransactionWithAncillaryInfo option, Err>>
    | SaveCategory of
       TransactionCategory option *
       AsyncOperationStatus<Result<int, Err>>
@@ -90,14 +93,21 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
       }
 
       state, Cmd.fromAsync getInfo
-   | GetTransactionInfo(Finished(Ok res)) ->
+   | GetTransactionInfo(Finished(Ok(Some res))) ->
       {
          state with
-            Transaction = Deferred.Resolved(Ok res)
+            Transaction = res |> Some |> Ok |> Deferred.Resolved
       },
       Cmd.none
    | GetTransactionInfo(Finished(Error err)) ->
       Log.error $"Error fetching ancillary txn info: {err}"
+
+      {
+         state with
+            Transaction = Deferred.Resolved(Error err)
+      },
+      Alerts.toastCommand err
+   | GetTransactionInfo(Finished(Ok None)) ->
       let attempt = state.GetTxnAttempt
 
       if attempt <= 4 then
@@ -113,6 +123,8 @@ let update (merchantDispatch: MerchantProvider.Dispatch) msg state =
          },
          Cmd.fromAsync delayedReattempt
       else
+         let err = Err.NetworkError(exn "Unable to resolve transaction.")
+
          {
             state with
                Transaction = Deferred.Resolved(Error err)
@@ -485,7 +497,7 @@ let renderCategorySelect
             |> dispatch)
 
          match txnInfo with
-         | Deferred.Resolved(Ok txnInfo) ->
+         | Deferred.Resolved(Ok(Some txnInfo)) ->
             txnInfo.Category
             |> Option.map _.Id
             |> Option.defaultValue 0
@@ -512,7 +524,7 @@ let renderNoteInput (txnInfo: TransactionMaybe) dispatch =
          attr.placeholder "Add a note"
 
          match txnInfo with
-         | Deferred.Resolved(Ok txnInfo) ->
+         | Deferred.Resolved(Ok(Some txnInfo)) ->
             attr.key (string txnInfo.Id)
 
             attr.defaultValue (txnInfo.Note |> Option.defaultValue "")
@@ -533,7 +545,7 @@ let renderFooterMenuControls
    =
    let evtOpt =
       match txnInfo with
-      | Deferred.Resolved(Ok txnInfo) ->
+      | Deferred.Resolved(Ok(Some txnInfo)) ->
          match txnInfo.Event with
          | AccountEvent.InternalTransferPending _
          | AccountEvent.DomesticTransferPending _
@@ -637,7 +649,7 @@ let TransactionDetailComponent
          ))
 
       match state.Transaction with
-      | Deferred.Resolved(Ok txn) ->
+      | Deferred.Resolved(Ok(Some txn)) ->
          renderTransactionInfo
             account
             txn
@@ -645,6 +657,7 @@ let TransactionDetailComponent
             merchants
             session
             dispatch
+      | Deferred.Resolved(Ok None) -> Html.p "No transaction found."
       | _ -> Html.progress []
 
       Html.section [

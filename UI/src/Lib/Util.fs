@@ -22,6 +22,26 @@ module DateTime =
       toISOString startDate + "," + toISOString endDate
 
 module Money =
+   let private formatDecimal (amount: decimal) : string =
+      if amount % 1m = 0m then
+         sprintf "%.0f" amount
+      else
+         sprintf "%.1f" amount
+
+   let formatShort (amount: decimal) : string =
+      let sign = if amount < 0m then "-$" else "$"
+      let amount = abs amount
+
+      sign
+      + if amount < 1000m then
+           sprintf "%.0f" amount
+        elif amount < 1_000_000m then
+           formatDecimal (amount / 1000m) + "K"
+        elif amount < 1_000_000_000m then
+           formatDecimal (amount / 1_000_000m) + "M"
+        else
+           formatDecimal (amount / 1_000_000_000m) + "B"
+
    let format (amount: decimal) : string =
       Fable.Core.JsInterop.emitJsExpr
          amount

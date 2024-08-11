@@ -13,6 +13,7 @@
     <Compile Include="Routes/Transfer.fs" />
     <Compile Include="Routes/Employee.fs" />
     <Compile Include="Routes/Card.fs" />
+    <Compile Include="Routes/Analytics.fs" /> 
     <Compile Include="Program.fs" />
   </ItemGroup>
 

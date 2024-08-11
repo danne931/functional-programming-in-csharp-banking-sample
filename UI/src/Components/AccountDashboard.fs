@@ -128,6 +128,7 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
                      ]
                   ]
             ]
+         | Deferred.Resolved(Ok None) -> Html.p "No accounts found."
          | _ -> ()
       ]
    ]

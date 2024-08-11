@@ -137,6 +137,7 @@ module RegisterInternalTransferRecipientCommand =
                   Name = cmd.Data.Name
                   Nickname = None
                   AccountId = cmd.Data.AccountId
+                  OrgId = cmd.OrgId
                   Status = RecipientRegistrationStatus.Confirmed
                }
             }

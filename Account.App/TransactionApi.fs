@@ -18,7 +18,7 @@ module Reader = TransactionSqlReader
 
 let transactionQuery (query: TransactionQuery) =
    let table = TransactionSqlMapper.table
-   let txnLimit = 10
+   let txnLimit = 30
 
    let agg =
       [
@@ -213,6 +213,30 @@ let getCategories () =
          Id = read.int "category_id"
          Name = read.string "name"
       })
+
+let getCorrelatedTransactionConfirmations (correlationId: CorrelationId) =
+   let query =
+      $"""
+      SELECT
+         {TransactionSqlMapper.table}.{Fields.timestamp} as txn_timestamp,
+         {TransactionSqlMapper.table}.{Fields.event},
+         {AccountSqlMapper.table}.*
+      FROM {TransactionSqlMapper.table}
+         JOIN {AccountSqlMapper.table} using({Fields.accountId})
+      WHERE {Fields.correlationId} = @correlationId
+      ORDER BY txn_timestamp DESC
+      """
+
+   let rowReader (read: RowReader) = {
+      EventPersisted = Reader.event read
+      Account = AccountSqlMapper.AccountSqlReader.account read
+      Date = read.dateTime "txn_timestamp"
+   }
+
+   pgQuery<AccountEventPersistedConfirmation>
+      query
+      (Some [ "correlationId", Writer.correlationId correlationId ])
+      rowReader
 
 let getTransactionInfo (txnId: EventId) =
    let query =

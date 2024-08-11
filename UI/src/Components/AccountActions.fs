@@ -42,7 +42,7 @@ type State = {
 type Msg =
    | Cancel
    | NetworkAckCommand of Envelope
-   | AccountEventReceived of AccountEvent
+   | AccountEventReceived of CorrelationId
    | CheckForEventConfirmation of Envelope * attemptNumber: int
    | Noop
 
@@ -61,7 +61,7 @@ let init (account: Account) (view: AccountActionView) () =
    cmd
 
 let update
-   (handlePollingConfirmation: AccountEventPersistedConfirmation -> unit)
+   (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
    msg
    state
    =
@@ -82,13 +82,9 @@ let update
 
       state, Cmd.fromTimeout 3000 delayedMsg
    | AccountEventReceived _ when state.PendingAction.IsNone -> state, Cmd.none
-   | AccountEventReceived realtimeEvent ->
-      let _, realtimeEnvelope = AccountEnvelope.unwrap realtimeEvent
-
+   | AccountEventReceived correlationId ->
       match state.PendingAction with
-      | Some envelope when
-         envelope.CorrelationId = realtimeEnvelope.CorrelationId
-         ->
+      | Some envelope when envelope.CorrelationId = correlationId ->
          let state = { state with PendingAction = None }
 
          match Routes.IndexUrl.accountBrowserQuery().Action with
@@ -115,35 +111,20 @@ let update
          match state.PendingAction with
          | Some action when action.CorrelationId = commandResponse.CorrelationId ->
             let getReadModel = async {
-               let! accountMaybe =
-                  AccountService.getAccount state.Account.AccountId
+               let! confirmationMaybe =
+                  TransactionService.getCorrelatedTransactionConfirmations
+                     commandResponse.CorrelationId
 
-               match accountMaybe with
+               match confirmationMaybe with
                | Error e ->
-                  Log.error $"Error checking for updated account state. {e}"
+                  Log.error $"Error checking for txn confirmation. {e}"
                   return Msg.Noop
                | Ok None ->
-                  Log.error $"No account found. Notify devs."
-                  return Msg.Noop
-               | Ok(Some account) ->
-                  let found =
-                     account.Events
-                     |> List.tryFind (fun evt ->
-                        let _, envelope = AccountEnvelope.unwrap evt
-                        envelope.CorrelationId = action.CorrelationId)
-
-                  match found with
-                  | None ->
-                     do! Async.Sleep 2500
-                     return checkAgainMsg
-                  | Some correspondingEvtFound ->
-                     handlePollingConfirmation {
-                        Account = account
-                        EventPersisted = correspondingEvtFound
-                        Date = DateTime.UtcNow
-                     }
-
-                     return Msg.AccountEventReceived correspondingEvtFound
+                  do! Async.Sleep 2500
+                  return checkAgainMsg
+               | Ok(Some conf) ->
+                  handlePollingConfirmation conf
+                  return Msg.AccountEventReceived action.CorrelationId
             }
 
             state, Cmd.fromAsync getReadModel
@@ -156,7 +137,7 @@ let AccountActionsComponent
    (account: Account)
    (accountProfiles: Map<AccountId, AccountProfile>)
    (view: AccountActionView)
-   (handlePollingConfirmation: AccountEventPersistedConfirmation -> unit)
+   (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
    =
    let state, dispatch =
       React.useElmish (
@@ -168,7 +149,13 @@ let AccountActionsComponent
    SignalRAccountEventProvider.useAccountEventSubscription {
       ComponentName = "AccountAction"
       AccountId = Some account.AccountId
-      OnReceive = _.EventPersisted >> Msg.AccountEventReceived >> dispatch
+      OnReceive =
+         _.EventPersisted
+         >> AccountEnvelope.unwrap
+         >> snd
+         >> _.CorrelationId
+         >> Msg.AccountEventReceived
+         >> dispatch
    }
 
    classyNode Html.article [ "form-wrapper" ] [

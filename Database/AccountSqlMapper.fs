@@ -28,7 +28,6 @@ module AccountFields =
    let internalTransferRecipients = "internal_transfer_recipients"
    let domesticTransferRecipients = "domestic_transfer_recipients"
    let internalTransferSenders = "internal_transfer_senders"
-   let events = "events"
 
    let maintenanceFeeQualifyingDepositFound =
       "maintenance_fee_qualifying_deposit_found"
@@ -94,10 +93,6 @@ module AccountSqlReader =
          read.bool AccountFields.maintenanceFeeDailyBalanceThreshold
    }
 
-   let events (read: RowReader) =
-      read.text AccountFields.events
-      |> Serialization.deserializeUnsafe<AccountEvent list>
-
    let inProgressInternalTransfers (read: RowReader) =
       read.text AccountFields.inProgressInternalTransfers
       |> Serialization.deserializeUnsafe<BankEvent<InternalTransferPending> list>
@@ -134,7 +129,6 @@ module AccountSqlReader =
          |> List.map (fun o -> o.AccountId, o)
          |> Map.ofList
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
-      Events = events read
       InProgressInternalTransfers =
          inProgressInternalTransfers read
          |> List.map (fun evt -> evt.CorrelationId, evt)
@@ -194,9 +188,6 @@ module AccountSqlWriter =
       (senders: Map<AccountId, InternalTransferSender>)
       =
       senders.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
-
-   let events (events: AccountEvent list) =
-      Sql.jsonb <| Serialization.serialize events
 
    let maintenanceFeeQualifyingDepositFound = Sql.bool
    let maintenanceFeeDailyBalanceThreshold = Sql.bool

@@ -133,7 +133,7 @@ let actorProps
                      evt.InitiatedById
                      {
                         Amount = info.Amount
-                        Origin = senderId
+                        Source = info.Sender
                      }
                   |> AccountCommand.DepositTransfer
                   |> AccountMessage.StateChange

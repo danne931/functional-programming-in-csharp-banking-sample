@@ -49,12 +49,15 @@ let billingTransactions = List.choose BillingTransaction.create
 open System.Text.Json
 
 let billingStatement
-   (account: Account)
+   (state: AccountWithEvents)
    (lastPersistedEventSequenceNumber: Int64)
    : BillingStatement
    =
+   let account = state.Info
+   let evts = state.Events
+
    {
-      Transactions = billingTransactions account.Events
+      Transactions = billingTransactions evts
       Month = DateTime.UtcNow.Month
       Year = DateTime.UtcNow.Year
       Balance = account.Balance
@@ -63,9 +66,6 @@ let billingStatement
       OrgId = account.OrgId
       LastPersistedEventSequenceNumber = lastPersistedEventSequenceNumber
       AccountSnapshot =
-         JsonSerializer.SerializeToUtf8Bytes(
-            { account with Events = [] },
-            Serialization.jsonOptions
-         )
+         JsonSerializer.SerializeToUtf8Bytes(account, Serialization.jsonOptions)
    }
 #endif

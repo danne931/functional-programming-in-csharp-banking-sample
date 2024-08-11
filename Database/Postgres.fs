@@ -26,6 +26,13 @@ let pgQuerySingle<'t>
    |> Task.map Some
    |> TaskResult.ofTask
    |> TaskResult.catch DatabaseError
+   |> TaskResult.orElseWith (fun err ->
+      let (DatabaseError e) = err
+
+      if e.Message.Contains("NoResultsException") then
+         Task.FromResult(Ok None)
+      else
+         Task.FromResult(Error err))
 
 let pgQuery<'t>
    (query: string)
@@ -62,5 +69,18 @@ let pgTransaction
    connString
    |> Sql.connect
    |> Sql.executeTransactionAsync txn
+   |> TaskResult.ofTask
+   |> TaskResult.catch DatabaseError
+
+let pgProcedure
+   (name: string)
+   (parameters: SqlParameterList option)
+   : Result<int, Err> Task
+   =
+   connString
+   |> Sql.connect
+   |> Sql.func name
+   |> Sql.parameters (Option.defaultValue [] parameters)
+   |> Sql.executeNonQueryAsync
    |> TaskResult.ofTask
    |> TaskResult.catch DatabaseError

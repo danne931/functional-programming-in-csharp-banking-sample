@@ -146,11 +146,6 @@ let private billingStatementSqlParams (bill: BillingStatement) = [
    "@accountSnapshot", BillingSqlWriter.accountSnapshot bill.AccountSnapshot
 ]
 
-let private eventJournalSqlParams (bill: BillingStatement) = [
-   "@persistenceId", Sql.text <| string bill.AccountId
-   "@sequenceNumber", Sql.int64 bill.LastPersistedEventSequenceNumber
-]
-
 let private snapshotStoreSqlParams (bill: BillingStatement) = [
    "@persistenceId", Sql.text <| string bill.AccountId
    "@sequenceNumber", Sql.int64 bill.LastPersistedEventSequenceNumber
@@ -161,8 +156,7 @@ let private snapshotStoreSqlParams (bill: BillingStatement) = [
 ]
 
 // NOTE:
-// Deleting akka_event_journal account events & taking a snapshot
-// used to be implemented in the AccountActor application logic.
+// Taking a snapshot used to be implemented in the AccountActor application logic.
 // These DB ops would occur for each account during a billing cycle,
 // leading to Postgres connection pool errors.
 // To fix this I have removed this application logic from the AccountActor,
@@ -174,14 +168,9 @@ let private saveBillingStatements (statements: BillingStatement list) =
       |> List.fold
          (fun acc bill -> {|
             Billing = billingStatementSqlParams bill :: acc.Billing
-            EventJournal = eventJournalSqlParams bill :: acc.EventJournal
             SnapshotStore = snapshotStoreSqlParams bill :: acc.SnapshotStore
          |})
-         {|
-            Billing = []
-            EventJournal = []
-            SnapshotStore = []
-         |}
+         {| Billing = []; SnapshotStore = [] |}
 
    pgTransaction [
       $"""
@@ -207,16 +196,6 @@ let private saveBillingStatements (statements: BillingStatement list) =
           @accountSnapshot)
       """,
       sqlParams.Billing
-
-      """
-      UPDATE akka_event_journal
-      SET
-         deleted = true
-      WHERE
-         persistence_id = @persistenceId AND
-         sequence_number <= @sequenceNumber
-      """,
-      sqlParams.EventJournal
 
       """
       INSERT into akka_snapshots

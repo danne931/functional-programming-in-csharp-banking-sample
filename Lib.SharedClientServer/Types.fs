@@ -18,6 +18,11 @@ type OrgId =
       let (OrgId id) = x
       string id
 
+module OrgId =
+   let get (orgId: OrgId) : Guid =
+      let (OrgId id) = orgId
+      id
+
 type EntityId =
    | EntityId of Guid
 

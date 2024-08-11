@@ -8,7 +8,6 @@ open Akka.Actor
 open FsToolkit.ErrorHandling
 open Validus
 
-open Lib.NetworkQuery
 open Lib.Postgres
 open Lib.SharedTypes
 open Bank.Account.Domain

@@ -44,6 +44,12 @@ module TransactionPath =
 
    let transactionInfo (id: EventId) = $"{Base}/transaction/{id}"
 
+   let TransactionConfirmation =
+      Base + "/transaction-confirmation/{correlationId}"
+
+   let transactionConfirmation (correlationId: CorrelationId) =
+      $"{Base}/transaction-confirmation/{correlationId}"
+
    let Category = TransactionInfo + "/category/{categoryId}"
    let CategoryDelete = TransactionInfo + "/category"
 
@@ -86,3 +92,8 @@ module UserSessionPath =
    let GetSession = "/session"
    let AuthorizeInvite = "/auth/invite"
    let AuthorizationCallback = "/auth/callback"
+
+module AnalyticsPath =
+   let Base = $"{API}/analytics"
+   let Get = Base + "/{orgId}"
+   let get (orgId: OrgId) = $"{Base}/{orgId}"

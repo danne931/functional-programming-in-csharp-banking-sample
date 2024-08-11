@@ -104,7 +104,14 @@ let form
                BaseInfo = {
                   ScheduledDate = DateTime.UtcNow
                   Amount = amount
+                  RecipientOrgId = recipient.OrgId
                   RecipientId = recipient.AccountId
+                  RecipientName = recipient.Name
+                  Sender = {
+                     Name = account.Name
+                     AccountId = account.AccountId
+                     OrgId = account.OrgId
+                  }
                }
                Memo = memo
             }

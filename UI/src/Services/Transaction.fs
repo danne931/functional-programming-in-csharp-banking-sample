@@ -114,18 +114,40 @@ let updateMerchant (merchant: Merchant) : Async<Result<int, Err>> = async {
 
 let getTransactionInfo
    (txnId: EventId)
-   : Async<Result<TransactionWithAncillaryInfo, Err>>
+   : Async<Result<TransactionWithAncillaryInfo option, Err>>
    =
    async {
       let! (code, responseText) =
          Http.get (TransactionPath.transactionInfo txnId)
 
-      if code <> 200 then
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
          return Error <| Err.InvalidStatusCodeError(serviceName, code)
       else
          return
             responseText
             |> Serialization.deserialize<TransactionWithAncillaryInfo>
+            |> Result.map Some
+   }
+
+let getCorrelatedTransactionConfirmations
+   (correlationId: CorrelationId)
+   : Async<Result<AccountEventPersistedConfirmation list option, Err>>
+   =
+   async {
+      let! (code, responseText) =
+         Http.get (TransactionPath.transactionConfirmation correlationId)
+
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
+         return Error <| Err.InvalidStatusCodeError(serviceName, code)
+      else
+         return
+            responseText
+            |> Serialization.deserialize<AccountEventPersistedConfirmation list>
+            |> Result.map Some
    }
 
 let updateCategory

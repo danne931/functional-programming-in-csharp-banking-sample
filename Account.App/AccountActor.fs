@@ -28,10 +28,12 @@ let private billingCycle
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (mailbox: Eventsourced<obj>)
-   account
+   (state: AccountWithEvents)
    =
+   let account = state.Info
+
    let billing =
-      BillingStatement.billingStatement account <| mailbox.LastSequenceNr()
+      BillingStatement.billingStatement state <| mailbox.LastSequenceNr()
 
    getBillingStatementActor mailbox.System <! RegisterBillingStatement billing
 
@@ -70,14 +72,20 @@ let actorProps
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
 
-      let rec loop (accountOpt: Account option) = actor {
+      let rec loop (stateOpt: AccountWithEvents option) = actor {
          let! msg = mailbox.Receive()
-         let account = Option.defaultValue Account.empty accountOpt
+
+         let state =
+            stateOpt
+            |> Option.defaultValue { Info = Account.empty; Events = [] }
+
+         let account = state.Info
 
          match box msg with
          | Persisted mailbox e ->
             let (AccountMessage.Event evt) = unbox e
-            let account = Account.applyEvent account evt
+            let state = Account.applyEvent state evt
+            let account = state.Info
 
             broadcaster.accountEventPersisted evt account
 
@@ -160,21 +168,17 @@ let actorProps
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register(account, e.InitiatedById)
             | BillingCycleStarted _ ->
-               billingCycle
-                  getBillingStatementActor
-                  getEmailActor
-                  mailbox
-                  account
+               billingCycle getBillingStatementActor getEmailActor mailbox state
             | _ -> ()
 
-            return! loop <| Some account
+            return! loop <| Some state
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? ConfirmableMessageEnvelope as envelope ->
             match envelope.Message with
             | :? AccountMessage as msg ->
                match msg with
                | AccountMessage.StateChange cmd ->
-                  let validation = Account.stateTransition account cmd
+                  let validation = Account.stateTransition state cmd
 
                   match validation with
                   | Ok(event, _) ->
@@ -245,17 +249,18 @@ let actorProps
                return unhandled ()
          | :? AccountMessage as msg ->
             match msg with
-            | AccountMessage.GetAccount -> mailbox.Sender() <! accountOpt
+            | AccountMessage.GetAccount ->
+               mailbox.Sender() <! (stateOpt |> Option.map _.Info)
             | AccountMessage.Delete ->
                let account = {
                   account with
                      Status = AccountStatus.ReadyForDelete
                }
 
-               return! loop (Some account) <@> DeleteMessages Int64.MaxValue
+               return! loop (Some state) <@> DeleteMessages Int64.MaxValue
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
-            return! loop <| Some(Account.applyEvent account e)
+            return! loop <| Some(Account.applyEvent state e)
          | msg ->
             PersistentActorEventHandler.handleEvent
                {

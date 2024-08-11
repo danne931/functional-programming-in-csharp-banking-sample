@@ -148,7 +148,6 @@ type Account = {
    InProgressDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    FailedDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
-   Events: AccountEvent list
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber
 } with
@@ -165,6 +164,11 @@ type Account = {
             (fun _ o -> TransferRecipient.Domestic o)
             x.DomesticTransferRecipients
 
+type AccountWithEvents = {
+   Info: Account
+   Events: AccountEvent list
+}
+
 type AccountProfile = {
    AccountId: AccountId
    OrgId: OrgId
@@ -178,6 +182,8 @@ type AccountProfile = {
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
+
+   member x.FullName = $"{x.Name} **{x.AccountNumber.Last4}"
 
 module AccountProfile =
    let fromAccount (account: Account) : AccountProfile = {

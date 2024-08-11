@@ -20,6 +20,7 @@ open Bank.Diagnostic.Routes
 open Bank.Transaction.Routes
 open Bank.Employee.Routes
 open Bank.Card.Routes
+open Bank.Analytics.Routes
 open Bank.Hubs
 open ActorUtil
 open Lib.SharedTypes
@@ -163,5 +164,6 @@ startDiagnosticRoutes app
 startTransactionRoutes app
 startEmployeeRoutes app
 startCardRoutes app
+startAnalyticsRoutes app
 
 app.Run()

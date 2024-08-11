@@ -19,6 +19,7 @@ type InternalTransferRecipient = {
    Name: string
    Nickname: string option
    AccountId: AccountId
+   OrgId: OrgId
    Status: RecipientRegistrationStatus
 }
 

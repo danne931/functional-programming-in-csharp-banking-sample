@@ -13,6 +13,13 @@ let table = "transaction"
 module TransactionTypeCast =
    let moneyFlow = "money_flow"
 
+module TransactionFunctions =
+   let moneyFlowTopNMonthly = $"money_flow_top_n_source_by_month"
+
+   let moneyFlowTimeSeriesDaily = "money_flow_time_series_daily"
+
+   let moneyFlowTimeSeriesMonthly = "money_flow_time_series_monthly"
+
 module TransactionFields =
    let transactionId = "transaction_id"
    let accountId = AccountFields.accountId
@@ -22,6 +29,7 @@ module TransactionFields =
    let name = "name"
    let amount = "amount"
    let moneyFlow = "money_flow"
+   let source = "source"
    let timestamp = "timestamp"
    let event = "event"
 
@@ -40,11 +48,16 @@ module TransactionSqlReader =
       read.uuidOrNone TransactionFields.cardId |> Option.map CardId
 
    let name (read: RowReader) = read.text TransactionFields.name
-   let amount (read: RowReader) = read.decimal TransactionFields.amount
+
+   let amount (read: RowReader) =
+      read.decimalOrNone TransactionFields.amount
 
    let moneyFlow (read: RowReader) =
       read.stringOrNone TransactionFields.moneyFlow
-      |> Option.map MoneyFlow.fromString
+      |> Option.bind MoneyFlow.fromString
+
+   let source (read: RowReader) =
+      read.stringOrNone TransactionFields.source
 
    let timestamp (read: RowReader) =
       read.dateTime TransactionFields.timestamp
@@ -80,7 +93,9 @@ module TransactionSqlWriter =
    let amount = Sql.moneyOrNone
 
    let moneyFlow (direction: MoneyFlow option) =
-      direction |> Option.map (string >> _.ToLower()) |> Sql.stringOrNone
+      direction |> Option.map string |> Sql.stringOrNone
+
+   let source = Sql.stringOrNone
 
    let timestamp (date: DateTime) = Sql.timestamptz date
 

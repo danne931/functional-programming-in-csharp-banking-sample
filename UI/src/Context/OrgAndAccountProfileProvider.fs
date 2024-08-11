@@ -42,10 +42,9 @@ let update msg state =
       }
 
       Deferred.InProgress, Cmd.fromAsync load
-   | Load(_, Finished(Ok(Some(orgWithProfiles)))) ->
-      orgWithProfiles |> Some |> Ok |> Deferred.Resolved, Cmd.none
-   | Load _ ->
-      Log.error "Issue loading org + account profiles."
+   | Load(_, Finished(Ok res)) -> res |> Ok |> Deferred.Resolved, Cmd.none
+   | Load(_, Finished(Error err)) ->
+      Log.error $"Issue loading org + account profiles. {err}"
       state, Cmd.none
    | BalanceUpdated o ->
       let persistedEvt = o.PersistedEvent

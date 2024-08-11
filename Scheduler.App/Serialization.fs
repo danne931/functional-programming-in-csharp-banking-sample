@@ -31,6 +31,11 @@ type private QuartzTransferProgressMessageEnvelope = {
    Message: TransferProgressTrackingMessage
 }
 
+type private SchedulingActorMessageEnvelope = {
+   Manifest: string
+   Message: SchedulingActor.Message
+}
+
 type QuartzSerializer(system: ExtendedActorSystem) =
    inherit Serializer(system)
 
@@ -89,6 +94,14 @@ type QuartzSerializer(system: ExtendedActorSystem) =
       | "TransferProgressTrackingActorMessage" ->
          let deseri =
             JsonSerializer.Deserialize<QuartzTransferProgressMessageEnvelope>(
+               bytes,
+               Serialization.jsonOptions
+            )
+
+         deseri.Message
+      | "SchedulingActorMessage" ->
+         let deseri =
+            JsonSerializer.Deserialize<SchedulingActorMessageEnvelope>(
                bytes,
                Serialization.jsonOptions
             )
