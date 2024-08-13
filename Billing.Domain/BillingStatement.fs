@@ -7,19 +7,32 @@ open Bank.Account.Domain
 
 type BillingTransaction = private BillingTransaction of AccountEvent
 
+type BillingPeriod = { Month: int; Year: int }
+
 module BillingTransaction =
-   let create (evt: AccountEvent) : BillingTransaction option =
-      match evt with
-      | CreatedAccount _
-      | DepositedCash _
-      | DebitedAccount _
-      | MaintenanceFeeDebited _
-      | InternalTransferPending _
-      | InternalTransferRejected _
-      | DomesticTransferPending _
-      | DomesticTransferRejected _
-      | TransferDeposited _ -> Some(BillingTransaction evt)
-      | _ -> None
+   let create
+      (period: BillingPeriod)
+      (evt: AccountEvent)
+      : BillingTransaction option
+      =
+      let cutoffStart = DateTime(period.Year, period.Month, 1).ToUniversalTime()
+      let cutoffEnd = cutoffStart.AddMonths(1)
+      let _, env = AccountEnvelope.unwrap evt
+
+      if env.Timestamp < cutoffStart || env.Timestamp >= cutoffEnd then
+         None
+      else
+         match evt with
+         | CreatedAccount _
+         | DepositedCash _
+         | DebitedAccount _
+         | MaintenanceFeeDebited _
+         | InternalTransferPending _
+         | InternalTransferRejected _
+         | DomesticTransferPending _
+         | DomesticTransferRejected _
+         | TransferDeposited _ -> Some(BillingTransaction evt)
+         | _ -> None
 
    let value (BillingTransaction evt) = evt
 
@@ -43,13 +56,15 @@ type BillingStatementMessage =
    | RegisterBillingStatement of BillingStatement
    | GetFailedWrites
 
-let billingTransactions = List.choose BillingTransaction.create
+let billingTransactions (period: BillingPeriod) (evts: AccountEvent list) =
+   List.choose (BillingTransaction.create period) evts
 
 #if !FABLE_COMPILER
 open System.Text.Json
 
 let billingStatement
    (state: AccountWithEvents)
+   (period: BillingPeriod)
    (lastPersistedEventSequenceNumber: Int64)
    : BillingStatement
    =
@@ -57,9 +72,9 @@ let billingStatement
    let evts = state.Events
 
    {
-      Transactions = billingTransactions evts
-      Month = DateTime.UtcNow.Month
-      Year = DateTime.UtcNow.Year
+      Transactions = billingTransactions period evts
+      Month = period.Month
+      Year = period.Year
       Balance = account.Balance
       Name = account.Name
       AccountId = account.AccountId

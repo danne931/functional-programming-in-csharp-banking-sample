@@ -360,10 +360,20 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
                   account.InternalTransferSenders
         }
 
+   let updatedEvents = evt :: state.Events
+
    let updatedEvents =
-      match evt with
-      | BillingCycleStarted _ -> []
-      | _ -> evt :: state.Events
+      match evt, account.LastBillingCycleDate with
+      | MaintenanceFeeDebited _, Some date
+      | MaintenanceFeeSkipped _, Some date ->
+         // Keep events that occurred after the previous billing statement period.
+         let cutoff = DateTime(date.Year, date.Month, 1).ToUniversalTime()
+
+         state.Events
+         |> List.filter (fun evt ->
+            let _, env = AccountEnvelope.unwrap evt
+            env.Timestamp >= cutoff)
+      | _ -> updatedEvents
 
    {
       state with

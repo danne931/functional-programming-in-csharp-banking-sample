@@ -301,21 +301,6 @@ let seedAccountOwnerActions
       let timestamp = timestamp.AddMonths month
       let accountRef = getAccountRef arCheckingAccountId
 
-      (*
-      if month = 3 then
-         let msg =
-            {
-               StartBillingCycleCommand.create (arCheckingAccountId, orgId) {
-                  Reference = None
-               } with
-                  Timestamp = timestamp
-            }
-            |> AccountCommand.StartBillingCycle
-            |> AccountMessage.StateChange
-
-         accountRef <! msg
-      *)
-
       let purchaseCmd = {
          DebitRequestCommand.create (employeeId, orgId) {
             AccountId = card.AccountId
@@ -543,7 +528,6 @@ let seedAccountTransactions
 
          accountRef <! msg
       | None -> ()
-
 
       if accountId = arCheckingAccountId then
          createEmployees getEmployeeRef

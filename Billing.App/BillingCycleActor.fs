@@ -7,6 +7,7 @@ open Akka.Streams
 open Akkling.Streams
 open Akkling
 open Akkling.Cluster.Sharding
+open System
 
 open BillingStatement
 open Bank.Account.Domain
@@ -16,7 +17,7 @@ open Lib.Types
 open Lib.Postgres
 open Lib.SharedTypes
 
-let getActiveAccounts () =
+let getBillingCycleReadyAccounts () =
    let prevCycle = AccountFields.lastBillingCycleDate
 
    let lookback =
@@ -46,7 +47,7 @@ let private fanOutBillingCycleMessage
       let mat = ctx.System.Materializer()
 
       do!
-         getActiveAccounts ()
+         getBillingCycleReadyAccounts ()
          |> Async.AwaitTask
          |> Source.ofAsync
          |> Source.throttle
@@ -66,8 +67,14 @@ let private fanOutBillingCycleMessage
                opt)
          |> Source.collect id
          |> Source.runForEach mat (fun (accountId, orgId) ->
+            // This billing cycle actor is scheduled to run at the start of
+            // every month.  The billing period refers to the previous month.
+            let billingPeriod = DateTime.UtcNow.AddMonths -1
+
             let msg =
                StartBillingCycleCommand.create (accountId, orgId) {
+                  Month = billingPeriod.Month
+                  Year = billingPeriod.Year
                   Reference = None
                }
                |> AccountCommand.StartBillingCycle

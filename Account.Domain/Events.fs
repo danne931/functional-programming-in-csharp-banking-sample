@@ -36,4 +36,8 @@ type MaintenanceFeeSkipped = { Reason: MaintenanceFeeCriteria }
 
 type AccountClosed = { Reference: string option }
 
-type BillingCycleStarted = { Reference: string option }
+type BillingCycleStarted = {
+   Month: int
+   Year: int
+   Reference: string option
+}

@@ -18,11 +18,11 @@ let scheduleMonthly (logInfo: string -> unit) =
 
    if Env.isProd then
       logInfo
-         "Scheduling billing cycle for the last day of the month at 11:55PM"
+         "Scheduling billing cycle for the first day of the month at 12:13AM"
 
-      builder.WithCronSchedule("0 55 23 L * ? *").Build()
+      builder.WithCronSchedule("0 0 13 L * ? *").Build()
    else
-      logInfo "Scheduling billing cycle for every 2 minutes."
+      logInfo "Scheduling billing cycle for every 20 minutes."
 
       builder
          .WithSimpleSchedule(fun s ->

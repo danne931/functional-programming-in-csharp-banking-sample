@@ -29,11 +29,18 @@ let private billingCycle
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    (mailbox: Eventsourced<obj>)
    (state: AccountWithEvents)
+   (evt: BankEvent<BillingCycleStarted>)
    =
    let account = state.Info
 
+   let billingPeriod = {
+      Month = evt.Data.Month
+      Year = evt.Data.Year
+   }
+
    let billing =
-      BillingStatement.billingStatement state <| mailbox.LastSequenceNr()
+      BillingStatement.billingStatement state billingPeriod
+      <| mailbox.LastSequenceNr()
 
    getBillingStatementActor mailbox.System <! RegisterBillingStatement billing
 
@@ -167,8 +174,13 @@ let actorProps
             | AccountEvent.AccountClosed e ->
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register(account, e.InitiatedById)
-            | BillingCycleStarted _ ->
-               billingCycle getBillingStatementActor getEmailActor mailbox state
+            | BillingCycleStarted e ->
+               billingCycle
+                  getBillingStatementActor
+                  getEmailActor
+                  mailbox
+                  state
+                  e
             | _ -> ()
 
             return! loop <| Some state
