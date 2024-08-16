@@ -38,7 +38,9 @@ type EmailMessage =
       accrued: decimal *
       Email
    | DebitDeclinedInsufficientAccountBalance of balance: decimal * Email
-   | TransferDeposited of BankEvent<TransferDeposited> * Account
+   | TransferBetweenOrgsDeposited of
+      BankEvent<InternalTransferBetweenOrgsDeposited> *
+      Account
    | ApplicationErrorRequiresSupport of string
    | EmployeeInvite of EmployeeInvite
 
@@ -95,7 +97,7 @@ let private emailPropsFromMessage (msg: EmailMessage) =
               Your daily debit limit is set to ${limit}."
       |}
      }
-   | TransferDeposited(evt, account) -> {
+   | TransferBetweenOrgsDeposited(evt, account) -> {
       event = "transfer-deposited"
       (*
       email = string account.Email

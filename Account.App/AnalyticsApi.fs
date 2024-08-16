@@ -8,9 +8,7 @@ open Lib.SharedTypes
 open Lib.Postgres
 open Lib.Time
 open Bank.Account.Domain
-open AncillaryTransactionInfoSqlMapper
 open TransactionSqlMapper
-open TransactionMerchantSqlMapper
 
 module Fields = TransactionFields
 module Writer = TransactionSqlWriter
@@ -88,12 +86,7 @@ let moneyFlowTopNAnalytics
       return
          topN
          |> List.partition (fun a -> a.MoneyFlow = MoneyFlow.In)
-         |> fun (mfIn, mfOut) -> {
-            AmountInTotal = mfIn |> List.sumBy _.Amount
-            AmountOutTotal = mfOut |> List.sumBy _.Amount
-            In = mfIn
-            Out = mfOut
-         }
+         |> fun (mfIn, mfOut) -> { In = mfIn; Out = mfOut }
    }
 
 let moneyFlowDailyTimeSeriesAnalytics

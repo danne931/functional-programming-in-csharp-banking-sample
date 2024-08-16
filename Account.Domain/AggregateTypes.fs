@@ -12,14 +12,16 @@ type AccountCommand =
    | Debit of DebitCommand
    | MaintenanceFee of MaintenanceFeeCommand
    | SkipMaintenanceFee of SkipMaintenanceFeeCommand
-   | InternalTransfer of InternalTransferCommand
-   | ApproveInternalTransfer of ApproveInternalTransferCommand
-   | RejectInternalTransfer of RejectInternalTransferCommand
-   | DepositTransfer of DepositTransferCommand
-   | RegisterInternalTransferRecipient of
-      RegisterInternalTransferRecipientCommand
-   | RegisterInternalSender of RegisterInternalSenderCommand
-   | DeactivateInternalRecipient of DeactivateInternalRecipientCommand
+   | InternalTransfer of InternalTransferWithinOrgCommand
+   | ApproveInternalTransfer of ApproveInternalTransferWithinOrgCommand
+   | RejectInternalTransfer of RejectInternalTransferWithinOrgCommand
+   | InternalTransferBetweenOrgs of InternalTransferBetweenOrgsCommand
+   | ApproveInternalTransferBetweenOrgs of
+      ApproveInternalTransferBetweenOrgsCommand
+   | RejectInternalTransferBetweenOrgs of
+      RejectInternalTransferBetweenOrgsCommand
+   | DepositTransferWithinOrg of DepositInternalTransferWithinOrgCommand
+   | DepositTransferBetweenOrgs of DepositInternalTransferBetweenOrgsCommand
    | RegisterDomesticTransferRecipient of
       RegisterDomesticTransferRecipientCommand
    | EditDomesticTransferRecipient of EditDomesticTransferRecipientCommand
@@ -37,13 +39,22 @@ type AccountEvent =
    | DebitedAccount of BankEvent<DebitedAccount>
    | MaintenanceFeeDebited of BankEvent<MaintenanceFeeDebited>
    | MaintenanceFeeSkipped of BankEvent<MaintenanceFeeSkipped>
-   | InternalTransferRecipient of BankEvent<RegisteredInternalTransferRecipient>
-   | InternalTransferPending of BankEvent<InternalTransferPending>
-   | InternalTransferApproved of BankEvent<InternalTransferApproved>
-   | InternalTransferRejected of BankEvent<InternalTransferRejected>
-   | InternalSenderRegistered of BankEvent<InternalSenderRegistered>
-   | InternalRecipientDeactivated of BankEvent<InternalRecipientDeactivated>
-   | TransferDeposited of BankEvent<TransferDeposited>
+   | InternalTransferWithinOrgPending of
+      BankEvent<InternalTransferWithinOrgPending>
+   | InternalTransferWithinOrgApproved of
+      BankEvent<InternalTransferWithinOrgApproved>
+   | InternalTransferWithinOrgRejected of
+      BankEvent<InternalTransferWithinOrgRejected>
+   | InternalTransferBetweenOrgsPending of
+      BankEvent<InternalTransferBetweenOrgsPending>
+   | InternalTransferBetweenOrgsApproved of
+      BankEvent<InternalTransferBetweenOrgsApproved>
+   | InternalTransferBetweenOrgsRejected of
+      BankEvent<InternalTransferBetweenOrgsRejected>
+   | InternalTransferWithinOrgDeposited of
+      BankEvent<InternalTransferWithinOrgDeposited>
+   | InternalTransferBetweenOrgsDeposited of
+      BankEvent<InternalTransferBetweenOrgsDeposited>
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | EditedDomesticTransferRecipient of
       BankEvent<EditedDomesticTransferRecipient>
@@ -76,25 +87,28 @@ module AccountEnvelope =
       | :? BankEvent<DebitedAccount> as evt -> DebitedAccount evt
       | :? BankEvent<MaintenanceFeeDebited> as evt -> MaintenanceFeeDebited evt
       | :? BankEvent<MaintenanceFeeSkipped> as evt -> MaintenanceFeeSkipped evt
-      | :? BankEvent<RegisteredInternalTransferRecipient> as evt ->
-         InternalTransferRecipient evt
       | :? BankEvent<RegisteredDomesticTransferRecipient> as evt ->
          DomesticTransferRecipient evt
       | :? BankEvent<EditedDomesticTransferRecipient> as evt ->
          EditedDomesticTransferRecipient evt
-      | :? BankEvent<InternalRecipientDeactivated> as evt ->
-         InternalRecipientDeactivated evt
       | :? BankEvent<RecipientNicknamed> as evt ->
          AccountEvent.RecipientNicknamed evt
-      | :? BankEvent<InternalSenderRegistered> as evt ->
-         InternalSenderRegistered evt
-      | :? BankEvent<InternalTransferPending> as evt ->
-         InternalTransferPending evt
-      | :? BankEvent<InternalTransferApproved> as evt ->
-         InternalTransferApproved evt
-      | :? BankEvent<InternalTransferRejected> as evt ->
-         InternalTransferRejected evt
-      | :? BankEvent<TransferDeposited> as evt -> TransferDeposited evt
+      | :? BankEvent<InternalTransferWithinOrgPending> as evt ->
+         InternalTransferWithinOrgPending evt
+      | :? BankEvent<InternalTransferWithinOrgApproved> as evt ->
+         InternalTransferWithinOrgApproved evt
+      | :? BankEvent<InternalTransferWithinOrgRejected> as evt ->
+         InternalTransferWithinOrgRejected evt
+      | :? BankEvent<InternalTransferBetweenOrgsPending> as evt ->
+         InternalTransferBetweenOrgsPending evt
+      | :? BankEvent<InternalTransferBetweenOrgsApproved> as evt ->
+         InternalTransferBetweenOrgsApproved evt
+      | :? BankEvent<InternalTransferBetweenOrgsRejected> as evt ->
+         InternalTransferBetweenOrgsRejected evt
+      | :? BankEvent<InternalTransferWithinOrgDeposited> as evt ->
+         InternalTransferWithinOrgDeposited evt
+      | :? BankEvent<InternalTransferBetweenOrgsDeposited> as evt ->
+         InternalTransferBetweenOrgsDeposited evt
       | :? BankEvent<DomesticTransferPending> as evt ->
          DomesticTransferPending evt
       | :? BankEvent<DomesticTransferProgressUpdate> as evt ->
@@ -114,12 +128,12 @@ module AccountEnvelope =
       | DebitedAccount evt -> wrap evt, get evt
       | MaintenanceFeeDebited evt -> wrap evt, get evt
       | MaintenanceFeeSkipped evt -> wrap evt, get evt
-      | InternalTransferRecipient evt -> wrap evt, get evt
-      | InternalRecipientDeactivated evt -> wrap evt, get evt
-      | InternalSenderRegistered evt -> wrap evt, get evt
-      | InternalTransferPending evt -> wrap evt, get evt
-      | InternalTransferApproved evt -> wrap evt, get evt
-      | InternalTransferRejected evt -> wrap evt, get evt
+      | InternalTransferWithinOrgPending evt -> wrap evt, get evt
+      | InternalTransferWithinOrgApproved evt -> wrap evt, get evt
+      | InternalTransferWithinOrgRejected evt -> wrap evt, get evt
+      | InternalTransferBetweenOrgsPending evt -> wrap evt, get evt
+      | InternalTransferBetweenOrgsApproved evt -> wrap evt, get evt
+      | InternalTransferBetweenOrgsRejected evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
       | EditedDomesticTransferRecipient evt -> wrap evt, get evt
       | DomesticTransferPending evt -> wrap evt, get evt
@@ -127,7 +141,8 @@ module AccountEnvelope =
       | DomesticTransferApproved evt -> wrap evt, get evt
       | DomesticTransferRejected evt -> wrap evt, get evt
       | RecipientNicknamed evt -> wrap evt, get evt
-      | TransferDeposited evt -> wrap evt, get evt
+      | InternalTransferWithinOrgDeposited evt -> wrap evt, get evt
+      | InternalTransferBetweenOrgsDeposited evt -> wrap evt, get evt
       | AccountClosed evt -> wrap evt, get evt
       | BillingCycleStarted evt -> wrap evt, get evt
 
@@ -140,11 +155,8 @@ type Account = {
    Status: AccountStatus
    Balance: decimal
    LastBillingCycleDate: DateTime option
-   InternalTransferSenders: Map<AccountId, InternalTransferSender>
-   InternalTransferRecipients: Map<AccountId, InternalTransferRecipient>
    DomesticTransferRecipients: Map<AccountId, DomesticTransferRecipient>
-   InProgressInternalTransfers:
-      Map<CorrelationId, BankEvent<InternalTransferPending>>
+   InProgressInternalTransfers: Map<CorrelationId, InProgressInternalTransfer>
    InProgressDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    FailedDomesticTransfers: Map<CorrelationId, DomesticTransfer>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
@@ -153,16 +165,6 @@ type Account = {
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
-
-   member x.TransferRecipients =
-      Map.fold
-      <| fun acc key value -> Map.add key value acc
-      <| Map.map
-            (fun _ o -> TransferRecipient.Internal o)
-            x.InternalTransferRecipients
-      <| Map.map
-            (fun _ o -> TransferRecipient.Domestic o)
-            x.DomesticTransferRecipients
 
 type AccountWithEvents = {
    Info: Account
@@ -231,7 +233,7 @@ type AccountBroadcast = {
 
 [<RequireQualifiedAccess>]
 type AccountClosureMessage =
-   | Register of Account * InitiatedById
+   | Register of Account
    | ScheduleDeleteAll
    | DeleteAll of AccountId list
    | GetRegisteredAccounts

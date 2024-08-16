@@ -37,7 +37,7 @@ let update msg state =
    match msg with
    | Load(orgId, Started) ->
       let load = async {
-         let! res = AccountService.getOrgAndAccountProfiles orgId
+         let! res = OrgService.getOrgAndAccountProfiles orgId
          return Msg.Load(orgId, Finished res)
       }
 
@@ -59,7 +59,13 @@ let update msg state =
 
             let profile =
                match persistedEvt with
-               | AccountEvent.InternalTransferPending e -> {
+               | AccountEvent.InternalTransferBetweenOrgsPending e -> {
+                  profile with
+                     DailyInternalTransferAccrued =
+                        profile.DailyInternalTransferAccrued
+                        + e.Data.BaseInfo.Amount
+                 }
+               | AccountEvent.InternalTransferWithinOrgPending e -> {
                   profile with
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
@@ -71,7 +77,13 @@ let update msg state =
                         profile.DailyDomesticTransferAccrued
                         + e.Data.BaseInfo.Amount
                  }
-               | AccountEvent.InternalTransferRejected e -> {
+               | AccountEvent.InternalTransferWithinOrgRejected e -> {
+                  profile with
+                     DailyInternalTransferAccrued =
+                        profile.DailyInternalTransferAccrued
+                        - e.Data.BaseInfo.Amount
+                 }
+               | AccountEvent.InternalTransferBetweenOrgsRejected e -> {
                   profile with
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
@@ -98,7 +110,7 @@ let update msg state =
       let internalTransferTransform state =
          let internalRecipient =
             match persistedEvt with
-            | AccountEvent.InternalTransferPending e ->
+            | AccountEvent.InternalTransferWithinOrgPending e ->
                let info = e.Data.BaseInfo
 
                state.AccountProfiles
@@ -107,7 +119,7 @@ let update msg state =
                   a with
                      Balance = a.Balance + info.Amount
                })
-            | AccountEvent.InternalTransferRejected e ->
+            | AccountEvent.InternalTransferWithinOrgRejected e ->
                let info = e.Data.BaseInfo
 
                state.AccountProfiles

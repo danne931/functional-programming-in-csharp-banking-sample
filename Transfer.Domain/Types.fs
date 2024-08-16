@@ -6,7 +6,8 @@ open Lib.SharedTypes
 
 [<RequireQualifiedAccess>]
 type RecipientAccountEnvironment =
-   | Internal
+   | InternalWithinOrg
+   | InternalCrossOrg
    | Domestic
 
 [<RequireQualifiedAccess>]
@@ -20,13 +21,26 @@ type InternalTransferRecipient = {
    Nickname: string option
    AccountId: AccountId
    OrgId: OrgId
-   Status: RecipientRegistrationStatus
 }
 
 type InternalTransferSender = {
    Name: string
    AccountId: AccountId
    OrgId: OrgId
+}
+
+type BaseInternalTransferInfo = {
+   RecipientOrgId: OrgId
+   RecipientId: AccountId
+   RecipientName: string
+   Amount: decimal
+   ScheduledDate: DateTime
+   Sender: InternalTransferSender
+}
+
+type InProgressInternalTransfer = {
+   CorrelationId: CorrelationId
+   Info: BaseInternalTransferInfo
 }
 
 [<RequireQualifiedAccess>]
@@ -51,11 +65,6 @@ type DomesticTransferRecipient = {
 } with
 
    member x.Name = $"{x.FirstName} {x.LastName}"
-
-[<RequireQualifiedAccess>]
-type TransferRecipient =
-   | Internal of InternalTransferRecipient
-   | Domestic of DomesticTransferRecipient
 
 [<RequireQualifiedAccess>]
 type TransferProgressTrackingMessage = | ProgressCheck

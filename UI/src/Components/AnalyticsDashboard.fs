@@ -504,11 +504,16 @@ let renderTopMoneyListItems
    (accounts: Map<AccountId, AccountProfile>)
    (topN: MoneyFlowTopNAnalytics)
    (last3MonthTimeSeries: MoneyFlowMonthlyTimeSeriesAnalytics)
+   (selectedMonth: DateTime)
    =
+   let selected =
+      last3MonthTimeSeries.ByOrg
+      |> List.find (fun a -> a.Month.Month = selectedMonth.Month)
+
    let str, color, items, totalAmount =
       match flow with
-      | MoneyFlow.In -> "in", "credit", topN.In, topN.AmountInTotal
-      | MoneyFlow.Out -> "out", "debit", topN.Out, topN.AmountOutTotal
+      | MoneyFlow.In -> "in", "credit", topN.In, selected.AmountIn
+      | MoneyFlow.Out -> "out", "debit", topN.Out, selected.AmountOut
 
    let renderAmount (amount: decimal) =
       Html.p [ attr.classes [ color ]; attr.text (Money.format amount) ]
@@ -628,6 +633,7 @@ let AnalyticsDashboardComponent
                            org.AccountProfiles
                            topN
                            timeSeries
+                           state.SelectedTopNMonth
                      ]
 
                      Html.article [
@@ -636,6 +642,7 @@ let AnalyticsDashboardComponent
                            org.AccountProfiles
                            topN
                            timeSeries
+                           state.SelectedTopNMonth
                      ]
                   ]
             ]

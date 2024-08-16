@@ -55,7 +55,7 @@ let actorProps
             match msg with
             | AccountClosureMessage.GetRegisteredAccounts ->
                mailbox.Sender() <! accounts
-            | AccountClosureMessage.Register(account, initiatedBy) ->
+            | AccountClosureMessage.Register account ->
                let newState = Map.add account.AccountId account accounts
 
                logInfo
@@ -63,22 +63,6 @@ let actorProps
                   Account scheduled for deletion - {account.AccountId}.
                   Total scheduled: {newState.Count}.
                   """
-
-               // Deactivates this closed account in the sender account's
-               // TransferRecipients Map.
-               for sender in account.InternalTransferSenders.Values do
-                  let msg =
-                     DeactivateInternalRecipientCommand.create
-                        sender
-                        initiatedBy
-                        {
-                           RecipientId = account.AccountId
-                           RecipientName = account.Name
-                        }
-                     |> AccountCommand.DeactivateInternalRecipient
-                     |> AccountMessage.StateChange
-
-                  getAccountRef sender.AccountId <! msg
 
                return!
                   match newState.Count % 10 with

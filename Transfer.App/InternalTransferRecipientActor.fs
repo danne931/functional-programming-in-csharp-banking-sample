@@ -9,16 +9,65 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
 
-type InternalRecipientConfirmation = {
-   Sender: InternalTransferSender
-   Recipient: InternalTransferRecipient
-   InitiatedBy: InitiatedById
-}
-
 [<RequireQualifiedAccess>]
 type InternalTransferMessage =
-   | TransferRequest of BankEvent<InternalTransferPending>
-   | ConfirmRecipient of InternalRecipientConfirmation
+   | TransferRequestWithinOrg of BankEvent<InternalTransferWithinOrgPending>
+   | TransferRequestBetweenOrgs of BankEvent<InternalTransferBetweenOrgsPending>
+
+
+let private declineTransferWithinOrgMsg
+   (evt: BankEvent<InternalTransferWithinOrgPending>)
+   (reason: TransferDeclinedReason)
+   =
+   let info = evt.Data.BaseInfo
+
+   RejectInternalTransferWithinOrgCommand.create
+      (info.Sender.AccountId, evt.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      { BaseInfo = info; Reason = reason }
+   |> AccountCommand.RejectInternalTransfer
+   |> AccountMessage.StateChange
+
+let private declineTransferBetweenOrgsMsg
+   (evt: BankEvent<InternalTransferBetweenOrgsPending>)
+   (reason: TransferDeclinedReason)
+   =
+   let info = evt.Data.BaseInfo
+
+   RejectInternalTransferBetweenOrgsCommand.create
+      (info.Sender.AccountId, evt.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      { BaseInfo = info; Reason = reason }
+   |> AccountCommand.RejectInternalTransferBetweenOrgs
+   |> AccountMessage.StateChange
+
+let private approveTransferWithinOrgMsg
+   (evt: BankEvent<InternalTransferWithinOrgPending>)
+   =
+   let info = evt.Data.BaseInfo
+
+   ApproveInternalTransferWithinOrgCommand.create
+      (info.Sender.AccountId, evt.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      { BaseInfo = info }
+   |> AccountCommand.ApproveInternalTransfer
+   |> AccountMessage.StateChange
+
+let private approveTransferBetweenOrgsMsg
+   (evt: BankEvent<InternalTransferBetweenOrgsPending>)
+   =
+   let info = evt.Data.BaseInfo
+
+   ApproveInternalTransferBetweenOrgsCommand.create
+      (info.Sender.AccountId, evt.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      { BaseInfo = info }
+   |> AccountCommand.ApproveInternalTransferBetweenOrgs
+   |> AccountMessage.StateChange
 
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
@@ -27,118 +76,86 @@ let actorProps
    let handler (ctx: Actor<_>) (msg: InternalTransferMessage) = actor {
       let logWarning = logWarning ctx
 
-      match msg with
-      | InternalTransferMessage.ConfirmRecipient(conf) ->
-         let sender = conf.Sender
-         let recipient = conf.Recipient
-         let senderAccountRef = getAccountRef sender.AccountId
-         let recipientAccountRef = getAccountRef recipient.AccountId
+      let declineTransferMsg =
+         match msg with
+         | InternalTransferMessage.TransferRequestWithinOrg e ->
+            declineTransferWithinOrgMsg e
+         | InternalTransferMessage.TransferRequestBetweenOrgs e ->
+            declineTransferBetweenOrgsMsg e
 
-         let! (recipientAccountOpt: Account option) =
-            recipientAccountRef <? AccountMessage.GetAccount
+      let approveTransferMsg () =
+         match msg with
+         | InternalTransferMessage.TransferRequestWithinOrg e ->
+            approveTransferWithinOrgMsg e
+         | InternalTransferMessage.TransferRequestBetweenOrgs e ->
+            approveTransferBetweenOrgsMsg e
 
-         match recipientAccountOpt with
-         | None ->
-            logWarning $"Transfer recipient not found {recipient.AccountId}"
+      let info, meta =
+         match msg with
+         | InternalTransferMessage.TransferRequestWithinOrg e ->
+            e.Data.BaseInfo,
+            {|
+               CorrId = e.CorrelationId
+               InitiatedBy = e.InitiatedById
+            |}
+         | InternalTransferMessage.TransferRequestBetweenOrgs e ->
+            e.Data.BaseInfo,
+            {|
+               CorrId = e.CorrelationId
+               InitiatedBy = e.InitiatedById
+            |}
 
+      let recipientId = info.RecipientId
+      let senderId = info.Sender.AccountId
+      let recipientAccountRef = getAccountRef recipientId
+      let senderAccountRef = getAccountRef senderId
+
+      let! (recipientAccountOpt: Account option) =
+         recipientAccountRef <? AccountMessage.GetAccount
+
+      match recipientAccountOpt with
+      | None ->
+         logWarning $"Transfer recipient not found {recipientId}"
+
+         senderAccountRef
+         <! declineTransferMsg TransferDeclinedReason.InvalidAccountInfo
+      | Some recipientAccount ->
+         if recipientAccount.Status = AccountStatus.Closed then
+            logWarning $"Transfer recipient account closed"
+
+            senderAccountRef
+            <! declineTransferMsg TransferDeclinedReason.AccountClosed
+         else
+            senderAccountRef <! approveTransferMsg ()
+
+            // CorrelationId (here as txn.TransactionId) from sender
+            // transfer request traced to receiver's deposit.
             let msg =
-               DeactivateInternalRecipientCommand.create sender conf.InitiatedBy {
-                  RecipientName = recipient.Name
-                  RecipientId = recipient.AccountId
-               }
-               |> AccountCommand.DeactivateInternalRecipient
-               |> AccountMessage.StateChange
-
-            senderAccountRef <! msg
-         | Some recipientAccount ->
-            if recipientAccount.Status = AccountStatus.Closed then
-               logWarning $"Transfer recipient account closed"
-
-               let msg =
-                  DeactivateInternalRecipientCommand.create
-                     sender
-                     conf.InitiatedBy
-                     {
-                        RecipientId = recipient.AccountId
-                        RecipientName = recipient.Name
-                     }
-                  |> AccountCommand.DeactivateInternalRecipient
-                  |> AccountMessage.StateChange
-
-               senderAccountRef <! msg
-            else
-               let msg =
-                  RegisterInternalSenderCommand.create
+               match msg with
+               | InternalTransferMessage.TransferRequestWithinOrg _ ->
+                  DepositInternalTransferWithinOrgCommand.create
                      recipientAccount.CompositeId
-                     { Sender = sender }
-                  |> AccountCommand.RegisterInternalSender
-                  |> AccountMessage.StateChange
-
-               recipientAccountRef <! msg
-      | InternalTransferMessage.TransferRequest evt ->
-         let info = evt.Data.BaseInfo
-         let recipientId = info.RecipientId
-         let senderId = AccountId.fromEntityId evt.EntityId
-         let recipientAccountRef = getAccountRef recipientId
-         let senderAccountRef = getAccountRef senderId
-
-         let! (recipientAccountOpt: Account option) =
-            recipientAccountRef <? AccountMessage.GetAccount
-
-         let declineTransferMsg (reason: TransferDeclinedReason) =
-            RejectInternalTransferCommand.create
-               (senderId, evt.OrgId)
-               evt.CorrelationId
-               evt.InitiatedById
-               {
-                  BaseInfo = evt.Data.BaseInfo
-                  Reason = reason
-               }
-            |> AccountCommand.RejectInternalTransfer
-            |> AccountMessage.StateChange
-
-         match recipientAccountOpt with
-         | None ->
-            logWarning $"Transfer recipient not found {recipientId}"
-
-            let msg =
-               declineTransferMsg TransferDeclinedReason.InvalidAccountInfo
-
-            senderAccountRef <! msg
-         | Some recipientAccount ->
-            if recipientAccount.Status = AccountStatus.Closed then
-               logWarning $"Transfer recipient account closed"
-
-               let msg = declineTransferMsg TransferDeclinedReason.AccountClosed
-
-               senderAccountRef <! msg
-            else
-               let msg =
-                  ApproveInternalTransferCommand.create
-                     (senderId, evt.OrgId)
-                     evt.CorrelationId
-                     evt.InitiatedById
-                     { BaseInfo = info }
-                  |> AccountCommand.ApproveInternalTransfer
-                  |> AccountMessage.StateChange
-
-               senderAccountRef <! msg
-
-               // CorrelationId (here as txn.TransactionId) from sender
-               // transfer request traced to receiver's deposit.
-               let msg =
-                  DepositTransferCommand.create
-                     recipientAccount.CompositeId
-                     evt.CorrelationId
-                     evt.InitiatedById
+                     meta.CorrId
+                     meta.InitiatedBy
                      {
                         Amount = info.Amount
                         Source = info.Sender
                      }
-                  |> AccountCommand.DepositTransfer
+                  |> AccountCommand.DepositTransferWithinOrg
+                  |> AccountMessage.StateChange
+               | InternalTransferMessage.TransferRequestBetweenOrgs _ ->
+                  DepositInternalTransferBetweenOrgsCommand.create
+                     recipientAccount.CompositeId
+                     meta.CorrId
+                     meta.InitiatedBy
+                     {
+                        Amount = info.Amount
+                        Source = info.Sender
+                     }
+                  |> AccountCommand.DepositTransferBetweenOrgs
                   |> AccountMessage.StateChange
 
-               recipientAccountRef <! msg
+            recipientAccountRef <! msg
    }
 
    props <| actorOf2 handler

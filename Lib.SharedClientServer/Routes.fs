@@ -4,6 +4,16 @@ open Lib.SharedTypes
 
 let private API = "/api"
 
+module OrgPath =
+   let Base = $"{API}/org"
+   let Get = Base + "/{orgId}"
+   let get (orgId: OrgId) = $"{Base}/{orgId}"
+
+   let Search = Base + "/search/{orgId}/{searchQuery}"
+
+   let search (orgId: OrgId) (searchQuery: string) =
+      $"{Base}/search/{orgId}/{searchQuery}"
+
 module AccountPath =
    let Base = $"{API}/accounts"
    let account (id: AccountId) = $"{Base}/{id}"
@@ -25,9 +35,9 @@ module DiagnosticPath =
 
 module TransferPath =
    let Base = $"{API}/transfers"
-   let Internal = Base + "/internal"
+   let InternalWithinOrg = Base + "/internal-within-org"
+   let InternalCrossOrg = Base + "/internal-cross-org"
    let Domestic = Base + "/domestic"
-   let InternalTransferRecipient = Internal + "/register-recipient"
    let DomesticTransferRecipient = Domestic + "/register-recipient"
    let DomesticTransferRecipientEdit = Domestic + "/edit-recipient"
    let NicknameRecipient = Base + "/recipient-nickname"

@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
 DROP TABLE IF EXISTS card;
+DROP TABLE IF EXISTS org_permissions;
 DROP TABLE IF EXISTS account;
 DROP TABLE IF EXISTS employee_event;
 DROP TABLE IF EXISTS employee;
@@ -29,9 +30,9 @@ DROP TYPE IF EXISTS card_type;
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
    org_name VARCHAR(100) UNIQUE NOT NULL,
-   requires_employee_invite_approval BOOLEAN NOT NULL,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
 CREATE TYPE account_depository AS ENUM ('checking', 'savings');
 CREATE TYPE account_status AS ENUM ('pending', 'active', 'closed', 'readyfordelete');
@@ -44,9 +45,7 @@ CREATE TABLE account (
    balance MONEY NOT NULL,
    currency VARCHAR(3) NOT NULL,
    status account_status NOT NULL,
-   internal_transfer_recipients JSONB NOT NULL,
    domestic_transfer_recipients JSONB NOT NULL,
-   internal_transfer_senders JSONB NOT NULL,
    maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
    maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
    in_progress_internal_transfers JSONB NOT NULL,
@@ -62,6 +61,14 @@ CREATE TABLE account (
 
 CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
+
+CREATE TABLE org_permissions (
+   requires_employee_invite_approval BOOLEAN NOT NULL,
+   social_transfer_discovery_account_id UUID REFERENCES account,
+   org_id UUID NOT NULL UNIQUE REFERENCES organization,
+   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE billingstatement (
    name VARCHAR(100) NOT NULL,
@@ -378,7 +385,7 @@ BEGIN
       ) AS amount_out
    FROM generate_series(
       DATE_TRUNC('month', CURRENT_DATE) - (lookbackMonths - 1 || ' months')::interval,
-      DATE_TRUNC('month', CURRENT_DATE),
+      CURRENT_DATE,
       '1 month'
    ) AS months(month)
    LEFT JOIN LATERAL (
@@ -388,6 +395,9 @@ BEGIN
          t.org_id = orgId
          AND t.money_flow IS NOT NULL
          AND DATE_TRUNC('month', t.timestamp) = months.month
+         -- Exclude internal transfers within an org while still fetching
+         -- internal transfers between orgs.
+         AND t.name NOT IN('InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected', 'InternalTransferWithinOrgDeposited')
    ) t ON true
    GROUP BY months.month
    ORDER BY months.month;
@@ -418,6 +428,9 @@ BEGIN
       AND t.timestamp::date
          BETWEEN DATE_TRUNC('month', d)
          AND (DATE_TRUNC('month', d) + INTERVAL '1 month' - INTERVAL '1 day')
+      -- Exclude internal transfers within an org while still fetching
+      -- internal transfers between orgs.
+      AND t.name NOT IN('InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected', 'InternalTransferWithinOrgDeposited')
    GROUP BY t.source
    ORDER BY amount DESC
    LIMIT topN;
@@ -453,8 +466,13 @@ SELECT
    COALESCE(
       SUM(
          CASE 
-         WHEN t.name = 'InternalTransferPending' THEN t.amount::numeric
-         WHEN t.name = 'InternalTransferRejected' THEN -t.amount::numeric
+
+         WHEN t.name IN('InternalTransferWithinOrgPending', 'InternalTransferBetweenOrgsPending') 
+         THEN t.amount::numeric
+
+         WHEN t.name IN('InternalTransferWithinOrgRejected', 'InternalTransferBetweenOrgsRejected') 
+         THEN -t.amount::numeric
+
          ELSE 0
          END
       ),
@@ -476,8 +494,9 @@ LEFT JOIN account using(account_id)
 WHERE
    t.amount IS NOT NULL
    AND t.name IN (
-      'InternalTransferPending', 'DomesticTransferPending',
-      'InternalTransferRejected', 'DomesticTransferRejected'
+      'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected'
+      'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected'
+      'DomesticTransferPending', 'DomesticTransferRejected'
    )
    AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
    -- TODO: Create internal/domestic transfer read model tables 

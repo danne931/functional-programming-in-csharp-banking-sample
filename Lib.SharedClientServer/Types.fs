@@ -205,6 +205,7 @@ type AccountStateTransitionError =
    | SenderRegistered
    | TransferProgressNoChange
    | TransferAlreadyProgressedToApprovedOrRejected
+   | TransferExpectedToOccurWithinOrg
 
 type EmployeeStateTransitionError =
    | EmployeeNotReadyToActivate
@@ -277,6 +278,8 @@ type Err =
             "Transfer already progressed to approved or rejected"
          | AccountStateTransitionError.TransferProgressNoChange ->
             "Transfer progress no change"
+         | AccountStateTransitionError.TransferExpectedToOccurWithinOrg ->
+            "Expected to transfer funds within organization."
       | EmployeeStateTransitionError e ->
          match e with
          | EmployeeStateTransitionError.DebitAlreadyProgressedToApprovedOrDeclined ->

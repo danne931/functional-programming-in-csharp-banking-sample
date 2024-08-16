@@ -27,11 +27,14 @@ module BillingTransaction =
          | DepositedCash _
          | DebitedAccount _
          | MaintenanceFeeDebited _
-         | InternalTransferPending _
-         | InternalTransferRejected _
+         | InternalTransferWithinOrgPending _
+         | InternalTransferWithinOrgRejected _
+         | InternalTransferWithinOrgDeposited _
+         | InternalTransferBetweenOrgsPending _
+         | InternalTransferBetweenOrgsRejected _
+         | InternalTransferBetweenOrgsDeposited _
          | DomesticTransferPending _
-         | DomesticTransferRejected _
-         | TransferDeposited _ -> Some(BillingTransaction evt)
+         | DomesticTransferRejected _ -> Some(BillingTransaction evt)
          | _ -> None
 
    let value (BillingTransaction evt) = evt

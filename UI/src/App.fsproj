@@ -20,6 +20,7 @@
     <Compile Include="Services/Transaction.fs" />
     <Compile Include="Services/Account.fs" />
     <Compile Include="Services/Employee.fs" />
+    <Compile Include="Services/Organization.fs" />
     <Compile Include="Routes.fs" />
     <Compile Include="Context/UserSessionProvider.fs" />
     <Compile Include="Context/SignalRConnectionProvider.fs" />
@@ -39,6 +40,7 @@
     <Compile Include="ComponentLib/FilterPill.fs" />
     <Compile Include="ComponentLib/TableControlPanel.fs" />
     <Compile Include="Components/EmployeePermissions.fs" />
+    <Compile Include="Components/OrgSocialTransferDiscovery.fs" />
     <Compile Include="Components/Forms/EmployeeFormContainer.fs" />
     <Compile Include="Components/Forms/AccountFormContainer.fs" />
     <Compile Include="Components/Forms/AccountProfile.fs" />

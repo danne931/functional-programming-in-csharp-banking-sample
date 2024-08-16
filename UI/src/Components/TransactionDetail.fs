@@ -20,12 +20,35 @@ type private TransactionMaybe =
 let hasRenderImplementation =
    function
    | AccountEvent.DepositedCash _
-   | AccountEvent.InternalTransferPending _
+   | AccountEvent.InternalTransferWithinOrgPending _
+   | AccountEvent.InternalTransferBetweenOrgsPending _
    | AccountEvent.DomesticTransferPending _
    | AccountEvent.DomesticTransferRejected _
-   | AccountEvent.TransferDeposited _
+   | AccountEvent.InternalTransferWithinOrgDeposited _
+   | AccountEvent.InternalTransferBetweenOrgsDeposited _
    | AccountEvent.DebitedAccount _ -> true
    | _ -> false
+
+/// May edit transfer recipient if domestic and status is not Closed.
+let canEditTransferRecipient
+   (account: Account)
+   (evt: AccountEvent)
+   : DomesticTransferRecipient option
+   =
+   let recipientIdOpt =
+      match evt with
+      | AccountEvent.DomesticTransferPending evt ->
+         Some evt.Data.BaseInfo.Recipient.AccountId
+      | AccountEvent.DomesticTransferRecipient evt ->
+         Some evt.Data.Recipient.AccountId
+      | AccountEvent.DomesticTransferRejected evt ->
+         Some evt.Data.BaseInfo.Recipient.AccountId
+      | _ -> None
+
+   recipientIdOpt
+   |> Option.bind (fun recipientId ->
+      Map.tryFind recipientId account.DomesticTransferRecipients)
+   |> Option.filter (fun r -> r.Status <> RecipientRegistrationStatus.Closed)
 
 type State = {
    TransactionId: EventId
@@ -441,14 +464,6 @@ let renderTransactionInfo
          | None -> ()
 
          match txnInfo.Event with
-         | AccountEvent.InternalTransferRecipient e when isEditingNickname ->
-            RecipientNicknameEditComponent
-               e.Data.Recipient.AccountId
-               RecipientAccountEnvironment.Internal
-         | AccountEvent.InternalTransferPending e when isEditingNickname ->
-            RecipientNicknameEditComponent
-               e.Data.BaseInfo.RecipientId
-               RecipientAccountEnvironment.Internal
          | AccountEvent.DomesticTransferRecipient e when isEditingNickname ->
             RecipientNicknameEditComponent
                e.Data.Recipient.AccountId
@@ -547,11 +562,11 @@ let renderFooterMenuControls
       match txnInfo with
       | Deferred.Resolved(Ok(Some txnInfo)) ->
          match txnInfo.Event with
-         | AccountEvent.InternalTransferPending _
          | AccountEvent.DomesticTransferPending _
          | AccountEvent.DomesticTransferRejected _
          | AccountEvent.DomesticTransferRecipient _
-         | AccountEvent.TransferDeposited _
+         | AccountEvent.InternalTransferWithinOrgDeposited _
+         | AccountEvent.InternalTransferBetweenOrgsDeposited _
          | AccountEvent.DebitedAccount _ -> Some txnInfo.Event
          | _ -> None
       | _ -> None
@@ -573,9 +588,7 @@ let renderFooterMenuControls
                      IsSelected = isEditingNickname
                   }
                  ]
-               | AccountEvent.InternalTransferPending _
                | AccountEvent.DomesticTransferPending _
-               | AccountEvent.InternalTransferRecipient _
                | AccountEvent.DomesticTransferRecipient _
                | AccountEvent.DomesticTransferRejected _
                | AccountEvent.EditedDomesticTransferRecipient _ ->
@@ -603,18 +616,6 @@ let renderFooterMenuControls
                           IsSelected = isEditingNickname
                        }
                       ]
-               | AccountEvent.TransferDeposited evt -> [
-                  {
-                     Text = "Nickname sender"
-                     OnClick = fun _ -> ()
-                     IsSelected = false
-                  }
-                  {
-                     Text = "View sender"
-                     OnClick = fun _ -> ()
-                     IsSelected = false
-                  }
-                 ]
                | _ -> []
          |}
    ]

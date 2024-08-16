@@ -4,7 +4,6 @@ open Feliz
 open Feliz.UseElmish
 open Feliz.Router
 open Elmish
-open System
 
 open Bank.Account.Domain
 open UIDomain.Account
@@ -14,14 +13,6 @@ open Bank.Employee.Forms
 open Bank.Transfer.Domain
 open Lib.SharedTypes
 open EmployeeSearch
-
-// If user wants to view the transfer form but hasn't already added
-// recipients, redirect them to the transfer recipients creation form
-// first.  Once they submit a recipient then transition the view to their
-// intended transfer form.
-let shouldRedirectToRegisterRecipient (account: Account) selectedView =
-   selectedView = AccountActionView.Transfer
-   && account.TransferRecipients.IsEmpty
 
 let navigation (accountId: AccountId) (view: AccountActionView option) =
    let queryString =
@@ -46,19 +37,12 @@ type Msg =
    | CheckForEventConfirmation of Envelope * attemptNumber: int
    | Noop
 
-let init (account: Account) (view: AccountActionView) () =
-   let cmd =
-      if shouldRedirectToRegisterRecipient account view then
-         let redirectTo = Some AccountActionView.RegisterTransferRecipient
-         Cmd.navigate (navigation account.AccountId redirectTo)
-      else
-         Cmd.none
-
+let init (account: Account) () =
    {
       Account = account
       PendingAction = None
    },
-   cmd
+   Cmd.none
 
 let update
    (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
@@ -141,7 +125,7 @@ let AccountActionsComponent
    =
    let state, dispatch =
       React.useElmish (
-         init account view,
+         init account,
          update handlePollingConfirmation,
          [| box account.AccountId |]
       )
@@ -182,7 +166,6 @@ let AccountActionsComponent
          RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
             session
             state.Account
-            (PotentialInternalTransferRecipients.create account accountProfiles)
             None
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.EditTransferRecipient accountId ->
@@ -210,7 +193,6 @@ let AccountActionsComponent
          RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
             session
             state.Account
-            (PotentialInternalTransferRecipients.create account accountProfiles)
             (Some accountId)
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.Transfer ->

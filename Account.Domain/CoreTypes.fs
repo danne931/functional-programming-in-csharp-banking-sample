@@ -76,7 +76,10 @@ type Merchant = {
    Alias: string option
 }
 
-type OrgPermissions = { RequiresEmployeeInviteApproval: bool }
+type OrgPermissions = {
+   RequiresEmployeeInviteApproval: bool
+   SocialTransferDiscoveryPrimaryAccountId: AccountId option
+}
 
 type Org = {
    OrgId: OrgId
@@ -142,8 +145,6 @@ type MoneyFlowDailyTimeSeriesByAccount = {
 }
 
 type MoneyFlowTopNAnalytics = {
-   AmountInTotal: decimal
-   AmountOutTotal: decimal
    In: MoneyFlowTopN list
    Out: MoneyFlowTopN list
 }

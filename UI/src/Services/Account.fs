@@ -10,8 +10,10 @@ open Bank.Account.Domain
 open Lib.SharedTypes
 open RoutePaths
 
+let private serviceName = "AccountService"
+
 let private notImplemented (cmd: AccountCommand) =
-   let msg = $"Account Service: Not implemented command: {cmd}"
+   let msg = $"{serviceName}: Not implemented command: {cmd}"
    Log.error msg
    failwith msg
 
@@ -23,11 +25,11 @@ let postJson (command: AccountCommand) =
       | AccountCommand.DepositCash cmd ->
          Serialization.serialize cmd, AccountPath.Deposit
       | AccountCommand.InternalTransfer cmd ->
-         Serialization.serialize cmd, TransferPath.Internal
+         Serialization.serialize cmd, TransferPath.InternalWithinOrg
+      | AccountCommand.InternalTransferBetweenOrgs cmd ->
+         Serialization.serialize cmd, TransferPath.InternalCrossOrg
       | AccountCommand.DomesticTransfer cmd ->
          Serialization.serialize cmd, TransferPath.Domestic
-      | AccountCommand.RegisterInternalTransferRecipient cmd ->
-         Serialization.serialize cmd, TransferPath.InternalTransferRecipient
       | AccountCommand.RegisterDomesticTransferRecipient cmd ->
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipient
       | AccountCommand.EditDomesticTransferRecipient cmd ->
@@ -38,27 +40,6 @@ let postJson (command: AccountCommand) =
 
    Http.postJson url serialized
 
-let getOrgAndAccountProfiles
-   (orgId: OrgId)
-   : Async<Result<OrgWithAccountProfiles option, Err>>
-   =
-   async {
-      let path =
-         AccountPath.Base + Router.encodeQueryString [ "orgId", string orgId ]
-
-      let! (code, responseText) = Http.get path
-
-      if code = 404 then
-         return Ok None
-      elif code <> 200 then
-         return Error <| Err.InvalidStatusCodeError("AccountService", code)
-      else
-         return
-            responseText
-            |> Serialization.deserialize<OrgWithAccountProfiles>
-            |> Result.map Some
-   }
-
 let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = async {
    let path = AccountPath.account accountId
 
@@ -67,7 +48,7 @@ let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = asy
    if code = 404 then
       return Ok None
    elif code <> 200 then
-      return Error <| Err.InvalidStatusCodeError("AccountService", code)
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
    else
       return
          responseText |> Serialization.deserialize<Account> |> Result.map Some
@@ -92,7 +73,7 @@ let getAccountAndTransactions
       if code = 404 then
          return Ok None
       elif code <> 200 then
-         return Error <| Err.InvalidStatusCodeError("AccountService", code)
+         return Error <| Err.InvalidStatusCodeError(serviceName, code)
       else
          return
             responseText
@@ -118,7 +99,7 @@ let submitCommand
       let code = res.statusCode
 
       if code <> 200 then
-         return! Error <| Err.InvalidStatusCodeError("AccountService", code)
+         return! Error <| Err.InvalidStatusCodeError(serviceName, code)
       else
          let! envelope = Serialization.deserialize<Envelope> res.responseText
 

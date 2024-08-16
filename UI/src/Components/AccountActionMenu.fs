@@ -12,14 +12,6 @@ let private renderMenuButton (account: Account) (view: AccountActionView) =
       attr.classes [ "outline"; "grid" ]
 
       attr.onClick (fun _ ->
-         let view =
-            if
-               AccountActions.shouldRedirectToRegisterRecipient account view
-            then
-               AccountActionView.RegisterTransferRecipient
-            else
-               view
-
          AccountActions.navigation account.AccountId (Some view)
          |> Router.navigate)
 

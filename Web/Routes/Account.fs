@@ -16,9 +16,19 @@ open Bank.UserSession.Middleware
 let startAccountRoutes (app: WebApplication) =
    app
       .MapGet(
-         AccountPath.Base,
-         Func<Guid, Task<IResult>>(fun ([<FromQuery>] orgId) ->
+         OrgPath.Get,
+         Func<Guid, Task<IResult>>(fun orgId ->
             getOrgAndAccountProfiles (OrgId orgId)
+            |> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.GetOrgAndAccountProfiles)
+   |> ignore
+
+   app
+      .MapGet(
+         OrgPath.Search,
+         Func<Guid, string, Task<IResult>>(fun orgId searchQuery ->
+            searchOrgTransferSocialDiscovery (OrgId orgId) searchQuery
             |> RouteUtil.unwrapTaskResultOption)
       )
       .RBAC(Permissions.GetOrgAndAccountProfiles)

@@ -119,19 +119,6 @@ let actorProps
                   |> EmployeeMessage.StateChange
 
                getEmployeeRef employee.EmployeeId <! msg
-            | InternalTransferRecipient e ->
-               let msg =
-                  InternalTransferMsg.ConfirmRecipient {
-                     Sender = {
-                        Name = account.Name
-                        OrgId = account.OrgId
-                        AccountId = account.AccountId
-                     }
-                     Recipient = e.Data.Recipient
-                     InitiatedBy = e.InitiatedById
-                  }
-
-               getOrStartInternalTransferActor mailbox <! msg
             | EditedDomesticTransferRecipient e ->
                // Retry failed domestic transfers if they were previously
                // declined due to invalid account info.
@@ -151,9 +138,12 @@ let actorProps
                      |> AccountCommand.DomesticTransfer
 
                   mailbox.Parent() <! AccountMessage.StateChange cmd)
-            | InternalTransferPending e ->
+            | InternalTransferWithinOrgPending e ->
                getOrStartInternalTransferActor mailbox
-               <! InternalTransferMsg.TransferRequest e
+               <! InternalTransferMsg.TransferRequestWithinOrg e
+            | InternalTransferBetweenOrgsPending e ->
+               getOrStartInternalTransferActor mailbox
+               <! InternalTransferMsg.TransferRequestBetweenOrgs e
             | DomesticTransferPending e ->
                let txn = TransferEventToDomesticTransfer.fromPending e
 
@@ -164,16 +154,16 @@ let actorProps
                   )
 
                getDomesticTransferActor mailbox.System <! msg
-            | TransferDeposited e -> ()
+            | InternalTransferBetweenOrgsDeposited e -> ()
             (*
                getEmailActor mailbox.System
-               <! EmailActor.TransferDeposited(e, account)
+               <! EmailActor.InternalTransferBetweenOrgsDeposited(e, account)
                *)
             | CreatedAccount _ -> ()
             //getEmailActor mailbox.System <! EmailActor.AccountOpen account
             | AccountEvent.AccountClosed e ->
                getAccountClosureActor mailbox.System
-               <! AccountClosureMessage.Register(account, e.InitiatedById)
+               <! AccountClosureMessage.Register account
             | BillingCycleStarted e ->
                billingCycle
                   getBillingStatementActor

@@ -224,17 +224,9 @@ let upsertReadModels
          "lastBillingCycleDate",
          AccountSqlWriter.lastBillingCycleDate account.LastBillingCycleDate
 
-         "internalTransferRecipients",
-         AccountSqlWriter.internalTransferRecipients
-            account.InternalTransferRecipients
-
          "domesticTransferRecipients",
          AccountSqlWriter.domesticTransferRecipients
             account.DomesticTransferRecipients
-
-         "internalTransferSenders",
-         AccountSqlWriter.internalTransferSenders
-            account.InternalTransferSenders
 
          "maintenanceFeeQualifyingDepositFound",
          AccountSqlWriter.maintenanceFeeQualifyingDepositFound
@@ -295,15 +287,35 @@ let upsertReadModels
                Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Origin
             | AccountEvent.DebitedAccount evt ->
                Some evt.Data.Amount, Some MoneyFlow.Out, Some evt.Data.Origin
-            | AccountEvent.InternalTransferPending evt ->
+            | AccountEvent.InternalTransferWithinOrgPending evt ->
                Some evt.Data.BaseInfo.Amount,
                Some MoneyFlow.Out,
                Some evt.Data.BaseInfo.RecipientName
-            | AccountEvent.InternalTransferRejected evt ->
+            | AccountEvent.InternalTransferWithinOrgApproved evt ->
+               Some evt.Data.BaseInfo.Amount,
+               None,
+               Some evt.Data.BaseInfo.RecipientName
+            | AccountEvent.InternalTransferWithinOrgRejected evt ->
                Some evt.Data.BaseInfo.Amount,
                Some MoneyFlow.In,
                Some evt.Data.BaseInfo.RecipientName
-            | AccountEvent.TransferDeposited evt ->
+            | AccountEvent.InternalTransferWithinOrgDeposited evt ->
+               Some evt.Data.Amount,
+               Some MoneyFlow.In,
+               Some evt.Data.Source.Name
+            | AccountEvent.InternalTransferBetweenOrgsPending evt ->
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.Out,
+               Some evt.Data.BaseInfo.RecipientName
+            | AccountEvent.InternalTransferBetweenOrgsApproved evt ->
+               Some evt.Data.BaseInfo.Amount,
+               None,
+               Some evt.Data.BaseInfo.RecipientName
+            | AccountEvent.InternalTransferBetweenOrgsRejected evt ->
+               Some evt.Data.BaseInfo.Amount,
+               Some MoneyFlow.In,
+               Some evt.Data.BaseInfo.RecipientName
+            | AccountEvent.InternalTransferBetweenOrgsDeposited evt ->
                Some evt.Data.Amount,
                Some MoneyFlow.In,
                Some evt.Data.Source.Name
@@ -346,9 +358,7 @@ let upsertReadModels
           {AccountFields.currency},
           {AccountFields.status},
           {AccountFields.lastBillingCycleDate},
-          {AccountFields.internalTransferRecipients},
           {AccountFields.domesticTransferRecipients},
-          {AccountFields.internalTransferSenders},
           {AccountFields.maintenanceFeeQualifyingDepositFound},
           {AccountFields.maintenanceFeeDailyBalanceThreshold},
           {AccountFields.inProgressInternalTransfers},
@@ -368,9 +378,7 @@ let upsertReadModels
           @currency,
           @status::{AccountTypeCast.status},
           @lastBillingCycleDate,
-          @internalTransferRecipients,
           @domesticTransferRecipients,
-          @internalTransferSenders,
           @maintenanceFeeQualifyingDepositFound,
           @maintenanceFeeDailyBalanceThreshold,
           @inProgressInternalTransfers,
@@ -384,9 +392,7 @@ let upsertReadModels
          {AccountFields.balance} = @balance,
          {AccountFields.status} = @status::{AccountTypeCast.status},
          {AccountFields.lastBillingCycleDate} = @lastBillingCycleDate,
-         {AccountFields.internalTransferRecipients} = @internalTransferRecipients,
          {AccountFields.domesticTransferRecipients} = @domesticTransferRecipients,
-         {AccountFields.internalTransferSenders} = @internalTransferSenders,
          {AccountFields.maintenanceFeeQualifyingDepositFound} = @maintenanceFeeQualifyingDepositFound,
          {AccountFields.maintenanceFeeDailyBalanceThreshold} = @maintenanceFeeDailyBalanceThreshold,
          {AccountFields.inProgressInternalTransfers} = @inProgressInternalTransfers,

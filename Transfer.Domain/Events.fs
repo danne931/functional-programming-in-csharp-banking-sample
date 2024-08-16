@@ -4,23 +4,25 @@ open System
 
 open Lib.SharedTypes
 
-type BaseInternalTransferInfo = {
-   RecipientOrgId: OrgId
-   RecipientId: AccountId
-   RecipientName: string
-   Amount: decimal
-   ScheduledDate: DateTime
-   Sender: InternalTransferSender
+type InternalTransferWithinOrgPending = { BaseInfo: BaseInternalTransferInfo }
+
+type InternalTransferWithinOrgApproved = { BaseInfo: BaseInternalTransferInfo }
+
+type InternalTransferWithinOrgRejected = {
+   BaseInfo: BaseInternalTransferInfo
+   Reason: TransferDeclinedReason
 }
 
-type InternalTransferPending = {
+type InternalTransferBetweenOrgsPending = {
    BaseInfo: BaseInternalTransferInfo
    Memo: string option
 }
 
-type InternalTransferApproved = { BaseInfo: BaseInternalTransferInfo }
+type InternalTransferBetweenOrgsApproved = {
+   BaseInfo: BaseInternalTransferInfo
+}
 
-type InternalTransferRejected = {
+type InternalTransferBetweenOrgsRejected = {
    BaseInfo: BaseInternalTransferInfo
    Reason: TransferDeclinedReason
 }
@@ -56,25 +58,18 @@ type DomesticTransferRejected = {
    Reason: TransferDeclinedReason
 }
 
-type RegisteredInternalTransferRecipient = {
-   Recipient: InternalTransferRecipient
-}
-
 type RegisteredDomesticTransferRecipient = {
    Recipient: DomesticTransferRecipient
 }
 
 type EditedDomesticTransferRecipient = { Recipient: DomesticTransferRecipient }
 
-type InternalRecipientDeactivated = {
-   RecipientId: AccountId
-   RecipientName: string
-//Reason: RecipientDeactivatedReason
+type InternalTransferWithinOrgDeposited = {
+   Amount: decimal
+   Source: InternalTransferSender
 }
 
-type InternalSenderRegistered = { Sender: InternalTransferSender }
-
-type TransferDeposited = {
+type InternalTransferBetweenOrgsDeposited = {
    Amount: decimal
    Source: InternalTransferSender
 }

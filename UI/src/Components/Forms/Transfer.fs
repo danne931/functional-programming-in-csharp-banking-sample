@@ -18,95 +18,142 @@ type Values = {
    Memo: string
 }
 
-let form
+let amountField (account: Account) =
+   Form.textField {
+      Parser =
+         amountValidatorFromString "Transfer amount"
+         >> validationErrorsHumanFriendly
+         >> Result.bind (fun amt ->
+            if account.Balance - amt < 0m then
+               Result.Error $"Insufficient Balance ${account.Balance}"
+            else
+               Ok amt)
+      Value = fun (values: Values) -> values.Amount
+      Update = fun newValue values -> { values with Amount = newValue }
+      Error = fun _ -> None
+      Attributes = {
+         Label = "Transfer Amount:"
+         Placeholder = "25"
+         HtmlAttributes = []
+      }
+   }
+
+let memoField =
+   Form.textField {
+      Parser = Ok
+      Value = fun (values: Values) -> values.Memo
+      Update = fun newValue values -> { values with Memo = newValue }
+      Error = fun _ -> None
+      Attributes = {
+         Label = "Memo:"
+         Placeholder = "Reason for Transfer"
+         HtmlAttributes = []
+      }
+   }
+
+let memoForm = Form.succeed id |> Form.append memoField |> Form.optional
+
+let formInternalWithinOrg
    (account: Account)
    (accountProfiles: Map<AccountId, AccountProfile>)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
-   let options =
-      [
-         for KeyValue(recipientId, recipient) in account.TransferRecipients ->
-            let name =
-               match recipient with
-               | TransferRecipient.Internal o ->
-                  let nick = o.Nickname |> Option.defaultValue o.Name
-
-                  accountProfiles
-                  |> Map.tryFind recipientId
-                  |> Option.map (fun a -> $"{nick} ({Money.format a.Balance})")
-                  |> Option.defaultValue nick
-               | TransferRecipient.Domestic o ->
-                  o.Nickname |> Option.defaultValue o.Name
-
-            string recipientId, name
-      ]
+   let internalWithinOrgOptions =
+      accountProfiles
+      |> Map.toList
+      |> List.filter (fun (acctId, _) -> acctId <> account.AccountId)
+      |> List.map (fun (acctId, profile) ->
+         string acctId, $"{profile.Name} ({Money.format profile.Balance})")
       |> List.sortBy snd
 
-   let selectField =
+   let fieldInternalWithinOrgSelect =
       Form.selectField {
          Parser = Ok
          Value = fun values -> values.RecipientId
          Update = fun newValue values -> { values with RecipientId = newValue }
          Error = fun _ -> None
          Attributes = {
-            Label = "Select a recipient:"
-            Placeholder = "No recipient selected"
-            Options = options
+            Label = "Move money to account:"
+            Placeholder = "No account selected"
+            Options = internalWithinOrgOptions
          }
       }
 
-   let amountField =
-      Form.textField {
-         Parser =
-            amountValidatorFromString "Transfer amount"
-            >> validationErrorsHumanFriendly
-            >> Result.bind (fun amt ->
-               if account.Balance - amt < 0m then
-                  Result.Error $"Insufficient Balance ${account.Balance}"
-               else
-                  Ok amt)
-         Value = fun (values: Values) -> values.Amount
-         Update = fun newValue values -> { values with Amount = newValue }
-         Error = fun _ -> None
-         Attributes = {
-            Label = "Transfer Amount:"
-            Placeholder = "25"
-            HtmlAttributes = []
-         }
-      }
+   let onSubmit (selectedId: string) (amount: decimal) =
+      let profile = accountProfiles[selectedId |> Guid.Parse |> AccountId]
 
-   let memoField =
-      Form.textField {
+      let cmd =
+         InternalTransferWithinOrgCommand.create account.CompositeId initiatedBy {
+            BaseInfo = {
+               ScheduledDate = DateTime.UtcNow
+               Amount = amount
+               RecipientOrgId = profile.OrgId
+               RecipientId = profile.AccountId
+               RecipientName = profile.Name
+               Sender = {
+                  Name = account.Name
+                  AccountId = account.AccountId
+                  OrgId = account.OrgId
+               }
+            }
+         }
+         |> AccountCommand.InternalTransfer
+
+      Msg.Submit(account, cmd, Started)
+
+   Form.succeed onSubmit
+   |> Form.append fieldInternalWithinOrgSelect
+   |> Form.append (amountField account)
+
+let formInternalCrossOrg
+   (account: Account)
+   (orgs: Org list)
+   (initiatedBy: InitiatedById)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
+   let internalCrossOrgOptions =
+      orgs
+      |> List.choose (fun org ->
+         org.Permissions.SocialTransferDiscoveryPrimaryAccountId
+         |> Option.map (fun id -> string id, org.Name))
+      |> List.sortBy snd
+
+   let fieldInternalCrossOrgSelect =
+      Form.selectField {
          Parser = Ok
-         Value = fun (values: Values) -> values.Memo
-         Update = fun newValue values -> { values with Memo = newValue }
+         Value = fun values -> values.RecipientId
+         Update = fun newValue values -> { values with RecipientId = newValue }
          Error = fun _ -> None
          Attributes = {
-            Label = "Memo:"
-            Placeholder = "Reason for Transfer"
-            HtmlAttributes = []
+            Label = "Transfer to organization:"
+            Placeholder = "No organization selected"
+            Options = internalCrossOrgOptions
          }
       }
 
    let onSubmit (selectedId: string) (amount: decimal) (memo: string option) =
-      let selectedId = selectedId |> Guid.Parse |> AccountId
-
       let memo =
          memo
          |> Option.bind (fun memo ->
             if String.IsNullOrWhiteSpace memo then None else Some memo)
 
-      Map.tryFind selectedId account.InternalTransferRecipients
-      |> Option.map (fun recipient ->
-         let cmd =
-            InternalTransferCommand.create account.CompositeId initiatedBy {
+      let org =
+         orgs
+         |> List.find (fun o ->
+            string o.Permissions.SocialTransferDiscoveryPrimaryAccountId = selectedId)
+
+      let cmd =
+         InternalTransferBetweenOrgsCommand.create
+            account.CompositeId
+            initiatedBy
+            {
                BaseInfo = {
                   ScheduledDate = DateTime.UtcNow
                   Amount = amount
-                  RecipientOrgId = recipient.OrgId
-                  RecipientId = recipient.AccountId
-                  RecipientName = recipient.Name
+                  RecipientOrgId = org.OrgId
+                  RecipientId = selectedId |> Guid.Parse |> AccountId
+                  RecipientName = org.Name
                   Sender = {
                      Name = account.Name
                      AccountId = account.AccountId
@@ -115,46 +162,155 @@ let form
                }
                Memo = memo
             }
-            |> AccountCommand.InternalTransfer
+         |> AccountCommand.InternalTransferBetweenOrgs
 
-         Msg.Submit(account, cmd, Started))
-      |> Option.defaultWith (fun () ->
-         let recipient = Map.find selectedId account.DomesticTransferRecipients
-
-         let cmd =
-            DomesticTransferCommand.create account.CompositeId initiatedBy {
-               ScheduledDate = DateTime.UtcNow
-               Amount = amount
-               Sender = {
-                  Name = account.Name
-                  AccountNumber = account.AccountNumber
-                  RoutingNumber = account.RoutingNumber
-                  OrgId = account.OrgId
-                  AccountId = account.AccountId
-               }
-               Recipient = recipient
-               Memo = memo
-            }
-            |> AccountCommand.DomesticTransfer
-
-         Msg.Submit(account, cmd, Started))
+      Msg.Submit(account, cmd, Started)
 
    Form.succeed onSubmit
-   |> Form.append selectField
-   |> Form.append amountField
-   |> Form.append (Form.succeed id |> Form.append memoField |> Form.optional)
+   |> Form.append fieldInternalCrossOrgSelect
+   |> Form.append (amountField account)
+   |> Form.append memoForm
 
+let formDomestic
+   (account: Account)
+   (initiatedBy: InitiatedById)
+   : Form.Form<Values, Msg<Values>, IReactProperty>
+   =
+   let domesticOptions =
+      account.DomesticTransferRecipients
+      |> Map.toList
+      |> List.map (fun (recipientId, recipient) ->
+         let name = recipient.Nickname |> Option.defaultValue recipient.Name
+         string recipientId, $"{name} **{recipient.AccountNumber.Last4}")
+      |> List.sortBy snd
+
+   let fieldDomesticSelect =
+      Form.selectField {
+         Parser = Ok
+         Value = fun values -> values.RecipientId
+         Update = fun newValue values -> { values with RecipientId = newValue }
+         Error = fun _ -> None
+         Attributes = {
+            Label = "Domestic transfer recipient:"
+            Placeholder = "No recipient selected"
+            Options = domesticOptions
+         }
+      }
+
+   let onSubmit (selectedId: string) (amount: decimal) (memo: string option) =
+      let memo =
+         memo
+         |> Option.bind (fun memo ->
+            if String.IsNullOrWhiteSpace memo then None else Some memo)
+
+      let accountId = selectedId |> Guid.Parse |> AccountId
+      let recipient = account.DomesticTransferRecipients[accountId]
+
+      let cmd =
+         DomesticTransferCommand.create account.CompositeId initiatedBy {
+            ScheduledDate = DateTime.UtcNow
+            Amount = amount
+            Sender = {
+               Name = account.Name
+               AccountNumber = account.AccountNumber
+               RoutingNumber = account.RoutingNumber
+               OrgId = account.OrgId
+               AccountId = account.AccountId
+            }
+            Recipient = recipient
+            Memo = memo
+         }
+         |> AccountCommand.DomesticTransfer
+
+      Msg.Submit(account, cmd, Started)
+
+   Form.succeed onSubmit
+   |> Form.append fieldDomesticSelect
+   |> Form.append (amountField account)
+   |> Form.append memoForm
+
+[<ReactComponent>]
 let TransferFormComponent
    (session: UserSession)
    (account: Account)
    (accountProfiles: Map<AccountId, AccountProfile>)
    (onSubmit: ParentOnSubmitHandler)
    =
-   AccountFormContainer
-      {
-         Amount = ""
-         RecipientId = ""
-         Memo = ""
-      }
-      (form account accountProfiles (InitiatedById session.EmployeeId))
-      onSubmit
+   let initValues = {
+      Amount = ""
+      RecipientId = ""
+      Memo = ""
+   }
+
+   let initiatedBy = InitiatedById session.EmployeeId
+
+   let selectedAccountEnv, setSelectedAccountEnv =
+      React.useState RecipientAccountEnvironment.InternalWithinOrg
+
+   React.fragment [
+      Html.select [
+         attr.onChange (
+            function
+            | "Domestic" -> RecipientAccountEnvironment.Domestic
+            | "InternalWithinOrg" ->
+               RecipientAccountEnvironment.InternalWithinOrg
+            | _ -> RecipientAccountEnvironment.InternalCrossOrg
+            >> setSelectedAccountEnv
+         )
+         attr.value (string selectedAccountEnv)
+
+         attr.children [
+            Html.option [
+               attr.value (string RecipientAccountEnvironment.InternalWithinOrg)
+               attr.text "Internal transfer within organization"
+            ]
+
+            Html.option [
+               attr.value (string RecipientAccountEnvironment.InternalCrossOrg)
+               attr.text "Internal transfer to another organization"
+            ]
+
+            Html.option [
+               attr.value (string RecipientAccountEnvironment.Domestic)
+               attr.text "Domestic transfer"
+            ]
+         ]
+      ]
+
+      match selectedAccountEnv with
+      | RecipientAccountEnvironment.InternalCrossOrg ->
+         OrgSocialTransferDiscovery.OrgSearchComponent
+            session.OrgId
+            (fun searchInput orgs ->
+               match orgs with
+               | Deferred.InProgress -> Html.progress []
+               | Deferred.Resolved(Ok(Some orgs)) ->
+                  let initValues =
+                     orgs
+                     |> List.head
+                     |> (fun o ->
+                        o.Permissions.SocialTransferDiscoveryPrimaryAccountId)
+                     |> Option.map (fun accountId -> {
+                        initValues with
+                           RecipientId = string accountId
+                     })
+                     |> Option.defaultValue initValues
+
+                  AccountFormContainer
+                     initValues
+                     (formInternalCrossOrg account orgs initiatedBy)
+                     onSubmit
+               | Deferred.Resolved(Ok None) ->
+                  Html.p $"No orgs found by search query {searchInput}."
+               | _ -> Html.none)
+      | RecipientAccountEnvironment.InternalWithinOrg ->
+         AccountFormContainer
+            initValues
+            (formInternalWithinOrg account accountProfiles initiatedBy)
+            onSubmit
+      | RecipientAccountEnvironment.Domestic ->
+         AccountFormContainer
+            initValues
+            (formDomestic account initiatedBy)
+            onSubmit
+   ]

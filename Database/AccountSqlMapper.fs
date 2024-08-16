@@ -25,9 +25,7 @@ module AccountFields =
    let status = "status"
    let balance = "balance"
    let lastBillingCycleDate = "last_billing_cycle_at"
-   let internalTransferRecipients = "internal_transfer_recipients"
    let domesticTransferRecipients = "domestic_transfer_recipients"
-   let internalTransferSenders = "internal_transfer_senders"
 
    let maintenanceFeeQualifyingDepositFound =
       "maintenance_fee_qualifying_deposit_found"
@@ -74,17 +72,9 @@ module AccountSqlReader =
    let lastBillingCycleDate (read: RowReader) =
       read.dateTimeOrNone AccountFields.lastBillingCycleDate
 
-   let internalTransferRecipients (read: RowReader) =
-      read.text AccountFields.internalTransferRecipients
-      |> Serialization.deserializeUnsafe<InternalTransferRecipient list>
-
    let domesticTransferRecipients (read: RowReader) =
       read.text AccountFields.domesticTransferRecipients
       |> Serialization.deserializeUnsafe<DomesticTransferRecipient list>
-
-   let internalTransferSenders (read: RowReader) =
-      read.text AccountFields.internalTransferSenders
-      |> Serialization.deserializeUnsafe<InternalTransferSender list>
 
    let maintenanceFeeCriteria (read: RowReader) = {
       QualifyingDepositFound =
@@ -93,9 +83,12 @@ module AccountSqlReader =
          read.bool AccountFields.maintenanceFeeDailyBalanceThreshold
    }
 
-   let inProgressInternalTransfers (read: RowReader) =
+   let inProgressInternalTransfers
+      (read: RowReader)
+      : InProgressInternalTransfer list
+      =
       read.text AccountFields.inProgressInternalTransfers
-      |> Serialization.deserializeUnsafe<BankEvent<InternalTransferPending> list>
+      |> Serialization.deserializeUnsafe<InProgressInternalTransfer list>
 
    let inProgressDomesticTransfers (read: RowReader) =
       read.text AccountFields.inProgressDomesticTransfers
@@ -116,22 +109,14 @@ module AccountSqlReader =
       Status = status read
       Balance = balance read
       LastBillingCycleDate = lastBillingCycleDate read
-      InternalTransferRecipients =
-         internalTransferRecipients read
-         |> List.map (fun recipient -> recipient.AccountId, recipient)
-         |> Map.ofList
       DomesticTransferRecipients =
          domesticTransferRecipients read
          |> List.map (fun recipient -> recipient.AccountId, recipient)
          |> Map.ofList
-      InternalTransferSenders =
-         internalTransferSenders read
-         |> List.map (fun o -> o.AccountId, o)
-         |> Map.ofList
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
       InProgressInternalTransfers =
          inProgressInternalTransfers read
-         |> List.map (fun evt -> evt.CorrelationId, evt)
+         |> List.map (fun t -> t.CorrelationId, t)
          |> Map.ofList
       InProgressDomesticTransfers =
          inProgressDomesticTransfers read
@@ -174,26 +159,16 @@ module AccountSqlWriter =
 
    let lastBillingCycleDate (date: DateTime option) = Sql.timestamptzOrNone date
 
-   let internalTransferRecipients
-      (recipients: Map<AccountId, InternalTransferRecipient>)
-      =
-      recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
-
    let domesticTransferRecipients
       (recipients: Map<AccountId, DomesticTransferRecipient>)
       =
       recipients.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
-   let internalTransferSenders
-      (senders: Map<AccountId, InternalTransferSender>)
-      =
-      senders.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
-
    let maintenanceFeeQualifyingDepositFound = Sql.bool
    let maintenanceFeeDailyBalanceThreshold = Sql.bool
 
    let inProgressInternalTransfers
-      (transfers: Map<CorrelationId, BankEvent<InternalTransferPending>>)
+      (transfers: Map<CorrelationId, InProgressInternalTransfer>)
       =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 

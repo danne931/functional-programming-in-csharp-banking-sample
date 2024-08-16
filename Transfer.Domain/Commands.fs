@@ -6,13 +6,14 @@ open System
 open Lib.SharedTypes
 open Lib.Validators
 
-type InternalTransferCommand = Command<InternalTransferPending>
+type InternalTransferWithinOrgCommand =
+   Command<InternalTransferWithinOrgPending>
 
-module InternalTransferCommand =
+module InternalTransferWithinOrgCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       (initiatedBy: InitiatedById)
-      (data: InternalTransferPending)
+      (data: InternalTransferWithinOrgPending)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -22,8 +23,8 @@ module InternalTransferCommand =
          data
 
    let toEvent
-      (cmd: InternalTransferCommand)
-      : ValidationResult<BankEvent<InternalTransferPending>>
+      (cmd: InternalTransferWithinOrgCommand)
+      : ValidationResult<BankEvent<InternalTransferWithinOrgPending>>
       =
       validate {
          let input = cmd.Data.BaseInfo
@@ -31,17 +32,18 @@ module InternalTransferCommand =
 
          let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
 
-         return BankEvent.create<InternalTransferPending> cmd
+         return BankEvent.create<InternalTransferWithinOrgPending> cmd
       }
 
-type ApproveInternalTransferCommand = Command<InternalTransferApproved>
+type ApproveInternalTransferWithinOrgCommand =
+   Command<InternalTransferWithinOrgApproved>
 
-module ApproveInternalTransferCommand =
+module ApproveInternalTransferWithinOrgCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
       (initiatedBy: InitiatedById)
-      (data: InternalTransferApproved)
+      (data: InternalTransferWithinOrgApproved)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -51,19 +53,20 @@ module ApproveInternalTransferCommand =
          data
 
    let toEvent
-      (cmd: ApproveInternalTransferCommand)
-      : ValidationResult<BankEvent<InternalTransferApproved>>
+      (cmd: ApproveInternalTransferWithinOrgCommand)
+      : ValidationResult<BankEvent<InternalTransferWithinOrgApproved>>
       =
-      BankEvent.create<InternalTransferApproved> cmd |> Ok
+      BankEvent.create<InternalTransferWithinOrgApproved> cmd |> Ok
 
-type RejectInternalTransferCommand = Command<InternalTransferRejected>
+type RejectInternalTransferWithinOrgCommand =
+   Command<InternalTransferWithinOrgRejected>
 
-module RejectInternalTransferCommand =
+module RejectInternalTransferWithinOrgCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
       (initiatedBy: InitiatedById)
-      (data: InternalTransferRejected)
+      (data: InternalTransferWithinOrgRejected)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -73,19 +76,49 @@ module RejectInternalTransferCommand =
          data
 
    let toEvent
-      (cmd: RejectInternalTransferCommand)
-      : ValidationResult<BankEvent<InternalTransferRejected>>
+      (cmd: RejectInternalTransferWithinOrgCommand)
+      : ValidationResult<BankEvent<InternalTransferWithinOrgRejected>>
       =
-      BankEvent.create<InternalTransferRejected> cmd |> Ok
+      BankEvent.create<InternalTransferWithinOrgRejected> cmd |> Ok
 
-type DepositTransferCommand = Command<TransferDeposited>
+type InternalTransferBetweenOrgsCommand =
+   Command<InternalTransferBetweenOrgsPending>
 
-module DepositTransferCommand =
+module InternalTransferBetweenOrgsCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: InternalTransferBetweenOrgsPending)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: InternalTransferBetweenOrgsCommand)
+      : ValidationResult<BankEvent<InternalTransferBetweenOrgsPending>>
+      =
+      validate {
+         let input = cmd.Data.BaseInfo
+         let! _ = amountValidator "Transfer amount" input.Amount
+
+         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
+
+         return BankEvent.create<InternalTransferBetweenOrgsPending> cmd
+      }
+
+type ApproveInternalTransferBetweenOrgsCommand =
+   Command<InternalTransferBetweenOrgsApproved>
+
+module ApproveInternalTransferBetweenOrgsCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       correlationId
       (initiatedBy: InitiatedById)
-      (data: TransferDeposited)
+      (data: InternalTransferBetweenOrgsApproved)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -95,94 +128,79 @@ module DepositTransferCommand =
          data
 
    let toEvent
-      (cmd: DepositTransferCommand)
-      : ValidationResult<BankEvent<TransferDeposited>>
+      (cmd: ApproveInternalTransferBetweenOrgsCommand)
+      : ValidationResult<BankEvent<InternalTransferBetweenOrgsApproved>>
       =
-      BankEvent.create<TransferDeposited> cmd |> Ok
+      BankEvent.create<InternalTransferBetweenOrgsApproved> cmd |> Ok
 
-type InternalTransferRecipientInput = { Name: string; AccountId: AccountId }
+type RejectInternalTransferBetweenOrgsCommand =
+   Command<InternalTransferBetweenOrgsRejected>
 
-type RegisterInternalTransferRecipientCommand =
-   Command<InternalTransferRecipientInput>
-
-module RegisterInternalTransferRecipientCommand =
+module RejectInternalTransferBetweenOrgsCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
+      correlationId
       (initiatedBy: InitiatedById)
-      (data: InternalTransferRecipientInput)
+      (data: InternalTransferBetweenOrgsRejected)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
-         (CorrelationId.create ())
+         correlationId
          initiatedBy
          data
 
-   let toEvent (cmd: RegisterInternalTransferRecipientCommand) = validate {
-      let! _ =
-         transferRecipientIdValidator
-            (string cmd.EntityId)
-            (string cmd.Data.AccountId)
+   let toEvent
+      (cmd: RejectInternalTransferBetweenOrgsCommand)
+      : ValidationResult<BankEvent<InternalTransferBetweenOrgsRejected>>
+      =
+      BankEvent.create<InternalTransferBetweenOrgsRejected> cmd |> Ok
 
-      and! _ = accountNameValidator cmd.Data.Name
+type DepositInternalTransferWithinOrgCommand =
+   Command<InternalTransferWithinOrgDeposited>
 
-      return
-         BankEvent.create2<
-            InternalTransferRecipientInput,
-            RegisteredInternalTransferRecipient
-          >
-            cmd
-            {
-               Recipient = {
-                  Name = cmd.Data.Name
-                  Nickname = None
-                  AccountId = cmd.Data.AccountId
-                  OrgId = cmd.OrgId
-                  Status = RecipientRegistrationStatus.Confirmed
-               }
-            }
-   }
-
-type RegisterInternalSenderCommand = Command<InternalSenderRegistered>
-
-module RegisterInternalSenderCommand =
+module DepositInternalTransferWithinOrgCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
-      (data: InternalSenderRegistered)
+      correlationId
+      (initiatedBy: InitiatedById)
+      (data: InternalTransferWithinOrgDeposited)
       =
       Command.create
          (AccountId.toEntityId accountId)
          orgId
-         (CorrelationId.create ())
-         (Guid.Empty |> EmployeeId |> InitiatedById)
-         data
-
-   let toEvent
-      (cmd: RegisterInternalSenderCommand)
-      : ValidationResult<BankEvent<InternalSenderRegistered>>
-      =
-      BankEvent.create<InternalSenderRegistered> cmd |> Ok
-
-type DeactivateInternalRecipientCommand = Command<InternalRecipientDeactivated>
-
-module DeactivateInternalRecipientCommand =
-   let create
-      (sender: InternalTransferSender)
-      (initiatedBy: InitiatedById)
-      (data: InternalRecipientDeactivated)
-      =
-      Command.create
-         (AccountId.toEntityId sender.AccountId)
-         sender.OrgId
-         (CorrelationId.create ())
+         correlationId
          initiatedBy
          data
 
    let toEvent
-      (cmd: DeactivateInternalRecipientCommand)
-      : ValidationResult<BankEvent<InternalRecipientDeactivated>>
+      (cmd: DepositInternalTransferWithinOrgCommand)
+      : ValidationResult<BankEvent<InternalTransferWithinOrgDeposited>>
       =
-      BankEvent.create<InternalRecipientDeactivated> cmd |> Ok
+      BankEvent.create<InternalTransferWithinOrgDeposited> cmd |> Ok
+
+type DepositInternalTransferBetweenOrgsCommand =
+   Command<InternalTransferBetweenOrgsDeposited>
+
+module DepositInternalTransferBetweenOrgsCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (initiatedBy: InitiatedById)
+      (data: InternalTransferBetweenOrgsDeposited)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: DepositInternalTransferBetweenOrgsCommand)
+      : ValidationResult<BankEvent<InternalTransferBetweenOrgsDeposited>>
+      =
+      BankEvent.create<InternalTransferBetweenOrgsDeposited> cmd |> Ok
 
 type NicknameRecipientCommand = Command<RecipientNicknamed>
 

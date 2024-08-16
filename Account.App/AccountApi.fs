@@ -58,9 +58,20 @@ let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
 open OrganizationSqlMapper
 
 let getOrg (id: OrgId) =
+   let query =
+      $"""
+      SELECT
+         o.{OrgFields.orgId},
+         o.{OrgFields.name},
+         op.{OrgFields.requiresEmployeeInviteApproval},
+         op.{OrgFields.socialTransferDiscoveryAccountId}
+      FROM {OrganizationSqlMapper.table} o
+      JOIN {OrganizationSqlMapper.permissionsTable} op using({OrgFields.orgId})
+      WHERE {OrgFields.orgId} = @orgId
+      """
+
    pgQuerySingle<Org>
-      $"SELECT * FROM {OrganizationSqlMapper.table} 
-        WHERE {Fields.orgId} = @orgId"
+      query
       (Some [ "orgId", OrgSqlWriter.orgId id ])
       OrgSqlReader.org
 
@@ -69,26 +80,27 @@ let getOrgAndAccountProfiles
    : Task<Result<Option<OrgWithAccountProfiles>, Err>>
    =
    taskResultOption {
-      let orgTable = OrganizationSqlMapper.table
       let dtaView = "daily_transfer_accrued"
 
       let query =
          $"""
          SELECT
-            {orgTable}.{OrgFields.orgId},
-            {orgTable}.{OrgFields.name},
-            {orgTable}.{OrgFields.requiresEmployeeInviteApproval},
-            {accountTable}.{Fields.accountId},
-            {accountTable}.{Fields.name},
-            {accountTable}.{Fields.depository},
-            {accountTable}.{Fields.balance},
-            {accountTable}.{Fields.accountNumber},
-            {accountTable}.{Fields.routingNumber},
+            o.{OrgFields.orgId},
+            o.{OrgFields.name},
+            op.{OrgFields.requiresEmployeeInviteApproval},
+            op.{OrgFields.socialTransferDiscoveryAccountId},
+            a.{Fields.accountId},
+            a.{Fields.name},
+            a.{Fields.depository},
+            a.{Fields.balance},
+            a.{Fields.accountNumber},
+            a.{Fields.routingNumber},
             {dtaView}.internal_transfer_accrued,
             {dtaView}.domestic_transfer_accrued
-         FROM {orgTable}
-         LEFT JOIN {accountTable} using({OrgFields.orgId})
-         LEFT OUTER JOIN {dtaView} using({Fields.accountId})
+         FROM {OrganizationSqlMapper.table} o
+         JOIN {OrganizationSqlMapper.permissionsTable} op using({OrgFields.orgId})
+         JOIN {accountTable} a using({OrgFields.orgId})
+         LEFT JOIN {dtaView} using({Fields.accountId})
          WHERE {Fields.orgId} = @orgId
          """
 
@@ -123,6 +135,31 @@ let getOrgAndAccountProfiles
       }
    }
 
+let searchOrgTransferSocialDiscovery (fromOrgId: OrgId) (nameQuery: string) =
+   let query =
+      $$"""
+      SELECT
+         o.{{OrgFields.orgId}},
+         o.{{OrgFields.name}},
+         op.{{OrgFields.requiresEmployeeInviteApproval}},
+         op.{{OrgFields.socialTransferDiscoveryAccountId}}
+      FROM {{OrganizationSqlMapper.table}} o
+      JOIN {{OrganizationSqlMapper.permissionsTable}} op using({{OrgFields.orgId}})
+      WHERE 
+         o.{{OrgFields.orgId}} <> @orgIdToExclude
+         AND o.{{OrgFields.name}} %> @nameQuery
+         AND op.{{OrgFields.socialTransferDiscoveryAccountId}} IS NOT NULL
+      ORDER BY o.{{OrgFields.name}} <-> @nameQuery DESC
+      """
+
+   pgQuery<Org>
+      query
+      (Some [
+         "orgIdToExclude", OrgSqlWriter.orgId fromOrgId
+         "nameQuery", OrgSqlWriter.name nameQuery
+      ])
+      OrgSqlReader.org
+
 let getAccountsByIds (accountIds: AccountId list) =
    pgQuery<Account>
       $"SELECT * FROM {accountTable} 
@@ -141,20 +178,18 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
       | DepositCash cmd ->
          DepositCashCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | InternalTransfer cmd ->
-         InternalTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
+         InternalTransferWithinOrgCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | InternalTransferBetweenOrgs cmd ->
+         InternalTransferBetweenOrgsCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | DomesticTransfer cmd ->
          DomesticTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | RegisterInternalTransferRecipient cmd ->
-         RegisterInternalTransferRecipientCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
       | RegisterDomesticTransferRecipient cmd ->
          RegisterDomesticTransferRecipientCommand.toEvent cmd
          |> Result.map AccountEnvelope.get
       | EditDomesticTransferRecipient cmd ->
          EditDomesticTransferRecipientCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | DeactivateInternalRecipient cmd ->
-         DeactivateInternalRecipientCommand.toEvent cmd
          |> Result.map AccountEnvelope.get
       | NicknameRecipient cmd ->
          NicknameRecipientCommand.toEvent cmd |> Result.map AccountEnvelope.get

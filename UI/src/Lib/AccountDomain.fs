@@ -60,13 +60,10 @@ let nameAndNicknamePair
    (recipientId: AccountId)
    : string * string option
    =
-   let recipient = Map.tryFind recipientId account.TransferRecipients
+   let recipient = Map.tryFind recipientId account.DomesticTransferRecipients
 
    match recipient with
-   | Some(TransferRecipient.Internal recipient) ->
-      recipient.Name, recipient.Nickname
-   | Some(TransferRecipient.Domestic recipient) ->
-      recipient.Name, recipient.Nickname
+   | Some recipient -> recipient.Name, recipient.Nickname
    | None -> "", None
 
 let transactionUIFriendly
@@ -87,8 +84,6 @@ let transactionUIFriendly
       Source = None
       Destination = None
    }
-
-   let accountIdLast4 (num: AccountId) = num |> string |> _.Substring(-4)
 
    let accountName = account.Name + " **" + account.AccountNumber.Last4
 
@@ -142,12 +137,6 @@ let transactionUIFriendly
       props with
          Info = "Skipped Maintenance Fee"
      }
-   | InternalTransferRecipient evt -> {
-      props with
-         Name = "Created Internal Recipient"
-         Info =
-            $"Created internal recipient: {recipientName evt.Data.Recipient.AccountId}"
-     }
    | DomesticTransferRecipient evt ->
       let recipientName =
          recipientNameAndAccountNumber
@@ -170,48 +159,78 @@ let transactionUIFriendly
             Name = "Edited Domestic Recipient"
             Info = $"Edited recipient: {recipientName}"
       }
-   | InternalSenderRegistered evt -> {
-      props with
-         Info =
-            $"{evt.Data.Sender.Name} configured this account as a transfer recipient."
-     }
-   | InternalRecipientDeactivated evt -> {
-      props with
-         Info =
-            $"Recipient {recipientName evt.Data.RecipientId} closed their account."
-     }
-   | InternalTransferPending evt ->
+   | InternalTransferWithinOrgPending evt ->
       let info = evt.Data.BaseInfo
 
       {
          props with
-            Name = "Internal Transfer Pending"
-            Info = $"Internal transfer to {recipientName info.RecipientId}"
+            Name = "Internal Transfer"
+            Info =
+               $"Moved money from {info.Sender.Name} to {info.RecipientName}"
             AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
-            Destination = Some <| recipientName info.RecipientId
+            Destination = Some <| info.RecipientName
       }
-   | InternalTransferApproved evt ->
+   | InternalTransferWithinOrgApproved evt ->
       let info = evt.Data.BaseInfo
 
       {
          props with
             Name = "Internal Transfer Approved"
             Info =
-               $"Internal transfer approved to {recipientName info.RecipientId}"
+               $"Approved money movement from {info.Sender.Name} to {info.RecipientName}"
             AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
       }
-   | InternalTransferRejected evt ->
+   | InternalTransferWithinOrgRejected evt ->
       let info = evt.Data.BaseInfo
 
       {
          props with
             Name = "Internal Transfer Rejected"
             Info =
-               $"Internal transfer declined to {recipientName info.RecipientId} 
+               $"Declined money movement from {info.Sender.Name} to {info.RecipientName} 
+              - Reason: {evt.Data.Reason} 
+              - Account refunded"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.In
+      }
+   | InternalTransferBetweenOrgsPending evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Transfer Between Orgs"
+            Info =
+               $"Transferred from {info.Sender.Name} to {info.RecipientName}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.Out
+            Source = Some accountName
+            Destination = Some <| info.RecipientName
+      }
+   | InternalTransferBetweenOrgsApproved evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Transfer Between Orgs Approved"
+            Info =
+               $"Approved transfer from {info.Sender.Name} to {info.RecipientName}"
+            AmountNaked = Some info.Amount
+            Amount = Some <| Money.format info.Amount
+      }
+   | InternalTransferBetweenOrgsRejected evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Transfer Between Orgs Rejected"
+            Info =
+               $"Declined transfer from {info.Sender.Name} to {info.RecipientName} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
             AmountNaked = Some info.Amount
@@ -228,7 +247,7 @@ let transactionUIFriendly
 
       {
          props with
-            Name = "Domestic Transfer Pending"
+            Name = "Domestic Transfer"
             Info = $"Domestic transfer processing to {recipientName}"
             AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
@@ -284,13 +303,26 @@ let transactionUIFriendly
             AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
       }
-   | TransferDeposited evt ->
+   | InternalTransferWithinOrgDeposited evt ->
       let sender = evt.Data.Source.Name
 
       {
          props with
-            Name = "Transfer Received"
-            Info = $"Transfer received from {sender}."
+            Name = "Transfer Deposit Within Org"
+            Info = $"Received transfer deposit from {sender}."
+            AmountNaked = Some evt.Data.Amount
+            Amount = Some <| Money.format evt.Data.Amount
+            MoneyFlow = Some MoneyFlow.In
+            Source = Some sender
+            Destination = Some accountName
+      }
+   | InternalTransferBetweenOrgsDeposited evt ->
+      let sender = evt.Data.Source.Name
+
+      {
+         props with
+            Name = "Transfer Deposit Between Orgs"
+            Info = $"Received transfer deposit from {sender}."
             AmountNaked = Some evt.Data.Amount
             Amount = Some <| Money.format evt.Data.Amount
             MoneyFlow = Some MoneyFlow.In
@@ -313,24 +345,6 @@ let transactionUIFriendly
             | None -> "Removed recipient nickname."
             | Some name -> $"Updated recipient nickname to {name}"
      }
-
-type PotentialInternalTransferRecipients =
-   private | PotentialInternalTransferRecipients of
-      Map<AccountId, AccountProfile>
-
-module PotentialInternalTransferRecipients =
-   let create (account: Account) (accounts: Map<AccountId, AccountProfile>) =
-      let potentialRecipients =
-         accounts
-         |> Map.filter (fun accountId _ ->
-            let accountInRecipients =
-               account.InternalTransferRecipients |> Map.containsKey accountId
-
-            accountId <> account.AccountId && not accountInRecipients)
-
-      PotentialInternalTransferRecipients potentialRecipients
-
-   let value (PotentialInternalTransferRecipients recipients) = recipients
 
 type SelectedCard = { Display: string; CardId: CardId }
 
@@ -469,28 +483,3 @@ module AccountBrowserQuery =
       Transaction = None
       SelectedCards = None
    }
-
-/// May edit transfer recipient if domestic and status is not Closed.
-let canEditTransferRecipient
-   (account: Account)
-   (evt: AccountEvent)
-   : DomesticTransferRecipient option
-   =
-   let recipientIdOpt =
-      match evt with
-      | AccountEvent.DomesticTransferPending evt ->
-         Some evt.Data.BaseInfo.Recipient.AccountId
-      | AccountEvent.DomesticTransferRecipient evt ->
-         Some evt.Data.Recipient.AccountId
-      | AccountEvent.DomesticTransferRejected evt ->
-         Some evt.Data.BaseInfo.Recipient.AccountId
-      | _ -> None
-
-   recipientIdOpt
-   |> Option.bind (fun recipientId ->
-      Map.tryFind recipientId account.DomesticTransferRecipients)
-   |> Option.bind (fun recipient ->
-      if recipient.Status <> RecipientRegistrationStatus.Closed then
-         Some recipient
-      else
-         None)

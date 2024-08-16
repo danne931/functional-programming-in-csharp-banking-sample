@@ -40,24 +40,81 @@ type State = {
 // TODO: Temporarily create org here until fleshed out
 let orgId = Constants.ORG_ID_REMOVE_SOON
 
-let createOrg () =
-   let query =
+let socialTransferCandidates =
+   [ "Linear"; "Figma"; "Lendtable"; "Shopify" ]
+   |> List.map (fun name ->
+      let orgId = Guid.NewGuid() |> OrgId
+
+      orgId,
+      {|
+         OrgId = orgId
+         AccountOwner = Guid.NewGuid() |> EmployeeId
+         PrimaryAccountId = Guid.NewGuid() |> AccountId
+         Name = name
+      |})
+   |> Map.ofList
+
+let createOrgs () =
+   let orgs =
+      (orgId, "Sapphire Optics")
+      :: (socialTransferCandidates.Values
+          |> Seq.map (fun o -> o.OrgId, o.Name)
+          |> List.ofSeq)
+
+   pgTransaction [
       $"""
       INSERT into {OrganizationSqlMapper.table} (
          {OrgFields.orgId},
-         {OrgFields.name},
+         {OrgFields.name}
+      )
+      VALUES (@orgId, @name);
+      """,
+      orgs
+      |> List.map (fun (orgId, name) -> [
+         "orgId", OrgSqlWriter.orgId orgId
+         "name", OrgSqlWriter.name name
+      ])
+
+      $"""
+      INSERT into {OrganizationSqlMapper.permissionsTable} (
+         {OrgFields.orgId},
          {OrgFields.requiresEmployeeInviteApproval}
       )
-      VALUES (@orgId, @name, @requiresEmployeeInviteApproval)
-      ON CONFLICT ({OrgFields.name})
-      DO NOTHING;
+      VALUES (@orgId, @requiresEmployeeInviteApproval);
+      """,
+      orgs
+      |> List.map (fun (orgId, _) -> [
+         "orgId", OrgSqlWriter.orgId orgId
+         "requiresEmployeeInviteApproval",
+         OrgSqlWriter.requiresEmployeeInviteApproval false
+      ])
+   ]
+
+let enableOrgSocialTransferDiscovery () =
+   let query =
+      $"""
+      WITH updates AS (
+         SELECT
+            unnest(@orgIds) AS org,
+            unnest(@accountIds) AS account
+      )
+      UPDATE {OrganizationSqlMapper.permissionsTable} op
+      SET {OrgFields.socialTransferDiscoveryAccountId} = u.account
+      FROM updates u
+      WHERE op.{OrgFields.orgId} = u.org;
       """
 
+   let orgIds =
+      socialTransferCandidates |> Map.toArray |> Array.map (fst >> OrgId.get)
+
+   let accountIds =
+      socialTransferCandidates
+      |> Map.toArray
+      |> Array.map (snd >> _.PrimaryAccountId >> AccountId.get)
+
    pgPersist query [
-      "orgId", OrgSqlWriter.orgId orgId
-      "name", OrgSqlWriter.name "test-org"
-      "requiresEmployeeInviteApproval",
-      OrgSqlWriter.requiresEmployeeInviteApproval false
+      "orgIds", Sql.uuidArray orgIds
+      "accountIds", Sql.uuidArray accountIds
    ]
 
 // NOTE:
@@ -195,12 +252,34 @@ let mockAccounts =
       }
       |> withModifiedTimestamp
 
+   let socialTransferCandidates =
+      socialTransferCandidates
+      |> Map.fold
+            (fun acc _ o ->
+               let cmd =
+                  CreateAccountCommand.create {
+                     Name = "AR"
+                     Currency = Currency.USD
+                     Depository = AccountDepository.Checking
+                     AccountId = o.PrimaryAccountId
+                     AccountNumber = AccountNumber.generate ()
+                     OrgId = o.OrgId
+                     InitiatedBy = InitiatedById o.AccountOwner
+                  }
+                  |> withModifiedTimestamp
+
+               Map.add o.PrimaryAccountId cmd acc)
+            Map.empty
+      |> Map.toSeq
+
    Map [
       cmd1.Data.AccountId, cmd1
 
       cmd2.Data.AccountId, cmd2
 
       cmd3.Data.AccountId, cmd3
+
+      yield! socialTransferCandidates
    ]
 
 let accountInitialDeposits =
@@ -326,8 +405,8 @@ let seedAccountOwnerActions
             let daysToAdd = num * (5 + num)
 
             if month = 3 then
-               let today = DateTime.UtcNow.Day
-               if today / daysToAdd >= 1 then daysToAdd else 0
+               let buffer = DateTime.UtcNow.AddDays(-2).Day
+               if buffer / daysToAdd >= 1 then daysToAdd else 0
             else
                daysToAdd
 
@@ -337,7 +416,7 @@ let seedAccountOwnerActions
             let msg =
                {
                   DepositCashCommand.create
-                     (card.AccountId, orgId)
+                     (arCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
                         Amount = 5000m + randomAmount 1000 10_000
@@ -348,7 +427,41 @@ let seedAccountOwnerActions
                |> AccountCommand.DepositCash
                |> AccountMessage.StateChange
 
-            getAccountRef card.AccountId <! msg
+            accountRef <! msg
+
+            let ind =
+               int (randomAmount 0 (socialTransferCandidates.Length() - 1))
+
+            let recipient = socialTransferCandidates.Values |> Seq.item ind
+
+            let timestamp = timestamp.AddDays(float (maxDays - 1))
+
+            let msg =
+               {
+                  InternalTransferBetweenOrgsCommand.create
+                     (arCheckingAccountId, orgId)
+                     mockAccountOwnerId
+                     {
+                        Memo = None
+                        BaseInfo = {
+                           RecipientOrgId = recipient.OrgId
+                           RecipientId = recipient.PrimaryAccountId
+                           RecipientName = recipient.Name
+                           Amount = 3000m + randomAmount 1000 8000
+                           ScheduledDate = timestamp
+                           Sender = {
+                              Name = mockAccounts[arCheckingAccountId].Data.Name
+                              AccountId = arCheckingAccountId
+                              OrgId = orgId
+                           }
+                        }
+                     } with
+                     Timestamp = timestamp
+               }
+               |> AccountCommand.InternalTransferBetweenOrgs
+               |> AccountMessage.StateChange
+
+            accountRef <! msg
 
 let seedEmployeeActions
    (card: Card)
@@ -395,16 +508,22 @@ let seedEmployeeActions
       let timestamp = timestamp.AddMonths month
       let purchaseOrigins = purchaseOrigins[month - 1]
 
-      for purchaseNum in [ 1..30 ] do
+      let maxPurchases =
+         if month = 3 then
+            DateTime.UtcNow.Day
+         else
+            DateTime.DaysInMonth(timestamp.Year, timestamp.Month)
+
+      for purchaseNum in [ 1..maxPurchases ] do
          let maxDays =
             if month = 3 then
-               let today = DateTime.UtcNow.Day
-               if today = 1 then None else Some(today - 1)
+               let today = DateTime.UtcNow
+               if today.Day = 1 then None else Some(today.AddDays(-2).Day)
             else
                Some(DateTime.DaysInMonth(timestamp.Year, timestamp.Month) - 1)
 
          let purchaseDate =
-            match (month = 3 && purchaseNum > 29), maxDays with
+            match (month = 3 && purchaseNum > maxPurchases - 1), maxDays with
             | false, Some days -> timestamp.AddDays(float (randomAmount 0 days))
             | false, None -> timestamp
             | true, _ -> DateTime.UtcNow
@@ -654,7 +773,7 @@ let actorProps
                else
                   logInfo "Seed postgres with accounts"
 
-                  match! createOrg () with
+                  match! createOrgs () with
                   | Error err ->
                      logError
                         ctx
@@ -738,6 +857,13 @@ let actorProps
 
             if verified.Length = state.AccountsToCreate.Count then
                logInfo "Finished seeding accounts"
+
+               match! enableOrgSocialTransferDiscovery () with
+               | Ok _ ->
+                  logInfo
+                     $"Enabled social transfer discovery for {arCheckingAccountId}"
+               | Error err ->
+                  logError ctx $"Error enabling social transfer discovery {err}"
 
                do! Task.Delay 35_000
                let! res = seedBalanceHistory ()

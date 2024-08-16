@@ -16,23 +16,6 @@ open Bank.UserSession.Middleware
 let startTransferRoutes (app: WebApplication) =
    app
       .MapPost(
-         TransferPath.InternalTransferRecipient,
-         Func<
-            ActorSystem,
-            RegisterInternalTransferRecipientCommand,
-            Task<IResult>
-          >
-            (fun sys cmd ->
-               processCommand
-                  sys
-                  (AccountCommand.RegisterInternalTransferRecipient cmd)
-               |> RouteUtil.unwrapTaskResult)
-      )
-      .RBAC(Permissions.ManageTransferRecipient)
-   |> ignore
-
-   app
-      .MapPost(
          TransferPath.DomesticTransferRecipient,
          Func<
             ActorSystem,
@@ -63,10 +46,24 @@ let startTransferRoutes (app: WebApplication) =
 
    app
       .MapPost(
-         TransferPath.Internal,
-         Func<ActorSystem, InternalTransferCommand, Task<IResult>>
+         TransferPath.InternalWithinOrg,
+         Func<ActorSystem, InternalTransferWithinOrgCommand, Task<IResult>>
             (fun sys cmd ->
                processCommand sys (AccountCommand.InternalTransfer cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.SubmitTransfer)
+   |> ignore
+
+
+   app
+      .MapPost(
+         TransferPath.InternalCrossOrg,
+         Func<ActorSystem, InternalTransferBetweenOrgsCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand
+                  sys
+                  (AccountCommand.InternalTransferBetweenOrgs cmd)
                |> RouteUtil.unwrapTaskResult)
       )
       .RBAC(Permissions.SubmitTransfer)
