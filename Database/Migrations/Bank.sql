@@ -494,8 +494,8 @@ LEFT JOIN account using(account_id)
 WHERE
    t.amount IS NOT NULL
    AND t.name IN (
-      'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected'
-      'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected'
+      'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected',
+      'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected',
       'DomesticTransferPending', 'DomesticTransferRejected'
    )
    AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
