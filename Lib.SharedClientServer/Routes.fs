@@ -107,3 +107,9 @@ module AnalyticsPath =
    let Base = $"{API}/analytics"
    let Get = Base + "/{orgId}"
    let get (orgId: OrgId) = $"{Base}/{orgId}"
+
+   let MoneyFlowMonthlyTimeSeriesForAccount =
+      Base + "/money-flow-monthly-time-series-for-account/{accountId}"
+
+   let moneyFlowMonthlyTimeSeriesForAccount (accountId: AccountId) =
+      $"{Base}/money-flow-monthly-time-series-for-account/{accountId}"

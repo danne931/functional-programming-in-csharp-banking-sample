@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS organization;
 DROP TABLE IF EXISTS category;
 
 DROP TYPE IF EXISTS money_flow CASCADE;
+DROP TYPE IF EXISTS monthly_time_series_filter_by CASCADE;
 DROP TYPE IF EXISTS employee_status;
 DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
@@ -360,8 +361,11 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE TYPE monthly_time_series_filter_by AS ENUM ('org', 'account');
+
 CREATE OR REPLACE FUNCTION money_flow_time_series_monthly(
-   orgId UUID,
+   filterBy monthly_time_series_filter_by,
+   filterId UUID, -- Either org_id or account_id depending on filterBy parameter
    lookbackMonths INT
 )
 RETURNS TABLE (
@@ -392,7 +396,10 @@ BEGIN
       SELECT t.money_flow, t.amount
       FROM transaction t
       WHERE
-         t.org_id = orgId
+         CASE
+            WHEN filterBy = 'org' THEN t.org_id = filterId
+            WHEN filterBy = 'account' THEN t.account_id = filterId
+         END
          AND t.money_flow IS NOT NULL
          AND DATE_TRUNC('month', t.timestamp) = months.month
          -- Exclude internal transfers within an org while still fetching

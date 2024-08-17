@@ -90,3 +90,23 @@ let loadTopNAnalytics
             Serialization.deserialize<MoneyFlowTopNAnalytics> responseText
             |> Result.map Some
    }
+
+let loadMoneyFlowMonthlyTimeSeriesForAccount
+   (accountId: AccountId)
+   : Async<Result<MoneyFlowMonthlyTimeSeriesAnalytics option, Err>>
+   =
+   async {
+      let path = AnalyticsPath.moneyFlowMonthlyTimeSeriesForAccount accountId
+
+      let! (code, responseText) = Http.get path
+
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
+         return Error(Err.InvalidStatusCodeError(serviceName, code))
+      else
+         return
+            Serialization.deserialize<MoneyFlowMonthlyTimeSeriesAnalytics>
+               responseText
+            |> Result.map Some
+   }

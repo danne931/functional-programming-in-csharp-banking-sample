@@ -365,7 +365,8 @@ let renderTimeSeriesByAccountChart
 
 let render3MonthTimeSeriesChart
    (flow: MoneyFlow)
-   (data: MoneyFlowMonthlyTimeSeriesByOrg list)
+   (data: MoneyFlowMonthlyTimeSeries list)
+   (dimensions: {| Height: int; Width: int |})
    =
    let dataKey, color =
       match flow with
@@ -373,8 +374,8 @@ let render3MonthTimeSeriesChart
       | MoneyFlow.Out -> (_.AmountOut >> string), "url(#moneyOut)"
 
    Recharts.barChart [
-      barChart.width 150
-      barChart.height 90
+      barChart.width dimensions.Width
+      barChart.height dimensions.Height
       barChart.data data
 
       barChart.children [
@@ -391,7 +392,7 @@ let render3MonthTimeSeriesChart
 
          Recharts.xAxis [
             xAxis.hide true
-            xAxis.dataKey (fun (d: MoneyFlowMonthlyTimeSeriesByOrg) ->
+            xAxis.dataKey (fun (d: MoneyFlowMonthlyTimeSeries) ->
                DateTime.numberToDisplayMonth[d.Month.Month])
          ]
 
@@ -507,7 +508,7 @@ let renderTopMoneyListItems
    (selectedMonth: DateTime)
    =
    let selected =
-      last3MonthTimeSeries.ByOrg
+      last3MonthTimeSeries.TimeSeries
       |> List.find (fun a -> a.Month.Month = selectedMonth.Month)
 
    let str, color, items, totalAmount =
@@ -552,7 +553,10 @@ let renderTopMoneyListItems
                | MoneyFlow.Out -> renderAmount last3MonthTimeSeries.AverageOut
             ]
 
-            render3MonthTimeSeriesChart flow last3MonthTimeSeries.ByOrg
+            render3MonthTimeSeriesChart flow last3MonthTimeSeries.TimeSeries {|
+               Height = 90
+               Width = 150
+            |}
          ]
    ]
 

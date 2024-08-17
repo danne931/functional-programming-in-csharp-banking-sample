@@ -147,16 +147,32 @@ footer
   bottom: 0
   background: var(--card-background-color)
   box-shadow: var(--card-box-shadow)
-  padding: 1rem
+  padding: .5rem 0
+  overflow: hidden
   &.grid
     grid-template-columns: 30% 25% 25%
+
+  .rotating-footer-metric
+    opacity: 1
+    transition: opacity 1s ease-in-out
+    position: absolute
+    height: 100%
+    display: flex
+    align-items: center
+    &.fade-in
+      opacity: 1
+    &.fade-out
+      opacity: 0
 
   p
     display: inline
 
-  > div:not(:first-child)
+  > div
     display: flex
     align-items: center
+    justify-content: center
+    &:first-child, &:last-child
+      flex-direction: column
 
     p
       margin-bottom: 0

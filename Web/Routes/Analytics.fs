@@ -43,7 +43,7 @@ let startAnalyticsRoutes (app: WebApplication) =
                         End = en
                      }
                      MoneyFlowMonthlyTimeSeries = {
-                        OrgId = orgId
+                        FilterBy = MoneyFlowMonthlyTimeSeriesFilterBy.Org orgId
                         LookbackMonths = 3
                      }
                   }
@@ -64,6 +64,22 @@ let startAnalyticsRoutes (app: WebApplication) =
                   }
                   |> RouteUtil.unwrapTaskResultOption
                | _ -> 422 |> Results.StatusCode |> Task.FromResult)
+      )
+      .RBAC(Permissions.GetTransactions)
+   |> ignore
+
+   app
+      .MapGet(
+         AnalyticsPath.MoneyFlowMonthlyTimeSeriesForAccount,
+         Func<Guid, Task<IResult>>(fun accountId ->
+            moneyFlowMonthlyTimeSeriesAnalytics {
+               FilterBy =
+                  MoneyFlowMonthlyTimeSeriesFilterBy.Account(
+                     AccountId accountId
+                  )
+               LookbackMonths = 3
+            }
+            |> RouteUtil.unwrapTaskResultOption)
       )
       .RBAC(Permissions.GetTransactions)
    |> ignore

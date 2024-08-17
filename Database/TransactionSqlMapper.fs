@@ -12,6 +12,7 @@ let table = "transaction"
 
 module TransactionTypeCast =
    let moneyFlow = "money_flow"
+   let timeSeriesMonthlyFilterBy = "monthly_time_series_filter_by"
 
 module TransactionFunctions =
    let moneyFlowTopNMonthly = $"money_flow_top_n_source_by_month"

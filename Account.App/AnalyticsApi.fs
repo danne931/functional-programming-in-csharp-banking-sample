@@ -31,7 +31,15 @@ type MoneyFlowDailyTimeSeriesQuery = {
    End: DateTime
 }
 
-type MoneyFlowMonthlyTimeSeriesQuery = { OrgId: OrgId; LookbackMonths: int }
+[<RequireQualifiedAccess>]
+type MoneyFlowMonthlyTimeSeriesFilterBy =
+   | Org of OrgId
+   | Account of AccountId
+
+type MoneyFlowMonthlyTimeSeriesQuery = {
+   FilterBy: MoneyFlowMonthlyTimeSeriesFilterBy
+   LookbackMonths: int
+}
 
 type MoneyFlowAnalyticsQuery = {
    OrgId: OrgId
@@ -236,32 +244,41 @@ let moneyFlowMonthlyTimeSeriesAnalytics
    =
    taskResultOption {
       let qParams = [
-         "orgId", txnQuery.OrgId |> OrgId.get |> Sql.uuid
+         "filterBy",
+         match txnQuery.FilterBy with
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Account _ -> Sql.string "account"
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Org _ -> Sql.string "org"
+
+         "filterId",
+         match txnQuery.FilterBy with
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Account accountId ->
+            accountId |> AccountId.get |> Sql.uuid
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Org orgId ->
+            orgId |> OrgId.get |> Sql.uuid
+
          "lookbackMonths", Sql.int txnQuery.LookbackMonths
       ]
 
       let query =
          $"SELECT * 
            FROM {TransactionFunctions.moneyFlowTimeSeriesMonthly}(
-              @orgId,
+              @filterBy::{TransactionTypeCast.timeSeriesMonthlyFilterBy},
+              @filterId,
               @lookbackMonths
            )"
 
       let! series =
-         pgQuery<MoneyFlowMonthlyTimeSeriesByOrg>
-            query
-            (Some qParams)
-            (fun read -> {
-               Month = read.dateTime "month"
-               AmountIn = read.decimal "amount_in"
-               AmountOut = read.decimal "amount_out"
-            })
+         pgQuery<MoneyFlowMonthlyTimeSeries> query (Some qParams) (fun read -> {
+            Month = read.dateTime "month"
+            AmountIn = read.decimal "amount_in"
+            AmountOut = read.decimal "amount_out"
+         })
 
       let avg sum =
          Math.Round(sum / decimal series.Length, 2)
 
       return {
-         ByOrg = series
+         TimeSeries = series
          AverageIn = series |> List.sumBy _.AmountIn |> avg
          AverageOut = series |> List.sumBy _.AmountOut |> avg
       }

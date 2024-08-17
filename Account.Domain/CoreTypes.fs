@@ -154,14 +154,14 @@ type MoneyFlowDailyTimeSeriesAnalytics = {
    ByAccount: MoneyFlowDailyTimeSeriesByAccount list
 }
 
-type MoneyFlowMonthlyTimeSeriesByOrg = {
+type MoneyFlowMonthlyTimeSeries = {
    Month: DateTime
    AmountIn: decimal
    AmountOut: decimal
 }
 
 type MoneyFlowMonthlyTimeSeriesAnalytics = {
-   ByOrg: MoneyFlowMonthlyTimeSeriesByOrg list
+   TimeSeries: MoneyFlowMonthlyTimeSeries list
    AverageIn: decimal
    AverageOut: decimal
 }

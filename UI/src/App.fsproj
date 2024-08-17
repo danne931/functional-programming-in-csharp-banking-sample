@@ -66,6 +66,7 @@
     <Compile Include="Components/AccountActions.fs" />
     <Compile Include="Components/AccountActionMenu.fs" />
     <Compile Include="Components/CardActionMenu.fs" />
+    <Compile Include="Components/AnalyticsDashboard.fs" />
     <Compile Include="Components/AccountSummary.fs" />
     <Compile Include="Components/TransactionDashboard.fs" />
     <Compile Include="Components/AccountDashboard.fs" />
@@ -74,7 +75,6 @@
     <Compile Include="Components/EmployeeDetail.fs" />
     <Compile Include="Components/EmployeeDashboard.fs" />
     <Compile Include="Components/EmployeeHistoryDashboard.fs" />
-    <Compile Include="Components/AnalyticsDashboard.fs" />
     <Compile Include="Components/SidebarMenu.fs" /> 
     <Compile Include="App.fs" />
   </ItemGroup>

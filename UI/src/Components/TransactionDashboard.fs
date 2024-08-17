@@ -198,7 +198,7 @@ let TransactionDashboardComponent
       match orgCtx, accountIdOpt with
       | Deferred.Resolved(Ok(Some org)), Some accountId ->
          match org.AccountProfiles.TryFind accountId with
-         | Some profile -> AccountSummary.render profile
+         | Some profile -> AccountSummary.AccountSummaryComponent profile
          | None -> ()
       | _ -> ()
    ]
