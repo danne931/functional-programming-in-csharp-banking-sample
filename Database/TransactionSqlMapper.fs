@@ -11,6 +11,7 @@ open CardSqlMapper
 let table = "transaction"
 
 module TransactionTypeCast =
+   let timeFrame = "time_frame"
    let moneyFlow = "money_flow"
    let timeSeriesMonthlyFilterBy = "monthly_time_series_filter_by"
 
@@ -20,6 +21,14 @@ module TransactionFunctions =
    let moneyFlowTimeSeriesDaily = "money_flow_time_series_daily"
 
    let moneyFlowTimeSeriesMonthly = "money_flow_time_series_monthly"
+
+   let transferAccrued = "transfer_accrued"
+
+module TransactionViews =
+   let dailyPurchaseAccrued = "daily_purchase_accrued"
+   let monthlyPurchaseAccrued = "monthly_purchase_accrued"
+   let dailyPurchaseAccruedByCard = "daily_purchase_accrued_by_card"
+   let monthlyPurchaseAccruedByCard = "monthly_purchase_accrued_by_card"
 
 module TransactionFields =
    let transactionId = "transaction_id"

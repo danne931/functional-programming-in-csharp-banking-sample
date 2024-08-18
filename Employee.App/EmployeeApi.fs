@@ -254,8 +254,8 @@ let getEmployeeHistory (orgId: OrgId) (query: EmployeeHistoryQuery) =
            e1.{Fields.firstName} || ' ' || e1.{Fields.lastName} as name,
            e2.{Fields.firstName} || ' ' || e2.{Fields.lastName} as initiator
         FROM {eventTable}
-        LEFT JOIN {employeeTable} e1 using({Fields.employeeId})
-        LEFT JOIN {employeeTable} e2 
+        JOIN {employeeTable} e1 using({Fields.employeeId})
+        JOIN {employeeTable} e2 
            ON {eventTable}.{Fields.initiatedById} = e2.{Fields.employeeId}
         WHERE {where}
         ORDER BY {eventTable}.timestamp desc
@@ -275,8 +275,12 @@ module Writer = CardSqlMapper.CardSqlWriter
 let getCards (orgId: OrgId) (query: CardQuery) =
    let table = CardSqlMapper.table
    let employeeTable = EmployeeSqlMapper.table
-   let dpaView = "daily_purchase_accrued"
-   let mpaView = "monthly_purchase_accrued"
+
+   let dpaView =
+      TransactionSqlMapper.TransactionViews.dailyPurchaseAccruedByCard
+
+   let mpaView =
+      TransactionSqlMapper.TransactionViews.monthlyPurchaseAccruedByCard
 
    let agg = [ "orgId", Writer.orgId orgId ], $"{table}.{Fields.orgId} = @orgId"
 
@@ -350,9 +354,9 @@ let getCards (orgId: OrgId) (query: CardQuery) =
            {dpaView}.amount_accrued as dpa,
            {employeeTable}.*
         FROM {table}
-        LEFT JOIN {employeeTable} using({Fields.employeeId})
-        LEFT OUTER JOIN {dpaView} using({Fields.cardId})
-        LEFT OUTER JOIN {mpaView} using({Fields.cardId})
+        JOIN {employeeTable} using({Fields.employeeId})
+        LEFT JOIN {dpaView} using({Fields.cardId})
+        LEFT JOIN {mpaView} using({Fields.cardId})
         WHERE {where}
         ORDER BY {table}.{Fields.lastPurchaseAt} desc"
 

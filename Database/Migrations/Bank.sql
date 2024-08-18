@@ -4,7 +4,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DROP VIEW IF EXISTS daily_purchase_accrued;
 DROP VIEW IF EXISTS monthly_purchase_accrued;
-DROP VIEW IF EXISTS daily_transfer_accrued;
+DROP VIEW IF EXISTS daily_purchase_accrued_by_card;
+DROP VIEW IF EXISTS monthly_purchase_accrued_by_card;
 
 DROP TABLE IF EXISTS balance_history;
 DROP TABLE IF EXISTS billingstatement;
@@ -21,12 +22,15 @@ DROP TABLE IF EXISTS category;
 
 DROP TYPE IF EXISTS money_flow CASCADE;
 DROP TYPE IF EXISTS monthly_time_series_filter_by CASCADE;
+DROP TYPE IF EXISTS time_frame CASCADE;
 DROP TYPE IF EXISTS employee_status;
 DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
 DROP TYPE IF EXISTS account_status;
 DROP TYPE IF EXISTS card_status;
 DROP TYPE IF EXISTS card_type;
+
+CREATE TYPE time_frame AS ENUM ('day', 'month');
 
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -446,6 +450,28 @@ $$ LANGUAGE plpgsql;
 
 CREATE VIEW daily_purchase_accrued AS
 SELECT
+   account_id,
+   COALESCE(SUM(amount::numeric), 0) as amount_accrued
+FROM transaction
+WHERE
+   amount IS NOT NULL
+   AND name = 'DebitedAccount'
+   AND timestamp::date = CURRENT_DATE
+GROUP BY account_id;
+
+CREATE VIEW monthly_purchase_accrued AS
+SELECT
+   account_id,
+   COALESCE(SUM(amount::numeric), 0) as amount_accrued
+FROM transaction
+WHERE
+   amount IS NOT NULL
+   AND name = 'DebitedAccount'
+   AND timestamp::date >= date_trunc('month', CURRENT_DATE)
+GROUP BY account_id;
+
+CREATE VIEW daily_purchase_accrued_by_card AS
+SELECT
    card_id,
    COALESCE(SUM(amount::numeric), 0) as amount_accrued
 FROM transaction
@@ -455,7 +481,7 @@ WHERE
    AND timestamp::date = CURRENT_DATE
 GROUP BY card_id;
 
-CREATE VIEW monthly_purchase_accrued AS
+CREATE VIEW monthly_purchase_accrued_by_card AS
 SELECT
    card_id,
    COALESCE(SUM(amount::numeric), 0) as amount_accrued
@@ -466,49 +492,69 @@ WHERE
    AND timestamp::date >= date_trunc('month', CURRENT_DATE)
 GROUP BY card_id;
 
-CREATE VIEW daily_transfer_accrued AS
-SELECT
-   account.account_id,
+CREATE OR REPLACE FUNCTION transfer_accrued(
+   orgId UUID,
+   timeFrame time_frame
+)
+RETURNS TABLE (
+   account_id UUID,
+   internal_transfer_accrued NUMERIC,
+   domestic_transfer_accrued NUMERIC
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+     account.account_id,
 
-   COALESCE(
-      SUM(
-         CASE 
+     COALESCE(
+        SUM(
+           CASE 
 
-         WHEN t.name IN('InternalTransferWithinOrgPending', 'InternalTransferBetweenOrgsPending') 
-         THEN t.amount::numeric
+           WHEN t.name IN('InternalTransferWithinOrgPending', 'InternalTransferBetweenOrgsPending') 
+           THEN t.amount::numeric
 
-         WHEN t.name IN('InternalTransferWithinOrgRejected', 'InternalTransferBetweenOrgsRejected') 
-         THEN -t.amount::numeric
+           WHEN t.name IN('InternalTransferWithinOrgRejected', 'InternalTransferBetweenOrgsRejected') 
+           THEN -t.amount::numeric
 
-         ELSE 0
-         END
-      ),
-      0
-   ) AS internal_transfer_accrued,
+           ELSE 0
+           END
+        ),
+        0
+     ) AS internal_transfer_accrued,
 
-   COALESCE(
-      SUM(
-         CASE 
-         WHEN t.name = 'DomesticTransferPending' THEN t.amount::numeric
-         WHEN t.name = 'DomesticTransferRejected' THEN -t.amount::numeric
-         ELSE 0
-         END
-      ),
-      0
-   ) AS domestic_transfer_accrued
-FROM transaction t
-LEFT JOIN account using(account_id)
-WHERE
-   t.amount IS NOT NULL
-   AND t.name IN (
-      'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected',
-      'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected',
-      'DomesticTransferPending', 'DomesticTransferRejected'
-   )
-   AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
-   -- TODO: Create internal/domestic transfer read model tables 
-   --       and read from scheduled_date column.
-   AND (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date = CURRENT_DATE
-GROUP BY account.account_id;
+     COALESCE(
+        SUM(
+           CASE 
+           WHEN t.name = 'DomesticTransferPending' THEN t.amount::numeric
+           WHEN t.name = 'DomesticTransferRejected' THEN -t.amount::numeric
+           ELSE 0
+           END
+        ),
+        0
+     ) AS domestic_transfer_accrued
+  FROM transaction t
+  LEFT JOIN account using(account_id)
+  WHERE
+     t.org_id = orgId
+     AND t.amount IS NOT NULL
+     AND t.name IN (
+        'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected',
+        'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected',
+        'DomesticTransferPending', 'DomesticTransferRejected'
+     )
+     AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
+     -- TODO: Create internal/domestic transfer read model tables 
+     --       and read from scheduled_date column.
+     AND
+       CASE
+       WHEN timeFrame = 'day'
+       THEN (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date = CURRENT_DATE
+
+       WHEN timeFrame = 'month'
+       THEN (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date >= date_trunc('month', CURRENT_DATE)
+       END
+  GROUP BY account.account_id;
+END
+$$ LANGUAGE plpgsql;
 
 commit;

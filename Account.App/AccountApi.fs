@@ -80,7 +80,11 @@ let getOrgAndAccountProfiles
    : Task<Result<Option<OrgWithAccountProfiles>, Err>>
    =
    taskResultOption {
-      let dtaView = "daily_transfer_accrued"
+      let dpaView = TransactionSqlMapper.TransactionViews.dailyPurchaseAccrued
+      let mpaView = TransactionSqlMapper.TransactionViews.monthlyPurchaseAccrued
+
+      let transferAccrued =
+         TransactionSqlMapper.TransactionFunctions.transferAccrued
 
       let query =
          $"""
@@ -95,12 +99,19 @@ let getOrgAndAccountProfiles
             a.{Fields.balance},
             a.{Fields.accountNumber},
             a.{Fields.routingNumber},
-            {dtaView}.internal_transfer_accrued,
-            {dtaView}.domestic_transfer_accrued
+            dta.internal_transfer_accrued as dita,
+            dta.domestic_transfer_accrued as dida,
+            mta.internal_transfer_accrued as mita,
+            mta.domestic_transfer_accrued as mida,
+            {mpaView}.amount_accrued as mpa,
+            {dpaView}.amount_accrued as dpa
          FROM {OrganizationSqlMapper.table} o
          JOIN {OrganizationSqlMapper.permissionsTable} op using({OrgFields.orgId})
          JOIN {accountTable} a using({OrgFields.orgId})
-         LEFT JOIN {dtaView} using({Fields.accountId})
+         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'day')) dta using({Fields.accountId})
+         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'month')) mta using({Fields.accountId})
+         LEFT JOIN {dpaView} using({Fields.accountId})
+         LEFT JOIN {mpaView} using({Fields.accountId})
          WHERE {Fields.orgId} = @orgId
          """
 
@@ -119,11 +130,17 @@ let getOrgAndAccountProfiles
                   AccountNumber = Reader.accountNumber read
                   RoutingNumber = Reader.routingNumber read
                   DailyInternalTransferAccrued =
-                     read.decimalOrNone "internal_transfer_accrued"
-                     |> Option.defaultValue 0m
+                     read.decimalOrNone "dita" |> Option.defaultValue 0m
                   DailyDomesticTransferAccrued =
-                     read.decimalOrNone "domestic_transfer_accrued"
-                     |> Option.defaultValue 0m
+                     read.decimalOrNone "dida" |> Option.defaultValue 0m
+                  MonthlyInternalTransferAccrued =
+                     read.decimalOrNone "mita" |> Option.defaultValue 0m
+                  MonthlyDomesticTransferAccrued =
+                     read.decimalOrNone "mida" |> Option.defaultValue 0m
+                  DailyPurchaseAccrued =
+                     read.decimalOrNone "dpa" |> Option.defaultValue 0m
+                  MonthlyPurchaseAccrued =
+                     read.decimalOrNone "mpa" |> Option.defaultValue 0m
                })
 
       return {

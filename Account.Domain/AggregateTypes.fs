@@ -181,6 +181,10 @@ type AccountProfile = {
    Balance: decimal
    DailyInternalTransferAccrued: decimal
    DailyDomesticTransferAccrued: decimal
+   MonthlyInternalTransferAccrued: decimal
+   MonthlyDomesticTransferAccrued: decimal
+   DailyPurchaseAccrued: decimal
+   MonthlyPurchaseAccrued: decimal
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
@@ -198,6 +202,10 @@ module AccountProfile =
       Balance = account.Balance
       DailyInternalTransferAccrued = 0m
       DailyDomesticTransferAccrued = 0m
+      MonthlyInternalTransferAccrued = 0m
+      MonthlyDomesticTransferAccrued = 0m
+      DailyPurchaseAccrued = 0m
+      MonthlyPurchaseAccrued = 0m
    }
 
 type OrgWithAccountProfiles = {

@@ -64,11 +64,17 @@ let update msg state =
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
                         + e.Data.BaseInfo.Amount
+                     MonthlyInternalTransferAccrued =
+                        profile.MonthlyInternalTransferAccrued
+                        + e.Data.BaseInfo.Amount
                  }
                | AccountEvent.InternalTransferWithinOrgPending e -> {
                   profile with
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
+                        + e.Data.BaseInfo.Amount
+                     MonthlyInternalTransferAccrued =
+                        profile.MonthlyInternalTransferAccrued
                         + e.Data.BaseInfo.Amount
                  }
                | AccountEvent.DomesticTransferPending e -> {
@@ -76,11 +82,17 @@ let update msg state =
                      DailyDomesticTransferAccrued =
                         profile.DailyDomesticTransferAccrued
                         + e.Data.BaseInfo.Amount
+                     MonthlyDomesticTransferAccrued =
+                        profile.MonthlyDomesticTransferAccrued
+                        + e.Data.BaseInfo.Amount
                  }
                | AccountEvent.InternalTransferWithinOrgRejected e -> {
                   profile with
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
+                        - e.Data.BaseInfo.Amount
+                     MonthlyInternalTransferAccrued =
+                        profile.MonthlyInternalTransferAccrued
                         - e.Data.BaseInfo.Amount
                  }
                | AccountEvent.InternalTransferBetweenOrgsRejected e -> {
@@ -88,12 +100,25 @@ let update msg state =
                      DailyInternalTransferAccrued =
                         profile.DailyInternalTransferAccrued
                         - e.Data.BaseInfo.Amount
+                     MonthlyInternalTransferAccrued =
+                        profile.MonthlyInternalTransferAccrued
+                        - e.Data.BaseInfo.Amount
                  }
                | AccountEvent.DomesticTransferRejected e -> {
                   profile with
                      DailyDomesticTransferAccrued =
                         profile.DailyDomesticTransferAccrued
                         - e.Data.BaseInfo.Amount
+                     MonthlyDomesticTransferAccrued =
+                        profile.MonthlyDomesticTransferAccrued
+                        - e.Data.BaseInfo.Amount
+                 }
+               | AccountEvent.DebitedAccount e -> {
+                  profile with
+                     DailyPurchaseAccrued =
+                        profile.DailyPurchaseAccrued + e.Data.Amount
+                     MonthlyPurchaseAccrued =
+                        profile.MonthlyPurchaseAccrued + e.Data.Amount
                  }
                | _ -> profile
 

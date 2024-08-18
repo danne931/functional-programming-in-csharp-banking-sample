@@ -6,10 +6,22 @@ open Feliz.Router
 
 open Bank.Account.Domain
 
-[<RequireQualifiedAccess>]
 type private RotatingMetric =
    | DailyInternalTransfer
    | DailyDomesticTransfer
+   | MonthlyInternalTransfer
+   | MonthlyDomesticTransfer
+   | DailyPurchaseAccrued
+   | MonthlyPurchaseAccrued
+
+let private rotatingMetrics = [
+   RotatingMetric.DailyPurchaseAccrued
+   RotatingMetric.DailyInternalTransfer
+   RotatingMetric.DailyDomesticTransfer
+   RotatingMetric.MonthlyPurchaseAccrued
+   RotatingMetric.MonthlyInternalTransfer
+   RotatingMetric.MonthlyDomesticTransfer
+]
 
 [<ReactComponent>]
 let AccountSummaryComponent (account: AccountProfile) =
@@ -60,6 +72,7 @@ let AccountSummaryComponent (account: AccountProfile) =
 
    React.useEffect (
       fun () ->
+         let mutable metricInd = 0
          let mutable rotatingMetric = rotatingMetric
          let mutable isFading = isFading
          let mutable timer = 0
@@ -73,11 +86,13 @@ let AccountSummaryComponent (account: AccountProfile) =
             setMetric metric
 
          let rotate () =
-            let metric =
-               if rotatingMetric = RotatingMetric.DailyInternalTransfer then
-                  RotatingMetric.DailyDomesticTransfer
+            let metric = rotatingMetrics |> List.item metricInd
+
+            metricInd <-
+               if metricInd = (rotatingMetrics.Length - 1) then
+                  0
                else
-                  RotatingMetric.DailyInternalTransfer
+                  metricInd + 1
 
             setMetric metric
             setFading false
@@ -128,6 +143,36 @@ let AccountSummaryComponent (account: AccountProfile) =
                   Html.ins [
                      attr.text (
                         Money.formatShort account.DailyDomesticTransferAccrued
+                     )
+                  ]
+               | RotatingMetric.MonthlyInternalTransfer ->
+                  Html.p "Monthly Internal Transfer: "
+
+                  Html.ins [
+                     attr.text (
+                        Money.formatShort account.MonthlyInternalTransferAccrued
+                     )
+                  ]
+               | RotatingMetric.MonthlyDomesticTransfer ->
+                  Html.p "Monthly Domestic Transfer: "
+
+                  Html.ins [
+                     attr.text (
+                        Money.formatShort account.MonthlyDomesticTransferAccrued
+                     )
+                  ]
+               | RotatingMetric.DailyPurchaseAccrued ->
+                  Html.p "Daily Purchase: "
+
+                  Html.ins [
+                     attr.text (Money.formatShort account.DailyPurchaseAccrued)
+                  ]
+               | RotatingMetric.MonthlyPurchaseAccrued ->
+                  Html.p "Monthly Purchase: "
+
+                  Html.ins [
+                     attr.text (
+                        Money.formatShort account.MonthlyPurchaseAccrued
                      )
                   ]
             ]
