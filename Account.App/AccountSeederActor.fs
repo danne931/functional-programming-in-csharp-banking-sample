@@ -332,9 +332,9 @@ let mockEmployees =
 
    let cmd2 = {
       CreateEmployeeCommand.create mockAccountOwnerId {
-         Email = "blowfish@gmail.com"
-         FirstName = "Blow"
-         LastName = "Fish"
+         Email = "fishinthesea@gmail.com"
+         FirstName = "Devon"
+         LastName = "Eisenbarger"
          OrgId = orgId
          Role = Role.CardOnly
          OrgRequiresEmployeeInviteApproval = false

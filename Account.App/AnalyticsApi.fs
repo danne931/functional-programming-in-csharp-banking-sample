@@ -18,8 +18,9 @@ type private MoneyFlowAnalyticsDBResult =
    | TimeSeriesDaily of MoneyFlowDailyTimeSeriesAnalytics option
    | TimeSeriesMonthly of MoneyFlowMonthlyTimeSeriesAnalytics option
    | TopN of MoneyFlowTopNAnalytics option
+   | TopNPurchasers of EmployeePurchaserTopN list option
 
-type MoneyFlowTopNQuery = {
+type TopNQuery = {
    OrgId: OrgId
    Limit: int
    Date: DateTime
@@ -43,13 +44,14 @@ type MoneyFlowMonthlyTimeSeriesQuery = {
 
 type MoneyFlowAnalyticsQuery = {
    OrgId: OrgId
-   MoneyFlowTopN: MoneyFlowTopNQuery
+   TopNMoneyFlow: TopNQuery
+   TopNPurchasers: TopNQuery
    MoneyFlowDailyTimeSeries: MoneyFlowDailyTimeSeriesQuery
    MoneyFlowMonthlyTimeSeries: MoneyFlowMonthlyTimeSeriesQuery
 }
 
 let moneyFlowTopNAnalytics
-   (txnQuery: MoneyFlowTopNQuery)
+   (txnQuery: TopNQuery)
    : Task<Result<MoneyFlowTopNAnalytics option, Err>>
    =
    taskResultOption {
@@ -96,6 +98,31 @@ let moneyFlowTopNAnalytics
          |> List.partition (fun a -> a.MoneyFlow = MoneyFlow.In)
          |> fun (mfIn, mfOut) -> { In = mfIn; Out = mfOut }
    }
+
+let employeePurchaseTopNAnalytics
+   (txnQuery: TopNQuery)
+   : Task<Result<EmployeePurchaserTopN list option, Err>>
+   =
+   let query =
+      $"""
+      SELECT * FROM {TransactionFunctions.employeePurchaserTopNMonthly}(
+         @orgId,
+         @topN,
+         @date
+      )
+      """
+
+   let qParams = [
+      "orgId", txnQuery.OrgId |> OrgId.get |> Sql.uuid
+      "topN", Sql.int txnQuery.Limit
+      "date", Sql.timestamptz txnQuery.Date
+   ]
+
+   pgQuery<EmployeePurchaserTopN> query (Some qParams) (fun read -> {
+      EmployeeId = read.uuid "employee_id" |> EmployeeId
+      EmployeeName = read.string "employee_name"
+      Amount = read.decimal "amount"
+   })
 
 let moneyFlowDailyTimeSeriesAnalytics
    (txnQuery: MoneyFlowDailyTimeSeriesQuery)
@@ -290,8 +317,12 @@ let moneyFlowAnalytics
    =
    taskResult {
       let mfTopNTask =
-         moneyFlowTopNAnalytics txnQuery.MoneyFlowTopN
+         moneyFlowTopNAnalytics txnQuery.TopNMoneyFlow
          |> TaskResult.map MoneyFlowAnalyticsDBResult.TopN
+
+      let mfTopNPurchasersTask =
+         employeePurchaseTopNAnalytics txnQuery.TopNPurchasers
+         |> TaskResult.map MoneyFlowAnalyticsDBResult.TopNPurchasers
 
       let mfDailyTimeSeriesTask =
          moneyFlowDailyTimeSeriesAnalytics txnQuery.MoneyFlowDailyTimeSeries
@@ -304,6 +335,7 @@ let moneyFlowAnalytics
       let! res =
          Task.WhenAll [|
             mfTopNTask
+            mfTopNPurchasersTask
             mfDailyTimeSeriesTask
             mfMonthlyTimeSeriesTask
          |]
@@ -313,16 +345,19 @@ let moneyFlowAnalytics
       let res =
          match res with
          | [ MoneyFlowAnalyticsDBResult.TopN topNOpt
+             MoneyFlowAnalyticsDBResult.TopNPurchasers topNPurchasersOpt
              MoneyFlowAnalyticsDBResult.TimeSeriesDaily seriesDailyOpt
              MoneyFlowAnalyticsDBResult.TimeSeriesMonthly seriesMonthlyOpt ] -> {
             TimeSeriesMonthly = seriesMonthlyOpt
             TimeSeriesDaily = seriesDailyOpt
             TopN = topNOpt
+            TopNPurchasers = topNPurchasersOpt
            }
          | _ -> {
             TimeSeriesMonthly = None
             TimeSeriesDaily = None
             TopN = None
+            TopNPurchasers = None
            }
 
       return res

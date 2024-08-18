@@ -259,24 +259,31 @@ p[role='employee-role']
       padding-right: .5rem
 
 .analytics-dashboard
+  article
+    margin-top: 0
+    margin-right: 2rem
+    button
+      width: auto
+      padding: .3rem 1rem
+      i
+        padding-right: 0.5rem
   .analytics-chart-filter
     grid-template-columns: 25% 18% 18%
+  .analytics-top-purchasers
+    article
+      width: 50%
+    .top-n-list-container
+      > *
+        display: flex
+        align-items: center
+        justify-content: space-between
+        margin-bottom: 1rem
+        p
+          margin-bottom: 0
   .analytics-top-money-flow
     margin-top: 3rem
     .grid
       grid-template-columns: 50% 50%
-      article
-        margin-top: 0
-        margin-right: 2rem
-        button
-          width: auto
-          padding: .3rem 1rem
-          i
-            padding-right: 0.5rem
-    .analytics-topN-filter
-      align-items: center
-      &.grid
-        grid-template-columns: 20% 20%
     .top-n-list-container
       min-height: 13rem
       > *
@@ -291,6 +298,10 @@ p[role='employee-role']
         margin-bottom: 0
       &.grid
         align-items: center
+  .analytics-topN-filter
+    align-items: center
+    &.grid
+      grid-template-columns: 20% 20%
 
 .account-dashboard
   .org-summary

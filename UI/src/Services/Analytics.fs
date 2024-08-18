@@ -1,6 +1,7 @@
 module AnalyticsService
 
 open Feliz.Router
+open System
 
 open Fable.SimpleHttp
 open Lib.SharedTypes
@@ -10,6 +11,7 @@ open UIDomain
 
 let private serviceName = "Analytics Service"
 let private topNLimit = "5"
+let private topNPurchasersLimit = "10"
 
 let loadInitialAnalytics
    (orgId: OrgId)
@@ -21,10 +23,12 @@ let loadInitialAnalytics
          AnalyticsPath.get orgId
          + Router.encodeQueryString (
             [
-               "moneyFlowTopNDate", DateTime.toISOString System.DateTime.UtcNow
+               "topNDate", DateTime.toISOString DateTime.UtcNow
                "moneyFlowTopNLimit", topNLimit
                "moneyFlowTimeSeriesDateRange",
                DateFilter.toQueryString dateFilter
+
+               "purchasersTopNLimit", topNPurchasersLimit
             ]
          )
 
@@ -66,7 +70,7 @@ let loadTimeSeriesAnalytics
 
 let loadTopNAnalytics
    (orgId: OrgId)
-   (date: System.DateTime)
+   (date: DateTime)
    : Async<Result<MoneyFlowTopNAnalytics option, Err>>
    =
    async {
@@ -74,7 +78,7 @@ let loadTopNAnalytics
          AnalyticsPath.get orgId
          + Router.encodeQueryString (
             [
-               "moneyFlowTopNDate", DateTime.toISOString date
+               "topNDate", DateTime.toISOString date
                "moneyFlowTopNLimit", topNLimit
             ]
          )
@@ -88,6 +92,33 @@ let loadTopNAnalytics
       else
          return
             Serialization.deserialize<MoneyFlowTopNAnalytics> responseText
+            |> Result.map Some
+   }
+
+let loadTopNPurchasersAnalytics
+   (orgId: OrgId)
+   (date: DateTime)
+   : Async<Result<EmployeePurchaserTopN list option, Err>>
+   =
+   async {
+      let path =
+         AnalyticsPath.get orgId
+         + Router.encodeQueryString (
+            [
+               "topNDate", DateTime.toISOString date
+               "purchasersTopNLimit", topNPurchasersLimit
+            ]
+         )
+
+      let! (code, responseText) = Http.get path
+
+      if code = 404 then
+         return Ok None
+      elif code <> 200 then
+         return Error(Err.InvalidStatusCodeError(serviceName, code))
+      else
+         return
+            Serialization.deserialize<EmployeePurchaserTopN list> responseText
             |> Result.map Some
    }
 

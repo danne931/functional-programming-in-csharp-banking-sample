@@ -37,9 +37,11 @@ type State = {
    SelectedTimeSeriesDateFilter: DateFilter
    SelectedTimeSeriesYAxis: SelectedTimeSeriesYAxis
    SelectedTopNMonth: DateTime
+   SelectedTopNPurchasersMonth: DateTime
    Analytics: Deferred<Result<MoneyFlowAnalytics, Err>>
    TimeSeriesUpdateInProgress: bool
    TopNUpdateInProgress: bool
+   TopNPurchasersUpdateInProgress: bool
 }
 
 type Msg =
@@ -48,20 +50,25 @@ type Msg =
    | ResolvedTimeSeriesFilterUpdate of
       Result<MoneyFlowDailyTimeSeriesAnalytics option, Err>
    | ResolvedTopNFilterUpdate of Result<MoneyFlowTopNAnalytics option, Err>
+   | ResolvedTopNPurchasersFilterUpdate of
+      Result<EmployeePurchaserTopN list option, Err>
    | SelectTimeSeriesChart of SelectedTimeSeriesChart
    | SelectTimeSeriesYAxisFilter of SelectedTimeSeriesYAxis
    | SelectDateFilter of DateFilter
    | SelectTopNMonth of DateTime
+   | SelectTopNPurchasersMonth of DateTime
 
 let init () =
    {
       SelectedTopNMonth = DateTime.UtcNow
+      SelectedTopNPurchasersMonth = DateTime.UtcNow
       SelectedTimeSeriesChart = SelectedTimeSeriesChart.TimeSeries
       SelectedTimeSeriesDateFilter = DateFilter.Last30Days
       SelectedTimeSeriesYAxis = SelectedTimeSeriesYAxis.All
       Analytics = Deferred.Idle
       TimeSeriesUpdateInProgress = false
       TopNUpdateInProgress = false
+      TopNPurchasersUpdateInProgress = false
    },
    Cmd.ofMsg (LoadInitialAnalytics Started)
 
@@ -103,6 +110,20 @@ let update (session: UserSession) msg state =
             TopNUpdateInProgress = true
       },
       Cmd.fromAsync load
+   | SelectTopNPurchasersMonth date ->
+      let load = async {
+         let! res =
+            AnalyticsService.loadTopNPurchasersAnalytics session.OrgId date
+
+         return Msg.ResolvedTopNPurchasersFilterUpdate res
+      }
+
+      {
+         state with
+            SelectedTopNPurchasersMonth = date
+            TopNPurchasersUpdateInProgress = true
+      },
+      Cmd.fromAsync load
    | ResolvedTimeSeriesFilterUpdate(Ok series) ->
       {
          state with
@@ -132,6 +153,21 @@ let update (session: UserSession) msg state =
       Cmd.none
    | ResolvedTopNFilterUpdate(Error err) ->
       Log.error $"Error updating topN money flow filter {err}"
+      state, Cmd.none
+   | ResolvedTopNPurchasersFilterUpdate(Ok topN) ->
+      {
+         state with
+            Analytics =
+               state.Analytics
+               |> (Deferred.map << Result.map) (fun analytics -> {
+                  analytics with
+                     TopNPurchasers = topN
+               })
+            TopNPurchasersUpdateInProgress = false
+      },
+      Cmd.none
+   | ResolvedTopNPurchasersFilterUpdate(Error err) ->
+      Log.error $"Error updating topN purchasers filter {err}"
       state, Cmd.none
    | LoadInitialAnalytics Started ->
       let load = async {
@@ -460,7 +496,10 @@ let renderTimeSeriesYAxisSelect state dispatch =
       ]
    ]
 
-let renderTopNMonthSelect state dispatch =
+let renderTopNMonthSelect
+   (selectedMonth: DateTime)
+   (onSelect: DateTime -> unit)
+   =
    let currDate = DateTime.UtcNow
    let prevDate = currDate.AddMonths -1
    let prevPrevDate = currDate.AddMonths -2
@@ -473,10 +512,9 @@ let renderTopNMonthSelect state dispatch =
       ]
 
    Html.select [
-      attr.value state.SelectedTopNMonth.Month
+      attr.value selectedMonth.Month
 
-      attr.onChange (fun (month: string) ->
-         dispatch (Msg.SelectTopNMonth dateMap[int month]))
+      attr.onChange (fun (month: string) -> onSelect dateMap[int month])
 
       attr.children [
          for month, opt in Map.toSeq dateMap do
@@ -560,6 +598,27 @@ let renderTopMoneyListItems
          ]
    ]
 
+let renderTopPurchasers (topN: EmployeePurchaserTopN list) =
+   let renderAmount (amount: decimal) =
+      Html.p [ attr.classes [ "debit" ]; attr.text (Money.format amount) ]
+
+   Html.div [
+      classyNode Html.div [ "top-n-list-container" ] [
+         for purchaser in topN do
+            Html.div [
+               Html.b purchaser.EmployeeName
+               renderAmount purchaser.Amount
+            ]
+      ]
+
+
+      Html.button [
+         attr.classes [ "outline" ]
+         attr.children [ Fa.i [ Fa.Solid.History ] []; Html.span "View all" ]
+         attr.onClick (fun _ -> Router.navigate Routes.TransactionUrl.BasePath)
+      ]
+   ]
+
 [<ReactComponent>]
 let AnalyticsDashboardComponent
    (url: Routes.AnalyticsUrl)
@@ -618,7 +677,9 @@ let AnalyticsDashboardComponent
             classyNode Html.div [ "analytics-top-money-flow" ] [
                classyNode Html.div [ "analytics-topN-filter"; "grid" ] [
                   Html.h4 "Top Money Flow"
-                  renderTopNMonthSelect state dispatch
+                  renderTopNMonthSelect
+                     state.SelectedTopNMonth
+                     (Msg.SelectTopNMonth >> dispatch)
                ]
 
                Html.progress [
@@ -649,6 +710,26 @@ let AnalyticsDashboardComponent
                            state.SelectedTopNMonth
                      ]
                   ]
+            ]
+
+            Html.br []
+
+            classyNode Html.div [ "analytics-top-purchasers" ] [
+               classyNode Html.div [ "analytics-topN-filter"; "grid" ] [
+                  Html.h4 "Top Purchasers"
+                  renderTopNMonthSelect
+                     state.SelectedTopNPurchasersMonth
+                     (Msg.SelectTopNPurchasersMonth >> dispatch)
+               ]
+
+               Html.progress [
+                  if not state.TopNPurchasersUpdateInProgress then
+                     attr.value 100
+               ]
+
+               match analytics.TopNPurchasers with
+               | None -> Html.p "No employee purchases for this period."
+               | Some topN -> Html.article [ renderTopPurchasers topN ]
             ]
          | _, Deferred.Resolved(Ok None) ->
             Html.p "Can not display analytics. Organization not found."

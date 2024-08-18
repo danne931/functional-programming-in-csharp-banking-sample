@@ -117,6 +117,12 @@ module TransactionQuery =
    let cardIdsFromQueryString: string -> CardId list option =
       listFromQueryString (Guid.parseOptional >> Option.map CardId)
 
+type EmployeePurchaserTopN = {
+   Amount: decimal
+   EmployeeId: EmployeeId
+   EmployeeName: string
+}
+
 type MoneyFlowTopN = {
    MoneyFlow: MoneyFlow
    Amount: decimal
@@ -170,4 +176,5 @@ type MoneyFlowAnalytics = {
    TimeSeriesMonthly: MoneyFlowMonthlyTimeSeriesAnalytics option
    TimeSeriesDaily: MoneyFlowDailyTimeSeriesAnalytics option
    TopN: MoneyFlowTopNAnalytics option
+   TopNPurchasers: EmployeePurchaserTopN list option
 }

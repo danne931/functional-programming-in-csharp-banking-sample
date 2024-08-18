@@ -16,25 +16,35 @@ let startAnalyticsRoutes (app: WebApplication) =
    app
       .MapGet(
          AnalyticsPath.Get,
-         Func<Guid, string, Nullable<int>, string, Task<IResult>>
+         Func<Guid, string, Nullable<int>, Nullable<int>, string, Task<IResult>>
             (fun
                  ([<FromRoute>] orgId)
-                 ([<FromQuery>] moneyFlowTopNDate)
+                 ([<FromQuery>] topNDate)
+                 ([<FromQuery>] purchasersTopNLimit)
                  ([<FromQuery>] moneyFlowTopNLimit)
                  ([<FromQuery>] moneyFlowTimeSeriesDateRange) ->
                let orgId = OrgId orgId
 
                match
                   Option.ofNullable moneyFlowTopNLimit,
-                  DateTime.parseOptional moneyFlowTopNDate,
+                  Option.ofNullable purchasersTopNLimit,
+                  DateTime.parseOptional topNDate,
                   dateRangeFromQueryString moneyFlowTimeSeriesDateRange
                with
-               | Some topNLimit, Some topNDate, Some(st, en) ->
+               | Some topNMoneyFlowLimit,
+                 Some topNPurchasersLimit,
+                 Some topNDate,
+                 Some(st, en) ->
                   let txnQuery = {
                      OrgId = orgId
-                     MoneyFlowTopN = {
+                     TopNMoneyFlow = {
                         OrgId = orgId
-                        Limit = topNLimit
+                        Limit = topNMoneyFlowLimit
+                        Date = topNDate
+                     }
+                     TopNPurchasers = {
+                        OrgId = orgId
+                        Limit = topNPurchasersLimit
                         Date = topNDate
                      }
                      MoneyFlowDailyTimeSeries = {
@@ -49,17 +59,24 @@ let startAnalyticsRoutes (app: WebApplication) =
                   }
 
                   moneyFlowAnalytics txnQuery |> RouteUtil.unwrapTaskResult
-               | None, None, Some(st, en) ->
+               | None, None, None, Some(st, en) ->
                   moneyFlowDailyTimeSeriesAnalytics {
                      OrgId = orgId
                      Start = st
                      End = en
                   }
                   |> RouteUtil.unwrapTaskResultOption
-               | Some topNLimit, Some topNDate, None ->
+               | Some topNMoneyFlowLimit, None, Some topNDate, None ->
                   moneyFlowTopNAnalytics {
                      OrgId = orgId
-                     Limit = topNLimit
+                     Limit = topNMoneyFlowLimit
+                     Date = topNDate
+                  }
+                  |> RouteUtil.unwrapTaskResultOption
+               | None, Some topNPurchasersLimit, Some topNDate, None ->
+                  employeePurchaseTopNAnalytics {
+                     OrgId = orgId
+                     Limit = topNPurchasersLimit
                      Date = topNDate
                   }
                   |> RouteUtil.unwrapTaskResultOption

@@ -448,6 +448,37 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION purchase_top_n_employees_by_month(
+   orgId UUID,
+   topN INT,
+   d TIMESTAMPTZ
+)
+RETURNS TABLE (
+   employee_id UUID,
+   employee_name TEXT,
+   amount NUMERIC
+) AS $$
+BEGIN
+   RETURN QUERY
+   SELECT
+      e.employee_id,
+      employee.first_name || ' ' || employee.last_name as employee_name,
+      COALESCE(SUM(t.amount::numeric), 0) AS amount
+   FROM employee_event e
+   JOIN transaction t using(correlation_id)
+   JOIN employee using(employee_id)
+   WHERE
+      e.org_id = orgId
+      AND e.name = 'DebitApproved'
+      AND e.timestamp::date
+         BETWEEN DATE_TRUNC('month', d)
+         AND (DATE_TRUNC('month', d) + INTERVAL '1 month' - INTERVAL '1 day')
+   GROUP BY e.employee_id, employee_name
+   ORDER BY amount DESC
+   LIMIT topN;
+END
+$$ LANGUAGE plpgsql;
+
 CREATE VIEW daily_purchase_accrued AS
 SELECT
    account_id,

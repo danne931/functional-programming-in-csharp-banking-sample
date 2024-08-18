@@ -16,7 +16,8 @@ module TransactionTypeCast =
    let timeSeriesMonthlyFilterBy = "monthly_time_series_filter_by"
 
 module TransactionFunctions =
-   let moneyFlowTopNMonthly = $"money_flow_top_n_source_by_month"
+   let employeePurchaserTopNMonthly = "purchase_top_n_employees_by_month"
+   let moneyFlowTopNMonthly = "money_flow_top_n_source_by_month"
 
    let moneyFlowTimeSeriesDaily = "money_flow_time_series_daily"
 
