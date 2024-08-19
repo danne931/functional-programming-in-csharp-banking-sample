@@ -9,6 +9,7 @@
     <Compile Include="Events.fs" />
     <Compile Include="Commands.fs" />
     <Compile Include="AggregateTypes.fs" />
+    <Compile Include="AnalyticsTypes.fs" /> 
     <Compile Include="Account.fs" />
   </ItemGroup>
 
