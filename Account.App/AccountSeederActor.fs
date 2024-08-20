@@ -37,28 +37,66 @@ type State = {
    AccountsToSeedWithTransactions: Map<AccountId, bool>
 }
 
-// TODO: Temporarily create org here until fleshed out
 let orgId = Constants.ORG_ID_REMOVE_SOON
 
+type SocialTransferCandidate = {
+   OrgId: OrgId
+   PrimaryAccountId: AccountId
+   AccountOwnerId: EmployeeId
+   AccountOwnerName: {| First: string; Last: string |}
+   AccountOwnerEmail: string
+   BusinessName: string
+}
+
 let socialTransferCandidates =
-   [ "Linear"; "Figma"; "Lendtable"; "Shopify" ]
-   |> List.map (fun name ->
+   [
+      {|
+         AccountOwnerName = {| First = "Bích"; Last = "Phương" |}
+         AccountOwnerEmail = "bichphuong@gmail.com"
+         BusinessName = "Linear"
+      |}
+      {|
+         AccountOwnerName = {|
+            First = "Elsieanne"
+            Last = "Caplette"
+         |}
+         AccountOwnerEmail = "elsiane@gmail.com"
+         BusinessName = "Figma"
+      |}
+      {|
+         AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
+         AccountOwnerEmail = "haslinger@gmail.com"
+         BusinessName = "Lendtable"
+      |}
+      {|
+         AccountOwnerName = {|
+            First = "Finnegan"
+            Last = "Swiftshadow"
+         |}
+         AccountOwnerEmail = "finneganswift@gmail.com"
+         BusinessName = "Shopify"
+      |}
+   ]
+   |> List.map (fun o ->
       let orgId = Guid.NewGuid() |> OrgId
 
       orgId,
-      {|
+      {
          OrgId = orgId
-         AccountOwner = Guid.NewGuid() |> EmployeeId
          PrimaryAccountId = Guid.NewGuid() |> AccountId
-         Name = name
-      |})
+         AccountOwnerId = Guid.NewGuid() |> EmployeeId
+         AccountOwnerEmail = o.AccountOwnerEmail
+         AccountOwnerName = o.AccountOwnerName
+         BusinessName = o.BusinessName
+      })
    |> Map.ofList
 
+// TODO: Temporarily create org here until fleshed out
 let createOrgs () =
    let orgs =
       (orgId, "Sapphire Optics")
       :: (socialTransferCandidates.Values
-          |> Seq.map (fun o -> o.OrgId, o.Name)
+          |> Seq.map (fun o -> o.OrgId, o.BusinessName)
           |> List.ofSeq)
 
    pgTransaction [
@@ -195,6 +233,7 @@ let mockAccountOwnerCmd =
          FirstName = "Daniel"
          LastName = "Eisenbarger"
          OrgId = orgId
+         EmployeeId = Constants.LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
       } with
          Timestamp = startOfMonth.AddMonths -3
    }
@@ -264,7 +303,7 @@ let mockAccounts =
                      AccountId = o.PrimaryAccountId
                      AccountNumber = AccountNumber.generate ()
                      OrgId = o.OrgId
-                     InitiatedBy = InitiatedById o.AccountOwner
+                     InitiatedBy = InitiatedById o.AccountOwnerId
                   }
                   |> withModifiedTimestamp
 
@@ -317,20 +356,16 @@ let mockAccountOwnerCards =
    cardCmd1, cardCmd2
 
 let mockEmployees =
-   let cmd1 = {
+   let cmds = [
       CreateEmployeeCommand.create mockAccountOwnerId {
-         Email = "starfish@gmail.com"
-         FirstName = "Star"
-         LastName = "Fish"
+         Email = "pongkool@gmail.com"
+         FirstName = "Pop"
+         LastName = "Pongkool"
          OrgId = orgId
          Role = Role.Admin
          OrgRequiresEmployeeInviteApproval = false
          CardInfo = None
-      } with
-         Timestamp = mockAccountOwnerCmd.Timestamp.AddHours 5
-   }
-
-   let cmd2 = {
+      }
       CreateEmployeeCommand.create mockAccountOwnerId {
          Email = "fishinthesea@gmail.com"
          FirstName = "Devon"
@@ -339,9 +374,53 @@ let mockEmployees =
          Role = Role.CardOnly
          OrgRequiresEmployeeInviteApproval = false
          CardInfo = None
-      } with
-         Timestamp = mockAccountOwnerCmd.Timestamp.AddDays 1
-   }
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "inkwaruntorn@gmail.com"
+         FirstName = "Ink"
+         LastName = "Waruntorn"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "hanzzimmer@gmail.com"
+         FirstName = "Hanz"
+         LastName = "Zimmer"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "denvau@gmail.com"
+         FirstName = "Đen"
+         LastName = "Vâu"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "sadeadu@gmail.com"
+         FirstName = "Sade"
+         LastName = "Adu"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "megmeyers@gmail.com"
+         FirstName = "Meg"
+         LastName = "Meyers"
+         OrgId = orgId
+         Role = Role.CardOnly
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+   ]
 
    let createCard (cmd: CreateEmployeeCommand) = {
       CreateCardCommand.create {
@@ -361,8 +440,13 @@ let mockEmployees =
    }
 
    Map [
-      EmployeeId.fromEntityId cmd1.EntityId, (cmd1, createCard cmd1)
-      EmployeeId.fromEntityId cmd2.EntityId, (cmd2, createCard cmd2)
+      for cmd in cmds ->
+         let cmd = {
+            cmd with
+               Timestamp = mockAccountOwnerCmd.Timestamp
+         }
+
+         EmployeeId.fromEntityId cmd.EntityId, (cmd, createCard cmd)
    ]
 
 let randomAmount min max =
@@ -446,7 +530,7 @@ let seedAccountOwnerActions
                         BaseInfo = {
                            RecipientOrgId = recipient.OrgId
                            RecipientId = recipient.PrimaryAccountId
-                           RecipientName = recipient.Name
+                           RecipientName = recipient.BusinessName
                            Amount = 3000m + randomAmount 1000 8000
                            ScheduledDate = timestamp
                            Sender = {
@@ -547,6 +631,49 @@ let seedEmployeeActions
             |> EmployeeMessage.StateChange
 
          employeeRef <! msg
+
+let createAccountOwners getEmployeeRef =
+   let createAccountOwnerCmd (business: SocialTransferCandidate) =
+      let date = DateTime.Today
+      let startOfMonth = DateTime(date.Year, date.Month, 1).ToUniversalTime()
+      let ts = startOfMonth.AddMonths -3
+
+      {
+         CreateAccountOwnerCommand.create {
+            Email = business.AccountOwnerEmail
+            FirstName = business.AccountOwnerName.First
+            LastName = business.AccountOwnerName.Last
+            OrgId = business.OrgId
+            EmployeeId = business.AccountOwnerId
+         } with
+            Timestamp = ts
+      }
+
+   let candidates =
+      socialTransferCandidates.Values
+      |> Seq.toList
+      |> List.map createAccountOwnerCmd
+
+   for cmd in mockAccountOwnerCmd :: candidates do
+      let employeeId = cmd.Data.EmployeeId
+
+      let createMsg =
+         cmd
+         |> EmployeeCommand.CreateAccountOwner
+         |> EmployeeMessage.StateChange
+
+      let confirmInviteCmd =
+         ConfirmInvitationCommand.create (employeeId, cmd.OrgId) {
+            Email = Email.deserialize cmd.Data.Email
+            Reference = None
+            AuthProviderUserId = Guid.NewGuid()
+         }
+         |> EmployeeCommand.ConfirmInvitation
+         |> EmployeeMessage.StateChange
+
+      let employeeRef = getEmployeeRef employeeId
+      employeeRef <! createMsg
+      employeeRef <! confirmInviteCmd
 
 let createEmployees
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
@@ -782,39 +909,16 @@ let actorProps
                      scheduleInitialization ctx
                      return! loop state
                   | Ok _ ->
+                     createAccountOwners getEmployeeRef
+
+                     do! Task.Delay 10_000
+
                      let remaining =
                         getRemainingAccountsToCreate
                            verified
                            state.AccountsToCreate
 
                      for command in remaining.Values do
-                        if command.Data.AccountId = arCheckingAccountId then
-                           let employeeId =
-                              EmployeeId.fromEntityId
-                                 mockAccountOwnerCmd.EntityId
-
-                           let cmd = mockAccountOwnerCmd
-
-                           let createMsg =
-                              cmd
-                              |> EmployeeCommand.CreateAccountOwner
-                              |> EmployeeMessage.StateChange
-
-                           let confirmInviteCmd =
-                              ConfirmInvitationCommand.create
-                                 (employeeId, cmd.OrgId)
-                                 {
-                                    Email = Email.deserialize cmd.Data.Email
-                                    Reference = None
-                                    AuthProviderUserId = Guid.NewGuid()
-                                 }
-                              |> EmployeeCommand.ConfirmInvitation
-                              |> EmployeeMessage.StateChange
-
-                           let employeeRef = getEmployeeRef employeeId
-                           employeeRef <! createMsg
-                           employeeRef <! confirmInviteCmd
-
                         let accountRef = getAccountRef command.Data.AccountId
 
                         let msg =

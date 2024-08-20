@@ -39,6 +39,15 @@ let transactionQuery (query: TransactionQuery) =
 
    let agg =
       Option.fold
+         (fun (queryParams, where, joinAncillary) ids ->
+            [ "iIds", Writer.initiatedByIds ids ] @ queryParams,
+            $"{where} AND {Fields.initiatedById} = ANY(@iIds)",
+            joinAncillary)
+         agg
+         query.InitiatedByIds
+
+   let agg =
+      Option.fold
          (fun (queryParams, where, joinAncillary) (startDate, endDate) ->
             [
                "start", Writer.timestamp startDate

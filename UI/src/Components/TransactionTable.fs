@@ -10,14 +10,17 @@ open Lib.SharedTypes
 open UIDomain
 open UIDomain.Account
 open Bank.Account.Domain
+open Bank.Employee.Domain
 open Lib.NetworkQuery
 open TableControlPanel
+open EmployeeSearch
 
 [<RequireQualifiedAccess>]
 type TransactionFilterView =
    | Date
    | Amount
    | Category
+   | InitiatedBy
 
 [<RequireQualifiedAccess>]
 type TransactionFilter =
@@ -26,6 +29,7 @@ type TransactionFilter =
    | Amount of AmountFilter option
    | Category of CategoryFilter option
    | Cards of (SelectedCard list) option
+   | InitiatedBy of (UIDomain.Employee.SelectedEmployee list) option
 
 type State = {
    Transactions: Map<int, Deferred<TransactionsMaybe>>
@@ -90,6 +94,10 @@ let update msg state =
          | TransactionFilter.Cards cards -> {
             browserQuery with
                SelectedCards = cards
+           }
+         | TransactionFilter.InitiatedBy selected -> {
+            browserQuery with
+               SelectedInitiatedBy = selected
            }
 
       let browserQueryParams =
@@ -190,6 +198,7 @@ let renderControlPanel
    state
    dispatch
    (categories: Map<int, TransactionCategory>)
+   (session: UserSession)
    =
    let query = Routes.IndexUrl.accountBrowserQuery ()
 
@@ -198,6 +207,7 @@ let renderControlPanel
          TransactionFilterView.Date, "Date"
          TransactionFilterView.Amount, "Amount"
          TransactionFilterView.Category, "Categories"
+         TransactionFilterView.InitiatedBy, "Initiated By"
       ]
       RenderFilterViewOnSelect =
          function
@@ -220,51 +230,93 @@ let renderControlPanel
             DateFilter.DateFilterComponent
                query.Date
                (TransactionFilter.Date >> Msg.UpdateFilter >> dispatch)
-      FilterPills = [
-         {
-            View = TransactionFilterView.Date
-            OnDelete =
-               fun () ->
-                  dispatch <| Msg.UpdateFilter(TransactionFilter.Date None)
-            Content =
-               state.Query.DateRange |> Option.map DateFilter.dateRangeDisplay
-         }
-         {
-            View = TransactionFilterView.Amount
-            OnDelete =
-               fun () ->
-                  dispatch <| Msg.UpdateFilter(TransactionFilter.Amount None)
-            Content = query.Amount |> Option.map AmountFilter.display
-         }
-         {
-            View = TransactionFilterView.Amount
-            OnDelete =
-               fun () ->
-                  dispatch <| Msg.UpdateFilter(TransactionFilter.MoneyFlow None)
-            Content = query.MoneyFlow |> Option.map MoneyFlow.display
-         }
-         {
-            View = TransactionFilterView.Category
-            OnDelete =
-               fun () ->
-                  dispatch <| Msg.UpdateFilter(TransactionFilter.Category None)
-            Content =
-               query.Category |> Option.bind (CategoryFilter.display categories)
-         }
-         {
-            View = TransactionFilterView.Date
-            OnDelete =
-               fun () ->
-                  dispatch <| Msg.UpdateFilter(TransactionFilter.Cards None)
-            Content =
-               query.SelectedCards
-               |> Option.map (fun cards ->
-                  if cards.Length = 1 then
-                     $"Card: {cards |> List.head |> _.Display}"
-                  else
-                     $"Cards ({cards.Length})")
-         }
-      ]
+         | TransactionFilterView.InitiatedBy ->
+            EmployeeMultiSelectSearchComponent {|
+               OrgId = session.OrgId
+               OnSelect =
+                  Option.map (
+                     List.map (fun (e: Employee) ->
+                        let selected: UIDomain.Employee.SelectedEmployee = {
+                           Id = e.EmployeeId
+                           Name = e.Name
+                           Email = string e.Email
+                        }
+
+                        selected)
+                  )
+                  >> TransactionFilter.InitiatedBy
+                  >> Msg.UpdateFilter
+                  >> dispatch
+            |}
+      FilterPills =
+         [
+            {
+               View = TransactionFilterView.Date
+               OnDelete =
+                  fun () ->
+                     dispatch <| Msg.UpdateFilter(TransactionFilter.Date None)
+               Content =
+                  state.Query.DateRange
+                  |> Option.map DateFilter.dateRangeDisplay
+            }
+            {
+               View = TransactionFilterView.Amount
+               OnDelete =
+                  fun () ->
+                     dispatch <| Msg.UpdateFilter(TransactionFilter.Amount None)
+               Content = query.Amount |> Option.map AmountFilter.display
+            }
+            {
+               View = TransactionFilterView.Amount
+               OnDelete =
+                  fun () ->
+                     dispatch
+                     <| Msg.UpdateFilter(TransactionFilter.MoneyFlow None)
+               Content = query.MoneyFlow |> Option.map MoneyFlow.display
+            }
+            {
+               View = TransactionFilterView.Category
+               OnDelete =
+                  fun () ->
+                     dispatch
+                     <| Msg.UpdateFilter(TransactionFilter.Category None)
+               Content =
+                  query.Category
+                  |> Option.bind (CategoryFilter.display categories)
+            }
+            {
+               View = TransactionFilterView.Date
+               OnDelete =
+                  fun () ->
+                     dispatch <| Msg.UpdateFilter(TransactionFilter.Cards None)
+               Content =
+                  query.SelectedCards
+                  |> Option.map (fun cards ->
+                     if cards.Length = 1 then
+                        $"Card: {cards |> List.head |> _.Display}"
+                     else
+                        $"Cards ({cards.Length})")
+            }
+         ]
+         @ [
+            match query.SelectedInitiatedBy with
+            | None -> ()
+            | Some selected ->
+               for employee in selected ->
+                  {
+                     View = TransactionFilterView.InitiatedBy
+                     OnDelete =
+                        fun () ->
+                           selected
+                           |> List.filter (fun e -> e.Id <> employee.Id)
+                           |> fun es ->
+                              (if es.Length = 0 then None else Some es)
+                              |> TransactionFilter.InitiatedBy
+                              |> Msg.UpdateFilter
+                              |> dispatch
+                     Content = Some $"Initiated By: {employee.Name}"
+                  }
+         ]
       SubsequentChildren =
          Some [
             Pagination.render {|
@@ -387,6 +439,7 @@ let renderTable
 let TransactionTableComponent
    (account: Account)
    (deferred: Deferred<AccountAndTransactionsMaybe>)
+   (session: UserSession)
    =
    let isInitialMount = React.useRef true
    let txnsDeferred = (Deferred.map << Result.map << Option.map) snd deferred
@@ -452,7 +505,7 @@ let TransactionTableComponent
       ]
 
       classyNode Html.figure [ "control-panel-and-table-container" ] [
-         renderControlPanel state dispatch categories
+         renderControlPanel state dispatch categories session
 
          match txns with
          | Some(Resolved(Ok None)) -> Html.p "No transactions found."

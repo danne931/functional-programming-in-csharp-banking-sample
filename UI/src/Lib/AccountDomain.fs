@@ -364,6 +364,7 @@ type AccountBrowserQuery = {
    Action: AccountActionView option
    Transaction: EventId option
    SelectedCards: (SelectedCard list) option
+   SelectedInitiatedBy: (UIDomain.Employee.SelectedEmployee list) option
 } with
 
    member x.ChangeDetection =
@@ -373,6 +374,7 @@ type AccountBrowserQuery = {
          Amount = x.Amount
          Date = x.Date
          CardIds = x.SelectedCards
+         InitiatedByIds = x.SelectedInitiatedBy
       |}
 
 module AccountBrowserQuery =
@@ -420,6 +422,12 @@ module AccountBrowserQuery =
          match query.SelectedCards with
          | None -> agg
          | Some cards -> ("cards", Serialization.serialize cards) :: agg
+
+      let agg =
+         match query.SelectedInitiatedBy with
+         | None -> agg
+         | Some initiatedBy ->
+            ("initiatedBy", Serialization.serialize initiatedBy) :: agg
 
       match query.Transaction with
       | Some txnId -> ("transaction", string txnId) :: agg
@@ -472,6 +480,9 @@ module AccountBrowserQuery =
             |> Option.bind (
                Serialization.deserialize<SelectedCard list> >> Result.toOption
             )
+         SelectedInitiatedBy =
+            Map.tryFind "initiatedBy" queryParams
+            |> Option.bind UIDomain.Employee.parseEmployees
       }
 
    let empty: AccountBrowserQuery = {
@@ -482,4 +493,5 @@ module AccountBrowserQuery =
       Action = None
       Transaction = None
       SelectedCards = None
+      SelectedInitiatedBy = None
    }

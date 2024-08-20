@@ -276,6 +276,9 @@ let upsertReadModels
             "correlationId",
             TransactionSqlWriter.correlationId envelope.CorrelationId
 
+            "initiatedById",
+            TransactionSqlWriter.initiatedById envelope.InitiatedById
+
             "name", TransactionSqlWriter.name envelope.EventName
             "timestamp", TransactionSqlWriter.timestamp envelope.Timestamp
             "event", TransactionSqlWriter.event evt
@@ -410,6 +413,7 @@ let upsertReadModels
           {TransactionFields.accountId},
           {TransactionFields.orgId},
           {TransactionFields.correlationId},
+          {TransactionFields.initiatedById},
           {TransactionFields.cardId},
           {TransactionFields.name},
           {TransactionFields.timestamp},
@@ -422,6 +426,7 @@ let upsertReadModels
           @accountId,
           @orgId,
           @correlationId,
+          @initiatedById,
           @cardId,
           @name,
           @timestamp,

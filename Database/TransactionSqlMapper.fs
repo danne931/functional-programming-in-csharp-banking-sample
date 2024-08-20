@@ -36,6 +36,7 @@ module TransactionFields =
    let accountId = AccountFields.accountId
    let orgId = OrgFields.orgId
    let correlationId = "correlation_id"
+   let initiatedById = EmployeeEventSqlMapper.EmployeeEventFields.initiatedById
    let cardId = CardFields.cardId
    let name = "name"
    let amount = "amount"
@@ -54,6 +55,9 @@ module TransactionSqlReader =
 
    let correlationId (read: RowReader) =
       TransactionFields.correlationId |> read.uuid |> CorrelationId
+
+   let initiatedById =
+      EmployeeEventSqlMapper.EmployeeEventSqlReader.initiatedById
 
    let cardId (read: RowReader) : CardId option =
       read.uuidOrNone TransactionFields.cardId |> Option.map CardId
@@ -85,6 +89,12 @@ module TransactionSqlWriter =
    let correlationId (corrId: CorrelationId) =
       let (CorrelationId id) = corrId
       Sql.uuid id
+
+   let initiatedById =
+      EmployeeEventSqlMapper.EmployeeEventSqlWriter.initiatedById
+
+   let initiatedByIds =
+      EmployeeEventSqlMapper.EmployeeEventSqlWriter.initiatedByIds
 
    let cardId (cardId: CardId option) =
       let uuidOpt =

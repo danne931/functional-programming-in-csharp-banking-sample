@@ -124,7 +124,7 @@ module MaintenanceFeeCommand =
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
-         (System.Guid.Empty |> EmployeeId |> InitiatedById)
+         (InitiatedById Constants.SYSTEM_USER_ID)
          {
             Amount = MaintenanceFee.RecurringDebitAmount
          }
@@ -147,7 +147,7 @@ module SkipMaintenanceFeeCommand =
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
-         (System.Guid.Empty |> EmployeeId |> InitiatedById)
+         (InitiatedById Constants.SYSTEM_USER_ID)
          data
 
    let toEvent
@@ -185,7 +185,7 @@ module StartBillingCycleCommand =
          (AccountId.toEntityId accountId)
          orgId
          (CorrelationId.create ())
-         (System.Guid.Empty |> EmployeeId |> InitiatedById)
+         (InitiatedById Constants.SYSTEM_USER_ID)
          data
 
    let toEvent

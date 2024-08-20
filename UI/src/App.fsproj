@@ -12,8 +12,8 @@
     <Compile Include="Lib/FelizExtensions.fs" />
     <Compile Include="Lib/Util.fs" />
     <Compile Include="Lib/Domain.fs" /> 
-    <Compile Include="Lib/AccountDomain.fs" />
     <Compile Include="Lib/EmployeeDomain.fs" />
+    <Compile Include="Lib/AccountDomain.fs" />
     <Compile Include="Lib/CardDomain.fs" />
     <Compile Include="Services/Analytics.fs" />
     <Compile Include="Services/Diagnostics.fs" />

@@ -111,8 +111,14 @@ type TransactionQuery = {
    Amount: AmountFilter option
    DateRange: (DateTime * DateTime) option
    CardIds: (CardId list) option
+   InitiatedByIds: (InitiatedById list) option
 }
 
 module TransactionQuery =
    let cardIdsFromQueryString: string -> CardId list option =
       listFromQueryString (Guid.parseOptional >> Option.map CardId)
+
+   let initiatedByIdsFromQueryString: string -> InitiatedById list option =
+      listFromQueryString (
+         Guid.parseOptional >> Option.map (EmployeeId >> InitiatedById)
+      )

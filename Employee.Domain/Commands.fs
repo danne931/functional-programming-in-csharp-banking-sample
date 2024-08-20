@@ -11,20 +11,18 @@ type CreateAccountOwnerInput = {
    FirstName: string
    LastName: string
    OrgId: OrgId
+   EmployeeId: EmployeeId
 }
 
 type CreateAccountOwnerCommand = Command<CreateAccountOwnerInput>
 
 module CreateAccountOwnerCommand =
-   // First employee created is created by self, so no initiatedBy.
    let create (data: CreateAccountOwnerInput) =
-      let employeeId = Constants.LOGGED_IN_EMPLOYEE_ID_REMOVE_SOON
-
       Command.create
-         (EmployeeId.toEntityId employeeId)
+         (EmployeeId.toEntityId data.EmployeeId)
          data.OrgId
          (CorrelationId.create ())
-         (InitiatedById employeeId)
+         (InitiatedById data.EmployeeId)
          data
 
    let toEvent

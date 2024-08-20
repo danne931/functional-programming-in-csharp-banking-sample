@@ -27,6 +27,9 @@ let transactionQueryFromAccountBrowserQuery
       Amount = query.Amount
       DateRange = query.Date |> Option.map DateFilter.toDateRange
       CardIds = query.SelectedCards |> Option.map (List.map _.CardId)
+      InitiatedByIds =
+         query.SelectedInitiatedBy
+         |> Option.map (List.map (_.Id >> InitiatedById))
    }
 
 let transactionQueryParams (query: TransactionQuery) : (string * string) list =
@@ -37,6 +40,7 @@ let transactionQueryParams (query: TransactionQuery) : (string * string) list =
          Category = query.Category
          MoneyFlow = query.MoneyFlow
          SelectedCards = None
+         SelectedInitiatedBy = None
          Date = None
          Action = None
          Transaction = None
@@ -46,6 +50,11 @@ let transactionQueryParams (query: TransactionQuery) : (string * string) list =
       match query.CardIds with
       | None -> queryParams
       | Some cardIds -> ("cardIds", listToQueryString cardIds) :: queryParams
+
+   let queryParams =
+      match query.InitiatedByIds with
+      | None -> queryParams
+      | Some ids -> ("initiatedByIds", listToQueryString ids) :: queryParams
 
    match query.DateRange with
    | None -> queryParams

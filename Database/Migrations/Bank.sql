@@ -164,6 +164,40 @@ CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
 
+
+/**
+ * Create a "system" user to represent transactions which do not originate
+ * from a human user.  Used in BillingCycleCommand, MaintenanceFeeCommand, etc.
+**/
+INSERT INTO organization (org_name) VALUES ('system');
+INSERT INTO employee (
+   employee_id,
+   email,
+   first_name,
+   last_name,
+   role,
+   status,
+   pending_purchases,
+   onboarding_tasks,
+   cards,
+   org_id
+)
+VALUES (
+    -- This employee_id is defined in Lib.SharedClientServer/Constants.fs as
+    -- SYSTEM_USER_ID.  Account commands such as BillingCycle, which do not originate
+    -- from a human, are created with initiated_by_id set to SYSTEM_USER_ID.
+   '029528ee-a120-4301-b8b5-e9c60d859346',
+   'system@gmail.com',
+   'system',
+   'system',
+   'admin',
+   'active',
+   '{}'::jsonb,
+   '{}'::jsonb,
+   '{}'::jsonb,
+   (SELECT org_id FROM organization WHERE org_name = 'system')
+);
+
 CREATE OR REPLACE FUNCTION update_search_query() RETURNS TRIGGER AS $$
 BEGIN
   NEW.search_query = concat_ws(' ', NEW.first_name, NEW.last_name, NEW.email);
@@ -219,6 +253,7 @@ CREATE TABLE transaction (
    timestamp TIMESTAMPTZ NOT NULL,
    transaction_id UUID PRIMARY KEY,
    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
+   initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
    correlation_id UUID NOT NULL,
    card_id UUID REFERENCES card,
    event JSONB NOT NULL,

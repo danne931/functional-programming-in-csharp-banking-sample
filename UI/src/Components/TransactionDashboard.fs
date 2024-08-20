@@ -166,6 +166,7 @@ let TransactionDashboardComponent
                   TransactionTable.TransactionTableComponent
                      account
                      state.CurrentAccountAndTransactions
+                     session
                | _ -> Html.progress []
             ]
 
