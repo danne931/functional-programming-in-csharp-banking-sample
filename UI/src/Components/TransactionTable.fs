@@ -243,6 +243,7 @@ let renderControlPanel
                         }
 
                         selected)
+                     >> List.append (query.SelectedInitiatedBy |> Option.defaultValue [])
                   )
                   >> TransactionFilter.InitiatedBy
                   >> Msg.UpdateFilter

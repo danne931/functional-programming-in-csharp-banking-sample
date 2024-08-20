@@ -231,6 +231,7 @@ let EmployeeHistoryDashboardComponent
                                     Name = e.Name
                                     Email = string e.Email
                                  })
+                                 >> List.append (browserQuery.SelectedEmployees |> Option.defaultValue [])
                               )
                               >> EmployeeHistoryFilter.Employees
                               >> Msg.UpdateFilter
@@ -246,6 +247,7 @@ let EmployeeHistoryDashboardComponent
                                     Name = e.Name
                                     Email = string e.Email
                                  })
+                                 >> List.append (browserQuery.SelectedInitiatedBy |> Option.defaultValue [])
                               )
                               >> EmployeeHistoryFilter.InitiatedBy
                               >> Msg.UpdateFilter
