@@ -287,21 +287,12 @@ let EmployeeDashboardComponent
                         | EmployeeFilterView.Employees ->
                            EmployeeMultiSelectSearchComponent {|
                               OrgId = session.OrgId
+                              Selected = browserQuery.SelectedEmployees
                               OnSelect =
-                                 Option.map (fun employees ->
-                                    (browserQuery.SelectedEmployees
-                                     |> Option.defaultValue [])
-                                    @ List.map
-                                       (fun (e: Employee) -> {
-                                          Id = e.EmployeeId
-                                          Name = e.Name
-                                          Email = string e.Email
-                                       })
-                                       employees
-                                    |> List.distinctBy _.Email)
-                                 >> EmployeeFilter.Employees
+                                 EmployeeFilter.Employees
                                  >> Msg.UpdateFilter
                                  >> dispatch
+                              Dependencies = None
                            |}
                         | EmployeeFilterView.Roles ->
                            CheckboxFieldset.render {|

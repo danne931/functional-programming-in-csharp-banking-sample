@@ -73,20 +73,26 @@ let TableControlPanelComponent
                   Html.ul [
                      for view, name in props.FilterViewOptions ->
                         Html.li [
-                           Html.a [
-                              attr.href "#"
-                              attr.text name
+                           if selectedView = view then
+                              attr.classes [ "active" ]
 
-                              attr.onClick (fun e ->
-                                 e.preventDefault ()
-
-                                 if selectedView <> view then
-                                    setFilterView (Some view))
-
-                              if selectedView = view then
-                                 attr.ariaDisabled true
+                           attr.children [
+                              Html.a [
+                                 attr.href "#"
+                                 attr.text name
                                  attr.classes [ "secondary" ]
-                                 attr.style [ style.cursor.defaultCursor ]
+
+                                 attr.onClick (fun e ->
+                                    e.preventDefault ()
+
+                                    if selectedView <> view then
+                                       setFilterView (Some view))
+
+                                 if selectedView = view then
+                                    attr.ariaDisabled true
+                                    attr.classes [ "primary" ]
+                                    attr.style [ style.cursor.defaultCursor ]
+                              ]
                            ]
                         ]
                   ]

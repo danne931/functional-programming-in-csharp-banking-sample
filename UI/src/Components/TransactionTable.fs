@@ -233,21 +233,10 @@ let renderControlPanel
          | TransactionFilterView.InitiatedBy ->
             EmployeeMultiSelectSearchComponent {|
                OrgId = session.OrgId
+               Selected = query.SelectedInitiatedBy
                OnSelect =
-                  Option.map (
-                     List.map (fun (e: Employee) ->
-                        let selected: UIDomain.Employee.SelectedEmployee = {
-                           Id = e.EmployeeId
-                           Name = e.Name
-                           Email = string e.Email
-                        }
-
-                        selected)
-                     >> List.append (query.SelectedInitiatedBy |> Option.defaultValue [])
-                  )
-                  >> TransactionFilter.InitiatedBy
-                  >> Msg.UpdateFilter
-                  >> dispatch
+                  TransactionFilter.InitiatedBy >> Msg.UpdateFilter >> dispatch
+               Dependencies = None
             |}
       FilterPills =
          [

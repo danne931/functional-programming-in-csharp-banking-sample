@@ -264,21 +264,12 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                         | CardFilterView.Employees ->
                            EmployeeMultiSelectSearchComponent {|
                               OrgId = session.OrgId
+                              Selected = browserQuery.SelectedEmployees
                               OnSelect =
-                                 Option.map (fun employees ->
-                                    (browserQuery.SelectedEmployees
-                                     |> Option.defaultValue [])
-                                    @ List.map
-                                       (fun (e: Employee) -> {
-                                          Id = e.EmployeeId
-                                          Name = e.Name
-                                          Email = string e.Email
-                                       })
-                                       employees
-                                    |> List.distinctBy _.Email)
-                                 >> CardFilter.Employees
+                                 CardFilter.Employees
                                  >> Msg.UpdateFilter
                                  >> dispatch
+                              Dependencies = None
                            |}
                         | CardFilterView.Amount ->
                            AmountFilter.AmountFilterComponent

@@ -220,67 +220,56 @@ let EmployeeHistoryDashboardComponent
                      EmployeeHistoryFilterView.EventType, "Event Group"
                   ]
                   RenderFilterViewOnSelect =
-                     function
-                     | EmployeeHistoryFilterView.Employee ->
-                        EmployeeMultiSelectSearchComponent {|
-                           OrgId = session.OrgId
-                           OnSelect =
-                              Option.map (
-                                 List.map (fun e -> {
-                                    Id = e.EmployeeId
-                                    Name = e.Name
-                                    Email = string e.Email
+                     fun view ->
+                        match view with
+                        | EmployeeHistoryFilterView.Employee ->
+                           EmployeeMultiSelectSearchComponent {|
+                              OrgId = session.OrgId
+                              Selected = browserQuery.SelectedEmployees
+                              OnSelect =
+                                 EmployeeHistoryFilter.Employees
+                                 >> Msg.UpdateFilter
+                                 >> dispatch
+                              Dependencies = Some [| string view |]
+                           |}
+                        | EmployeeHistoryFilterView.InitiatedBy ->
+                           EmployeeMultiSelectSearchComponent {|
+                              OrgId = session.OrgId
+                              Selected = browserQuery.SelectedInitiatedBy
+                              OnSelect =
+                                 EmployeeHistoryFilter.InitiatedBy
+                                 >> Msg.UpdateFilter
+                                 >> dispatch
+                              Dependencies = Some [| string view |]
+                           |}
+                        | EmployeeHistoryFilterView.Date ->
+                           DateFilter.DateFilterComponent
+                              browserQuery.Date
+                              (EmployeeHistoryFilter.Date
+                               >> Msg.UpdateFilter
+                               >> dispatch)
+                        | EmployeeHistoryFilterView.EventType ->
+                           CheckboxFieldset.render {|
+                              Options =
+                                 [
+                                    EmployeeEventGroupFilter.Invitation
+                                    EmployeeEventGroupFilter.Purchase
+                                    EmployeeEventGroupFilter.CreatedCard
+                                    EmployeeEventGroupFilter.UpdatedRole
+                                    EmployeeEventGroupFilter.CardFrozenUnfrozen
+                                    EmployeeEventGroupFilter.PurchaseLimitUpdated
+                                    EmployeeEventGroupFilter.AccessRestored
+                                 ]
+                                 |> List.map (fun o -> {
+                                    Id = o
+                                    Display = o.Display
                                  })
-                                 >> List.append (browserQuery.SelectedEmployees |> Option.defaultValue [])
-                              )
-                              >> EmployeeHistoryFilter.Employees
-                              >> Msg.UpdateFilter
-                              >> dispatch
-                        |}
-                     | EmployeeHistoryFilterView.InitiatedBy ->
-                        EmployeeMultiSelectSearchComponent {|
-                           OrgId = session.OrgId
-                           OnSelect =
-                              Option.map (
-                                 List.map (fun e -> {
-                                    Id = e.EmployeeId
-                                    Name = e.Name
-                                    Email = string e.Email
-                                 })
-                                 >> List.append (browserQuery.SelectedInitiatedBy |> Option.defaultValue [])
-                              )
-                              >> EmployeeHistoryFilter.InitiatedBy
-                              >> Msg.UpdateFilter
-                              >> dispatch
-                        |}
-                     | EmployeeHistoryFilterView.Date ->
-                        DateFilter.DateFilterComponent
-                           browserQuery.Date
-                           (EmployeeHistoryFilter.Date
-                            >> Msg.UpdateFilter
-                            >> dispatch)
-                     | EmployeeHistoryFilterView.EventType ->
-                        CheckboxFieldset.render {|
-                           Options =
-                              [
-                                 EmployeeEventGroupFilter.Invitation
-                                 EmployeeEventGroupFilter.Purchase
-                                 EmployeeEventGroupFilter.CreatedCard
-                                 EmployeeEventGroupFilter.UpdatedRole
-                                 EmployeeEventGroupFilter.CardFrozenUnfrozen
-                                 EmployeeEventGroupFilter.PurchaseLimitUpdated
-                                 EmployeeEventGroupFilter.AccessRestored
-                              ]
-                              |> List.map (fun o -> {
-                                 Id = o
-                                 Display = o.Display
-                              })
-                           SelectedItems = browserQuery.EventType
-                           OnChange =
-                              EmployeeHistoryFilter.EventFilter
-                              >> Msg.UpdateFilter
-                              >> dispatch
-                        |}
+                              SelectedItems = browserQuery.EventType
+                              OnChange =
+                                 EmployeeHistoryFilter.EventFilter
+                                 >> Msg.UpdateFilter
+                                 >> dispatch
+                           |}
                   FilterPills =
                      [
                         {

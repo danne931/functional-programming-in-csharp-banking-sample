@@ -81,9 +81,11 @@ let update msg state =
 let EmployeeSearchComponent
    (orgId: OrgId)
    (onInputChange: string option -> unit)
+   (dependencies: obj array option)
    (makeChildren: string option -> Deferred<EmployeesMaybe> -> ReactElement)
    =
-   let state, dispatch = React.useElmish (init, update, [||])
+   let deps = dependencies |> Option.defaultValue [||]
+   let state, dispatch = React.useElmish (init, update, deps)
 
    let searchRef = React.useInputRef ()
 
@@ -110,10 +112,13 @@ let EmployeeSearchComponent
       , [| box state.SearchInput |]
    )
 
-   React.useEffectOnce (fun () ->
-      match searchRef.current with
-      | Some searchInput -> searchInput.focus ()
-      | None -> ())
+   React.useEffect (
+      fun () ->
+         match searchRef.current with
+         | Some searchInput -> searchInput.focus ()
+         | None -> ()
+      , deps
+   )
 
    React.fragment [
       Html.input [
@@ -144,6 +149,7 @@ let EmployeeSelectSearchComponent
    EmployeeSearchComponent
       props.OrgId
       (fun _ -> setSelected None)
+      None
       (fun searchInput employees ->
          match employees with
          | Deferred.InProgress ->
@@ -195,17 +201,18 @@ let EmployeeSelectSearchComponent
             ]
          | _ -> Html.none)
 
-[<ReactComponent>]
 let EmployeeMultiSelectSearchComponent
    (props:
       {|
+         Selected: SelectedEmployee list option
          OrgId: OrgId
-         OnSelect: Employee list option -> unit
+         OnSelect: SelectedEmployee list option -> unit
+         Dependencies: obj array option
       |})
    =
-   let selected, setSelected = React.useState<Employee list option> None
+   let selected = props.Selected
 
-   let selectedEmployeeIds = selected |> Option.map (List.map _.EmployeeId)
+   let selectedEmployeeIds = selected |> Option.map (List.map _.Id)
 
    let isSelected (employeeId: EmployeeId) =
       match selectedEmployeeIds with
@@ -214,7 +221,8 @@ let EmployeeMultiSelectSearchComponent
 
    EmployeeSearchComponent
       props.OrgId
-      (fun _ -> setSelected None)
+      ignore
+      props.Dependencies
       (fun searchInput employees ->
          match employees with
          | Deferred.InProgress ->
@@ -247,10 +255,15 @@ let EmployeeMultiSelectSearchComponent
                                              if isSelected employeeId then
                                                 selected
                                                 |> List.filter (fun em ->
-                                                   em.EmployeeId
-                                                   <> employeeId)
+                                                   em.Id <> employeeId)
                                              else
-                                                employee :: selected
+                                                {
+                                                   Id = employee.EmployeeId
+                                                   Name = employee.Name
+                                                   Email =
+                                                      string employee.Email
+                                                }
+                                                :: selected
 
                                           let selected =
                                              if selected.IsEmpty then
@@ -258,7 +271,6 @@ let EmployeeMultiSelectSearchComponent
                                              else
                                                 Some selected
 
-                                          setSelected selected
                                           props.OnSelect selected)
                                  ]
                                  Html.text
@@ -300,6 +312,7 @@ let EmployeeCardSelectSearchComponent
    EmployeeSearchComponent
       props.OrgId
       (fun _ -> setSelected None)
+      None
       (fun searchInput employees ->
          match employees with
          | Deferred.InProgress ->
