@@ -525,7 +525,14 @@ let renderTopNMonthSelect
       ]
    ]
 
-let txnsButton (flow: MoneyFlow) (accounts: Map<AccountId, AccountProfile>) =
+let txnsButton
+   (flow: MoneyFlow)
+   (accounts: Map<AccountId, AccountProfile>)
+   (selectedTopNMonth: DateTime)
+   =
+   let start = DateTime(selectedTopNMonth.Year, selectedTopNMonth.Month, 1)
+   let filter = DateFilter.Custom(start, start.AddMonths(1).AddDays(-1))
+
    Html.button [
       attr.classes [ "outline" ]
       attr.children [ Fa.i [ Fa.Solid.History ] []; Html.span "View all" ]
@@ -534,7 +541,10 @@ let txnsButton (flow: MoneyFlow) (accounts: Map<AccountId, AccountProfile>) =
          Router.navigate (
             Routes.TransactionUrl.BasePath,
             (accounts.Keys |> Seq.head |> string),
-            (Router.encodeQueryString [ "moneyFlow", string flow ])
+            (Router.encodeQueryString [
+               "moneyFlow", string flow
+               "date", DateFilter.toQueryString filter
+            ])
          ))
    ]
 
@@ -574,7 +584,7 @@ let renderTopMoneyListItems
                Html.div [ Html.b item.Source; renderAmount item.Amount ]
          ]
 
-         txnsButton flow accounts
+         txnsButton flow accounts selectedMonth
 
          Html.hr []
          Html.br []
