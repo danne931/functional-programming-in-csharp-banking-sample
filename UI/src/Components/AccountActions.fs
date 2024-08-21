@@ -25,16 +25,38 @@ let navigation (accountId: AccountId) (view: AccountActionView option) =
 
    [| Routes.TransactionUrl.BasePath; string accountId; queryString |]
 
-type State = { PendingAction: Envelope option }
+type State = {
+   PendingAction: Envelope option
+   DomesticTransferRedirectOnRecipientCreate: AccountId option
+}
 
 type Msg =
    | Cancel
    | NetworkAckCommand of Envelope
+   | NetworkAckDomesticRecipient of Envelope * recipientId: AccountId
    | AccountEventReceived of CorrelationId
    | CheckForEventConfirmation of Envelope * attemptNumber: int
    | Noop
 
-let init () = { PendingAction = None }, Cmd.none
+let init () =
+   {
+      PendingAction = None
+      DomesticTransferRedirectOnRecipientCreate = None
+   },
+   Cmd.none
+
+// HTTP request returned 200. Command accepted by network.  Wait
+// for account actor cluster to successfully process the command into
+// an event and send out a confirmation via SignalR.
+let networkAck state (envelope: Envelope) =
+   let state = {
+      state with
+         PendingAction = Some envelope
+   }
+
+   let delayedMsg = Msg.CheckForEventConfirmation(envelope, 1)
+
+   state, Cmd.fromTimeout 3000 delayedMsg
 
 let update
    (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
@@ -46,25 +68,37 @@ let update
 
    match msg with
    | Cancel -> state, Cmd.navigate (navigation None)
-   | NetworkAckCommand envelope ->
-      // HTTP request returned 200. Command accepted by network.  Wait
-      // for account actor cluster to successfully process the command into
-      // an event and send out a confirmation via SignalR.
-      let state = { PendingAction = Some envelope }
+   | NetworkAckCommand envelope -> networkAck state envelope
+   | NetworkAckDomesticRecipient(envelope, accountId) ->
+      let state, cmd = networkAck state envelope
 
-      let delayedMsg = Msg.CheckForEventConfirmation(envelope, 1)
-
-      state, Cmd.fromTimeout 3000 delayedMsg
+      {
+         state with
+            DomesticTransferRedirectOnRecipientCreate = Some accountId
+      },
+      cmd
    | AccountEventReceived _ when state.PendingAction.IsNone -> state, Cmd.none
    | AccountEventReceived correlationId ->
       match state.PendingAction with
       | Some envelope when envelope.CorrelationId = correlationId ->
-         let state = { PendingAction = None }
+         let state = { state with PendingAction = None }
 
-         match Routes.IndexUrl.accountBrowserQuery().Action with
-         | Some AccountActionView.RegisterTransferRecipient ->
-            let redirectTo = Some AccountActionView.Transfer
-            state, Cmd.navigate (navigation redirectTo)
+         match
+            Routes.IndexUrl.accountBrowserQuery().Action,
+            state.DomesticTransferRedirectOnRecipientCreate
+         with
+         | Some AccountActionView.RegisterTransferRecipient, Some recipientId ->
+            let redirectTo =
+               (RecipientAccountEnvironment.Domestic, recipientId)
+               |> Some
+               |> AccountActionView.Transfer
+               |> Some
+
+            {
+               state with
+                  DomesticTransferRedirectOnRecipientCreate = None
+            },
+            Cmd.navigate (navigation redirectTo)
          | _ -> state, Cmd.navigate (navigation None)
       | _ -> state, Cmd.none
    // Verify the PendingAction was persisted.
@@ -139,7 +173,7 @@ let AccountActionsComponent
             "Add a Transfer Recipient"
          | AccountActionView.EditTransferRecipient _ ->
             "Edit Transfer Recipient"
-         | AccountActionView.Transfer -> "Transfer Money"
+         | AccountActionView.Transfer _ -> "Transfer Money"
          | AccountActionView.Debit -> "Debit Purchase"
          | AccountActionView.Deposit -> "Deposit Cash"
       )
@@ -157,7 +191,13 @@ let AccountActionsComponent
             session
             account
             None
-            (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+            (fun conf ->
+               match conf.PendingEvent with
+               | AccountEvent.DomesticTransferRecipient e ->
+                  (conf.Envelope, e.Data.Recipient.AccountId)
+                  |> Msg.NetworkAckDomesticRecipient
+                  |> dispatch
+               | _ -> dispatch (Msg.NetworkAckCommand conf.Envelope))
       | AccountActionView.EditTransferRecipient accountId ->
          let invalidAccount =
             TransferDeclinedReason.InvalidAccountInfo
@@ -187,12 +227,13 @@ let AccountActionsComponent
             account
             (Some accountId)
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
-      | AccountActionView.Transfer ->
+      | AccountActionView.Transfer qParamsOpt ->
          TransferForm.TransferFormComponent
             session
             account
             accountProfiles
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
+            qParamsOpt
       | AccountActionView.Debit ->
          EmployeeCardSelectSearchComponent {|
             OrgId = account.OrgId

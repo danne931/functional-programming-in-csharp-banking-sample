@@ -352,7 +352,7 @@ type SelectedCard = { Display: string; CardId: CardId }
 type AccountActionView =
    | Debit
    | Deposit
-   | Transfer
+   | Transfer of (RecipientAccountEnvironment * AccountId) option
    | RegisterTransferRecipient
    | EditTransferRecipient of AccountId
 
@@ -415,6 +415,16 @@ module AccountBrowserQuery =
                "transferRecipient", string accountId
             ]
             @ agg
+         | Some(AccountActionView.Transfer qParamsOpt) ->
+            match qParamsOpt with
+            | None -> ("action", "Transfer") :: agg
+            | Some(accountEnvironment, recipientId) ->
+               [
+                  "action", "Transfer"
+                  "accountEnvironment", string accountEnvironment
+                  "transferRecipient", string recipientId
+               ]
+               @ agg
          | Some view -> ("action", string view) :: agg
          | None -> agg
 
@@ -458,7 +468,23 @@ module AccountBrowserQuery =
             |> Option.bind (function
                | "Deposit" -> Some AccountActionView.Deposit
                | "Debit" -> Some AccountActionView.Debit
-               | "Transfer" -> Some AccountActionView.Transfer
+               | "Transfer" ->
+                  let envOpt =
+                     Map.tryFind "accountEnvironment" queryParams
+                     |> Option.bind RecipientAccountEnvironment.fromString
+
+                  let recipientIdOpt =
+                     Map.tryFind "transferRecipient" queryParams
+                     |> Option.bind Guid.parseOptional
+
+                  Option.map2
+                     (fun env recipientId ->
+                        AccountActionView.Transfer(
+                           Some(env, AccountId recipientId)
+                        ))
+                     envOpt
+                     recipientIdOpt
+                  |> Option.orElse (Some(AccountActionView.Transfer None))
                | "RegisterTransferRecipient" ->
                   Some AccountActionView.RegisterTransferRecipient
                | "EditTransferRecipient" ->

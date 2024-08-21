@@ -23,7 +23,7 @@ let private renderMenuButton (account: Account) (view: AccountActionView) =
          | AccountActionView.Debit ->
             Html.span [ Fa.i [ Fa.Solid.CreditCard ] [] ]
             Html.span "Debit Card Purchase"
-         | AccountActionView.Transfer ->
+         | AccountActionView.Transfer _ ->
             Html.span [ Fa.i [ Fa.Solid.ArrowsAltH ] [] ]
             Html.span "Transfer"
          | AccountActionView.RegisterTransferRecipient ->
@@ -43,7 +43,7 @@ let render (account: Account) =
       ]
 
       classyNode Html.div [ "grid" ] [
-         renderMenuButton account AccountActionView.Transfer
+         renderMenuButton account (AccountActionView.Transfer None)
       ]
 
       classyNode Html.div [ "grid" ] [

@@ -2,6 +2,7 @@ module Bank.Account.Forms.RegisterTransferRecipientForm
 
 open Feliz
 open Fable.Form.Simple
+open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
@@ -152,6 +153,7 @@ let domesticRecipientForm
                state.Account.CompositeId
                initiatedBy
                {
+                  AccountId = AccountId <| Guid.NewGuid()
                   LastName = last
                   FirstName = first
                   AccountNumber = accountNum

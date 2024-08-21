@@ -237,26 +237,30 @@ let TransferFormComponent
    (account: Account)
    (accountProfiles: Map<AccountId, AccountProfile>)
    (onSubmit: ParentOnSubmitHandler)
+   (selectedRecipient: (RecipientAccountEnvironment * AccountId) option)
    =
+   let defaultId =
+      selectedRecipient |> Option.map (snd >> string) |> Option.defaultValue ""
+
+   let defaultEnv =
+      selectedRecipient
+      |> Option.map fst
+      |> Option.defaultValue RecipientAccountEnvironment.InternalWithinOrg
+
    let initValues = {
       Amount = ""
-      RecipientId = ""
+      RecipientId = defaultId
       Memo = ""
    }
 
    let initiatedBy = InitiatedById session.EmployeeId
 
-   let selectedAccountEnv, setSelectedAccountEnv =
-      React.useState RecipientAccountEnvironment.InternalWithinOrg
+   let selectedAccountEnv, setSelectedAccountEnv = React.useState defaultEnv
 
    React.fragment [
       Html.select [
          attr.onChange (
-            function
-            | "Domestic" -> RecipientAccountEnvironment.Domestic
-            | "InternalWithinOrg" ->
-               RecipientAccountEnvironment.InternalWithinOrg
-            | _ -> RecipientAccountEnvironment.InternalCrossOrg
+            RecipientAccountEnvironment.fromStringUnsafe
             >> setSelectedAccountEnv
          )
          attr.value (string selectedAccountEnv)
@@ -268,7 +272,9 @@ let TransferFormComponent
             ]
 
             Html.option [
-               attr.value (string RecipientAccountEnvironment.InternalCrossOrg)
+               attr.value (
+                  string RecipientAccountEnvironment.InternalBetweenOrgs
+               )
                attr.text "Internal transfer to another organization"
             ]
 
@@ -280,7 +286,7 @@ let TransferFormComponent
       ]
 
       match selectedAccountEnv with
-      | RecipientAccountEnvironment.InternalCrossOrg ->
+      | RecipientAccountEnvironment.InternalBetweenOrgs ->
          OrgSocialTransferDiscovery.OrgSearchComponent
             session.OrgId
             (fun searchInput orgs ->

@@ -224,6 +224,7 @@ module NicknameRecipientCommand =
       BankEvent.create<RecipientNicknamed> cmd |> Ok
 
 type DomesticTransferRecipientInput = {
+   AccountId: AccountId
    LastName: string
    FirstName: string
    AccountNumber: string
@@ -269,9 +270,10 @@ module RegisterDomesticTransferRecipientCommand =
             AccountNumber = accountNumber
             RoutingNumber = routingNumber
             Status = RecipientRegistrationStatus.Confirmed
-            AccountId = Guid.NewGuid() |> AccountId
+            AccountId = cmd.Data.AccountId
             Depository = cmd.Data.Depository
             PaymentNetwork = cmd.Data.PaymentNetwork
+            CreatedAt = cmd.Timestamp
          }
 
          return
