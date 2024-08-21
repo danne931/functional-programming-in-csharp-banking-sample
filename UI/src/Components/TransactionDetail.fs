@@ -22,6 +22,7 @@ let hasRenderImplementation =
    | AccountEvent.DepositedCash _
    | AccountEvent.InternalTransferWithinOrgPending _
    | AccountEvent.InternalTransferBetweenOrgsPending _
+   | AccountEvent.DomesticTransferRecipient _
    | AccountEvent.DomesticTransferPending _
    | AccountEvent.DomesticTransferRejected _
    | AccountEvent.InternalTransferWithinOrgDeposited _
@@ -442,10 +443,15 @@ let renderTransactionInfo
       Html.h6 txn.Name
 
       Html.section [
-         Html.h3 [
-            attr.text (string txn.Amount)
-            attr.style [ style.margin 0 ]
-         ]
+         match txnInfo.Event with
+         | AccountEvent.DomesticTransferRecipient e ->
+            let reci = e.Data.Recipient
+            Html.h3 $"{reci.Name} **{reci.AccountNumber.Last4}"
+         | _ -> ()
+
+         match txn.Amount with
+         | Some amount -> Html.h3 amount
+         | None -> ()
 
          Html.small txn.Date
       ]
@@ -501,7 +507,7 @@ let renderTransactionInfo
 
 let renderCategorySelect
    (categories: Map<int, TransactionCategory>)
-   (txnInfo: TransactionMaybe)
+   (txnInfo: TransactionWithAncillaryInfo)
    dispatch
    =
    React.fragment [
@@ -511,23 +517,17 @@ let renderCategorySelect
             Msg.SaveCategory(Map.tryFind (int catId) categories, Started)
             |> dispatch)
 
-         match txnInfo with
-         | Deferred.Resolved(Ok(Some txnInfo)) ->
-            txnInfo.Category
-            |> Option.map _.Id
-            |> Option.defaultValue 0
-            |> attr.value
+         txnInfo.Category
+         |> Option.map _.Id
+         |> Option.defaultValue 0
+         |> attr.value
 
-            attr.children [
-               Html.option [ attr.value 0; attr.text "None" ]
+         attr.children [
+            Html.option [ attr.value 0; attr.text "None" ]
 
-               for category in categories.Values do
-                  Html.option [
-                     attr.value category.Id
-                     attr.text category.Name
-                  ]
-            ]
-         | _ -> attr.disabled true
+            for category in categories.Values do
+               Html.option [ attr.value category.Id; attr.text category.Name ]
+         ]
       ]
    ]
 
@@ -661,10 +661,16 @@ let TransactionDetailComponent
       | Deferred.Resolved(Ok None) -> Html.p "No transaction found."
       | _ -> Html.progress []
 
-      Html.section [
-         renderCategorySelect categories state.Transaction dispatch
-         renderNoteInput state.Transaction dispatch
-      ]
+      match state.Transaction with
+      | Deferred.Resolved(Ok(Some txnInfo)) ->
+         Html.section [
+            match txnInfo.Event with
+            | AccountEvent.DomesticTransferRecipient _ -> ()
+            | _ -> renderCategorySelect categories txnInfo dispatch
+
+            renderNoteInput state.Transaction dispatch
+         ]
+      | _ -> ()
 
       Html.section [
          attr.style [ style.position.relative ]
