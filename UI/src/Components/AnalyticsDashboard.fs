@@ -13,6 +13,7 @@ open Bank.Employee.Domain
 open Lib.SharedTypes
 open Lib.Time
 open UIDomain
+open UIDomain.Account
 
 // NOTE:
 // Modifies Feliz.Recharts to support the yAxis tickFormatter property included in Recharts.
@@ -538,14 +539,19 @@ let txnsButton
       attr.children [ Fa.i [ Fa.Solid.History ] []; Html.span "View all" ]
 
       attr.onClick (fun _ ->
-         Router.navigate (
-            Routes.TransactionUrl.BasePath,
-            (accounts.Keys |> Seq.head |> string),
-            (Router.encodeQueryString [
-               "moneyFlow", string flow
-               "date", DateFilter.toQueryString filter
-            ])
-         ))
+         let pathArr =
+            Routes.TransactionUrl.selectedPath (Seq.head accounts.Keys)
+
+         let queryString =
+            {
+               AccountBrowserQuery.empty with
+                  MoneyFlow = Some flow
+                  Date = Some filter
+            }
+            |> AccountBrowserQuery.toQueryParams
+            |> Router.encodeQueryString
+
+         Router.navigate [| yield! pathArr; queryString |])
    ]
 
 let renderTopMoneyListItems

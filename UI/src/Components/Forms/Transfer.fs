@@ -1,6 +1,7 @@
 module Bank.Account.Forms.TransferForm
 
 open Feliz
+open Feliz.Router
 open Fable.Form.Simple
 open System
 
@@ -8,6 +9,7 @@ open Fable.Form.Simple.Pico
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Bank.Employee.Domain
+open UIDomain.Account
 open Lib.Validators
 open FormContainer
 open Lib.SharedTypes
@@ -309,8 +311,28 @@ let TransferFormComponent
             (formInternalWithinOrg account accountProfiles initiatedBy)
             onSubmit
       | RecipientAccountEnvironment.Domestic ->
-         AccountFormContainer
-            initValues
-            (formDomestic account initiatedBy)
-            onSubmit
+         if account.DomesticTransferRecipients.Count = 0 then
+            Html.button [
+               attr.classes [ "outline" ]
+               attr.text "No recipients.  Click here to create."
+               attr.onClick (fun _ ->
+                  let pathArr =
+                     Routes.TransactionUrl.selectedPath account.AccountId
+
+                  let queryString =
+                     {
+                        AccountBrowserQuery.empty with
+                           Action =
+                              Some AccountActionView.RegisterTransferRecipient
+                     }
+                     |> AccountBrowserQuery.toQueryParams
+                     |> Router.encodeQueryString
+
+                  Router.navigate [| yield! pathArr; queryString |])
+            ]
+         else
+            AccountFormContainer
+               initValues
+               (formDomestic account initiatedBy)
+               onSubmit
    ]
