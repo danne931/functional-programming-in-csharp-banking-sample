@@ -25,10 +25,7 @@ let navigation (accountId: AccountId) (view: AccountActionView option) =
 
    [| Routes.TransactionUrl.BasePath; string accountId; queryString |]
 
-type State = {
-   Account: Account
-   PendingAction: Envelope option
-}
+type State = { PendingAction: Envelope option }
 
 type Msg =
    | Cancel
@@ -37,19 +34,15 @@ type Msg =
    | CheckForEventConfirmation of Envelope * attemptNumber: int
    | Noop
 
-let init (account: Account) () =
-   {
-      Account = account
-      PendingAction = None
-   },
-   Cmd.none
+let init () = { PendingAction = None }, Cmd.none
 
 let update
    (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
+   (accountId: AccountId)
    msg
-   state
+   (state: State)
    =
-   let navigation = navigation state.Account.AccountId
+   let navigation = navigation accountId
 
    match msg with
    | Cancel -> state, Cmd.navigate (navigation None)
@@ -57,10 +50,7 @@ let update
       // HTTP request returned 200. Command accepted by network.  Wait
       // for account actor cluster to successfully process the command into
       // an event and send out a confirmation via SignalR.
-      let state = {
-         state with
-            PendingAction = Some envelope
-      }
+      let state = { PendingAction = Some envelope }
 
       let delayedMsg = Msg.CheckForEventConfirmation(envelope, 1)
 
@@ -69,7 +59,7 @@ let update
    | AccountEventReceived correlationId ->
       match state.PendingAction with
       | Some envelope when envelope.CorrelationId = correlationId ->
-         let state = { state with PendingAction = None }
+         let state = { PendingAction = None }
 
          match Routes.IndexUrl.accountBrowserQuery().Action with
          | Some AccountActionView.RegisterTransferRecipient ->
@@ -125,8 +115,8 @@ let AccountActionsComponent
    =
    let state, dispatch =
       React.useElmish (
-         init account,
-         update handlePollingConfirmation,
+         init,
+         update handlePollingConfirmation account.AccountId,
          [| box account.AccountId |]
       )
 
@@ -160,12 +150,12 @@ let AccountActionsComponent
       | AccountActionView.Deposit ->
          DepositForm.DepositFormComponent
             session
-            state.Account
+            account
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.RegisterTransferRecipient ->
          RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
             session
-            state.Account
+            account
             None
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.EditTransferRecipient accountId ->
@@ -187,29 +177,31 @@ let AccountActionsComponent
             | count -> Some $"{count} failed transfers {msg}"
 
          match msg with
-         | Some msg -> Html.div [ Html.ins msg ]
+         | Some msg ->
+            Html.div [ Html.ins msg ]
+            Html.br []
          | None -> ()
 
          RegisterTransferRecipientForm.RegisterTransferRecipientFormComponent
             session
-            state.Account
+            account
             (Some accountId)
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.Transfer ->
          TransferForm.TransferFormComponent
             session
-            state.Account
+            account
             accountProfiles
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
       | AccountActionView.Debit ->
          EmployeeCardSelectSearchComponent {|
-            OrgId = state.Account.OrgId
+            OrgId = account.OrgId
             MakeChildrenOnSelect =
                Some
                <| fun card employee -> [
                   DebitForm.DebitFormComponent
                      (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
-                     state.Account
+                     account
                      card.CardId
                      employee
                ]

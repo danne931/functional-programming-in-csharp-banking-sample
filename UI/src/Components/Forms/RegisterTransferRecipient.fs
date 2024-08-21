@@ -222,22 +222,16 @@ let form
    fieldAccountEnvironment
    |> Form.andThen (fun _ -> domesticRecipientForm state initiatedBy)
 
-[<ReactComponent>]
 let RegisterTransferRecipientFormComponent
    (session: UserSession)
    (account: Account)
    (recipientIdForEdit: AccountId option)
    (onSubmit: ParentOnSubmitHandler)
    =
-   // Capture state
-   let state, _ =
-      React.useState {
-         Account = account
-         EditingDomesticRecipient =
-            recipientIdForEdit
-            |> Option.bind (fun accountId ->
-               Map.tryFind accountId account.DomesticTransferRecipients)
-      }
+   let recipient =
+      recipientIdForEdit
+      |> Option.bind (fun accountId ->
+         Map.tryFind accountId account.DomesticTransferRecipients)
 
    let formProps: Values = {
       AccountEnvironment = "domestic"
@@ -251,7 +245,7 @@ let RegisterTransferRecipientFormComponent
    }
 
    let formProps =
-      match state.EditingDomesticRecipient with
+      match recipient with
       | Some recipient -> {
          formProps with
             FirstName = recipient.FirstName
@@ -263,5 +257,10 @@ let RegisterTransferRecipientFormComponent
 
    AccountFormContainer
       formProps
-      (form state (InitiatedById session.EmployeeId))
+      (form
+         {
+            Account = account
+            EditingDomesticRecipient = recipient
+         }
+         (InitiatedById session.EmployeeId))
       onSubmit
