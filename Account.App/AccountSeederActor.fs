@@ -50,45 +50,54 @@ type SocialTransferCandidate = {
 
 let socialTransferCandidates =
    [
-      {|
+      {
+         OrgId = "7ef9d8f8-741f-4138-8aa8-37ab6e2e576d" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "0b6c7486-4228-411d-8f39-6db9a98faf27" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "d7cbb60f-c7e7-4cf9-b28c-b5da6c57f493" |> Guid.Parse |> EmployeeId
          AccountOwnerName = {| First = "Bích"; Last = "Phương" |}
          AccountOwnerEmail = "bichphuong@gmail.com"
          BusinessName = "Linear"
-      |}
-      {|
+      }
+      {
+         OrgId = "6b20162e-61f3-4434-82e0-e7d27337316b" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "2eb09ebc-bb20-4ef8-88c0-15d5e23125f5" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
          AccountOwnerName = {|
             First = "Elsieanne"
             Last = "Caplette"
          |}
          AccountOwnerEmail = "elsiane@gmail.com"
          BusinessName = "Figma"
-      |}
-      {|
+      }
+      {
+         OrgId = "55e75321-b9ad-48cc-b5ad-74af0a7e31b2" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "7918f574-9600-481f-bbc8-0a0430f5a416" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
          AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
          AccountOwnerEmail = "haslinger@gmail.com"
          BusinessName = "Lendtable"
-      |}
-      {|
+      }
+      {
+         OrgId = "4c6d31a0-51de-4ab8-b805-f61eadb78f81" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "c923710d-610d-4bea-a324-de8a66d072cc" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "c931c059-8bff-4a30-ad5f-fc85b3092c11" |> Guid.Parse |> EmployeeId
          AccountOwnerName = {|
             First = "Finnegan"
             Last = "Swiftshadow"
          |}
          AccountOwnerEmail = "finneganswift@gmail.com"
          BusinessName = "Shopify"
-      |}
+      }
    ]
-   |> List.map (fun o ->
-      let orgId = Guid.NewGuid() |> OrgId
-
-      orgId,
-      {
-         OrgId = orgId
-         PrimaryAccountId = Guid.NewGuid() |> AccountId
-         AccountOwnerId = Guid.NewGuid() |> EmployeeId
-         AccountOwnerEmail = o.AccountOwnerEmail
-         AccountOwnerName = o.AccountOwnerName
-         BusinessName = o.BusinessName
-      })
+   |> List.map (fun o -> o.OrgId, o)
    |> Map.ofList
 
 // TODO: Temporarily create org here until fleshed out
