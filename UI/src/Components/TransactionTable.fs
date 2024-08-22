@@ -238,7 +238,8 @@ let renderControlPanel
                Selected = query.SelectedInitiatedBy
                OnSelect =
                   TransactionFilter.InitiatedBy >> Msg.UpdateFilter >> dispatch
-               Dependencies = None
+               Dependencies =
+                  Some [| string TransactionFilterView.InitiatedBy |]
             |}
          | TransactionFilterView.Cards ->
             EmployeeCardMultiSelectSearchComponent {|
@@ -246,6 +247,7 @@ let renderControlPanel
                Selected = query.SelectedCards
                OnSelect =
                   TransactionFilter.Cards >> Msg.UpdateFilter >> dispatch
+               Dependencies = Some [| string TransactionFilterView.Cards |]
             |}
       FilterPills =
          [
