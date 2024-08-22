@@ -7,6 +7,7 @@ open System
 
 open Bank.Employee.Domain
 open UIDomain.Employee
+open UIDomain.Account
 open Lib.SharedTypes
 
 type State = {
@@ -371,3 +372,85 @@ let EmployeeCardSelectSearchComponent
                   | _ -> ()
                ]
          | _ -> Html.none)
+
+let EmployeeCardMultiSelectSearchComponent
+   (props:
+      {|
+         OrgId: OrgId
+         Selected: SelectedCard list option
+         OnSelect: SelectedCard list option -> unit
+      |})
+   =
+   let selected = props.Selected
+   let selectedCardIds = selected |> Option.map (List.map _.CardId)
+
+   let isSelected (cardId: CardId) =
+      match selectedCardIds with
+      | None -> false
+      | Some ids -> List.exists (fun id -> id = cardId) ids
+
+   EmployeeSearchComponent props.OrgId ignore None (fun _ employees ->
+      match employees with
+      | Deferred.InProgress ->
+         Html.progress [ attr.custom ("data-employee-search-loader", "") ]
+      | Deferred.Resolved(Ok None) -> Html.p "No employees found."
+      | Deferred.Resolved(Ok(Some employees)) ->
+         match employeesMappedByCardId employees with
+         | None -> Html.p "No employee cards found."
+         | Some employeeCardPairs ->
+            React.fragment [
+               Html.details [
+                  attr.classes [ "dropdown" ]
+                  attr.isOpen true
+
+                  attr.children [
+                     Html.summary "Select an employee card."
+
+                     Html.ul [
+                        for cardId, (card, employee) in employeeCardPairs ->
+                           let cardName =
+                              card.CardNickname |> Option.defaultValue ""
+
+                           let cardDisplay =
+                              $"{employee.Name} {cardName}**{card.CardNumberLast4}"
+
+                           Html.li [
+                              Html.label [
+                                 Html.input [
+                                    attr.type' "checkbox"
+                                    attr.name "employee-card"
+                                    attr.isChecked (isSelected cardId)
+                                    attr.value (string cardId)
+                                    attr.onChange
+                                       (fun (_: Browser.Types.Event) ->
+                                          let selected =
+                                             Option.defaultValue [] selected
+
+                                          let selected =
+                                             if isSelected cardId then
+                                                selected
+                                                |> List.filter (fun c ->
+                                                   c.CardId <> cardId)
+                                             else
+                                                {
+                                                   CardId = cardId
+                                                   Display = cardDisplay
+                                                }
+                                                :: selected
+
+                                          let selected =
+                                             if selected.IsEmpty then
+                                                None
+                                             else
+                                                Some selected
+
+                                          props.OnSelect selected)
+                                 ]
+                                 Html.text cardDisplay
+                              ]
+                           ]
+                     ]
+                  ]
+               ]
+            ]
+      | _ -> Html.none)

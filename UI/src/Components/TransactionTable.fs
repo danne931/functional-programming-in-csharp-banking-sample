@@ -21,6 +21,7 @@ type TransactionFilterView =
    | Amount
    | Category
    | InitiatedBy
+   | Cards
 
 [<RequireQualifiedAccess>]
 type TransactionFilter =
@@ -208,6 +209,7 @@ let renderControlPanel
          TransactionFilterView.Amount, "Amount"
          TransactionFilterView.Category, "Categories"
          TransactionFilterView.InitiatedBy, "Initiated By"
+         TransactionFilterView.Cards, "Cards"
       ]
       RenderFilterViewOnSelect =
          function
@@ -237,6 +239,13 @@ let renderControlPanel
                OnSelect =
                   TransactionFilter.InitiatedBy >> Msg.UpdateFilter >> dispatch
                Dependencies = None
+            |}
+         | TransactionFilterView.Cards ->
+            EmployeeCardMultiSelectSearchComponent {|
+               OrgId = session.OrgId
+               Selected = query.SelectedCards
+               OnSelect =
+                  TransactionFilter.Cards >> Msg.UpdateFilter >> dispatch
             |}
       FilterPills =
          [
@@ -274,19 +283,6 @@ let renderControlPanel
                   query.Category
                   |> Option.bind (CategoryFilter.display categories)
             }
-            {
-               View = TransactionFilterView.Date
-               OnDelete =
-                  fun () ->
-                     dispatch <| Msg.UpdateFilter(TransactionFilter.Cards None)
-               Content =
-                  query.SelectedCards
-                  |> Option.map (fun cards ->
-                     if cards.Length = 1 then
-                        $"Card: {cards |> List.head |> _.Display}"
-                     else
-                        $"Cards ({cards.Length})")
-            }
          ]
          @ [
             match query.SelectedInitiatedBy with
@@ -305,6 +301,24 @@ let renderControlPanel
                               |> Msg.UpdateFilter
                               |> dispatch
                      Content = Some $"Initiated By: {employee.Name}"
+                  }
+
+            match query.SelectedCards with
+            | None -> ()
+            | Some selected ->
+               for card in selected ->
+                  {
+                     View = TransactionFilterView.Cards
+                     OnDelete =
+                        fun () ->
+                           selected
+                           |> List.filter (fun e -> e.CardId <> card.CardId)
+                           |> fun es ->
+                              (if es.Length = 0 then None else Some es)
+                              |> TransactionFilter.Cards
+                              |> Msg.UpdateFilter
+                              |> dispatch
+                     Content = Some card.Display
                   }
          ]
       SubsequentChildren =
