@@ -29,22 +29,29 @@ let transactionQuery (query: TransactionQuery) =
       false
 
    let agg =
-      Option.fold
-         (fun (queryParams, where, joinAncillary) cardIds ->
-            [ "cardIds", Writer.cardIds cardIds ] @ queryParams,
-            $"{where} AND {Fields.cardId} = ANY(@cardIds)",
-            joinAncillary)
-         agg
-         query.CardIds
+      let queryParams, where, joinAncillary = agg
 
-   let agg =
-      Option.fold
-         (fun (queryParams, where, joinAncillary) ids ->
-            [ "iIds", Writer.initiatedByIds ids ] @ queryParams,
-            $"{where} AND {Fields.initiatedById} = ANY(@iIds)",
-            joinAncillary)
-         agg
-         query.InitiatedByIds
+      match query.CardIds, query.InitiatedByIds with
+      | Some cardIds, Some initiatedByIds ->
+         [
+            "cIds", Writer.cardIds cardIds
+            "iIds", Writer.initiatedByIds initiatedByIds
+         ]
+         @ queryParams,
+         $"{where} AND (
+            {Fields.cardId} = ANY(@cIds)
+            OR {Fields.initiatedById} = ANY(@iIds)
+         )",
+         joinAncillary
+      | Some cardIds, None ->
+         [ "cIds", Writer.cardIds cardIds ] @ queryParams,
+         $"{where} AND {Fields.cardId} = ANY(@cIds)",
+         joinAncillary
+      | None, Some initiatedByIds ->
+         [ "iIds", Writer.initiatedByIds initiatedByIds ] @ queryParams,
+         $"{where} AND {Fields.initiatedById} = ANY(@iIds)",
+         joinAncillary
+      | None, None -> agg
 
    let agg =
       Option.fold
