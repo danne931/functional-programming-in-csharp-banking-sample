@@ -5,21 +5,25 @@ open System
 open Lib.NetworkQuery
 open Lib.Time
 
+type private Cat = Bank.Account.Domain.TransactionCategory
+
 module CategoryFilter =
-   let display
-      (categories: Map<int, Bank.Account.Domain.TransactionCategory>)
-      (filter: CategoryFilter)
-      =
+   let rec private parse (catIds: Cat list) =
+      match catIds with
+      | [] -> ""
+      | [ s ] -> s.Name
+      | [ first; second ] -> $"{parse [ first ]}, {second.Name}"
+      | first :: second :: rest -> $"{parse [ first; second ]}, +{rest.Length}"
+
+   let display (categories: Map<int, Cat>) (filter: CategoryFilter) =
       match filter with
       | CategoryFilter.IsCategorized isCat ->
          Some <| if isCat then "Categorized" else "Uncategorized"
       | CategoryFilter.CategoryIds catIds ->
-         let size = catIds.Length
+         let cats =
+            catIds |> List.choose (fun catId -> Map.tryFind catId categories)
 
-         if size > 1 then
-            Some $"Categories ({size})"
-         else
-            categories |> Map.tryFind catIds.Head |> Option.map _.Name
+         if cats.IsEmpty then None else Some(parse cats)
 
 module AmountFilter =
    let display =
