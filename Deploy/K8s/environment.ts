@@ -46,13 +46,13 @@ export const initContainers = {
     image: 'busybox:1.28',
     name: 'wait-for-seed-nodes-in-cluster-formation'
   },
-  accountReadModelsReady: {
+  readModelsReady: {
     command: [
       'sh',
       '-c',
       `until psql --host ${pgConfig.k8ResourceName}-postgresql.${defaultNamespace}.svc.cluster.local` +
-      ` -d ${pgConfig.database} -U ${pgConfig.user} -p ${ports.postgres} -c "select 1 from accounts";` +
-      ' do echo waiting for account records to be seeded; sleep 3; done\n'
+      ` -d ${pgConfig.database} -U ${pgConfig.user} -p ${ports.postgres} -c "select 1 from balance_history";` +
+      ' do echo waiting for data to be seeded; sleep 3; done\n'
     ],
     env: [
       {
@@ -61,7 +61,7 @@ export const initContainers = {
       }
     ],
     image: 'postgres:16.0',
-    name: 'wait-for-accounts-created'
+    name: 'wait-for-seed-data-initialized'
   }
 
 }

@@ -216,7 +216,7 @@ let openK8sAppInBrowser () =
 
    Shell.Exec(
       "minikube",
-      "kubectl -- wait --for=condition=ready pod -l app=web-cluster --timeout=160s"
+      "kubectl -- wait --for=condition=ready pod -l app=web-cluster --timeout=240s"
    )
    |> ignore
 

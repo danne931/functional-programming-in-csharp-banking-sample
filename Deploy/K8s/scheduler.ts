@@ -119,7 +119,7 @@ export const initSchedulerCluster = (
                 ]
               }
             ],
-            initContainers: [initContainers.accountServiceReady, initContainers.accountReadModelsReady],
+            initContainers: [initContainers.accountServiceReady, initContainers.readModelsReady],
             terminationGracePeriodSeconds: 35
           }
         }
