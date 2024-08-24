@@ -159,4 +159,6 @@ module AkkaInfra =
          builder.LogLevel <- LogLevel.InfoLevel
          builder.LogConfigOnStart <- true
          builder.AddLogger<SerilogLogger>() |> ignore
-         builder.LogMessageFormatter <- typeof<SerilogLogMessageFormatter>)
+
+         builder.WithDefaultLogMessageFormatter<SerilogLogMessageFormatter>()
+         |> ignore)

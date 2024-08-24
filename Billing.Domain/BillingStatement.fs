@@ -84,6 +84,6 @@ let billingStatement
       OrgId = account.OrgId
       LastPersistedEventSequenceNumber = lastPersistedEventSequenceNumber
       AccountSnapshot =
-         JsonSerializer.SerializeToUtf8Bytes(account, Serialization.jsonOptions)
+         JsonSerializer.SerializeToUtf8Bytes(state, Serialization.jsonOptions)
    }
 #endif

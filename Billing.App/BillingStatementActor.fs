@@ -152,7 +152,7 @@ let private snapshotStoreSqlParams (bill: BillingStatement) = [
    "@created", Sql.int64 <| DateTime.UtcNow.ToFileTimeUtc()
    "@snapshot", Sql.bytea bill.AccountSnapshot
    "@serializerId", Sql.int 931
-   "@manifest", Sql.string "Account"
+   "@manifest", Sql.string "AccountWithEvents"
 ]
 
 // NOTE:
