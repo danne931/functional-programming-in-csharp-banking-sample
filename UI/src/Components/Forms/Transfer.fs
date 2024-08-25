@@ -77,7 +77,7 @@ let formInternalWithinOrg
          Error = fun _ -> None
          Attributes = {
             Label = "Move money to account:"
-            Placeholder = ""
+            Placeholder = "No selection"
             Options = internalWithinOrgOptions
          }
       }
@@ -194,7 +194,7 @@ let formDomestic
          Error = fun _ -> None
          Attributes = {
             Label = "Domestic transfer recipient:"
-            Placeholder = ""
+            Placeholder = "No selection"
             Options = domesticOptions
          }
       }
