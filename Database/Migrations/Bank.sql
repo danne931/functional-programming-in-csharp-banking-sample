@@ -393,7 +393,7 @@ BEGIN
    ) ids
    LEFT JOIN transaction t
       ON t.account_id = ids.account_id
-      AND t.timestamp::date = ds.day
+      AND t.timestamp::date = ds.day::date
       AND t.money_flow IS NOT NULL
    GROUP BY ds.day, ids.account_id
    ORDER BY ds.day;
