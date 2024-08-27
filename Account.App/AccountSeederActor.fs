@@ -38,6 +38,7 @@ type State = {
 }
 
 let orgId = Constants.ORG_ID_REMOVE_SOON
+let orgName = "Sapphire Optics"
 
 type SocialTransferCandidate = {
    OrgId: OrgId
@@ -48,7 +49,7 @@ type SocialTransferCandidate = {
    BusinessName: string
 }
 
-let socialTransferCandidates =
+let socialTransferOrgs =
    [
       {
          OrgId = "7ef9d8f8-741f-4138-8aa8-37ab6e2e576d" |> Guid.Parse |> OrgId
@@ -96,17 +97,87 @@ let socialTransferCandidates =
          AccountOwnerEmail = "finneganswift@gmail.com"
          BusinessName = "Shopify"
       }
+      {
+         OrgId = "4ccbb100-c023-4957-82fd-36c35004a9fd" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "a8ffdd09-4502-4054-bb20-1c12e3f26821" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "3565a715-a7e9-4ef2-b81a-628605aabaa0" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {| First = "Mahatma"; Last = "Gandhi" |}
+         AccountOwnerEmail = "gandhi@yahoo.com"
+         BusinessName = "Dropbox"
+      }
+      {
+         OrgId = "9f7a2ae5-9cb5-46ac-908e-4427230bf0fe" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "60b76142-bded-4eb3-8c87-89ab9949a65e" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "d260f814-186f-451c-8a9c-8ce2e565fbb4" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {| First = "Zhi"; Last = "Ng" |}
+         AccountOwnerEmail = "zhi@yahoo.com"
+         BusinessName = "Xero"
+      }
+      {
+         OrgId = "5f808408-04a1-45f3-9e45-eba1ecd7a2da" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "24dc1103-0682-4141-a97e-b3870b8fadbf" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "3c2d88fd-d3aa-4999-8e73-d8129404f00b" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {| First = "Meorise"; Last = "Sarlee" |}
+         AccountOwnerEmail = "msarlee@yahoo.com"
+         BusinessName = "Huntress"
+      }
+      {
+         OrgId = "e6641c29-b980-4a7a-9b5a-24e01ebd9af0" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "ade87fa5-df43-43da-9903-90d66e986bf8" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "ff4b01e1-5d63-4eb1-a03a-11a976cb2f68" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {|
+            First = "Nakiasha"
+            Last = "Daleth"
+         |}
+         AccountOwnerEmail = "nakiasha@yahoo.com"
+         BusinessName = "Dusty Robotics"
+      }
+      {
+         OrgId = "b854d513-c40e-4582-bf2f-688d6a73a21a" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "29963c00-c366-431e-84c2-cee5a3258581" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "e8e8de39-dce0-4c70-89e4-5ab345949f99" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {| First = "Pruncha"; Last = "Yukio" |}
+         AccountOwnerEmail = "yukio@yahoo.com"
+         BusinessName = "Github"
+      }
+      {
+         OrgId = "1e01868e-adcb-4c5d-8a8b-f75bc36db0f5" |> Guid.Parse |> OrgId
+         PrimaryAccountId =
+            "b260b00f-8f09-47c2-9fe5-c6d19742b125" |> Guid.Parse |> AccountId
+         AccountOwnerId =
+            "20038dd5-e7f2-478d-a57b-6165969471a4" |> Guid.Parse |> EmployeeId
+         AccountOwnerName = {| First = "Aio"; Last = "Usagi" |}
+         AccountOwnerEmail = "usagi@yahoo.com"
+         BusinessName = "Segment"
+      }
    ]
    |> List.map (fun o -> o.OrgId, o)
    |> Map.ofList
 
-// TODO: Temporarily create org here until fleshed out
+let socialTransferSenders, socialTransferCandidates =
+   socialTransferOrgs
+   |> Map.partition (fun _ o -> o.AccountOwnerEmail.Contains "yahoo")
+
+// TODO: Temporarily create org here until fleshed Out
 let createOrgs () =
-   let orgs =
-      (orgId, "Sapphire Optics")
-      :: (socialTransferCandidates.Values
-          |> Seq.map (fun o -> o.OrgId, o.BusinessName)
-          |> List.ofSeq)
+   let myOrg = orgId, orgName
+
+   let otherOrgs =
+      socialTransferOrgs.Values
+      |> Seq.map (fun o -> o.OrgId, o.BusinessName)
+      |> List.ofSeq
+
+   let orgs = myOrg :: otherOrgs
 
    pgTransaction [
       $"""
@@ -152,10 +223,10 @@ let enableOrgSocialTransferDiscovery () =
       """
 
    let orgIds =
-      socialTransferCandidates |> Map.toArray |> Array.map (fst >> OrgId.get)
+      socialTransferOrgs |> Map.toArray |> Array.map (fst >> OrgId.get)
 
    let accountIds =
-      socialTransferCandidates
+      socialTransferOrgs
       |> Map.toArray
       |> Array.map (snd >> _.PrimaryAccountId >> AccountId.get)
 
@@ -170,23 +241,34 @@ let enableOrgSocialTransferDiscovery () =
 // in the employee_event table as well as recording of debits in the
 // account transaction table have current timestamps since we
 // don't have control over the creation of system-produced events.
+// The same goes for InternalTransferBetweenOrgsDeposited where we have control
+// over the timestamp of the initial request but need to modify timestamps
+// of the subsequent Deposited events here.
 // Modifying system-produced event timestamps via update statements on
 // the read models as demonstrated below should be a sufficient strategy
 // for observing time based analytics on seed data.
 let seedBalanceHistory () = taskResultOption {
    let query =
-      $"SELECT {EmployeeEventFields.timestamp}, {EmployeeEventFields.correlationId}
-        FROM {EmployeeEventSqlMapper.table}
-        WHERE {EmployeeEventFields.name} = 'DebitRequested'"
+      $"""
+      SELECT {EmployeeEventFields.timestamp}, {EmployeeEventFields.correlationId}
+      FROM {EmployeeEventSqlMapper.table}
+      WHERE {EmployeeEventFields.name} = 'DebitRequested'
 
-   let! employeePurchaseRequests =
+      UNION ALL
+
+      SELECT {TransactionFields.timestamp}, {TransactionFields.correlationId}
+      FROM {TransactionSqlMapper.table}
+      WHERE {TransactionFields.name} = 'InternalTransferBetweenOrgsPending'
+      """
+
+   let! initialRequestsToModify =
       pgQuery query None (fun read -> {|
          CorrelationId = EmployeeEventSqlReader.correlationId read
          Timestamp = EmployeeEventSqlReader.timestamp read
       |})
 
    let sqlParams =
-      employeePurchaseRequests
+      initialRequestsToModify
       |> List.map (fun o -> [
          "correlationId", EmployeeEventSqlWriter.correlationId o.CorrelationId
          "timestamp",
@@ -220,9 +302,7 @@ let seedBalanceHistory () = taskResultOption {
             to_jsonb(@timestamp),
             false
          )
-      WHERE
-         {TransactionFields.correlationId} = @correlationId
-         AND {TransactionFields.name} = 'DebitedAccount';
+      WHERE {TransactionFields.correlationId} = @correlationId;
       """,
       sqlParams
    ]
@@ -300,8 +380,8 @@ let mockAccounts =
       }
       |> withModifiedTimestamp
 
-   let socialTransferCandidates =
-      socialTransferCandidates
+   let socialTransferOrgs =
+      socialTransferOrgs
       |> Map.fold
             (fun acc _ o ->
                let cmd =
@@ -327,7 +407,7 @@ let mockAccounts =
 
       cmd3.Data.AccountId, cmd3
 
-      yield! socialTransferCandidates
+      yield! socialTransferOrgs
    ]
 
 let accountInitialDeposits =
@@ -522,6 +602,38 @@ let seedAccountOwnerActions
 
             accountRef <! msg
 
+            let ind = int (randomAmount 0 (socialTransferSenders.Length() - 1))
+            let sender = socialTransferSenders.Values |> Seq.item ind
+
+            let msg =
+               let ts = timestamp.AddDays(float (maxDays - 1))
+
+               {
+                  InternalTransferBetweenOrgsCommand.create
+                     (sender.PrimaryAccountId, sender.OrgId)
+                     (InitiatedById sender.AccountOwnerId)
+                     {
+                        Memo = None
+                        BaseInfo = {
+                           Amount = 10_000m + randomAmount 1000 10_000
+                           RecipientOrgId = orgId
+                           RecipientId = arCheckingAccountId
+                           RecipientName = orgName
+                           ScheduledDate = ts
+                           Sender = {
+                              Name = sender.BusinessName
+                              AccountId = sender.PrimaryAccountId
+                              OrgId = sender.OrgId
+                           }
+                        }
+                     } with
+                     Timestamp = ts
+               }
+               |> AccountCommand.InternalTransferBetweenOrgs
+               |> AccountMessage.StateChange
+
+            accountRef <! msg
+
             let ind =
                int (randomAmount 0 (socialTransferCandidates.Length() - 1))
 
@@ -658,12 +770,10 @@ let createAccountOwners getEmployeeRef =
             Timestamp = ts
       }
 
-   let candidates =
-      socialTransferCandidates.Values
-      |> Seq.toList
-      |> List.map createAccountOwnerCmd
+   let socialTransferAccountOwners =
+      socialTransferOrgs.Values |> Seq.toList |> List.map createAccountOwnerCmd
 
-   for cmd in mockAccountOwnerCmd :: candidates do
+   for cmd in mockAccountOwnerCmd :: socialTransferAccountOwners do
       let employeeId = cmd.Data.EmployeeId
 
       let createMsg =
