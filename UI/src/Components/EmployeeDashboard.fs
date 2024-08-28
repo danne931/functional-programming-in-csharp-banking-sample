@@ -411,7 +411,7 @@ let EmployeeDashboardComponent
                            session
                            (Msg.EmployeeCommandProcessing >> dispatch >> close)
                      | EmployeeActionView.ViewEmployee id ->
-                        classyNode Html.article [ "employee-detail" ] [
+                        classyNode Html.div [ "employee-detail" ] [
                            if Deferred.resolved state.Employees then
                               match selectedEmployee id state with
                               | None -> Html.small "Uh oh. Employee not found."

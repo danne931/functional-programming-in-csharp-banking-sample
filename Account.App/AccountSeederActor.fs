@@ -500,15 +500,6 @@ let mockEmployees =
          OrgRequiresEmployeeInviteApproval = false
          CardInfo = None
       }
-      CreateEmployeeCommand.create mockAccountOwnerId {
-         Email = "megmeyers@gmail.com"
-         FirstName = "Meg"
-         LastName = "Meyers"
-         OrgId = orgId
-         Role = Role.CardOnly
-         OrgRequiresEmployeeInviteApproval = false
-         CardInfo = None
-      }
    ]
 
    let createCard (cmd: CreateEmployeeCommand) = {
@@ -537,6 +528,32 @@ let mockEmployees =
 
          EmployeeId.fromEntityId cmd.EntityId, (cmd, createCard cmd)
    ]
+
+let mockEmployeesPendingInviteConfirmation =
+   [
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "zikomo@gmail.com"
+         FirstName = "Zikomo"
+         LastName = "Fwasa"
+         OrgId = orgId
+         Role = Role.Admin
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+      CreateEmployeeCommand.create mockAccountOwnerId {
+         Email = "megmeyers@gmail.com"
+         FirstName = "Meg"
+         LastName = "Meyers"
+         OrgId = orgId
+         Role = Role.Scholar
+         OrgRequiresEmployeeInviteApproval = false
+         CardInfo = None
+      }
+   ]
+   |> List.map (fun cmd -> {
+      cmd with
+         Timestamp = mockAccountOwnerCmd.Timestamp
+   })
 
 let randomAmount min max =
    let rnd = new Random()
@@ -825,6 +842,17 @@ let createAccountOwners getEmployeeRef =
 let createEmployees
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    =
+   for employeeCreateCmd in mockEmployeesPendingInviteConfirmation do
+      let employeeRef =
+         getEmployeeRef (EmployeeId.fromEntityId employeeCreateCmd.EntityId)
+
+      let msg =
+         employeeCreateCmd
+         |> EmployeeCommand.CreateEmployee
+         |> EmployeeMessage.StateChange
+
+      employeeRef <! msg
+
    for employeeId, (employeeCreateCmd, _) in Map.toSeq mockEmployees do
       let employeeRef = getEmployeeRef employeeId
 
