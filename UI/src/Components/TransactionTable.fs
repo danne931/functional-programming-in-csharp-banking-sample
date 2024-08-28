@@ -201,6 +201,17 @@ let update msg state =
          queryString
       )
 
+let renderPagination state dispatch =
+   Pagination.render {|
+      PaginatedResults = state.Transactions
+      Page = state.Query.Page
+      OnPageChange =
+         fun page ->
+            dispatch
+            <| Msg.LoadTransactions({ state.Query with Page = page }, Started)
+      OnPageReset = fun () -> dispatch ResetPageIndex
+   |}
+
 let renderControlPanel
    state
    dispatch
@@ -358,18 +369,7 @@ let renderControlPanel
          ]
       SubsequentChildren =
          Some [
-            Pagination.render {|
-               PaginatedResults = state.Transactions
-               Page = state.Query.Page
-               OnPageChange =
-                  fun page ->
-                     dispatch
-                     <| Msg.LoadTransactions(
-                        { state.Query with Page = page },
-                        Started
-                     )
-               OnPageReset = fun () -> dispatch ResetPageIndex
-            |}
+            renderPagination state dispatch
 
             Html.a [
                attr.children [
@@ -561,6 +561,7 @@ let TransactionTableComponent
                   txns
 
             renderTable account txns browserQuery.Transaction merchants dispatch
+            renderPagination state dispatch
          | _ -> ()
       ]
    ]

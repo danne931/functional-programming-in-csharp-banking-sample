@@ -184,6 +184,17 @@ let renderTable (history: EmployeeHistory list) =
       ]
    ]
 
+let renderPagination state dispatch =
+   Pagination.render {|
+      PaginatedResults = state.History
+      Page = state.Query.Page
+      OnPageChange =
+         fun page ->
+            dispatch
+            <| Msg.LoadHistory({ state.Query with Page = page }, Started)
+      OnPageReset = fun () -> dispatch Msg.ResetPageIndex
+   |}
+
 [<ReactComponent>]
 let EmployeeHistoryDashboardComponent
    (url: Routes.EmployeeHistoryUrl)
@@ -341,21 +352,7 @@ let EmployeeHistoryDashboardComponent
                                  Content = Some $"Initiated By: {employee.Name}"
                               }
                      ]
-                  SubsequentChildren =
-                     Some [
-                        Pagination.render {|
-                           PaginatedResults = state.History
-                           Page = state.Query.Page
-                           OnPageChange =
-                              fun page ->
-                                 dispatch
-                                 <| Msg.LoadHistory(
-                                    { state.Query with Page = page },
-                                    Started
-                                 )
-                           OnPageReset = fun () -> dispatch Msg.ResetPageIndex
-                        |}
-                     ]
+                  SubsequentChildren = Some [ renderPagination state dispatch ]
                |}
 
                classyNode Html.div [ "employee-history-table" ] [
@@ -368,6 +365,7 @@ let EmployeeHistoryDashboardComponent
                         Html.small "No employee history."
                      else
                         renderTable history
+                        renderPagination state dispatch
                   | _ -> ()
                ]
             ]
