@@ -668,6 +668,34 @@ let seedAccountOwnerActions
 
             accountRef <! msg
 
+            let recipient = mockAccounts[opsCheckingAccountId]
+
+            let msg =
+               {
+                  InternalTransferWithinOrgCommand.create
+                     (arCheckingAccountId, orgId)
+                     mockAccountOwnerId
+                     {
+                        BaseInfo = {
+                           RecipientOrgId = recipient.OrgId
+                           RecipientId = recipient.Data.AccountId
+                           RecipientName = recipient.Data.Name
+                           Amount = 2000m + randomAmount 1000 2000
+                           ScheduledDate = timestamp
+                           Sender = {
+                              Name = mockAccounts[arCheckingAccountId].Data.Name
+                              AccountId = arCheckingAccountId
+                              OrgId = orgId
+                           }
+                        }
+                     } with
+                     Timestamp = timestamp
+               }
+               |> AccountCommand.InternalTransfer
+               |> AccountMessage.StateChange
+
+            accountRef <! msg
+
 let seedEmployeeActions
    (card: Card)
    (employee: Employee)
@@ -1088,7 +1116,7 @@ let actorProps
                | Error err ->
                   logError ctx $"Error enabling social transfer discovery {err}"
 
-               do! Task.Delay 35_000
+               do! Task.Delay 40_000
                let! res = seedBalanceHistory ()
 
                match res with
