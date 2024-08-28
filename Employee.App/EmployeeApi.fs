@@ -142,7 +142,7 @@ let getEmployees (orgId: OrgId) (query: EmployeeQuery) =
    let query =
       $"SELECT * FROM {table}
         WHERE {where}
-        ORDER BY {Fields.firstName}"
+        ORDER BY {Fields.firstName} || {Fields.lastName}"
 
    pgQuery<Employee> query (Some queryParams) Reader.employee
 
@@ -193,7 +193,7 @@ let filtersToEventNames
 let getEmployeeHistory (orgId: OrgId) (query: EmployeeHistoryQuery) =
    let employeeTable = EmployeeSqlMapper.table
    let eventTable = EmployeeEventSqlMapper.table
-   let limit = 10
+   let limit = 30
 
    let agg =
       [

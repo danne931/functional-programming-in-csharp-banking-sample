@@ -169,15 +169,16 @@ let EmployeeSelectSearchComponent
                      Html.summary "Select an employee."
 
                      Html.ul [
-                        for employeeId, employee in Map.toSeq employees ->
+                        for employee in employees ->
                            Html.li [
                               Html.label [
                                  Html.input [
                                     attr.type' "radio"
                                     attr.name "employee"
-                                    attr.value (string employeeId)
+                                    attr.value (string employee.EmployeeId)
                                     attr.isChecked (
-                                       Some employeeId = selectedEmployeeId
+                                       Some employee.EmployeeId =
+                                          selectedEmployeeId
                                     )
                                     attr.onChange
                                        (fun (_: Browser.Types.Event) ->
@@ -239,24 +240,29 @@ let EmployeeMultiSelectSearchComponent
                      Html.summary "Select employees."
 
                      Html.ul [
-                        for employeeId, employee in Map.toSeq employees ->
+                        for employee in employees ->
                            Html.li [
                               Html.label [
                                  Html.input [
                                     attr.type' "checkbox"
                                     attr.name "employee"
-                                    attr.value (string employeeId)
-                                    attr.isChecked (isSelected employeeId)
+                                    attr.value (string employee.EmployeeId)
+                                    attr.isChecked (
+                                       isSelected employee.EmployeeId
+                                    )
                                     attr.onChange
                                        (fun (_: Browser.Types.Event) ->
                                           let selected =
                                              Option.defaultValue [] selected
 
                                           let selected =
-                                             if isSelected employeeId then
+                                             if
+                                                isSelected employee.EmployeeId
+                                             then
                                                 selected
                                                 |> List.filter (fun em ->
-                                                   em.Id <> employeeId)
+                                                   em.Id
+                                                   <> employee.EmployeeId)
                                              else
                                                 {
                                                    Id = employee.EmployeeId
@@ -287,9 +293,8 @@ let EmployeeMultiSelectSearchComponent
 type EmployeeCardPair = Card * Employee
 
 let employeesMappedByCardId
-   : Map<EmployeeId, Employee> -> (CardId * EmployeeCardPair) seq option =
-   _.Values
-   >> Seq.filter (_.Cards.IsEmpty >> not)
+   : Employee list -> (CardId * EmployeeCardPair) seq option =
+   Seq.filter (_.Cards.IsEmpty >> not)
    >> Seq.fold
       (fun acc employee ->
          employee.Cards.Values

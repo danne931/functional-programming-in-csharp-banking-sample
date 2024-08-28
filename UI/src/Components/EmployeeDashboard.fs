@@ -103,13 +103,15 @@ let update (session: UserSession) msg state =
 
       state, Cmd.navigate (Routes.EmployeeUrl.BasePath, browserQueryParams)
    | EmployeeCommandProcessing receipt ->
-      let employee = receipt.PendingState
-
       {
          state with
             Employees =
                (Deferred.map << Result.map << Option.map)
-                  (Map.add employee.EmployeeId employee)
+                  (List.map (fun (e: Employee) ->
+                     if e.EmployeeId = receipt.PendingState.EmployeeId then
+                        receipt.PendingState
+                     else
+                        e))
                   state.Employees
       },
       Cmd.none
@@ -121,7 +123,7 @@ let selectedEmployee
    =
    match state.Employees with
    | Deferred.Resolved(Ok(Some employees)) ->
-      Map.tryFind selectedEmployeeId employees
+      employees |> List.tryFind (fun e -> e.EmployeeId = selectedEmployeeId)
    | _ -> None
 
 let renderPendingTableRow
@@ -366,9 +368,7 @@ let EmployeeDashboardComponent
                   | Resolved(Ok None) -> Html.small "Uh oh. No employees."
                   | Resolved(Ok(Some employees)) ->
                      let pendingApproval, remaining =
-                        employees.Values
-                        |> List.ofSeq
-                        |> List.partition _.PendingAccessApproval
+                        employees |> List.partition _.PendingAccessApproval
 
                      Html.h6 "Pending Approval"
 

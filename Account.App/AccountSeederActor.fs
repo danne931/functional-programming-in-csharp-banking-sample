@@ -484,8 +484,8 @@ let mockEmployees =
       }
       CreateEmployeeCommand.create mockAccountOwnerId {
          Email = "denvau@gmail.com"
-         FirstName = "Đen"
-         LastName = "Vâu"
+         FirstName = "Den"
+         LastName = "Vau"
          OrgId = orgId
          Role = Role.CardOnly
          OrgRequiresEmployeeInviteApproval = false

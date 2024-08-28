@@ -86,10 +86,7 @@ let private getEmployeesWithPath (path: string) : Async<EmployeesMaybe> = async 
       return
          responseText
          |> Serialization.deserialize<Employee list>
-         |> Result.map (fun employees ->
-            [ for employee in employees -> employee.EmployeeId, employee ]
-            |> Map.ofList
-            |> Some)
+         |> Result.map Some
 }
 
 let getEmployees (orgId: OrgId) (query: EmployeeQuery) : Async<EmployeesMaybe> =
