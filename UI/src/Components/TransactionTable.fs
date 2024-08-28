@@ -22,6 +22,7 @@ type TransactionFilterView =
    | Category
    | InitiatedBy
    | Cards
+   | EventType
 
 [<RequireQualifiedAccess>]
 type TransactionFilter =
@@ -31,6 +32,7 @@ type TransactionFilter =
    | Category of CategoryFilter option
    | Cards of (SelectedCard list) option
    | InitiatedBy of (UIDomain.Employee.SelectedEmployee list) option
+   | EventFilter of (TransactionGroupFilter list) option
 
 type State = {
    Transactions: Map<int, Deferred<TransactionsMaybe>>
@@ -99,6 +101,10 @@ let update msg state =
          | TransactionFilter.InitiatedBy selected -> {
             browserQuery with
                SelectedInitiatedBy = selected
+           }
+         | TransactionFilter.EventFilter filter -> {
+            browserQuery with
+               EventType = filter
            }
 
       let browserQueryParams =
@@ -207,9 +213,10 @@ let renderControlPanel
       FilterViewOptions = [
          TransactionFilterView.Date, "Date"
          TransactionFilterView.Amount, "Amount"
-         TransactionFilterView.Category, "Categories"
+         TransactionFilterView.EventType, "Transaction Type"
          TransactionFilterView.InitiatedBy, "Initiated By"
          TransactionFilterView.Cards, "Cards"
+         TransactionFilterView.Category, "Categories"
       ]
       RenderFilterViewOnSelect =
          function
@@ -249,6 +256,21 @@ let renderControlPanel
                   TransactionFilter.Cards >> Msg.UpdateFilter >> dispatch
                Dependencies = Some [| string TransactionFilterView.Cards |]
             |}
+         | TransactionFilterView.EventType ->
+            CheckboxFieldset.render {|
+               Options =
+                  [
+                     TransactionGroupFilter.Purchase
+                     TransactionGroupFilter.Deposit
+                     TransactionGroupFilter.InternalTransferWithinOrg
+                     TransactionGroupFilter.InternalTransferBetweenOrgs
+                     TransactionGroupFilter.DomesticTransfer
+                  ]
+                  |> List.map (fun o -> { Id = o; Display = o.Display })
+               SelectedItems = query.EventType
+               OnChange =
+                  TransactionFilter.EventFilter >> Msg.UpdateFilter >> dispatch
+            |}
       FilterPills =
          [
             {
@@ -259,6 +281,17 @@ let renderControlPanel
                Content =
                   state.Query.DateRange
                   |> Option.map DateFilter.dateRangeDisplay
+            }
+            {
+               View = TransactionFilterView.EventType
+               OnDelete =
+                  fun () ->
+                     TransactionFilter.EventFilter None
+                     |> Msg.UpdateFilter
+                     |> dispatch
+               Content =
+                  state.Query.EventType
+                  |> Option.map TransactionGroupFilter.listToDisplay
             }
             {
                View = TransactionFilterView.Amount

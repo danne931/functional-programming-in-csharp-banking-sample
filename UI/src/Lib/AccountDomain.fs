@@ -365,6 +365,7 @@ type AccountBrowserQuery = {
    Transaction: EventId option
    SelectedCards: (SelectedCard list) option
    SelectedInitiatedBy: (UIDomain.Employee.SelectedEmployee list) option
+   EventType: (TransactionGroupFilter list) option
 } with
 
    member x.ChangeDetection =
@@ -375,6 +376,7 @@ type AccountBrowserQuery = {
          Date = x.Date
          CardIds = x.SelectedCards
          InitiatedByIds = x.SelectedInitiatedBy
+         EventType = x.EventType
       |}
 
 module AccountBrowserQuery =
@@ -438,6 +440,11 @@ module AccountBrowserQuery =
          | None -> agg
          | Some initiatedBy ->
             ("initiatedBy", Serialization.serialize initiatedBy) :: agg
+
+      let agg =
+         match query.EventType with
+         | None -> agg
+         | Some filters -> ("events", listToQueryString filters) :: agg
 
       match query.Transaction with
       | Some txnId -> ("transaction", string txnId) :: agg
@@ -509,6 +516,9 @@ module AccountBrowserQuery =
          SelectedInitiatedBy =
             Map.tryFind "initiatedBy" queryParams
             |> Option.bind UIDomain.Employee.parseEmployees
+         EventType =
+            Map.tryFind "events" queryParams
+            |> Option.bind TransactionGroupFilter.fromQueryString
       }
 
    let empty: AccountBrowserQuery = {
@@ -520,4 +530,5 @@ module AccountBrowserQuery =
       Transaction = None
       SelectedCards = None
       SelectedInitiatedBy = None
+      EventType = None
    }

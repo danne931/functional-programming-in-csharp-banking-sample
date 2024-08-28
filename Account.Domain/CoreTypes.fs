@@ -102,6 +102,50 @@ module MoneyFlow =
          | "out" -> Some MoneyFlow.Out
          | _ -> None
 
+[<RequireQualifiedAccess>]
+type TransactionGroupFilter =
+   | Purchase
+   | Deposit
+   | InternalTransferWithinOrg
+   | InternalTransferBetweenOrgs
+   | DomesticTransfer
+
+   member x.Display =
+      match x with
+      | TransactionGroupFilter.Purchase -> "Purchases"
+      | TransactionGroupFilter.Deposit -> "Deposits"
+      | TransactionGroupFilter.InternalTransferWithinOrg ->
+         "Transfers within your org"
+      | TransactionGroupFilter.InternalTransferBetweenOrgs ->
+         "Transfers between orgs on the platform"
+      | TransactionGroupFilter.DomesticTransfer ->
+         "Domestic transfers outside the platform"
+
+module TransactionGroupFilter =
+   let fromString =
+      function
+      | "Purchase" -> Some TransactionGroupFilter.Purchase
+      | "Deposit" -> Some TransactionGroupFilter.Deposit
+      | "InternalTransferWithinOrg" ->
+         Some TransactionGroupFilter.InternalTransferWithinOrg
+      | "InternalTransferBetweenOrgs" ->
+         Some TransactionGroupFilter.InternalTransferBetweenOrgs
+      | "DomesticTransfer" -> Some TransactionGroupFilter.DomesticTransfer
+      | _ -> None
+
+   let fromQueryString: string -> TransactionGroupFilter list option =
+      listFromQueryString fromString
+
+   let listToDisplay (items: TransactionGroupFilter list) =
+      List.fold
+         (fun acc (filter: TransactionGroupFilter) ->
+            if acc = "" then
+               filter.Display
+            else
+               $"{acc}, {filter.Display}")
+         ""
+         items
+
 type TransactionQuery = {
    AccountId: AccountId
    Diagnostic: bool
@@ -112,6 +156,7 @@ type TransactionQuery = {
    DateRange: (DateTime * DateTime) option
    CardIds: (CardId list) option
    InitiatedByIds: (InitiatedById list) option
+   EventType: (TransactionGroupFilter list) option
 }
 
 module TransactionQuery =

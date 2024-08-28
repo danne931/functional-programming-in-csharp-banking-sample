@@ -30,6 +30,7 @@ let transactionQueryFromAccountBrowserQuery
       InitiatedByIds =
          query.SelectedInitiatedBy
          |> Option.map (List.map (_.Id >> InitiatedById))
+      EventType = query.EventType
    }
 
 let transactionQueryParams (query: TransactionQuery) : (string * string) list =
@@ -39,6 +40,7 @@ let transactionQueryParams (query: TransactionQuery) : (string * string) list =
          Amount = query.Amount
          Category = query.Category
          MoneyFlow = query.MoneyFlow
+         EventType = query.EventType
          SelectedCards = None
          SelectedInitiatedBy = None
          Date = None

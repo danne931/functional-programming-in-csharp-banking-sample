@@ -7,6 +7,7 @@ open Lib.SharedTypes
 open Lib.NetworkQuery
 open Lib.Postgres
 open Bank.Account.Domain
+open Bank.Transfer.Domain
 open CategorySqlMapper
 open AncillaryTransactionInfoSqlMapper
 open TransactionSqlMapper
@@ -15,6 +16,35 @@ open TransactionMerchantSqlMapper
 module Fields = TransactionFields
 module Writer = TransactionSqlWriter
 module Reader = TransactionSqlReader
+
+let filtersToEventNames (filters: TransactionGroupFilter list) : string array =
+   filters
+   |> List.fold
+      (fun acc e ->
+         acc
+         @ match e with
+           | TransactionGroupFilter.Purchase -> [ typeof<DebitedAccount>.Name ]
+           | TransactionGroupFilter.Deposit -> [ typeof<DepositedCash>.Name ]
+           | TransactionGroupFilter.InternalTransferWithinOrg -> [
+              typeof<InternalTransferWithinOrgPending>.Name
+              typeof<InternalTransferWithinOrgApproved>.Name
+              typeof<InternalTransferWithinOrgRejected>.Name
+              typeof<InternalTransferWithinOrgDeposited>.Name
+             ]
+           | TransactionGroupFilter.InternalTransferBetweenOrgs -> [
+              typeof<InternalTransferBetweenOrgsPending>.Name
+              typeof<InternalTransferBetweenOrgsApproved>.Name
+              typeof<InternalTransferBetweenOrgsRejected>.Name
+              typeof<InternalTransferBetweenOrgsDeposited>.Name
+             ]
+           | TransactionGroupFilter.DomesticTransfer -> [
+              typeof<DomesticTransferPending>.Name
+              typeof<DomesticTransferApproved>.Name
+              typeof<DomesticTransferRejected>.Name
+              typeof<DomesticTransferProgressUpdate>.Name
+             ])
+      []
+   |> List.toArray
 
 let transactionQuery (query: TransactionQuery) =
    let table = TransactionSqlMapper.table
@@ -144,6 +174,16 @@ let transactionQuery (query: TransactionQuery) =
                true)
          agg
          query.Category
+
+   let agg =
+      Option.fold
+         (fun (queryParams, where, joinAncillary) filters ->
+            [ "eventTypes", filters |> filtersToEventNames |> Sql.stringArray ]
+            @ queryParams,
+            $"{where} AND {Fields.name} = ANY(@eventTypes)",
+            joinAncillary)
+         agg
+         query.EventType
 
    let queryParams, where, joinAncillaryTransactionTable = agg
 

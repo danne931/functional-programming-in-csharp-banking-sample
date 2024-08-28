@@ -28,6 +28,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
       Nullable<decimal>,
       Nullable<decimal>,
       string,
+      string,
       't
     >
       (fun
@@ -41,6 +42,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
            ([<FromQuery>] initiatedByIds: string)
            ([<FromQuery>] amountMin: Nullable<decimal>)
            ([<FromQuery>] amountMax: Nullable<decimal>)
+           ([<FromQuery>] events: string)
            ([<FromQuery>] date: string) ->
          let moneyFlowOpt = MoneyFlow.fromString moneyFlow
          let dateOpt = dateRangeFromQueryString date
@@ -65,6 +67,7 @@ let withQueryParams<'t> (func: TransactionQuery -> 't) =
             CardIds = TransactionQuery.cardIdsFromQueryString cardIds
             InitiatedByIds =
                TransactionQuery.initiatedByIdsFromQueryString initiatedByIds
+            EventType = TransactionGroupFilter.fromQueryString events
          })
 
 let startTransactionRoutes (app: WebApplication) =
