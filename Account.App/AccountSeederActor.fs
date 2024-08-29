@@ -427,7 +427,7 @@ let mockAccountOwnerCards =
          CardNickname = Some "Travel"
          CardType = CardType.Debit
          Virtual = true
-         DailyPurchaseLimit = Some 10_000m
+         DailyPurchaseLimit = Some 9_310m
          MonthlyPurchaseLimit = None
          InitiatedBy = mockAccountOwnerId
       } with
@@ -437,8 +437,8 @@ let mockAccountOwnerCards =
    let cardCmd2 = {
       cardCmd1 with
          Data.CardId = Guid.NewGuid() |> CardId
-         Data.CardNickname = Some "Web Services"
-         Data.DailyPurchaseLimit = Some 40_000m
+         Data.CardNickname = Some "Office Supplies"
+         Data.DailyPurchaseLimit = None
          Timestamp = cmd.Timestamp.AddHours 1.1
    }
 
@@ -560,35 +560,69 @@ let randomAmount min max =
    decimal (rnd.Next(min, max)) + decimal (rnd.NextDouble())
 
 let seedAccountOwnerActions
-   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
-   (card: Card)
-   (employeeId: EmployeeId)
    (timestamp: DateTime)
+   (account: Account)
    =
+   let domesticRecipientCmd =
+      RegisterDomesticTransferRecipientCommand.create
+         (arCheckingAccountId, orgId)
+         mockAccountOwnerId
+         {
+            AccountId = Guid.NewGuid() |> AccountId
+            FirstName = "Microsoft"
+            LastName = "Azure"
+            AccountNumber = AccountNumber.generate ()
+            RoutingNumber = "123456789"
+            Depository = DomesticRecipientAccountDepository.Checking
+            PaymentNetwork = PaymentNetwork.ACH
+         }
+
+   let domesticRecipient =
+      domesticRecipientCmd
+      |> RegisterDomesticTransferRecipientCommand.toEvent
+      |> Result.map (fun evt -> evt.Data.Recipient)
+      |> Result.toValueOption
+      |> _.Value
+
+   let accountRef = getAccountRef account.AccountId
+
+   let msg =
+      domesticRecipientCmd
+      |> AccountCommand.RegisterDomesticTransferRecipient
+      |> AccountMessage.StateChange
+
+   accountRef <! msg
+
    for month in [ 1..3 ] do
       let timestamp = timestamp.AddMonths month
-      let accountRef = getAccountRef arCheckingAccountId
 
-      let purchaseCmd = {
-         DebitRequestCommand.create (employeeId, orgId) {
-            AccountId = card.AccountId
-            CardId = card.CardId
-            CardNumberLast4 = card.CardNumberLast4
-            Date = timestamp
-            Amount = 30_000m + (randomAmount 1000 7000)
-            Origin = "Microsoft Azure"
-            Reference = None
-         } with
+      let transferCmd = {
+         DomesticTransferCommand.create
+            (account.AccountId, orgId)
+            mockAccountOwnerId
+            {
+               ScheduledDate = timestamp
+               Amount = 30_000m + (randomAmount 1000 7000)
+               Recipient = domesticRecipient
+               Sender = {
+                  Name = account.Name
+                  AccountNumber = account.AccountNumber
+                  RoutingNumber = account.RoutingNumber
+                  AccountId = account.AccountId
+                  OrgId = orgId
+               }
+               Memo = Some "Azure Bill"
+            } with
             Timestamp = timestamp
       }
 
       let msg =
-         purchaseCmd
-         |> EmployeeCommand.DebitRequest
-         |> EmployeeMessage.StateChange
+         transferCmd
+         |> AccountCommand.DomesticTransfer
+         |> AccountMessage.StateChange
 
-      getEmployeeRef employeeId <! msg
+      accountRef <! msg
 
       for num in [ 1..3 ] do
          let maxDays =
@@ -963,21 +997,18 @@ let seedAccountTransactions
          let accountOwnerBusinessCardId = businessCardCreateCmd.Data.CardId
          let employeeRef = getEmployeeRef accountOwnerId
 
-         let! accountOwnerCardPairOpt =
-            getEmployeeCardPair employeeRef accountOwnerBusinessCardId
+         let! account = accountRef <? AccountMessage.GetAccount
 
-         match accountOwnerCardPairOpt with
+         match account with
          | None ->
             logError
                mailbox
-               $"Can not proceed with account owner actions - eId: {accountOwnerId} cId: {accountOwnerBusinessCardId}"
-         | Some(_, card) ->
+               $"Can not proceed with account owner actions - eId: {accountOwnerId}"
+         | Some account ->
             seedAccountOwnerActions
-               getEmployeeRef
                getAccountRef
-               card
-               accountOwnerId
                businessCardCreateCmd.Timestamp
+               account
 
          for cmd in
             cardCreateCmds.AccountOwnerTravelCard :: cardCreateCmds.Employee do

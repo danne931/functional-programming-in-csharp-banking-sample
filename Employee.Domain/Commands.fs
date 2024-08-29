@@ -169,12 +169,14 @@ module CreateCardCommand =
 
          let! dailyPurchaseLimit =
             match input.DailyPurchaseLimit with
-            | Some limit -> amountValidator "Daily purchase limit" limit
+            | Some limit ->
+               Card.dailyPurchaseLimitValidator "Daily purchase limit" limit
             | None -> ValidationResult.Ok Constants.DAILY_PURCHASE_LIMIT_DEFAULT
 
          let! monthlyPurchaseLimit =
             match input.MonthlyPurchaseLimit with
-            | Some limit -> amountValidator "Monthly purchase limit" limit
+            | Some limit ->
+               Card.monthlyPurchaseLimitValidator "Monthly purchase limit" limit
             | None ->
                ValidationResult.Ok Constants.MONTHLY_PURCHASE_LIMIT_DEFAULT
 
