@@ -103,15 +103,19 @@ let update (session: UserSession) msg state =
 
       state, Cmd.navigate (Routes.EmployeeUrl.BasePath, browserQueryParams)
    | EmployeeCommandProcessing receipt ->
+      let em = receipt.PendingState
+
       {
          state with
             Employees =
                (Deferred.map << Result.map << Option.map)
-                  (List.map (fun (e: Employee) ->
-                     if e.EmployeeId = receipt.PendingState.EmployeeId then
-                        receipt.PendingState
-                     else
-                        e))
+                  (fun employees ->
+                     match receipt.PendingEvent with
+                     | EmployeeEvent.CreatedEmployee _ -> em :: employees
+                     | _ ->
+                        employees
+                        |> List.map (fun e ->
+                           if e.EmployeeId = em.EmployeeId then em else e))
                   state.Employees
       },
       Cmd.none
