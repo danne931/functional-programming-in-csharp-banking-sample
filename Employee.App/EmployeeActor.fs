@@ -22,11 +22,11 @@ let actorProps
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
 
-      let rec loop (employeeOpt: EmployeeWithEvents option) = actor {
+      let rec loop (stateOpt: EmployeeWithEvents option) = actor {
          let! msg = mailbox.Receive()
 
          let state =
-            employeeOpt
+            stateOpt
             |> Option.defaultValue { Info = Employee.empty; Events = [] }
 
          let employee = state.Info
@@ -195,7 +195,7 @@ let actorProps
                return unhandled ()
          | :? EmployeeMessage as msg ->
             match msg with
-            | GetEmployee -> mailbox.Sender() <! employeeOpt
+            | GetEmployee -> mailbox.Sender() <! (stateOpt |> Option.map _.Info)
             | Delete ->
                let newState = {
                   state with

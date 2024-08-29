@@ -23,10 +23,10 @@ open EmployeeSqlMapper
 open EmployeeEventSqlMapper
 open CardSqlMapper
 
-type EventsGroupedByEmployee = EmployeeWithEvents * EmployeeEvent list
+type EventsGroupedByEmployee = Employee * EmployeeEvent list
 
 type ReadModelUpsert =
-   EmployeeWithEvents list * EmployeeEvent list -> Result<List<int>, Err> Task
+   Employee list * EmployeeEvent list -> Result<List<int>, Err> Task
 
 type State = {
    Offset: Akka.Persistence.Query.Sequence
@@ -126,7 +126,7 @@ let startProjection
       (employeeId: EmployeeId, employeeEvents: EmployeeEvent list)
       =
       task {
-         let! (employeeOpt: EmployeeWithEvents option) =
+         let! (employeeOpt: Employee option) =
             getEmployeeRef employeeId <? GetEmployee
 
          return
@@ -219,33 +219,29 @@ let actorProps
    propsPersist handler
 
 let upsertReadModels
-   (employees: EmployeeWithEvents list, employeeEvents: EmployeeEvent list)
+   (employees: Employee list, employeeEvents: EmployeeEvent list)
    =
    let employeeSqlParams =
       employees
-      |> List.map (fun employee ->
-         let employee = employee.Info
-
-         [
-            "employeeId", EmployeeSqlWriter.employeeId employee.EmployeeId
-            "orgId", EmployeeSqlWriter.orgId employee.OrgId
-            "email", EmployeeSqlWriter.email employee.Email
-            "firstName", EmployeeSqlWriter.firstName employee.FirstName
-            "lastName", EmployeeSqlWriter.lastName employee.LastName
-            "status", EmployeeSqlWriter.status employee.Status
-            "role", EmployeeSqlWriter.role employee.Role
-            "cards", EmployeeSqlWriter.cards employee.Cards
-            "pendingPurchases",
-            EmployeeSqlWriter.pendingPurchases employee.PendingPurchases
-            "onboardingTasks",
-            EmployeeSqlWriter.onboardingTasks employee.OnboardingTasks
-            "inviteToken",
-            EmployeeSqlWriter.inviteTokenFromStatus employee.Status
-            "inviteExpiration",
-            EmployeeSqlWriter.inviteExpirationFromStatus employee.Status
-            "authProviderUserId",
-            EmployeeSqlWriter.authProviderUserId employee.AuthProviderUserId
-         ])
+      |> List.map (fun employee -> [
+         "employeeId", EmployeeSqlWriter.employeeId employee.EmployeeId
+         "orgId", EmployeeSqlWriter.orgId employee.OrgId
+         "email", EmployeeSqlWriter.email employee.Email
+         "firstName", EmployeeSqlWriter.firstName employee.FirstName
+         "lastName", EmployeeSqlWriter.lastName employee.LastName
+         "status", EmployeeSqlWriter.status employee.Status
+         "role", EmployeeSqlWriter.role employee.Role
+         "cards", EmployeeSqlWriter.cards employee.Cards
+         "pendingPurchases",
+         EmployeeSqlWriter.pendingPurchases employee.PendingPurchases
+         "onboardingTasks",
+         EmployeeSqlWriter.onboardingTasks employee.OnboardingTasks
+         "inviteToken", EmployeeSqlWriter.inviteTokenFromStatus employee.Status
+         "inviteExpiration",
+         EmployeeSqlWriter.inviteExpirationFromStatus employee.Status
+         "authProviderUserId",
+         EmployeeSqlWriter.authProviderUserId employee.AuthProviderUserId
+      ])
 
    let eventSqlParams =
       employeeEvents
@@ -342,8 +338,7 @@ let upsertReadModels
    ]
 
    let cardSqlParams =
-      let employeeMap =
-         [ for e in employees -> e.Info.EmployeeId, e.Info ] |> Map.ofList
+      let employeeMap = [ for e in employees -> e.EmployeeId, e ] |> Map.ofList
 
       employeeEvents
       |> List.choose (fun evt ->

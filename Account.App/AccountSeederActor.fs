@@ -910,14 +910,13 @@ let getEmployeeCardPair
    (cardId: CardId)
    =
    async {
-      let! (employeeOpt: EmployeeWithEvents option) =
+      let! (employeeOpt: Employee option) =
          employeeRef <? EmployeeMessage.GetEmployee
 
       return option {
          let! employee = employeeOpt
-         let em = employee.Info
-         let! card = em.Cards.TryFind cardId
-         return em, card
+         let! card = employee.Cards.TryFind cardId
+         return employee, card
       }
    }
 

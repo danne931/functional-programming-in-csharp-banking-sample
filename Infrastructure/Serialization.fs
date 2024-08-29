@@ -80,7 +80,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? ReadModelSyncActor.State -> "ReadModelSyncState"
       | :? EmployeeReadModelSyncActor.State -> "EmployeeReadModelSyncState"
       | :? EmployeeWithEvents -> "EmployeeWithEvents"
-      | :? Option<EmployeeWithEvents> -> "EmployeeWithEventsOption"
+      | :? Option<Employee> -> "EmployeeOption"
       | :? EmployeeMessage as msg ->
          match msg with
          | EmployeeMessage.Event _ -> "EmployeeEvent"
@@ -190,7 +190,7 @@ type BankSerializer(system: ExtendedActorSystem) =
             JsonSerializer.SerializeToUtf8Bytes(msg, Serialization.jsonOptions)
       // EmployeeMessage.GetEmployee response serialized for message sent
       // from account cluster nodes to Web node.
-      | :? Option<EmployeeWithEvents>
+      | :? Option<Employee>
       // EmployeeActor persistence snapshot.
       | :? EmployeeWithEvents as o ->
          JsonSerializer.SerializeToUtf8Bytes(o, Serialization.jsonOptions)
@@ -226,7 +226,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "EmployeeReadModelSyncState" ->
             typeof<EmployeeReadModelSyncActor.State>
          | "EmployeeWithEvents" -> typeof<EmployeeWithEvents>
-         | "EmployeeWithEventsOption" -> typeof<EmployeeWithEvents option>
+         | "EmployeeOption" -> typeof<Employee option>
          | "EmployeeEvent" -> typeof<EmployeeEvent>
          | "EmployeeMessage" -> typeof<EmployeeMessage>
          | "EmployeeShardEnvelope" -> typeof<EmployeeShardEnvelope>
