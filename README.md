@@ -37,11 +37,21 @@ The UI is built with React tech for the F# landscape.  See [Feliz](https://zaid-
 ![transactions-transfers](https://github.com/user-attachments/assets/7fd0676f-d2c1-44bf-9cae-3d6bc58d48d0)
 ![transactions-purchases](https://github.com/user-attachments/assets/5d293e75-dfb4-4e5f-ba31-93d04ed6042e)
 ![transactions-initiated-by](https://github.com/user-attachments/assets/a07cf94f-d915-4839-adb9-58f900b5aacf)
+![transactions-employee-card](https://github.com/user-attachments/assets/acd51183-8cc3-49d5-abe0-0d8d7b7613de)
+![transactions-category](https://github.com/user-attachments/assets/772f5fd1-fba6-48e9-84ad-710dda18e8d6)
+![transactions-date](https://github.com/user-attachments/assets/f5f8d6da-93fe-451c-a739-775d6108c02f)
+![transaction-back-button](https://github.com/user-attachments/assets/99437c22-e484-4d57-957e-3bb5253784e1)
+
+### Employee Card Management & Employee History
+![card-purchase-limits-and-nickname](https://github.com/user-attachments/assets/821518a2-6c29-4152-9ba9-1f1dd3aef969)
+![card-lock-employee-history](https://github.com/user-attachments/assets/303676ba-3534-487b-bc7f-3eb99ea87aab)
+![employee-history](https://github.com/user-attachments/assets/30c5f2af-d717-405d-b080-cff13bb2af84)
+
+### Transfers within an org & between orgs on the platform
+![transfer-internal](https://github.com/user-attachments/assets/06708061-822e-417b-94bf-9406f324443d)
 
 ### Domestic transfers to a mock 3rd party bank server with circuit breaker integration:
 ![bank-domestic-transfer-1-30](https://github.com/danne931/akka-dotnet-bank/assets/4181901/8d200b11-99d8-4e8f-98d4-0ab5941f1447)
-### Transfers to accounts internal to the bank:
-![bank-internal-transfer-Apr-18-2024](https://github.com/danne931/akka-dotnet-bank/assets/4181901/782fe303-f516-45f5-ac90-1cd8c243ca73)
 
 ## Running with Kubernetes via minikube
 1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download), [minikube](https://minikube.sigs.k8s.io/docs/start/), [pulumi](https://www.pulumi.com/docs/install/), [Node.js 18](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
