@@ -350,6 +350,8 @@ let upsertReadModels
           | EmployeeEvent.UnlockedCard e -> Some(e.EntityId, e.Data.CardId)
           | EmployeeEvent.DailyDebitLimitUpdated e ->
              Some(e.EntityId, e.Data.CardId)
+          | EmployeeEvent.MonthlyDebitLimitUpdated e ->
+             Some(e.EntityId, e.Data.CardId)
           | EmployeeEvent.CardNicknamed e -> Some(e.EntityId, e.Data.CardId)
           | _ -> None)
          |> Option.bind (fun (entityId, cardId) ->
