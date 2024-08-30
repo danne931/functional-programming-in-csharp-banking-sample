@@ -1,25 +1,24 @@
-# Banking with Akka.NET
+# Business Banking with Akka.NET
 
 ## Intro
-This project utilizes the actor model and event sourcing via Akka.NET to build typical banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is used for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
+This project utilizes the actor model and event sourcing via Akka.NET to build business banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is used for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
 
 ## Use Cases
 1. Deposit
-2. Debit
-3. Registering a transfer recipient internal to the bank
-4. Registering a transfer recipient in a 3rd party bank for domestic transfers
-5. Transferring money to a registered recipient (internal to the bank) debits the sender and credits the receiver
-6. Transferring money to an account in a mock 3rd party bank demonstrates resilience in face of intermittent network issues.  Integration with Akka circuit breaker allows pending transfers to be reprocessed once the 3rd party bank is in a healthy state.
-7. Recurring maintenance fee each billing cycle unless a qualified deposit found or a daily account balance threshold met.
-8. Daily debit limit set by the customer
-9. Lock/unlock debit card
-10. Billing statements issued for each billing cycle
-11. Emails sent for account open/close, billing statement, debit declined, & transfer deposited
+2. Employee Purchases
+3. Move money between accounts within your organization
+4. Transfer money to other organizations on the platform
+5. Domestic transfers are sent to a Mock Domestic Transfer Processor service to mock the interaction of sending money to accounts outside the platform, such as an ACH transfer via Plaid.  Integration with Akka circuit breaker allows pending transfers to be reprocessed if they previously failed due to intermittent network issues.
+6. Recurring maintenance fee for each billing cycle unless a qualified deposit found or a daily account balance threshold met.
+7. Manage daily/monthly employee purchase limits per employee card
+8. Monitor employee purchases and other activities on the platform
+9. Billing statements issued for each billing cycle
+10. Emails sent for account open/close, employee invites, billing statement, purchase declined, transfer deposited, etc.
 
-![bank-1-29](https://github.com/danne931/akka-dotnet-bank/assets/4181901/e56e902d-5c22-4480-800b-37091fa120f5)
+![8-29-business-banking](https://github.com/user-attachments/assets/beb5de07-66e9-49be-abe2-5ea30ba06c7a)
 
 ## UI
-The UI is built with React tech for the F# landscape.  See [Feliz](https://zaid-ajaj.github.io/Feliz/#/Hooks/UseElmish).
+The UI is built with React libraries for the F# landscape.  See [Feliz](https://zaid-ajaj.github.io/Feliz/#/Hooks/UseElmish).
 
 [SignalR](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) is used to provide feedback from actors to the UI:
 - Overall account state
@@ -35,7 +34,6 @@ The UI is built with React tech for the F# landscape.  See [Feliz](https://zaid-
 ### Transactions
 ![transactions-money-flow](https://github.com/user-attachments/assets/aee4c129-892a-4d40-b676-4c2edaff729c)
 ![transactions-transfers](https://github.com/user-attachments/assets/7fd0676f-d2c1-44bf-9cae-3d6bc58d48d0)
-![transactions-purchases](https://github.com/user-attachments/assets/5d293e75-dfb4-4e5f-ba31-93d04ed6042e)
 ![transactions-initiated-by](https://github.com/user-attachments/assets/a07cf94f-d915-4839-adb9-58f900b5aacf)
 ![transactions-employee-card](https://github.com/user-attachments/assets/acd51183-8cc3-49d5-abe0-0d8d7b7613de)
 ![transactions-category](https://github.com/user-attachments/assets/772f5fd1-fba6-48e9-84ad-710dda18e8d6)
@@ -46,6 +44,7 @@ The UI is built with React tech for the F# landscape.  See [Feliz](https://zaid-
 ![card-purchase-limits-and-nickname](https://github.com/user-attachments/assets/821518a2-6c29-4152-9ba9-1f1dd3aef969)
 ![card-lock-employee-history](https://github.com/user-attachments/assets/303676ba-3534-487b-bc7f-3eb99ea87aab)
 ![employee-history](https://github.com/user-attachments/assets/30c5f2af-d717-405d-b080-cff13bb2af84)
+![employee-management](https://github.com/user-attachments/assets/e9486950-2553-4447-b101-22d53a90ad9b)
 
 ### Transfers within an org & between orgs on the platform
 ![transfer-internal](https://github.com/user-attachments/assets/06708061-822e-417b-94bf-9406f324443d)
