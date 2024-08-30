@@ -1,7 +1,7 @@
 # Business Banking with Akka.NET
 
 ## Intro
-This project utilizes the actor model and event sourcing via Akka.NET to build business banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is used for the account aggregate root.  Future/recurring actor message scheduling with PostgreSQL persistence is established via [Quartz.NET](https://www.quartz-scheduler.net/).
+This project utilizes the actor model and event sourcing via Akka.NET to build business banking functionality.  Event sourcing is implemented with [Akka.Persistence](https://getakka.net/articles/persistence/architecture.html) via PostgreSQL.  [Akka.Cluster.Sharding](https://getakka.net/articles/clustering/cluster-sharding.html) is used for account and employee actors.  Future/recurring actor message scheduling with PostgreSQL persistence is set up with [Quartz.NET](https://www.quartz-scheduler.net/).
 
 ## Use Cases
 1. Deposit
