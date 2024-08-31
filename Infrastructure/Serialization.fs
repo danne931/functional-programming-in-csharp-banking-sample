@@ -81,7 +81,7 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.Manifest(o: obj) =
       match o with
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
-      | :? Lib.ReadModelSyncActor.State -> "AccountReadModelSyncState"
+      | :? Lib.ReadModelSyncActor.State -> "ReadModelSyncState"
       | :? EmployeeWithEvents -> "EmployeeWithEvents"
       | :? Option<Employee> -> "EmployeeOption"
       | :? EmployeeMessage as msg ->

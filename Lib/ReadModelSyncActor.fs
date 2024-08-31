@@ -16,8 +16,6 @@ open Lib.Types
 open ActorUtil
 open Lib.BulkWriteStreamFlow
 
-type EventsGroupedByAggregate<'TAggregate, 'TEvent> = 'TAggregate * 'TEvent list
-
 type ReadModelUpsert<'TAggregate, 'TEvent> =
    'TAggregate list * 'TEvent list -> Result<int list, Err> Task
 
@@ -103,15 +101,15 @@ let startProjection<'TAggregate, 'TEvent>
    }
 
    let bulkWriteFlow, _ =
-      initBulkWriteFlow<EventsGroupedByAggregate<'TAggregate, 'TEvent>>
+      initBulkWriteFlow<'TAggregate * 'TEvent list>
          system
          conf.RestartSettings
          chunking
          {
             RetryAfter = conf.RetryPersistenceAfter
             persist =
-               fun (o: EventsGroupedByAggregate<'TAggregate, 'TEvent> seq) ->
-                  o
+               fun (props: ('TAggregate * 'TEvent list) seq) ->
+                  props
                   |> Seq.fold
                         (fun (aggAcc, eventsAcc) grouping ->
                            let agg, aggEvents = grouping
@@ -121,7 +119,7 @@ let startProjection<'TAggregate, 'TEvent>
                   |> conf.UpsertReadModels
             // Feed failed upserts back into the stream
             onRetry =
-               fun (props: EventsGroupedByAggregate<'TAggregate, 'TEvent> seq) ->
+               fun (props: ('TAggregate * 'TEvent list) seq) ->
                   for _, events in props do
                      failedWritesRef <! events
             onPersistOk =
@@ -133,7 +131,7 @@ let startProjection<'TAggregate, 'TEvent>
 
 
    let flow =
-      Flow.id<'TEvent list, EventsGroupedByAggregate<'TAggregate, 'TEvent>>
+      Flow.id<'TEvent list, 'TAggregate * 'TEvent list>
       |> Flow.asyncMap 1000 (fun events -> async {
          let distinctAggregateIds =
             events
