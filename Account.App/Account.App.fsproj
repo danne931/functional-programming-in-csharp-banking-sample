@@ -6,7 +6,7 @@
   <ItemGroup>
     <Compile Include="CircuitBreakerActor.fs" />
     <Compile Include="AccountBroadcaster.fs" />
-    <Compile Include="ReadModelSyncActor.fs" />
+    <Compile Include="AccountReadModelSyncActor.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="AnalyticsApi.fs" />

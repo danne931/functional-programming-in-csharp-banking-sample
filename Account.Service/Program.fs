@@ -136,7 +136,7 @@ builder.Services.AddAkka(
             ActorMetadata.accountReadModelSync.Name,
             (fun system _ _ ->
                let typedProps =
-                  ReadModelSyncActor.initProps
+                  AccountReadModelSyncActor.initProps
                      (AccountActor.get system)
                      Env.config.AccountEventProjectionChunking
                      Env.config.AccountEventReadModelPersistenceBackoffRestart

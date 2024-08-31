@@ -30,6 +30,11 @@ type EntityId =
       let (EntityId id) = x
       string id
 
+module EntityId =
+   let get (entityId: EntityId) : Guid =
+      let (EntityId id) = entityId
+      id
+
 type CorrelationId =
    | CorrelationId of Guid
 

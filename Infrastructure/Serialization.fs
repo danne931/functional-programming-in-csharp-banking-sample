@@ -29,7 +29,9 @@ type AccountEventPersistenceAdapter() =
 
          Tagged(
             evt,
-            Set.empty<string>.Add("AccountEvent").Add(envelope.EventName)
+            Set.empty<string>
+               .Add(Constants.AKKA_ACCOUNT_JOURNAL)
+               .Add(envelope.EventName)
          )
 
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
@@ -49,7 +51,9 @@ type EmployeeEventPersistenceAdapter() =
 
          Tagged(
             evt,
-            Set.empty<string>.Add("EmployeeEvent").Add(envelope.EventName)
+            Set.empty<string>
+               .Add(Constants.AKKA_EMPLOYEE_JOURNAL)
+               .Add(envelope.EventName)
          )
 
       member x.FromJournal(evt: obj, manifest: string) : IEventSequence =
@@ -77,8 +81,7 @@ type BankSerializer(system: ExtendedActorSystem) =
    override x.Manifest(o: obj) =
       match o with
       | :? ConfirmableMessageEnvelope -> "ConfirmableMessageEnvelope"
-      | :? ReadModelSyncActor.State -> "ReadModelSyncState"
-      | :? EmployeeReadModelSyncActor.State -> "EmployeeReadModelSyncState"
+      | :? Lib.ReadModelSyncActor.State -> "AccountReadModelSyncState"
       | :? EmployeeWithEvents -> "EmployeeWithEvents"
       | :? Option<Employee> -> "EmployeeOption"
       | :? EmployeeMessage as msg ->
@@ -143,8 +146,7 @@ type BankSerializer(system: ExtendedActorSystem) =
       // from Account nodes to AccountLoadTestActor on Web node.
       | :? AccountLoadTestTypes.AccountLoadTestMessage
       // ReadModelSyncActor projection offset snapshot
-      | :? ReadModelSyncActor.State
-      | :? EmployeeReadModelSyncActor.State
+      | :? Lib.ReadModelSyncActor.State
       // Messages from account nodes to AccountSeederActor cluster singleton
       | :? AccountSeederMessage
       // SchedulingActor message for Quartz job persistence.
@@ -222,9 +224,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "ConfirmableMessageEnvelope" -> typeof<ConfirmableMessageEnvelope>
          | "AccountLoadTestMessage" ->
             typeof<AccountLoadTestTypes.AccountLoadTestMessage>
-         | "ReadModelSyncState" -> typeof<ReadModelSyncActor.State>
-         | "EmployeeReadModelSyncState" ->
-            typeof<EmployeeReadModelSyncActor.State>
+         | "ReadModelSyncState" -> typeof<Lib.ReadModelSyncActor.State>
          | "EmployeeWithEvents" -> typeof<EmployeeWithEvents>
          | "EmployeeOption" -> typeof<Employee option>
          | "EmployeeEvent" -> typeof<EmployeeEvent>
