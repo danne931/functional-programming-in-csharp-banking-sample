@@ -28,6 +28,7 @@ module TransferLimits =
          0m
          events
 
+   // TODO: Add monthly transfer accrued
    let dailyInternalTransferAccrued =
       transferAccrued DateTime.isToday (function
          | AccountEvent.InternalTransferWithinOrgPending e ->
@@ -42,6 +43,8 @@ module TransferLimits =
          | AccountEvent.InternalTransferBetweenOrgsRejected e ->
             let info = e.Data.BaseInfo
             Some(info.ScheduledDate, -info.Amount)
+         | AccountEvent.PlatformPaymentPaid e ->
+            Some(e.Timestamp, e.Data.BaseInfo.Amount)
          | _ -> None)
 
    let dailyDomesticTransferAccrued =
@@ -56,17 +59,19 @@ module TransferLimits =
 
    let exceedsDailyInternalTransferLimit
       (evts: AccountEvent list)
-      (info: BaseInternalTransferInfo)
+      (amount: decimal)
+      (scheduledDate: DateTime)
       =
-      DateTime.isToday info.ScheduledDate
-      && (dailyInternalTransferAccrued evts) + info.Amount > DailyInternalLimit
+      DateTime.isToday scheduledDate
+      && (dailyInternalTransferAccrued evts) + amount > DailyInternalLimit
 
    let exceedsDailyDomesticTransferLimit
       (evts: AccountEvent list)
-      (cmd: DomesticTransferCommand)
+      (amount: decimal)
+      (scheduledDate: DateTime)
       =
-      DateTime.isToday cmd.Data.ScheduledDate
-      && (dailyDomesticTransferAccrued evts) + cmd.Data.Amount > DailyDomesticLimit
+      DateTime.isToday scheduledDate
+      && (dailyDomesticTransferAccrued evts) + amount > DailyDomesticLimit
 
 let private applyInternalTransferPending
    (corrId: CorrelationId)
@@ -302,6 +307,27 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
          applyTransferDeposit account e.Data.Amount
       | InternalTransferBetweenOrgsDeposited e ->
          applyTransferDeposit account e.Data.Amount
+      | PlatformPaymentRequested _ -> account
+      | PlatformPaymentCancelled _ -> account
+      | PlatformPaymentDeclined _ -> account
+      | PlatformPaymentPaid e ->
+         // If payment fulfilled with account funds then deduct the
+         // payment amount from the account.
+         match e.Data.PaymentMethod with
+         | PaymentMethod.Platform _ ->
+            let balance = account.Balance - e.Data.BaseInfo.Amount
+
+            {
+               account with
+                  Balance = balance
+                  MaintenanceFeeCriteria =
+                     MaintenanceFee.fromDebit
+                        account.MaintenanceFeeCriteria
+                        balance
+            }
+         | PaymentMethod.ThirdParty _ -> account
+      | PlatformPaymentDeposited e ->
+         applyTransferDeposit account e.Data.BaseInfo.Amount
       | DomesticTransferRecipient e ->
          let recipient = e.Data.Recipient
 
@@ -439,7 +465,8 @@ module private StateTransition =
       elif
          TransferLimits.exceedsDailyInternalTransferLimit
             state.Events
-            cmd.Data.BaseInfo
+            input.Amount
+            input.ScheduledDate
       then
          TransferLimits.DailyInternalLimit
          |> ExceededDailyInternalTransferLimit
@@ -488,7 +515,7 @@ module private StateTransition =
             state
             (RejectInternalTransferWithinOrgCommand.toEvent cmd)
 
-   let internalTransferCrossOrg
+   let internalTransferBetweenOrgs
       (state: AccountWithEvents)
       (cmd: InternalTransferBetweenOrgsCommand)
       =
@@ -502,7 +529,8 @@ module private StateTransition =
       elif
          TransferLimits.exceedsDailyInternalTransferLimit
             state.Events
-            cmd.Data.BaseInfo
+            input.Amount
+            input.ScheduledDate
       then
          TransferLimits.DailyInternalLimit
          |> ExceededDailyInternalTransferLimit
@@ -569,7 +597,10 @@ module private StateTransition =
       then
          transitionErr RecipientRegistrationRequired
       elif
-         TransferLimits.exceedsDailyDomesticTransferLimit state.Events cmd
+         TransferLimits.exceedsDailyDomesticTransferLimit
+            state.Events
+            input.Amount
+            input.ScheduledDate
       then
          TransferLimits.DailyDomesticLimit
          |> ExceededDailyDomesticTransferLimit
@@ -706,6 +737,88 @@ module private StateTransition =
          map InternalTransferBetweenOrgsDeposited state
          <| (DepositInternalTransferBetweenOrgsCommand.toEvent cmd)
 
+   let platformPaymentRequested
+      (state: AccountWithEvents)
+      (cmd: RequestPlatformPaymentCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            PlatformPaymentRequested
+            state
+            (RequestPlatformPaymentCommand.toEvent cmd)
+
+   let platformPaymentCancelled
+      (state: AccountWithEvents)
+      (cmd: CancelPlatformPaymentCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            PlatformPaymentCancelled
+            state
+            (CancelPlatformPaymentCommand.toEvent cmd)
+
+   let platformPaymentDeclined
+      (state: AccountWithEvents)
+      (cmd: DeclinePlatformPaymentCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            PlatformPaymentDeclined
+            state
+            (DeclinePlatformPaymentCommand.toEvent cmd)
+
+   let platformPaymentPaid
+      (state: AccountWithEvents)
+      (cmd: FulfillPlatformPaymentCommand)
+      =
+      let input = cmd.Data.RequestedPayment.BaseInfo
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      elif account.Balance - input.Amount < 0m then
+         transitionErr <| InsufficientBalance account.Balance
+      elif
+         TransferLimits.exceedsDailyInternalTransferLimit
+            state.Events
+            input.Amount
+            cmd.Timestamp
+      then
+         TransferLimits.DailyInternalLimit
+         |> ExceededDailyInternalTransferLimit
+         |> transitionErr
+      else
+         map
+            PlatformPaymentPaid
+            state
+            (FulfillPlatformPaymentCommand.toEvent cmd)
+
+   let platformPaymentDeposited
+      (state: AccountWithEvents)
+      (cmd: DepositPlatformPaymentCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            PlatformPaymentDeposited
+            state
+            (DepositPlatformPaymentCommand.toEvent cmd)
+
    let closeAccount (state: AccountWithEvents) (cmd: CloseAccountCommand) =
       map AccountEvent.AccountClosed state (CloseAccountCommand.toEvent cmd)
 
@@ -746,7 +859,7 @@ let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
    | RejectInternalTransfer cmd ->
       StateTransition.rejectInternalTransfer state cmd
    | InternalTransferBetweenOrgs cmd ->
-      StateTransition.internalTransferCrossOrg state cmd
+      StateTransition.internalTransferBetweenOrgs state cmd
    | ApproveInternalTransferBetweenOrgs cmd ->
       StateTransition.approveInternalTransferBetweenOrgs state cmd
    | RejectInternalTransferBetweenOrgs cmd ->
@@ -768,6 +881,15 @@ let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
       StateTransition.domesticTransferProgress state cmd
    | NicknameRecipient cmd -> StateTransition.nicknameRecipient state cmd
    | CloseAccount cmd -> StateTransition.closeAccount state cmd
+   | RequestPlatformPayment cmd ->
+      StateTransition.platformPaymentRequested state cmd
+   | FulfillPlatformPayment cmd -> StateTransition.platformPaymentPaid state cmd
+   | DepositPlatformPayment cmd ->
+      StateTransition.platformPaymentDeposited state cmd
+   | CancelPlatformPayment cmd ->
+      StateTransition.platformPaymentCancelled state cmd
+   | DeclinePlatformPayment cmd ->
+      StateTransition.platformPaymentDeclined state cmd
 
 let empty: Account = {
    AccountId = AccountId System.Guid.Empty

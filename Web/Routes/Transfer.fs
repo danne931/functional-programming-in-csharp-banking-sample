@@ -7,6 +7,8 @@ open System
 open System.Threading.Tasks
 open Akka.Actor
 
+open Lib.SharedTypes
+open Bank.Transfer.Api
 open Bank.Transfer.Domain
 open Bank.Account.Api
 open Bank.Account.Domain
@@ -89,4 +91,57 @@ let startTransferRoutes (app: WebApplication) =
                |> RouteUtil.unwrapTaskResult)
       )
       .RBAC(Permissions.ManageTransferRecipient)
+   |> ignore
+
+   app
+      .MapGet(
+         PaymentPath.Payments,
+         Func<Guid, Task<IResult>>(fun orgId ->
+            OrgId orgId |> getPayments |> RouteUtil.unwrapTaskResultOption)
+      )
+      .RBAC(Permissions.ViewPayments)
+   |> ignore
+
+   app
+      .MapPost(
+         PaymentPath.RequestPayment,
+         Func<ActorSystem, RequestPlatformPaymentCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.RequestPlatformPayment cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManagePayment)
+   |> ignore
+
+   app
+      .MapPost(
+         PaymentPath.CancelPayment,
+         Func<ActorSystem, CancelPlatformPaymentCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.CancelPlatformPayment cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManagePayment)
+   |> ignore
+
+   app
+      .MapPost(
+         PaymentPath.DeclinePayment,
+         Func<ActorSystem, DeclinePlatformPaymentCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.DeclinePlatformPayment cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManagePayment)
+   |> ignore
+
+   app
+      .MapPost(
+         PaymentPath.FulfillPayment,
+         Func<ActorSystem, FulfillPlatformPaymentCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.FulfillPlatformPayment cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManagePayment)
    |> ignore

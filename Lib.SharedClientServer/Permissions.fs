@@ -34,6 +34,10 @@ let EditCardNickname = Access [ admin; card ]
 let ManageTransferRecipient = Access [ admin ]
 let SubmitTransfer = Access [ admin ]
 
+// Payments
+let ViewPayments = Access [ admin; scholar ]
+let ManagePayment = Access [ admin ]
+
 // Transaction
 let GetTransactions = Access [ admin; scholar ]
 let GetTransactionInfo = Access all

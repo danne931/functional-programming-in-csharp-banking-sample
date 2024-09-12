@@ -55,6 +55,10 @@ let App () =
              << SignalRAccountEventProvider
              << MerchantProvider
              << TransactionCategoryProvider)
+      | Routes.IndexUrl.Payments url ->
+         PaymentDashboard.PaymentDashboardComponent url
+         |> UserSessionSuspense
+         |> (UserSessionProvider << OrgProvider)
       | Routes.IndexUrl.NotFound -> Html.h1 "Not Found"
 
    [

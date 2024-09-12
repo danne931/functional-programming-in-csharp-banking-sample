@@ -16,6 +16,7 @@ type State<'Values> = { FormModel: Form.View.Model<'Values> }
 
 type Msg<'Values> =
    | FormChanged of Form.View.Model<'Values>
+   | GetAccountAndSubmit of AccountId * AccountCommand
    | Submit of
       Account *
       AccountCommand *
@@ -32,6 +33,24 @@ let update
    =
    match msg with
    | FormChanged formModel -> { state with FormModel = formModel }, Cmd.none
+   | GetAccountAndSubmit(accountId, command) ->
+      let getAccount = async {
+         let! account = AccountService.getAccount accountId
+
+         match account with
+         | Ok(Some account) -> return Msg.Submit(account, command, Started)
+         | Ok None ->
+            let err =
+               AccountStateTransitionError.AccountNotActive
+               |> Err.AccountStateTransitionError
+               |> Error
+
+            return Msg.Submit(Account.empty, command, Finished err)
+         | Error err ->
+            return Msg.Submit(Account.empty, command, Finished(Error err))
+      }
+
+      state, Cmd.fromAsync getAccount
    | Submit(account, command, Started) ->
       let submit = async {
          let! res = AccountService.submitCommand account command

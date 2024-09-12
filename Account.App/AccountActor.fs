@@ -75,6 +75,7 @@ let actorProps
    (getAccountClosureActor: ActorSystem -> IActorRef<AccountClosureMessage>)
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
@@ -171,6 +172,26 @@ let actorProps
                   mailbox
                   state
                   e
+            | PlatformPaymentPaid e ->
+               let payee = e.Data.BaseInfo.Payee
+
+               let msg =
+                  DepositPlatformPaymentCommand.create
+                     (payee.AccountId, payee.OrgId)
+                     e.CorrelationId
+                     e.InitiatedById
+                     {
+                        BaseInfo = e.Data.BaseInfo
+                        PaymentMethod = e.Data.PaymentMethod
+                     }
+                  |> AccountCommand.DepositPlatformPayment
+                  |> AccountMessage.StateChange
+
+               (getAccountRef payee.AccountId) <! msg
+            (*
+            | ThirdPartyPaymentRequested e ->
+               // TODO: Send email requesting payment
+            *)
             | _ -> ()
 
             return! loop <| Some state
@@ -254,12 +275,13 @@ let actorProps
             | AccountMessage.GetAccount ->
                mailbox.Sender() <! (stateOpt |> Option.map _.Info)
             | AccountMessage.Delete ->
-               let account = {
-                  account with
-                     Status = AccountStatus.ReadyForDelete
-               }
+               let state =
+                  Some {
+                     state with
+                        Info.Status = AccountStatus.ReadyForDelete
+                  }
 
-               return! loop (Some state) <@> DeleteMessages Int64.MaxValue
+               return! loop state <@> DeleteMessages Int64.MaxValue
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent state e)
@@ -320,6 +342,7 @@ let initProps
          AccountClosureActor.get
          BillingStatementActor.get
          getEmployeeRef
+         (get system)
 
    persistenceSupervisor
       supervisorOpts

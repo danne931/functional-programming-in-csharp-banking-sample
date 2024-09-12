@@ -155,39 +155,6 @@ type DebitInfo = {
 /// Tasks to initiate upon employee invite confirmation.
 type EmployeeOnboardingTask = CreateCard of EmployeeInviteSupplementaryCardInfo
 
-type Email = private {
-   Email: string
-} with
-
-   override x.ToString() = x.Email
-
-   static member ofString: Validator<string, Email> =
-      fun field input ->
-         let rule (x: string) =
-            if String.IsNullOrEmpty x then
-               false
-            elif String.length x > 255 then
-               false
-            else
-#if FABLE_COMPILER
-               true
-#else
-               try
-                  (System.Net.Mail.MailAddress x).Address = x
-               with :? FormatException ->
-                  false
-#endif
-
-         let message = sprintf "%s must be a valid email address"
-
-         input
-         |> Validator.create message rule field
-         |> Result.map (fun v -> { Email = v })
-
-   static member deserialize(email: string) : Email = { Email = email }
-
-   static member empty = { Email = "" }
-
 type UserSession = {
    OrgId: OrgId
    EmployeeId: EmployeeId

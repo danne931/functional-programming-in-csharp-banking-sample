@@ -42,6 +42,13 @@ let filtersToEventNames (filters: TransactionGroupFilter list) : string array =
               typeof<DomesticTransferApproved>.Name
               typeof<DomesticTransferRejected>.Name
               typeof<DomesticTransferProgressUpdate>.Name
+             ]
+           | TransactionGroupFilter.PlatformPayment -> [
+              typeof<PlatformPaymentRequested>.Name
+              typeof<PlatformPaymentPaid>.Name
+              typeof<PlatformPaymentDeposited>.Name
+              typeof<PlatformPaymentDeclined>.Name
+              typeof<PlatformPaymentCancelled>.Name
              ])
       []
    |> List.toArray

@@ -42,6 +42,15 @@ module TransferPath =
    let DomesticTransferRecipientEdit = Domestic + "/edit-recipient"
    let NicknameRecipient = Base + "/recipient-nickname"
 
+module PaymentPath =
+   let Base = $"{API}/payments"
+   let Payments = Base + "/{orgId}"
+   let payments (orgId: OrgId) = Base + $"/{orgId}"
+   let RequestPayment = Base + "/request"
+   let CancelPayment = Base + "/cancel"
+   let DeclinePayment = Base + "/decline"
+   let FulfillPayment = Base + "/fulfill"
+
 module TransactionPath =
    let Base = $"{API}/transactions"
    let AccountTransactions = Base + "/{id}"

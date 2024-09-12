@@ -233,6 +233,8 @@ type Err =
    | InvalidStatusCodeError of serviceName: string * code: int
    | SignalRError of exn
    | NetworkError of exn
+   | NotImplementedError of NotImplementedException
+   | UnexpectedError of string
 
    override x.ToString() =
       match x with
@@ -245,14 +247,18 @@ type Err =
       | SerializationError err -> $"SerializationError: {err}"
       | SignalRError e -> $"SignalRError: {e.Message}"
       | NetworkError e -> $"NetworkError: {e.Message}"
+      | NotImplementedError e -> e.Message
+      | UnexpectedError msg -> msg
 
    member x.HumanFriendly =
       match x with
       | DatabaseError _ -> "Database Error"
       | SerializationError _ -> "Serialization Error"
       | SignalRError _ -> "SignalR Error"
-      | NetworkError _ -> string x
-      | InvalidStatusCodeError _ -> string x
+      | NetworkError _ -> "Network Error"
+      | InvalidStatusCodeError _ -> "Invalid Status Code"
+      | NotImplementedError _ -> "Not Implemented"
+      | UnexpectedError msg -> msg
       | ValidationError e ->
          e
          |> ValidationErrors.toList
@@ -400,3 +406,36 @@ type RoutingNumber =
    static member fromString: Validator<string, RoutingNumber> =
       Lib.Validators.parseInt *|* string
       >=> Check.String.equalsLen 9 *|* (Int32.Parse >> RoutingNumber)
+
+type Email = private {
+   Email: string
+} with
+
+   override x.ToString() = x.Email
+
+   static member ofString: Validator<string, Email> =
+      fun field input ->
+         let rule (x: string) =
+            if String.IsNullOrEmpty x then
+               false
+            elif String.length x > 255 then
+               false
+            else
+#if FABLE_COMPILER
+               true
+#else
+               try
+                  (System.Net.Mail.MailAddress x).Address = x
+               with :? FormatException ->
+                  false
+#endif
+
+         let message = sprintf "%s must be a valid email address"
+
+         input
+         |> Validator.create message rule field
+         |> Result.map (fun v -> { Email = v })
+
+   static member deserialize(email: string) : Email = { Email = email }
+
+   static member empty = { Email = "" }

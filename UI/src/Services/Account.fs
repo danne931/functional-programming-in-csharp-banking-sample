@@ -36,6 +36,14 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipientEdit
       | AccountCommand.NicknameRecipient cmd ->
          Serialization.serialize cmd, TransferPath.NicknameRecipient
+      | AccountCommand.RequestPlatformPayment cmd ->
+         Serialization.serialize cmd, PaymentPath.RequestPayment
+      | AccountCommand.CancelPlatformPayment cmd ->
+         Serialization.serialize cmd, PaymentPath.CancelPayment
+      | AccountCommand.DeclinePlatformPayment cmd ->
+         Serialization.serialize cmd, PaymentPath.DeclinePayment
+      | AccountCommand.FulfillPlatformPayment cmd ->
+         Serialization.serialize cmd, PaymentPath.FulfillPayment
       | other -> notImplemented other
 
    Http.postJson url serialized
@@ -110,3 +118,21 @@ let submitCommand
             PendingCommand = command
          }
    }
+
+open Bank.Transfer.Domain
+
+let getPayments (orgId: OrgId) : Async<Result<PaymentSummary option, Err>> = async {
+   let path = PaymentPath.payments orgId
+
+   let! (code, responseText) = Http.get path
+
+   if code = 404 then
+      return Ok None
+   elif code <> 200 then
+      return Error <| Err.InvalidStatusCodeError(serviceName, code)
+   else
+      return
+         responseText
+         |> Serialization.deserialize<PaymentSummary>
+         |> Result.map Some
+}

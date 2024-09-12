@@ -43,6 +43,8 @@ module DateTime =
    let formatShort (date: DateTime) =
       $"{numberToDisplayMonth[date.Month]} {date.Day}"
 
+   let format (date: DateTime) = formatShort date + $", {date.Year}"
+
    let formatRangeShort (dateStart: DateTime) (dateEnd: DateTime) =
       let withYear =
          dateStart.Year <> dateEnd.Year

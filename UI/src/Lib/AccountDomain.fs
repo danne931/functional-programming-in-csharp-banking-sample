@@ -14,6 +14,8 @@ type AccountAndTransactionsMaybe =
 
 type TransactionsMaybe = Result<AccountEvent list option, Err>
 
+type PaymentsMaybe = Result<PaymentSummary option, Err>
+
 type AccountCommandReceipt = {
    PendingCommand: AccountCommand
    PendingEvent: AccountEvent
@@ -25,7 +27,6 @@ type TransactionUIFriendly = {
    Name: string
    DateNaked: DateTime
    Date: string
-   AmountNaked: decimal option
    Amount: string option
    Info: string
    MoneyFlow: MoneyFlow option
@@ -77,7 +78,6 @@ let transactionUIFriendly
       Name = envelope.EventName
       DateNaked = envelope.Timestamp
       Date = dateUIFriendly envelope.Timestamp
-      AmountNaked = None
       Amount = None
       Info = ""
       MoneyFlow = None
@@ -107,7 +107,6 @@ let transactionUIFriendly
          MoneyFlow = Some MoneyFlow.In
          Source = Some evt.Data.Origin
          Destination = Some accountName
-         AmountNaked = Some evt.Data.Amount
          Amount = Some <| Money.format evt.Data.Amount
      }
    | DebitedAccount evt ->
@@ -121,7 +120,6 @@ let transactionUIFriendly
             Name = "Purchase"
             Info = $"Purchase from {evt.Data.Origin} by {employee}"
             Amount = Some <| Money.format evt.Data.Amount
-            AmountNaked = Some evt.Data.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some $"{accountName} via {employee}"
             Destination = Some evt.Data.Origin
@@ -129,7 +127,6 @@ let transactionUIFriendly
    | MaintenanceFeeDebited evt -> {
       props with
          Info = "Maintenance Fee"
-         AmountNaked = Some evt.Data.Amount
          Amount = Some <| Money.format evt.Data.Amount
          MoneyFlow = Some MoneyFlow.Out
      }
@@ -167,7 +164,6 @@ let transactionUIFriendly
             Name = "Internal Transfer"
             Info =
                $"Moved money from {info.Sender.Name} to {info.RecipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
@@ -181,7 +177,6 @@ let transactionUIFriendly
             Name = "Internal Transfer Approved"
             Info =
                $"Approved money movement from {info.Sender.Name} to {info.RecipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
       }
    | InternalTransferWithinOrgRejected evt ->
@@ -194,7 +189,6 @@ let transactionUIFriendly
                $"Declined money movement from {info.Sender.Name} to {info.RecipientName} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.In
       }
@@ -206,7 +200,6 @@ let transactionUIFriendly
             Name = "Transfer Between Orgs"
             Info =
                $"Transferred from {info.Sender.Name} to {info.RecipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
@@ -220,7 +213,6 @@ let transactionUIFriendly
             Name = "Transfer Between Orgs Approved"
             Info =
                $"Approved transfer from {info.Sender.Name} to {info.RecipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
       }
    | InternalTransferBetweenOrgsRejected evt ->
@@ -233,7 +225,6 @@ let transactionUIFriendly
                $"Declined transfer from {info.Sender.Name} to {info.RecipientName} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.In
       }
@@ -249,7 +240,6 @@ let transactionUIFriendly
          props with
             Name = "Domestic Transfer"
             Info = $"Domestic transfer processing to {recipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
@@ -267,7 +257,6 @@ let transactionUIFriendly
          props with
             Name = "Domestic Transfer Approved"
             Info = $"Domestic transfer approved to {recipientName}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
       }
    | DomesticTransferRejected evt ->
@@ -285,7 +274,6 @@ let transactionUIFriendly
                $"Domestic transfer declined to {recipientName} 
                  - Reason {evt.Data.Reason} 
                  - Account refunded"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
             MoneyFlow = Some MoneyFlow.In
             Source = Some accountName
@@ -300,7 +288,6 @@ let transactionUIFriendly
                $"Progress update received for domestic transfer 
                  to {recipientName info.Recipient.AccountId}
                  - Status {evt.Data.Status}"
-            AmountNaked = Some info.Amount
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
       }
    | InternalTransferWithinOrgDeposited evt ->
@@ -310,7 +297,6 @@ let transactionUIFriendly
          props with
             Name = "Transfer Deposit Within Org"
             Info = $"Received transfer deposit from {sender}."
-            AmountNaked = Some evt.Data.Amount
             Amount = Some <| Money.format evt.Data.Amount
             MoneyFlow = Some MoneyFlow.In
             Source = Some sender
@@ -323,7 +309,6 @@ let transactionUIFriendly
          props with
             Name = "Transfer Deposit Between Orgs"
             Info = $"Received transfer deposit from {sender}."
-            AmountNaked = Some evt.Data.Amount
             Amount = Some <| Money.format evt.Data.Amount
             MoneyFlow = Some MoneyFlow.In
             Source = Some sender
@@ -345,6 +330,62 @@ let transactionUIFriendly
             | None -> "Removed recipient nickname."
             | Some name -> $"Updated recipient nickname to {name}"
      }
+   | PlatformPaymentRequested evt ->
+      let p = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Payment Requested"
+            Info = $"Requested payment from {p.Payer.OrgName}"
+            Amount = Some <| Money.format p.Amount
+            MoneyFlow = None
+            Source = Some p.Payer.OrgName
+            Destination = Some accountName
+      }
+   | PlatformPaymentPaid evt ->
+      let p = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Payment Sent"
+            Info = $"Sent payment to {p.Payee.OrgName}."
+            Amount = Some <| Money.format p.Amount
+            MoneyFlow = Some MoneyFlow.Out
+            Source = Some accountName
+            Destination = Some p.Payee.OrgName
+      }
+   | PlatformPaymentDeposited evt ->
+      let p = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Payment"
+            Info = $"Received payment from {p.Payer.OrgName}."
+            Amount = Some <| Money.format p.Amount
+            MoneyFlow = Some MoneyFlow.In
+            Source = Some p.Payer.OrgName
+            Destination = Some accountName
+      }
+   | PlatformPaymentCancelled evt ->
+      let p = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Payment Cancelled"
+            Info = $"Cancelled payment request to {p.Payer.OrgName}"
+            Amount = Some <| Money.format p.Amount
+            MoneyFlow = None
+      }
+   | PlatformPaymentDeclined evt ->
+      let p = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Payment Declined"
+            Info = $"{p.Payer.OrgName} declined payment request"
+            Amount = Some <| Money.format p.Amount
+            MoneyFlow = None
+      }
 
 type SelectedCard = { Display: string; CardId: CardId }
 

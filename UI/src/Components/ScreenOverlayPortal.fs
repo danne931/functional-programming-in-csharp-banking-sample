@@ -47,6 +47,11 @@ let manageVisibility (url: Routes.IndexUrl) =
          match url with
          | Routes.AccountUrl.CreateAccount -> Some OverlaySize.Standard
          | _ -> None
+      | Routes.IndexUrl.Payments url ->
+         match url with
+         | Routes.PaymentUrl.RequestPayment
+         | Routes.PaymentUrl.ViewPayment _ -> Some OverlaySize.Standard
+         | _ -> None
       | _ -> None
 
    let overlayEl = getEl().closest ".screen-overlay"

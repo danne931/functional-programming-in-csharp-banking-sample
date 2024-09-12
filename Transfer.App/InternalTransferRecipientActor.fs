@@ -14,7 +14,6 @@ type InternalTransferMessage =
    | TransferRequestWithinOrg of BankEvent<InternalTransferWithinOrgPending>
    | TransferRequestBetweenOrgs of BankEvent<InternalTransferBetweenOrgsPending>
 
-
 let private declineTransferWithinOrgMsg
    (evt: BankEvent<InternalTransferWithinOrgPending>)
    (reason: TransferDeclinedReason)

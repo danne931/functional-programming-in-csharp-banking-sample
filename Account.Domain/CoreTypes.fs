@@ -109,6 +109,8 @@ type TransactionGroupFilter =
    | InternalTransferWithinOrg
    | InternalTransferBetweenOrgs
    | DomesticTransfer
+   | PlatformPayment
+   //| ThirdPartyPayment
 
    member x.Display =
       match x with
@@ -120,6 +122,10 @@ type TransactionGroupFilter =
          "Transfers between orgs on the platform"
       | TransactionGroupFilter.DomesticTransfer ->
          "Domestic transfers outside the platform"
+      | TransactionGroupFilter.PlatformPayment ->
+         "Payments between orgs on the platform"
+//| TransactionGroupFilter.ThirdPartyPayment ->
+//   "Payments outside the platform"
 
 module TransactionGroupFilter =
    let fromString =
@@ -131,6 +137,8 @@ module TransactionGroupFilter =
       | "InternalTransferBetweenOrgs" ->
          Some TransactionGroupFilter.InternalTransferBetweenOrgs
       | "DomesticTransfer" -> Some TransactionGroupFilter.DomesticTransfer
+      | "PlatformPayment" -> Some TransactionGroupFilter.PlatformPayment
+      //| "ThirdPartyPayment" -> Some TransactionGroupFilter.ThirdPartyPayment
       | _ -> None
 
    let fromQueryString: string -> TransactionGroupFilter list option =

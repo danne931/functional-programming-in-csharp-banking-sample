@@ -7,6 +7,7 @@ open UIDomain.Account
 open UIDomain.Employee
 open UIDomain.Card
 open Lib.SharedTypes
+open Bank.Transfer.Domain
 
 [<RequireQualifiedAccess>]
 type AnalyticsUrl =
@@ -141,6 +142,28 @@ module CardUrl =
       | _ -> CardUrl.NotFound
 
 [<RequireQualifiedAccess>]
+type PaymentUrl =
+   | Payments
+   | RequestPayment
+   | ViewPayment of PaymentId
+   | NotFound
+
+module PaymentUrl =
+   [<Literal>]
+   let BasePath = "payments"
+
+   let RequestPaymentPath = [| BasePath; "request" |]
+
+   let selectedPath (paymentId: PaymentId) = [| BasePath; string paymentId |]
+
+   let parse =
+      function
+      | [] -> PaymentUrl.Payments
+      | [ "request" ] -> PaymentUrl.RequestPayment
+      | [ Route.Guid paymentId ] -> PaymentUrl.ViewPayment(PaymentId paymentId)
+      | _ -> PaymentUrl.NotFound
+
+[<RequireQualifiedAccess>]
 type IndexUrl =
    | Analytics of AnalyticsUrl
    | Account of AccountUrl
@@ -148,6 +171,7 @@ type IndexUrl =
    | EmployeeHistory of EmployeeHistoryUrl
    | Employees of EmployeeUrl
    | Cards of CardUrl
+   | Payments of PaymentUrl
    | NotFound
 
 module IndexUrl =
@@ -174,6 +198,8 @@ module IndexUrl =
          IndexUrl.Employees(EmployeeUrl.parse segments)
       // Matches /cards/{CardUrl}
       | CardUrl.BasePath :: segments -> IndexUrl.Cards(CardUrl.parse segments)
+      | PaymentUrl.BasePath :: segments ->
+         IndexUrl.Payments(PaymentUrl.parse segments)
       | _ -> IndexUrl.NotFound
 
    let current () = Router.currentUrl () |> parse

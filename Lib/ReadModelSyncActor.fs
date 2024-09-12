@@ -114,7 +114,7 @@ let startProjection<'TAggregate, 'TEvent>
                         (fun (aggAcc, eventsAcc) grouping ->
                            let agg, aggEvents = grouping
 
-                           agg :: aggAcc, List.append eventsAcc aggEvents)
+                           agg :: aggAcc, List.append aggEvents eventsAcc)
                         ([], [])
                   |> conf.UpsertReadModels
             // Feed failed upserts back into the stream

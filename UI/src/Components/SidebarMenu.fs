@@ -10,6 +10,7 @@ type private MenuUrl =
    | EmployeeHistory
    | Employee
    | Card
+   | Payment
 
 type private MenuItem = {
    Url: MenuUrl
@@ -29,6 +30,7 @@ let private renderListItem (item: MenuItem) =
          attr.classes [ "selected" ]
       | Employee, Routes.IndexUrl.Employees _ -> attr.classes [ "selected" ]
       | Card, Routes.IndexUrl.Cards _ -> attr.classes [ "selected" ]
+      | Payment, Routes.IndexUrl.Payments _ -> attr.classes [ "selected" ]
       | _ -> ()
 
       attr.children [
@@ -60,6 +62,13 @@ let render (currentUrl: Routes.IndexUrl) (session: UserSession) =
                SelectedUrl = currentUrl
                Name = "Transactions"
                Href = Routes.TransactionUrl.BasePath
+            }
+
+            renderListItem {
+               Url = Payment
+               SelectedUrl = currentUrl
+               Name = "Payments"
+               Href = Routes.PaymentUrl.BasePath
             }
 
             renderListItem {

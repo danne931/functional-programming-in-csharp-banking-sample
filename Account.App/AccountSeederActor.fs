@@ -24,6 +24,10 @@ open Bank.Transfer.Domain
 open Bank.Employee.Domain
 open ActorUtil
 
+let randomAmount min max =
+   let rnd = new Random()
+   decimal (rnd.Next(min, max)) + decimal (rnd.NextDouble())
+
 type Status =
    | AwaitingClusterUp
    | AwaitingVerification
@@ -40,7 +44,7 @@ type State = {
 let orgId = Constants.ORG_ID_REMOVE_SOON
 let orgName = "Sapphire Optics"
 
-type SocialTransferCandidate = {
+type OrgSetup = {
    OrgId: OrgId
    PrimaryAccountId: AccountId
    AccountOwnerId: EmployeeId
@@ -49,133 +53,137 @@ type SocialTransferCandidate = {
    BusinessName: string
 }
 
-let socialTransferOrgs =
-   [
-      {
-         OrgId = "7ef9d8f8-741f-4138-8aa8-37ab6e2e576d" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "0b6c7486-4228-411d-8f39-6db9a98faf27" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "d7cbb60f-c7e7-4cf9-b28c-b5da6c57f493" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Bích"; Last = "Phương" |}
-         AccountOwnerEmail = "bichphuong@gmail.com"
-         BusinessName = "Linear"
-      }
-      {
-         OrgId = "6b20162e-61f3-4434-82e0-e7d27337316b" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "2eb09ebc-bb20-4ef8-88c0-15d5e23125f5" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {|
-            First = "Elsieanne"
-            Last = "Caplette"
-         |}
-         AccountOwnerEmail = "elsiane@gmail.com"
-         BusinessName = "Figma"
-      }
-      {
-         OrgId = "55e75321-b9ad-48cc-b5ad-74af0a7e31b2" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "7918f574-9600-481f-bbc8-0a0430f5a416" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
-         AccountOwnerEmail = "haslinger@gmail.com"
-         BusinessName = "Lendtable"
-      }
-      {
-         OrgId = "4c6d31a0-51de-4ab8-b805-f61eadb78f81" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "c923710d-610d-4bea-a324-de8a66d072cc" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "c931c059-8bff-4a30-ad5f-fc85b3092c11" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {|
-            First = "Finnegan"
-            Last = "Swiftshadow"
-         |}
-         AccountOwnerEmail = "finneganswift@gmail.com"
-         BusinessName = "Shopify"
-      }
-      {
-         OrgId = "4ccbb100-c023-4957-82fd-36c35004a9fd" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "a8ffdd09-4502-4054-bb20-1c12e3f26821" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "3565a715-a7e9-4ef2-b81a-628605aabaa0" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Mahatma"; Last = "Gandhi" |}
-         AccountOwnerEmail = "gandhi@yahoo.com"
-         BusinessName = "Dropbox"
-      }
-      {
-         OrgId = "9f7a2ae5-9cb5-46ac-908e-4427230bf0fe" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "60b76142-bded-4eb3-8c87-89ab9949a65e" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "d260f814-186f-451c-8a9c-8ce2e565fbb4" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Zhi"; Last = "Ng" |}
-         AccountOwnerEmail = "zhi@yahoo.com"
-         BusinessName = "Xero"
-      }
-      {
-         OrgId = "5f808408-04a1-45f3-9e45-eba1ecd7a2da" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "24dc1103-0682-4141-a97e-b3870b8fadbf" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "3c2d88fd-d3aa-4999-8e73-d8129404f00b" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Meorise"; Last = "Sarlee" |}
-         AccountOwnerEmail = "msarlee@yahoo.com"
-         BusinessName = "Huntress"
-      }
-      {
-         OrgId = "e6641c29-b980-4a7a-9b5a-24e01ebd9af0" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "ade87fa5-df43-43da-9903-90d66e986bf8" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "ff4b01e1-5d63-4eb1-a03a-11a976cb2f68" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {|
-            First = "Nakiasha"
-            Last = "Daleth"
-         |}
-         AccountOwnerEmail = "nakiasha@yahoo.com"
-         BusinessName = "Dusty Robotics"
-      }
-      {
-         OrgId = "b854d513-c40e-4582-bf2f-688d6a73a21a" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "29963c00-c366-431e-84c2-cee5a3258581" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "e8e8de39-dce0-4c70-89e4-5ab345949f99" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Pruncha"; Last = "Yukio" |}
-         AccountOwnerEmail = "yukio@yahoo.com"
-         BusinessName = "Github"
-      }
-      {
-         OrgId = "1e01868e-adcb-4c5d-8a8b-f75bc36db0f5" |> Guid.Parse |> OrgId
-         PrimaryAccountId =
-            "b260b00f-8f09-47c2-9fe5-c6d19742b125" |> Guid.Parse |> AccountId
-         AccountOwnerId =
-            "20038dd5-e7f2-478d-a57b-6165969471a4" |> Guid.Parse |> EmployeeId
-         AccountOwnerName = {| First = "Aio"; Last = "Usagi" |}
-         AccountOwnerEmail = "usagi@yahoo.com"
-         BusinessName = "Segment"
-      }
-   ]
-   |> List.map (fun o -> o.OrgId, o)
-   |> Map.ofList
+let socialTransferCandidates = [
+   {
+      OrgId = "6b20162e-61f3-4434-82e0-e7d27337316b" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "2eb09ebc-bb20-4ef8-88c0-15d5e23125f5" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {|
+         First = "Elsieanne"
+         Last = "Caplette"
+      |}
+      AccountOwnerEmail = "elsiane@gmail.com"
+      BusinessName = "Figma"
+   }
+   {
+      OrgId = "55e75321-b9ad-48cc-b5ad-74af0a7e31b2" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "7918f574-9600-481f-bbc8-0a0430f5a416" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
+      AccountOwnerEmail = "haslinger@gmail.com"
+      BusinessName = "Lendtable"
+   }
+   {
+      OrgId = "4c6d31a0-51de-4ab8-b805-f61eadb78f81" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "c923710d-610d-4bea-a324-de8a66d072cc" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "c931c059-8bff-4a30-ad5f-fc85b3092c11" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {|
+         First = "Finnegan"
+         Last = "Swiftshadow"
+      |}
+      AccountOwnerEmail = "finneganswift@gmail.com"
+      BusinessName = "Shopify"
+   }
+]
 
-let socialTransferSenders, socialTransferCandidates =
-   socialTransferOrgs
-   |> Map.partition (fun _ o -> o.AccountOwnerEmail.Contains "yahoo")
+let socialTransferSenders = [
+   {
+      OrgId = "5f808408-04a1-45f3-9e45-eba1ecd7a2da" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "24dc1103-0682-4141-a97e-b3870b8fadbf" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "3c2d88fd-d3aa-4999-8e73-d8129404f00b" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Meorise"; Last = "Sarlee" |}
+      AccountOwnerEmail = "msarlee@yahoo.com"
+      BusinessName = "Huntress"
+   }
+   {
+      OrgId = "b854d513-c40e-4582-bf2f-688d6a73a21a" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "29963c00-c366-431e-84c2-cee5a3258581" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "e8e8de39-dce0-4c70-89e4-5ab345949f99" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Pruncha"; Last = "Yukio" |}
+      AccountOwnerEmail = "yukio@yahoo.com"
+      BusinessName = "Github"
+   }
+   {
+      OrgId = "1e01868e-adcb-4c5d-8a8b-f75bc36db0f5" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "b260b00f-8f09-47c2-9fe5-c6d19742b125" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "20038dd5-e7f2-478d-a57b-6165969471a4" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Aio"; Last = "Usagi" |}
+      AccountOwnerEmail = "usagi@yahoo.com"
+      BusinessName = "Segment"
+   }
+]
+
+let socialTransferOrgs = socialTransferCandidates @ socialTransferSenders
+
+let paymentRequesters = [
+   {
+      OrgId = "e6641c29-b980-4a7a-9b5a-24e01ebd9af0" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "ade87fa5-df43-43da-9903-90d66e986bf8" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "ff4b01e1-5d63-4eb1-a03a-11a976cb2f68" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {|
+         First = "Nakiasha"
+         Last = "Daleth"
+      |}
+      AccountOwnerEmail = "nakiasha@yahoo.com"
+      BusinessName = "Dusty Robotics"
+   }
+   {
+      OrgId = "7ef9d8f8-741f-4138-8aa8-37ab6e2e576d" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "0b6c7486-4228-411d-8f39-6db9a98faf27" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "d7cbb60f-c7e7-4cf9-b28c-b5da6c57f493" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Bích"; Last = "Phương" |}
+      AccountOwnerEmail = "bichphuong@gmail.com"
+      BusinessName = "Linear"
+   }
+]
+
+let paymentPayers = [
+   {
+      OrgId = "4ccbb100-c023-4957-82fd-36c35004a9fd" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "a8ffdd09-4502-4054-bb20-1c12e3f26821" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "3565a715-a7e9-4ef2-b81a-628605aabaa0" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Mahatma"; Last = "Gandhi" |}
+      AccountOwnerEmail = "gandhi@yahoo.com"
+      BusinessName = "Dropbox"
+   }
+   {
+      OrgId = "9f7a2ae5-9cb5-46ac-908e-4427230bf0fe" |> Guid.Parse |> OrgId
+      PrimaryAccountId =
+         "60b76142-bded-4eb3-8c87-89ab9949a65e" |> Guid.Parse |> AccountId
+      AccountOwnerId =
+         "d260f814-186f-451c-8a9c-8ce2e565fbb4" |> Guid.Parse |> EmployeeId
+      AccountOwnerName = {| First = "Zhi"; Last = "Ng" |}
+      AccountOwnerEmail = "zhi@yahoo.com"
+      BusinessName = "Xero"
+   }
+]
+
+let otherOrgs = socialTransferOrgs @ paymentRequesters @ paymentPayers
 
 // TODO: Temporarily create org here until fleshed Out
 let createOrgs () =
    let myOrg = orgId, orgName
 
    let otherOrgs =
-      socialTransferOrgs.Values
-      |> Seq.map (fun o -> o.OrgId, o.BusinessName)
-      |> List.ofSeq
+      otherOrgs |> List.map (fun o -> o.OrgId, o.BusinessName) |> List.ofSeq
 
    let orgs = myOrg :: otherOrgs
 
@@ -222,13 +230,12 @@ let enableOrgSocialTransferDiscovery () =
       WHERE op.{OrgFields.orgId} = u.org;
       """
 
-   let orgIds =
-      socialTransferOrgs |> Map.toArray |> Array.map (fst >> OrgId.get)
+   let orgIds = otherOrgs |> List.map (_.OrgId >> OrgId.get) |> List.toArray
 
    let accountIds =
-      socialTransferOrgs
-      |> Map.toArray
-      |> Array.map (snd >> _.PrimaryAccountId >> AccountId.get)
+      otherOrgs
+      |> List.map (_.PrimaryAccountId >> AccountId.get)
+      |> List.toArray
 
    pgPersist query [
       "orgIds", Sql.uuidArray orgIds
@@ -380,25 +387,24 @@ let mockAccounts =
       }
       |> withModifiedTimestamp
 
-   let socialTransferOrgs =
-      socialTransferOrgs
-      |> Map.fold
-            (fun acc _ o ->
-               let cmd =
-                  CreateAccountCommand.create {
-                     Name = "AR"
-                     Currency = Currency.USD
-                     Depository = AccountDepository.Checking
-                     AccountId = o.PrimaryAccountId
-                     AccountNumber = AccountNumber.generate ()
-                     OrgId = o.OrgId
-                     InitiatedBy = InitiatedById o.AccountOwnerId
-                  }
-                  |> withModifiedTimestamp
+   let otherOrgs =
+      otherOrgs
+      |> List.fold
+         (fun acc o ->
+            let cmd =
+               CreateAccountCommand.create {
+                  Name = "AR"
+                  Currency = Currency.USD
+                  Depository = AccountDepository.Checking
+                  AccountId = o.PrimaryAccountId
+                  AccountNumber = AccountNumber.generate ()
+                  OrgId = o.OrgId
+                  InitiatedBy = InitiatedById o.AccountOwnerId
+               }
+               |> withModifiedTimestamp
 
-               Map.add o.PrimaryAccountId cmd acc)
-            Map.empty
-      |> Map.toSeq
+            (o.PrimaryAccountId, cmd) :: acc)
+         []
 
    Map [
       cmd1.Data.AccountId, cmd1
@@ -407,11 +413,17 @@ let mockAccounts =
 
       cmd3.Data.AccountId, cmd3
 
-      yield! socialTransferOrgs
+      yield! otherOrgs
    ]
 
 let accountInitialDeposits =
-   Map [ arCheckingAccountId, 2_500_931m; opsCheckingAccountId, 1_391_100m ]
+   Map [
+      arCheckingAccountId, 2_500_931m
+      opsCheckingAccountId, 1_391_100m
+
+      for org in otherOrgs do
+         org.PrimaryAccountId, randomAmount 700_000 13_550_003
+   ]
 
 let mockAccountOwnerCards =
    let cmd = mockAccountOwnerCmd
@@ -555,9 +567,98 @@ let mockEmployeesPendingInviteConfirmation =
          Timestamp = mockAccountOwnerCmd.Timestamp
    })
 
-let randomAmount min max =
-   let rnd = new Random()
-   decimal (rnd.Next(min, max)) + decimal (rnd.NextDouble())
+let seedPayments (getAccountRef: AccountId -> IEntityRef<AccountMessage>) = task {
+   let demoAccountId = arCheckingAccountId
+
+   // Payment requests from main demo org to other orgs
+   let requestsFromDemoAccount = [
+      for payer in paymentPayers ->
+         payer,
+         RequestPlatformPaymentCommand.create
+            (demoAccountId, orgId)
+            mockAccountOwnerId
+            {
+               Memo = "Services rendered..."
+               Expiration = None
+               BaseInfo = {
+                  InitiatedById = mockAccountOwnerId
+                  Id = Guid.NewGuid() |> PaymentId
+                  Amount = randomAmount 3000 5000
+                  Payee = {
+                     OrgId = orgId
+                     OrgName = orgName
+                     AccountId = arCheckingAccountId
+                  }
+                  Payer = {
+                     OrgId = payer.OrgId
+                     OrgName = payer.BusinessName
+                  }
+               }
+            }
+   ]
+
+   for _, request in requestsFromDemoAccount do
+      let msg =
+         request
+         |> AccountCommand.RequestPlatformPayment
+         |> AccountMessage.StateChange
+
+      (getAccountRef demoAccountId) <! msg
+
+   // Some payment requests fulfilled
+   for payer, request in [ List.head requestsFromDemoAccount ] do
+      let info = request.Data.BaseInfo
+      let accountId = payer.PrimaryAccountId
+
+      let msg =
+         FulfillPlatformPaymentCommand.create
+            (InitiatedById payer.AccountOwnerId)
+            {
+               RequestedPayment = {
+                  Memo = request.Data.Memo
+                  Expiration =
+                     request
+                     |> RequestPlatformPaymentCommand.toEvent
+                     |> Result.toValueOption
+                     |> fun p -> p.Value.Data.Expiration
+                  BaseInfo = info
+               }
+               PaymentMethod = accountId
+            }
+         |> AccountCommand.FulfillPlatformPayment
+         |> AccountMessage.StateChange
+
+      (getAccountRef accountId) <! msg
+
+   // Payment requests from other orgs to main demo org
+   for payee in paymentRequesters do
+      let cmd =
+         RequestPlatformPaymentCommand.create
+            (payee.PrimaryAccountId, payee.OrgId)
+            (InitiatedById payee.AccountOwnerId)
+            {
+               Expiration = Some <| DateTime.UtcNow.AddDays 13
+               Memo = "Services rendered..."
+               BaseInfo = {
+                  InitiatedById = InitiatedById payee.AccountOwnerId
+                  Id = Guid.NewGuid() |> PaymentId
+                  Amount = 5000m + randomAmount 1000 3000
+                  Payee = {
+                     OrgId = payee.OrgId
+                     OrgName = payee.BusinessName
+                     AccountId = payee.PrimaryAccountId
+                  }
+                  Payer = { OrgId = orgId; OrgName = orgName }
+               }
+            }
+
+      let msg =
+         cmd
+         |> AccountCommand.RequestPlatformPayment
+         |> AccountMessage.StateChange
+
+      (getAccountRef payee.PrimaryAccountId) <! msg
+}
 
 let seedAccountOwnerActions
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
@@ -653,8 +754,8 @@ let seedAccountOwnerActions
 
             accountRef <! msg
 
-            let ind = int (randomAmount 0 (socialTransferSenders.Length() - 1))
-            let sender = socialTransferSenders.Values |> Seq.item ind
+            let ind = int (randomAmount 0 (socialTransferSenders.Length - 1))
+            let sender = socialTransferSenders |> List.item ind
 
             let msg =
                let ts = timestamp.AddDays(float (maxDays - 1))
@@ -685,10 +786,9 @@ let seedAccountOwnerActions
 
             accountRef <! msg
 
-            let ind =
-               int (randomAmount 0 (socialTransferCandidates.Length() - 1))
+            let ind = int (randomAmount 0 (socialTransferCandidates.Length - 1))
 
-            let recipient = socialTransferCandidates.Values |> Seq.item ind
+            let recipient = socialTransferCandidates |> List.item ind
 
             let timestamp = timestamp.AddDays(float (maxDays - 1))
 
@@ -833,7 +933,7 @@ let seedEmployeeActions
          employeeRef <! msg
 
 let createAccountOwners getEmployeeRef =
-   let createAccountOwnerCmd (business: SocialTransferCandidate) =
+   let createAccountOwnerCmd (business: OrgSetup) =
       let date = DateTime.Today
       let startOfMonth = DateTime(date.Year, date.Month, 1).ToUniversalTime()
       let ts = startOfMonth.AddMonths -3
@@ -849,10 +949,9 @@ let createAccountOwners getEmployeeRef =
             Timestamp = ts
       }
 
-   let socialTransferAccountOwners =
-      socialTransferOrgs.Values |> Seq.toList |> List.map createAccountOwnerCmd
+   let otherAccountOwners = otherOrgs |> List.map createAccountOwnerCmd
 
-   for cmd in mockAccountOwnerCmd :: socialTransferAccountOwners do
+   for cmd in mockAccountOwnerCmd :: otherAccountOwners do
       let employeeId = cmd.Data.EmployeeId
 
       let createMsg =
@@ -994,9 +1093,6 @@ let seedAccountTransactions
          let accountOwnerId =
             EmployeeId.fromEntityId businessCardCreateCmd.EntityId
 
-         let accountOwnerBusinessCardId = businessCardCreateCmd.Data.CardId
-         let employeeRef = getEmployeeRef accountOwnerId
-
          let! account = accountRef <? AccountMessage.GetAccount
 
          match account with
@@ -1024,6 +1120,8 @@ let seedAccountTransactions
                   $"Can not proceed with purchases - eId: {employeeId} cId: {cardId}"
             | Some(employee, card) ->
                seedEmployeeActions card employee employeeRef timestamp
+
+         do! seedPayments getAccountRef
    }
 
 // Creates a new Map consisting of initial state of accounts to create

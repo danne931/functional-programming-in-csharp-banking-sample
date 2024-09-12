@@ -113,7 +113,7 @@ let OrgSearchComponent
       Html.input [
          attr.type' "search"
          attr.name $"search-orgs"
-         attr.placeholder "Search by name"
+         attr.placeholder "Search by organization"
          attr.ariaLabel "Search orgs"
          attr.value (state.SearchInput |> Option.defaultValue "")
          attr.onChange (Msg.SetSearchInput >> dispatch)

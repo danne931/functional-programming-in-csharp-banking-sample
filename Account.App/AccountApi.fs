@@ -212,6 +212,18 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
          NicknameRecipientCommand.toEvent cmd |> Result.map AccountEnvelope.get
       | CloseAccount cmd ->
          CloseAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | RequestPlatformPayment cmd ->
+         RequestPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | CancelPlatformPayment cmd ->
+         CancelPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | DeclinePlatformPayment cmd ->
+         DeclinePlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | FulfillPlatformPayment cmd ->
+         FulfillPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | cmd ->
          Error
          <| ValidationErrors.create "" [

@@ -276,6 +276,7 @@ let renderControlPanel
                      TransactionGroupFilter.InternalTransferWithinOrg
                      TransactionGroupFilter.InternalTransferBetweenOrgs
                      TransactionGroupFilter.DomesticTransfer
+                     TransactionGroupFilter.PlatformPayment
                   ]
                   |> List.map (fun o -> { Id = o; Display = o.Display })
                SelectedItems = query.EventType
@@ -422,7 +423,18 @@ let renderTableRow
       if TransactionDetail.hasRenderImplementation evt then
          attr.onClick (fun _ -> dispatch (Msg.ViewTransaction envelope.Id))
       else
-         attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
+         let paymentIdOpt =
+            match evt with
+            | AccountEvent.PlatformPaymentDeposited e -> Some e.Data.BaseInfo.Id
+            | AccountEvent.PlatformPaymentPaid e -> Some e.Data.BaseInfo.Id
+            | _ -> None
+
+         match paymentIdOpt with
+         | Some paymentId ->
+            attr.onClick (fun _ ->
+               Routes.PaymentUrl.selectedPath paymentId |> Router.navigate)
+         | None ->
+            attr.style [ style.cursor.defaultCursor; style.borderLeftWidth 0 ]
 
       attr.children [
          Html.th [ attr.scope "row" ]

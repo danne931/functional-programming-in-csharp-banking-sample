@@ -9,6 +9,9 @@ DROP VIEW IF EXISTS monthly_purchase_accrued_by_card;
 
 DROP TABLE IF EXISTS balance_history;
 DROP TABLE IF EXISTS billingstatement;
+DROP TABLE IF EXISTS platform_payment;
+DROP TABLE IF EXISTS third_party_payment;
+DROP TABLE IF EXISTS payment;
 DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
@@ -29,6 +32,9 @@ DROP TYPE IF EXISTS account_depository;
 DROP TYPE IF EXISTS account_status;
 DROP TYPE IF EXISTS card_status;
 DROP TYPE IF EXISTS card_type;
+DROP TYPE IF EXISTS platform_payment_status;
+DROP TYPE IF EXISTS third_party_payment_status;
+DROP TYPE IF EXISTS payment_type;
 
 CREATE TYPE time_frame AS ENUM ('day', 'month');
 
@@ -275,7 +281,63 @@ CREATE TABLE balance_history(
    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
    date DATE NOT NULL,
    balance NUMERIC NOT NULL,
+   id SERIAL PRIMARY KEY,
    CONSTRAINT account_date UNIQUE (account_id, date)
+);
+
+CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
+CREATE TABLE payment(
+   payment_id UUID PRIMARY KEY,
+   initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
+   amount MONEY NOT NULL,
+   memo TEXT NOT NULL,
+   payment_type payment_type NOT NULL,
+   expiration TIMESTAMPTZ NOT NULL,
+   payee_org_id UUID NOT NULL REFERENCES organization,
+   payee_account_id UUID NOT NULL REFERENCES account,
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE platform_payment_status AS ENUM (
+   'Unpaid',
+   'Paid',
+   'Deposited',
+   'Cancelled',
+   'Declined'
+);
+CREATE TABLE platform_payment(
+   payment_id UUID PRIMARY KEY REFERENCES payment,
+   status platform_payment_status NOT NULL,
+   payer_org_id UUID NOT NULL REFERENCES organization,
+   -- An organization who conducts business on the platform
+   -- may choose to pay by one of their accounts.  
+   -- Alternatively, they may choose to pay by ACH or card (TODO)
+   pay_by_account UUID REFERENCES account(account_id),
+   --pay_by_card ...
+   --pay_by_ach ...
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE third_party_payment_status AS ENUM (
+   'Unpaid',
+   'Deposited',
+   'Cancelled'
+);
+
+-- An organization who does not conduct business on the platform
+-- will receive an email requesting a payment.
+-- They will be redirected to a secure form to pay by ACH or card.
+-- TODO: 
+-- This table will be developed more after researching
+-- Plaid and seeing what data will be necessary for paying by ACH/card.
+CREATE TABLE third_party_payment(
+   payment_id UUID PRIMARY KEY REFERENCES payment,
+   status_tp third_party_payment_status NOT NULL,
+   payer_email VARCHAR(255) NOT NULL,
+   payer_name VARCHAR(100) NOT NULL,
+   --pay_by_card ...
+   --pay_by_ach ...
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE OR REPLACE PROCEDURE seed_balance_history()
@@ -443,7 +505,11 @@ BEGIN
          AND DATE_TRUNC('month', t.timestamp) = months.month
          -- Exclude internal transfers within an org while still fetching
          -- internal transfers between orgs.
-         AND t.name NOT IN('InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected', 'InternalTransferWithinOrgDeposited')
+         AND t.name NOT IN(
+            'InternalTransferWithinOrgPending',
+            'InternalTransferWithinOrgRejected',
+            'InternalTransferWithinOrgDeposited'
+         )
    ) t ON true
    GROUP BY months.month
    ORDER BY months.month;
@@ -574,9 +640,12 @@ BEGIN
 
      COALESCE(
         SUM(
-           CASE 
-
-           WHEN t.name IN('InternalTransferWithinOrgPending', 'InternalTransferBetweenOrgsPending') 
+           CASE
+           WHEN t.name IN(
+              'InternalTransferWithinOrgPending',
+              'InternalTransferBetweenOrgsPending',
+              'PlatformPaymentPaid'
+           )
            THEN t.amount::numeric
 
            WHEN t.name IN('InternalTransferWithinOrgRejected', 'InternalTransferBetweenOrgsRejected') 
@@ -606,7 +675,8 @@ BEGIN
      AND t.name IN (
         'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected',
         'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected',
-        'DomesticTransferPending', 'DomesticTransferRejected'
+        'DomesticTransferPending', 'DomesticTransferRejected',
+        'PlatformPaymentPaid'
      )
      AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
      -- TODO: Create internal/domestic transfer read model tables 

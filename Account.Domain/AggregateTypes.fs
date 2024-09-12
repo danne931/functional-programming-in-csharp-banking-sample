@@ -29,6 +29,11 @@ type AccountCommand =
    | UpdateDomesticTransferProgress of UpdateDomesticTransferProgressCommand
    | ApproveDomesticTransfer of ApproveDomesticTransferCommand
    | RejectDomesticTransfer of RejectDomesticTransferCommand
+   | RequestPlatformPayment of RequestPlatformPaymentCommand
+   | CancelPlatformPayment of CancelPlatformPaymentCommand
+   | DeclinePlatformPayment of DeclinePlatformPaymentCommand
+   | FulfillPlatformPayment of FulfillPlatformPaymentCommand
+   | DepositPlatformPayment of DepositPlatformPaymentCommand
    | NicknameRecipient of NicknameRecipientCommand
    | CloseAccount of CloseAccountCommand
    | StartBillingCycle of StartBillingCycleCommand
@@ -62,6 +67,11 @@ type AccountEvent =
    | DomesticTransferProgress of BankEvent<DomesticTransferProgressUpdate>
    | DomesticTransferApproved of BankEvent<DomesticTransferApproved>
    | DomesticTransferRejected of BankEvent<DomesticTransferRejected>
+   | PlatformPaymentRequested of BankEvent<PlatformPaymentRequested>
+   | PlatformPaymentCancelled of BankEvent<PlatformPaymentCancelled>
+   | PlatformPaymentDeclined of BankEvent<PlatformPaymentDeclined>
+   | PlatformPaymentPaid of BankEvent<PlatformPaymentPaid>
+   | PlatformPaymentDeposited of BankEvent<PlatformPaymentDeposited>
    | RecipientNicknamed of BankEvent<RecipientNicknamed>
    | AccountClosed of BankEvent<AccountClosed>
    | BillingCycleStarted of BankEvent<BillingCycleStarted>
@@ -117,6 +127,15 @@ module AccountEnvelope =
          DomesticTransferApproved evt
       | :? BankEvent<DomesticTransferRejected> as evt ->
          DomesticTransferRejected evt
+      | :? BankEvent<PlatformPaymentRequested> as evt ->
+         PlatformPaymentRequested evt
+      | :? BankEvent<PlatformPaymentCancelled> as evt ->
+         PlatformPaymentCancelled evt
+      | :? BankEvent<PlatformPaymentDeclined> as evt ->
+         PlatformPaymentDeclined evt
+      | :? BankEvent<PlatformPaymentPaid> as evt -> PlatformPaymentPaid evt
+      | :? BankEvent<PlatformPaymentDeposited> as evt ->
+         PlatformPaymentDeposited evt
       | :? BankEvent<AccountClosed> as evt -> AccountClosed evt
       | :? BankEvent<BillingCycleStarted> as evt -> BillingCycleStarted evt
       | _ -> failwith "Missing definition for AccountEvent message"
@@ -143,6 +162,11 @@ module AccountEnvelope =
       | RecipientNicknamed evt -> wrap evt, get evt
       | InternalTransferWithinOrgDeposited evt -> wrap evt, get evt
       | InternalTransferBetweenOrgsDeposited evt -> wrap evt, get evt
+      | PlatformPaymentRequested evt -> wrap evt, get evt
+      | PlatformPaymentCancelled evt -> wrap evt, get evt
+      | PlatformPaymentDeclined evt -> wrap evt, get evt
+      | PlatformPaymentPaid evt -> wrap evt, get evt
+      | PlatformPaymentDeposited evt -> wrap evt, get evt
       | AccountClosed evt -> wrap evt, get evt
       | BillingCycleStarted evt -> wrap evt, get evt
 

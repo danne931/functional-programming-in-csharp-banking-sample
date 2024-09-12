@@ -46,6 +46,8 @@
     <Compile Include="Components/Forms/AccountProfile.fs" />
     <Compile Include="Components/Forms/CardAccess.fs" />
     <Compile Include="Components/Forms/Transfer.fs" />
+    <Compile Include="Components/Forms/RequestPayment.fs" />
+    <Compile Include="Components/Forms/FulfillPayment.fs" />
     <Compile Include="Components/Forms/RegisterTransferRecipient.fs" />
     <Compile Include="Components/Forms/DailyDebitLimit.fs" />
     <Compile Include="Components/Forms/MonthlyDebitLimit.fs" />
@@ -68,6 +70,8 @@
     <Compile Include="Components/CardActionMenu.fs" />
     <Compile Include="Components/AnalyticsDashboard.fs" />
     <Compile Include="Components/AccountSummary.fs" />
+    <Compile Include="Components/PaymentDetail.fs" />
+    <Compile Include="Components/PaymentDashboard.fs" />
     <Compile Include="Components/TransactionDashboard.fs" />
     <Compile Include="Components/AccountDashboard.fs" />
     <Compile Include="Components/CardDetail.fs" />
