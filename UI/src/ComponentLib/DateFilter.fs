@@ -109,7 +109,7 @@ let DateFilterComponent
 
       match dateFilter with
       | Some(DateFilter.Custom(startDate, endDate)) ->
-         CustomDateRange.CustomDateRangeComponent
+         CustomDateRangeInput.DateRangeInputComponent
             startDate
             endDate
             (fun (dateStart, dateEnd) ->
