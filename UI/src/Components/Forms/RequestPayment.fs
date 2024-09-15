@@ -17,7 +17,7 @@ type Values = {
    PayeeAccountId: string
    PayerOrgId: string
    Memo: string
-   Expiration: DateTime option
+   Expiration: string
 }
 
 let amountField =
@@ -47,6 +47,29 @@ let memoField =
          HtmlAttributes = []
       }
    }
+
+let expirationField =
+   Form.dateField {
+      Parser =
+         CustomDateInterpreter.validate
+            CustomDateInterpreter.DateSignifier.Start
+         >> Result.bind (
+            snd
+            >> dateInFutureValidator "Expiration"
+            >> validationErrorsHumanFriendly
+         )
+      Value = _.Expiration
+      Update = fun newValue values -> { values with Expiration = newValue }
+      Error = fun _ -> None
+      Attributes = {
+         Label = "Expiration:"
+         Placeholder = "Payment request expires on"
+         HtmlAttributes = []
+      }
+   }
+
+let expirationForm =
+   Form.succeed id |> Form.append expirationField |> Form.optional
 
 let formPlatformPayment
    (payeeOrg: Org)
@@ -103,6 +126,7 @@ let formPlatformPayment
       (selectedPayerOrgId: string)
       (amount: decimal)
       (memo: string)
+      (expirationOpt: DateTime option)
       (selectedDestinationAccountId: string)
       =
       let payerOrg =
@@ -118,7 +142,7 @@ let formPlatformPayment
             payeeAccount.CompositeId
             initiatedBy
             {
-               Expiration = None // TODO: add expiration input
+               Expiration = expirationOpt |> Option.map _.ToUniversalTime()
                Memo = memo
                BaseInfo = {
                   Id = Guid.NewGuid() |> PaymentId
@@ -143,6 +167,7 @@ let formPlatformPayment
    |> Form.append fieldOrgPayerSelect
    |> Form.append amountField
    |> Form.append memoField
+   |> Form.append expirationForm
    |> Form.append fieldPayeeAccountSelect
 
 [<ReactComponent>]
@@ -164,7 +189,7 @@ let PaymentRequestFormComponent
       PayeeAccountId = defaultDestinationAccount
       PayerOrgId = ""
       Memo = ""
-      Expiration = None
+      Expiration = ""
    }
 
    let initiatedBy = InitiatedById session.EmployeeId

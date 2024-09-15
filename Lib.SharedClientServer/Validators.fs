@@ -37,9 +37,14 @@ let dateNotDefaultValidator propName =
    let msg = sprintf "%s should not be missing"
    Check.WithMessage.DateTime.notEquals DateTime.MinValue msg propName
 
-let dateInFutureValidator propName =
+let dateInFutureValidator propName (date: DateTime) =
    let msg = sprintf "%s should be in the future"
-   Check.WithMessage.DateTime.greaterThan DateTime.UtcNow msg propName
+
+   Check.WithMessage.DateTime.greaterThan
+      DateTime.UtcNow
+      msg
+      propName
+      (date.ToUniversalTime())
 
 let transferRecipientIdValidator senderId =
    let msg = sprintf "%s should not equal sender id"

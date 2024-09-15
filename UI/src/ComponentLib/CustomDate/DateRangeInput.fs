@@ -9,6 +9,9 @@ open Lib.Time
 
 module Interpreter = CustomDateInterpreter
 
+let private validateStart = Interpreter.validate Interpreter.DateSignifier.Start
+let private validateEnd = Interpreter.validate Interpreter.DateSignifier.End
+
 type State = {
    Input: {| Start: string; End: string |}
    ValidatedDate: {| Start: DateTime; End: DateTime |}
@@ -33,14 +36,14 @@ let init (startDate: DateTime) (endDate: DateTime) () =
          (Interpreter.ValidDay.Number startDate.Day)
          (Interpreter.ValidMonth startDate.Month)
          (Interpreter.ValidYear startDate.Year)
-         Interpreter.DateRangeSignifier.Start
+         Interpreter.DateSignifier.Start
 
    let endInput, endDate =
       Interpreter.inputToValidatedDateFormat
          (Interpreter.ValidDay.Number endDate.Day)
          (Interpreter.ValidMonth endDate.Month)
          (Interpreter.ValidYear endDate.Year)
-         Interpreter.DateRangeSignifier.End
+         Interpreter.DateSignifier.End
 
    {
       Input = {| Start = startInput; End = endInput |}
@@ -83,9 +86,7 @@ let update (onValidDateRange: DateTime * DateTime -> unit) msg state =
 
       let state =
          if state.ValidateOnKeyPress.Start then
-            match
-               Interpreter.validate input Interpreter.DateRangeSignifier.Start
-            with
+            match validateStart input with
             | Ok(_, date) ->
                {
                   state with
@@ -106,9 +107,7 @@ let update (onValidDateRange: DateTime * DateTime -> unit) msg state =
 
       let state =
          if state.ValidateOnKeyPress.End then
-            match
-               Interpreter.validate input Interpreter.DateRangeSignifier.End
-            with
+            match validateEnd input with
             | Ok(_, date) ->
                {
                   state with
@@ -125,11 +124,7 @@ let update (onValidDateRange: DateTime * DateTime -> unit) msg state =
 
       state, Cmd.none
    | Msg.SubmitStart ->
-      match
-         Interpreter.validate
-            state.Input.Start
-            Interpreter.DateRangeSignifier.Start
-      with
+      match validateStart state.Input.Start with
       | Ok(formatted, startDate) ->
          let oldState = state
 
@@ -163,9 +158,7 @@ let update (onValidDateRange: DateTime * DateTime -> unit) msg state =
          },
          Cmd.none
    | Msg.SubmitEnd ->
-      match
-         Interpreter.validate state.Input.End Interpreter.DateRangeSignifier.End
-      with
+      match validateEnd state.Input.End with
       | Ok(formatted, endDate) ->
          let oldState = state
 

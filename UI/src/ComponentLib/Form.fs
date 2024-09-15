@@ -77,7 +77,7 @@ module Form =
             attr.disabled disabled
             attr.value value
             attr.placeholder attributes.Placeholder
-            attr.ariaLabel (string typ)
+            attr.ariaLabel attributes.Label
             if showError && error.IsSome then
                attr.ariaInvalid true
             match typ with
@@ -87,6 +87,33 @@ module Form =
             yield! attributes.HtmlAttributes
          ]
          |> withLabelAndError attributes.Label showError error
+
+      let dateField
+         ({
+             Dispatch = dispatch
+             OnChange = onChange
+             OnBlur = onBlur
+             Disabled = _
+             Value = _
+             Error = error
+             ShowError = showError
+             Attributes = attributes
+          }: TextFieldConfig<'Msg, IReactProperty>)
+         =
+         let onChange = fst >> onChange >> dispatch
+         let onValidDate = React.useCallbackRef onChange
+
+         Html.div [
+            attr.onBlur (fun _ -> onBlur |> Option.iter dispatch)
+
+            attr.children [
+               CustomDateInput.DateInputComponent {|
+                  OnValidDate = onValidDate
+                  RestrictDateToFuture = true
+               |}
+               |> withLabelAndError attributes.Label showError error
+            ]
+         ]
 
       let selectField
          ({
@@ -100,7 +127,6 @@ module Form =
              Attributes = attributes
           }: SelectFieldConfig<'Msg>)
          =
-
          let toOption (key: string, label: string) =
             Html.option [
                attr.value key
@@ -234,7 +260,7 @@ module Form =
          PasswordField = fun _ -> Html.none
          TextAreaField = fun _ -> Html.none
          ColorField = fun _ -> Html.none
-         DateField = fun _ -> Html.none
+         DateField = dateField
          DateTimeLocalField = fun _ -> Html.none
          SearchField = fun _ -> Html.none
          TelField = fun _ -> Html.none

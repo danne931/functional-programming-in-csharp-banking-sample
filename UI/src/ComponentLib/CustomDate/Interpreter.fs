@@ -9,9 +9,10 @@ open Lib.SharedTypes
 open Lib.Time
 
 [<RequireQualifiedAccess>]
-type DateRangeSignifier =
+type DateSignifier =
    | Start
    | End
+   | Single
 
 type PreliminaryDateParts = {
    Month: string option
@@ -114,11 +115,23 @@ type ValidMonth = ValidMonth of int
 
 type ValidYear = ValidYear of int
 
+let isFutureMonth (month: ValidMonth) =
+   let (ValidMonth month) = month
+   month > DateTime.Today.Month
+
+let isFutureDay (month: ValidMonth) (day: ValidDay) =
+   let (ValidMonth month) = month
+
+   month = DateTime.Today.Month
+   && (match day with
+       | ValidDay.Number day -> day > DateTime.Today.Day
+       | _ -> false)
+
 let inputToValidatedDateFormat
    (day: ValidDay)
    (month: ValidMonth)
    (year: ValidYear)
-   (signifier: DateRangeSignifier)
+   (signifier: DateSignifier)
    : string * DateTime
    =
    let strFormat, date =
@@ -136,61 +149,61 @@ let inputToValidatedDateFormat
          DateTime(year, month, day)
 
    match signifier with
-   | DateRangeSignifier.Start -> strFormat, date
-   | DateRangeSignifier.End -> strFormat, date.AddDays(1).AddMilliseconds(-1)
+   | DateSignifier.Single
+   | DateSignifier.Start -> strFormat, date
+   | DateSignifier.End -> strFormat, date.AddDays(1).AddMilliseconds(-1)
 
 let identifyDayFromMonthAndYear
    (month: ValidMonth)
    (year: ValidYear)
-   (signifier: DateRangeSignifier)
+   (signifier: DateSignifier)
    =
    match signifier with
-   | DateRangeSignifier.Start -> ValidDay.Number 1
-   | DateRangeSignifier.End ->
+   | DateSignifier.Single
+   | DateSignifier.Start -> ValidDay.Number 1
+   | DateSignifier.End ->
       let (ValidMonth month) = month
       let (ValidYear year) = year
       DateTime.DaysInMonth(year, month) |> ValidDay.Number
 
 let identifyYearWhenInputJustMonth
    (month: ValidMonth)
-   (signifier: DateRangeSignifier)
+   (signifier: DateSignifier)
    =
    let currYear = DateTime.Today.Year
 
    match signifier with
-   | DateRangeSignifier.End -> ValidYear currYear
-   | DateRangeSignifier.Start ->
-      let (ValidMonth month) = month
-      let isFutureMonth = month > DateTime.Today.Month
-
-      if isFutureMonth then
+   | DateSignifier.Single ->
+      if isFutureMonth month then
+         ValidYear currYear
+      else
+         ValidYear(currYear + 1)
+   | DateSignifier.End -> ValidYear currYear
+   | DateSignifier.Start ->
+      if isFutureMonth month then
          ValidYear(currYear - 1)
       else
-         (ValidYear currYear)
+         ValidYear currYear
 
 let identifyYearWhenInputJustDayAndMonth
    (day: ValidDay)
    (month: ValidMonth)
-   (signifier: DateRangeSignifier)
+   (signifier: DateSignifier)
    =
    let currYear = DateTime.Today.Year
 
    match signifier with
-   | DateRangeSignifier.End -> ValidYear currYear
-   | DateRangeSignifier.Start ->
-      let (ValidMonth month) = month
-      let isFutureMonth = month > DateTime.Today.Month
-
-      let isFutureDay =
-         month = DateTime.Today.Month
-         && (match day with
-             | ValidDay.Number day when day > DateTime.Today.Day -> true
-             | _ -> false)
-
-      if isFutureMonth || isFutureDay then
+   | DateSignifier.Single ->
+      if isFutureMonth month || isFutureDay month day then
+         ValidYear currYear
+      else
+         ValidYear(currYear + 1)
+   | DateSignifier.End -> ValidYear currYear
+   | DateSignifier.Start ->
+      if isFutureMonth month || isFutureDay month day then
          ValidYear(currYear - 1)
       else
-         (ValidYear currYear)
+         ValidYear currYear
 
 let parseInt: Validator<string, int> =
    fun field input ->
@@ -251,8 +264,8 @@ let yearValidator: Validator<string, ValidYear> =
    *|* ValidYear
 
 let validateInput
+   (signifier: DateSignifier)
    (input: string)
-   (signifier: DateRangeSignifier)
    : ValidationResult<string * DateTime>
    =
    let parts = identifyParts input
@@ -306,8 +319,8 @@ let validateInput
    | _ -> Error(ValidationErrors.create "" [ "Requires a formatted date." ])
 
 let validate
+   (signifier: DateSignifier)
    (input: string)
-   (signifier: DateRangeSignifier)
    : Result<string * DateTime, string>
    =
-   validateInput input signifier |> validationErrorsHumanFriendly
+   validateInput signifier input |> validationErrorsHumanFriendly

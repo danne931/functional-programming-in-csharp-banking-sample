@@ -28,14 +28,15 @@
     <Compile Include="Context/OrgAndAccountProfileProvider.fs" />
     <Compile Include="Context/TransactionCategoryProvider.fs" />
     <Compile Include="Context/MerchantProvider.fs" />
+    <Compile Include="ComponentLib/CustomDate/Interpreter.fs" />
+    <Compile Include="ComponentLib/CustomDate/DateRangeInput.fs" />
+    <Compile Include="ComponentLib/CustomDate/DateInput.fs" />
     <Compile Include="ComponentLib/Form.fs" />
     <Compile Include="ComponentLib/CheckboxFieldset.fs" />
     <Compile Include="ComponentLib/Dropdown.fs" />  
     <Compile Include="ComponentLib/Pagination.fs" />
     <Compile Include="ComponentLib/CloseButton.fs" />
     <Compile Include="ComponentLib/EmployeeSearch.fs" />
-    <Compile Include="ComponentLib/CustomDate/Interpreter.fs" />
-    <Compile Include="ComponentLib/CustomDate/DateRangeInput.fs" />
     <Compile Include="ComponentLib/DateFilter.fs" />
     <Compile Include="ComponentLib/AmountFilter.fs" />
     <Compile Include="ComponentLib/FilterPill.fs" />
