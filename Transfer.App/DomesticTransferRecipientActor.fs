@@ -3,7 +3,6 @@ module DomesticTransferRecipientActor
 open System
 open System.Text
 open System.Text.Json
-open System.Threading.Tasks
 open Akkling
 open Akkling.Cluster.Sharding
 open Akka.Hosting
@@ -16,33 +15,7 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 
 module Command = DomesticTransferToCommand
-
-[<RequireQualifiedAccess>]
-type DomesticTransferServiceAction =
-   | TransferRequest
-   | ProgressCheck
-
-type DomesticTransferServiceSender = {
-   Name: string
-   AccountNumber: string
-   RoutingNumber: string
-}
-
-type DomesticTransferServiceRecipient = {
-   Name: string
-   AccountNumber: string
-   RoutingNumber: string
-   Depository: string
-}
-
-type DomesticTransferServiceResponse = {
-   Sender: DomesticTransferServiceSender
-   Recipient: DomesticTransferServiceRecipient
-   Ok: bool
-   Status: string
-   Reason: string
-   TransactionId: string
-}
+type private DeclinedReason = DomesticTransferDeclinedReason
 
 [<RequireQualifiedAccess>]
 type DomesticTransferMessage =
@@ -53,11 +26,6 @@ type DomesticTransferMessage =
       DomesticTransfer
    | BreakerHalfOpen
    | BreakerClosed
-
-type DomesticTransferRequest =
-   DomesticTransferServiceAction
-      -> DomesticTransfer
-      -> Task<Result<DomesticTransferServiceResponse, Err>>
 
 module private Msg =
    let progress =
@@ -77,17 +45,16 @@ let private progressFromResponse (response: DomesticTransferServiceResponse) =
    | "Complete" -> DomesticTransferProgress.Complete
    | status -> DomesticTransferProgress.InProgress status
 
-let private declinedReasonFromError (err: string) : TransferDeclinedReason =
+let private declinedReasonFromError (err: string) : DeclinedReason =
    match err with
-   | Contains "CorruptData" -> TransferDeclinedReason.CorruptData
-   | Contains "InvalidAction" -> TransferDeclinedReason.InvalidAction
-   | Contains "InvalidAmount" -> TransferDeclinedReason.InvalidAmount
-   | Contains "InvalidAccountInfo" -> TransferDeclinedReason.InvalidAccountInfo
-   | Contains "InvalidPaymentNetwork" ->
-      TransferDeclinedReason.InvalidPaymentNetwork
-   | Contains "InvalidDepository" -> TransferDeclinedReason.InvalidDepository
-   | Contains "InactiveAccount" -> TransferDeclinedReason.AccountClosed
-   | e -> TransferDeclinedReason.Unknown e
+   | Contains "CorruptData" -> DeclinedReason.CorruptData
+   | Contains "InvalidAction" -> DeclinedReason.InvalidAction
+   | Contains "InvalidAmount" -> DeclinedReason.InvalidAmount
+   | Contains "InvalidAccountInfo" -> DeclinedReason.InvalidAccountInfo
+   | Contains "InvalidPaymentNetwork" -> DeclinedReason.InvalidPaymentNetwork
+   | Contains "InvalidDepository" -> DeclinedReason.InvalidDepository
+   | Contains "InactiveAccount" -> DeclinedReason.AccountClosed
+   | e -> DeclinedReason.Unknown e
 
 let private networkSender
    (sender: DomesticTransferSender)
@@ -228,19 +195,19 @@ let actorProps
                let err = declinedReasonFromError res.Reason
 
                match err with
-               | TransferDeclinedReason.CorruptData
-               | TransferDeclinedReason.InvalidPaymentNetwork
-               | TransferDeclinedReason.InvalidDepository
-               | TransferDeclinedReason.InvalidAction ->
+               | DeclinedReason.CorruptData
+               | DeclinedReason.InvalidPaymentNetwork
+               | DeclinedReason.InvalidDepository
+               | DeclinedReason.InvalidAction ->
                   logError $"Transfer API requires code update: {err}"
 
                   getEmailActor ()
                   <! EmailActor.ApplicationErrorRequiresSupport(string err)
 
                   Unhandled
-               | TransferDeclinedReason.InvalidAmount
-               | TransferDeclinedReason.InvalidAccountInfo
-               | TransferDeclinedReason.AccountClosed
+               | DeclinedReason.InvalidAmount
+               | DeclinedReason.InvalidAccountInfo
+               | DeclinedReason.AccountClosed
                | _ ->
                   let msg = Msg.reject <| Command.reject txn err
                   accountRef <! msg

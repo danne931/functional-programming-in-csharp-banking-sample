@@ -10,7 +10,7 @@ type InternalTransferWithinOrgApproved = { BaseInfo: BaseInternalTransferInfo }
 
 type InternalTransferWithinOrgRejected = {
    BaseInfo: BaseInternalTransferInfo
-   Reason: TransferDeclinedReason
+   Reason: InternalTransferDeclinedReason
 }
 
 type InternalTransferBetweenOrgsPending = {
@@ -24,7 +24,7 @@ type InternalTransferBetweenOrgsApproved = {
 
 type InternalTransferBetweenOrgsRejected = {
    BaseInfo: BaseInternalTransferInfo
-   Reason: TransferDeclinedReason
+   Reason: InternalTransferDeclinedReason
 }
 
 // Info received from the initial domestic transfer request will
@@ -55,7 +55,7 @@ type DomesticTransferApproved = {
 
 type DomesticTransferRejected = {
    BaseInfo: BaseDomesticTransferInfo
-   Reason: TransferDeclinedReason
+   Reason: DomesticTransferDeclinedReason
 }
 
 type RegisteredDomesticTransferRecipient = {

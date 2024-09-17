@@ -4,7 +4,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Types.fs" />
+    <Compile Include="CoreTypes.fs" />
+    <Compile Include="InternalTransfer.fs" />
+    <Compile Include="DomesticTransfer.fs" />
+    <Compile Include="Payment.fs" />
     <Compile Include="Events.fs" />
     <Compile Include="Commands.fs" />
   </ItemGroup>

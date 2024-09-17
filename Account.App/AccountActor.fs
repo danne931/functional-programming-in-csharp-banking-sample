@@ -126,7 +126,7 @@ let actorProps
                let recipientId = e.Data.Recipient.AccountId
 
                let invalidAccount =
-                  TransferDeclinedReason.InvalidAccountInfo
+                  DomesticTransferDeclinedReason.InvalidAccountInfo
                   |> DomesticTransferProgress.Failed
 
                account.FailedDomesticTransfers

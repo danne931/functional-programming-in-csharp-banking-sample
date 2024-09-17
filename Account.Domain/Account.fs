@@ -255,9 +255,9 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
 
          let updatedRecipientStatus =
             match e.Data.Reason with
-            | TransferDeclinedReason.InvalidAccountInfo ->
+            | DomesticTransferDeclinedReason.InvalidAccountInfo ->
                Some RecipientRegistrationStatus.InvalidAccount
-            | TransferDeclinedReason.AccountClosed ->
+            | DomesticTransferDeclinedReason.AccountClosed ->
                Some RecipientRegistrationStatus.Closed
             | _ -> None
 

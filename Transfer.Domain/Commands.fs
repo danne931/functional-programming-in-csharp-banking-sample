@@ -495,7 +495,7 @@ module DomesticTransferToCommand =
             Status = txn.Status
          }
 
-   let reject (txn: DomesticTransfer) (reason: TransferDeclinedReason) =
+   let reject (txn: DomesticTransfer) (reason: DomesticTransferDeclinedReason) =
       RejectDomesticTransferCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId

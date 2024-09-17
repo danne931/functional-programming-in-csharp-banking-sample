@@ -1,16 +1,10 @@
 module Bank.Transfer.Api
 
-open System
 open System.Threading.Tasks
-open FSharp.Control
-open Akkling
-open Akka.Actor
 open FsToolkit.ErrorHandling
-open Validus
 
 open Lib.Postgres
 open Lib.SharedTypes
-open Bank.Account.Domain
 open Bank.Transfer.Domain
 open PaymentSqlMapper
 

@@ -9,6 +9,8 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
 
+type private DeclinedReason = InternalTransferDeclinedReason
+
 [<RequireQualifiedAccess>]
 type InternalTransferMessage =
    | TransferRequestWithinOrg of BankEvent<InternalTransferWithinOrgPending>
@@ -16,7 +18,7 @@ type InternalTransferMessage =
 
 let private declineTransferWithinOrgMsg
    (evt: BankEvent<InternalTransferWithinOrgPending>)
-   (reason: TransferDeclinedReason)
+   (reason: DeclinedReason)
    =
    let info = evt.Data.BaseInfo
 
@@ -30,7 +32,7 @@ let private declineTransferWithinOrgMsg
 
 let private declineTransferBetweenOrgsMsg
    (evt: BankEvent<InternalTransferBetweenOrgsPending>)
-   (reason: TransferDeclinedReason)
+   (reason: DeclinedReason)
    =
    let info = evt.Data.BaseInfo
 
@@ -117,13 +119,12 @@ let actorProps
          logWarning $"Transfer recipient not found {recipientId}"
 
          senderAccountRef
-         <! declineTransferMsg TransferDeclinedReason.InvalidAccountInfo
+         <! declineTransferMsg DeclinedReason.InvalidAccountInfo
       | Some recipientAccount ->
          if recipientAccount.Status = AccountStatus.Closed then
             logWarning $"Transfer recipient account closed"
 
-            senderAccountRef
-            <! declineTransferMsg TransferDeclinedReason.AccountClosed
+            senderAccountRef <! declineTransferMsg DeclinedReason.AccountClosed
          else
             senderAccountRef <! approveTransferMsg ()
 

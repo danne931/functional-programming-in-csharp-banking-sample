@@ -200,7 +200,7 @@ let AccountActionsComponent
                | _ -> dispatch (Msg.NetworkAckCommand conf.Envelope))
       | AccountActionView.EditTransferRecipient accountId ->
          let invalidAccount =
-            TransferDeclinedReason.InvalidAccountInfo
+            DomesticTransferDeclinedReason.InvalidAccountInfo
             |> DomesticTransferProgress.Failed
 
          let count =
