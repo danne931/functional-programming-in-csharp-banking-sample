@@ -6,14 +6,21 @@ open System
 open Lib.SharedTypes
 open Lib.Validators
 
-type InternalTransferWithinOrgCommand =
-   Command<InternalTransferWithinOrgPending>
+type InternalTransferInput = {
+   Memo: string option
+   Amount: decimal
+   Recipient: InternalTransferRecipient
+   ScheduledDate: DateTime
+   Sender: InternalTransferSender
+}
+
+type InternalTransferWithinOrgCommand = Command<InternalTransferInput>
 
 module InternalTransferWithinOrgCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       (initiatedBy: InitiatedById)
-      (data: InternalTransferWithinOrgPending)
+      (data: InternalTransferInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -27,12 +34,28 @@ module InternalTransferWithinOrgCommand =
       : ValidationResult<BankEvent<InternalTransferWithinOrgPending>>
       =
       validate {
-         let input = cmd.Data.BaseInfo
-         let! _ = amountValidator "Transfer amount" input.Amount
+         let info = cmd.Data
+         let! _ = amountValidator "Transfer amount" info.Amount
 
-         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
+         let! _ = dateNotDefaultValidator "Transfer date" info.ScheduledDate
 
-         return BankEvent.create<InternalTransferWithinOrgPending> cmd
+         return
+            BankEvent.create2<
+               InternalTransferInput,
+               InternalTransferWithinOrgPending
+             >
+               cmd
+               {
+                  BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
+                     Recipient = info.Recipient
+                     Amount = info.Amount
+                     ScheduledDate = info.ScheduledDate
+                     Sender = info.Sender
+                  }
+               }
       }
 
 type ApproveInternalTransferWithinOrgCommand =
@@ -81,14 +104,13 @@ module RejectInternalTransferWithinOrgCommand =
       =
       BankEvent.create<InternalTransferWithinOrgRejected> cmd |> Ok
 
-type InternalTransferBetweenOrgsCommand =
-   Command<InternalTransferBetweenOrgsPending>
+type InternalTransferBetweenOrgsCommand = Command<InternalTransferInput>
 
 module InternalTransferBetweenOrgsCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       (initiatedBy: InitiatedById)
-      (data: InternalTransferBetweenOrgsPending)
+      (data: InternalTransferInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -102,12 +124,29 @@ module InternalTransferBetweenOrgsCommand =
       : ValidationResult<BankEvent<InternalTransferBetweenOrgsPending>>
       =
       validate {
-         let input = cmd.Data.BaseInfo
-         let! _ = amountValidator "Transfer amount" input.Amount
+         let info = cmd.Data
+         let! _ = amountValidator "Transfer amount" info.Amount
 
-         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
+         let! _ = dateNotDefaultValidator "Transfer date" info.ScheduledDate
 
-         return BankEvent.create<InternalTransferBetweenOrgsPending> cmd
+         return
+            BankEvent.create2<
+               InternalTransferInput,
+               InternalTransferBetweenOrgsPending
+             >
+               cmd
+               {
+                  Memo = info.Memo
+                  BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
+                     Recipient = info.Recipient
+                     Amount = info.Amount
+                     ScheduledDate = info.ScheduledDate
+                     Sender = info.Sender
+                  }
+               }
       }
 
 type ApproveInternalTransferBetweenOrgsCommand =
@@ -385,13 +424,15 @@ module DomesticTransferCommand =
                cmd
                {
                   BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
                      ScheduledDate = cmd.Data.ScheduledDate
                      Amount = cmd.Data.Amount
                      Sender = cmd.Data.Sender
                      Recipient = cmd.Data.Recipient
                      Memo = cmd.Data.Memo
                   }
-                  Status = DomesticTransferProgress.Outgoing
                }
       }
 
@@ -463,20 +504,22 @@ module UpdateDomesticTransferProgressCommand =
       BankEvent.create<DomesticTransferProgressUpdate> cmd |> Ok
 
 module DomesticTransferToCommand =
-   let progress (txn: DomesticTransfer) (status: DomesticTransferProgress) =
+   let progress (txn: DomesticTransfer) (progress: string) =
       UpdateDomesticTransferProgressCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
          txn.TransferId
          txn.InitiatedBy
          {
             BaseInfo = {
+               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
                ScheduledDate = txn.ScheduledDate
                Amount = txn.Amount
                Memo = txn.Memo
             }
-            Status = status
+            InProgressInfo = progress
          }
 
    let approve (txn: DomesticTransfer) =
@@ -486,13 +529,14 @@ module DomesticTransferToCommand =
          txn.InitiatedBy
          {
             BaseInfo = {
+               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
                ScheduledDate = txn.ScheduledDate
                Amount = txn.Amount
                Memo = txn.Memo
             }
-            Status = txn.Status
          }
 
    let reject (txn: DomesticTransfer) (reason: DomesticTransferDeclinedReason) =
@@ -502,6 +546,8 @@ module DomesticTransferToCommand =
          txn.InitiatedBy
          {
             BaseInfo = {
+               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
                ScheduledDate = txn.ScheduledDate

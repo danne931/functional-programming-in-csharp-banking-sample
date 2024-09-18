@@ -12,6 +12,10 @@ DROP TABLE IF EXISTS billingstatement;
 DROP TABLE IF EXISTS platform_payment;
 DROP TABLE IF EXISTS third_party_payment;
 DROP TABLE IF EXISTS payment;
+DROP TABLE IF EXISTS transfer_internal;
+DROP TABLE IF EXISTS transfer_domestic;
+DROP TABLE IF EXISTS transfer;
+DROP TABLE IF EXISTS transfer_domestic_recipient;
 DROP TABLE IF EXISTS merchant;
 DROP TABLE IF EXISTS ancillarytransactioninfo;
 DROP TABLE IF EXISTS transaction;
@@ -35,6 +39,12 @@ DROP TYPE IF EXISTS card_type;
 DROP TYPE IF EXISTS platform_payment_status;
 DROP TYPE IF EXISTS third_party_payment_status;
 DROP TYPE IF EXISTS payment_type;
+DROP TYPE IF EXISTS payment_network;
+DROP TYPE IF EXISTS domestic_transfer_recipient_account_depository;
+DROP TYPE IF EXISTS domestic_transfer_recipient_status;
+DROP TYPE IF EXISTS domestic_transfer_status;
+DROP TYPE IF EXISTS internal_transfer_status;
+DROP TYPE IF EXISTS transfer_category;
 
 CREATE TYPE time_frame AS ENUM ('day', 'month');
 
@@ -285,6 +295,72 @@ CREATE TABLE balance_history(
    CONSTRAINT account_date UNIQUE (account_id, date)
 );
 
+CREATE TYPE transfer_category
+AS ENUM ('InternalWithinOrg','InternalBetweenOrgs', 'Domestic');
+
+CREATE TABLE transfer(
+   transfer_id UUID PRIMARY KEY,
+   initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
+   amount MONEY NOT NULL,
+   transfer_category transfer_category NOT NULL,
+   scheduled_at TIMESTAMPTZ NOT NULL,
+   sender_org_id UUID NOT NULL REFERENCES organization,
+   sender_account_id UUID NOT NULL REFERENCES account,
+   memo TEXT,
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE internal_transfer_status AS ENUM (
+   'Pending',
+   'Approved',
+   'Deposited',
+   'Failed'
+);
+CREATE TABLE transfer_internal(
+   transfer_id UUID PRIMARY KEY REFERENCES transfer,
+   status internal_transfer_status NOT NULL,
+   status_detail JSONB NOT NULL,
+   recipient_org_id UUID NOT NULL REFERENCES organization(org_id),
+   recipient_account_id UUID REFERENCES account(account_id),
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE domestic_transfer_recipient_account_depository
+AS ENUM ('Checking', 'Savings'); 
+
+CREATE TYPE domestic_transfer_recipient_status
+AS ENUM ('Confirmed', 'InvalidAccount', 'Closed');
+
+CREATE TYPE payment_network AS ENUM ('ACH');
+
+CREATE TABLE transfer_domestic_recipient(
+   account_id UUID PRIMARY KEY,
+   first_name VARCHAR(50) NOT NULL,
+   last_name VARCHAR(50) NOT NULL,
+   nickname VARCHAR(100),
+   routing_number INT NOT NULL,
+   account_number BIGINT UNIQUE NOT NULL,
+   status domestic_transfer_recipient_status NOT NULL,
+   depository domestic_transfer_recipient_account_depository NOT NULL,
+   payment_network payment_network NOT NULL,
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TYPE domestic_transfer_status AS ENUM (
+   'Outgoing',
+   'InProgress',
+   'Complete',
+   'Failed'
+);
+
+CREATE TABLE transfer_domestic(
+   transfer_id UUID PRIMARY KEY REFERENCES transfer,
+   status domestic_transfer_status NOT NULL,
+   status_detail JSONB NOT NULL,
+   recipient_account_id UUID REFERENCES domestic_transfer_recipient(account_id),
+   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
 CREATE TABLE payment(
    payment_id UUID PRIMARY KEY,
@@ -305,7 +381,7 @@ CREATE TYPE platform_payment_status AS ENUM (
    'Cancelled',
    'Declined'
 );
-CREATE TABLE platform_payment(
+CREATE TABLE payment_platform(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status platform_payment_status NOT NULL,
    payer_org_id UUID NOT NULL REFERENCES organization,
@@ -330,7 +406,7 @@ CREATE TYPE third_party_payment_status AS ENUM (
 -- TODO: 
 -- This table will be developed more after researching
 -- Plaid and seeing what data will be necessary for paying by ACH/card.
-CREATE TABLE third_party_payment(
+CREATE TABLE payment_third_party(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status_tp third_party_payment_status NOT NULL,
    payer_email VARCHAR(255) NOT NULL,

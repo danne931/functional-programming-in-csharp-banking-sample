@@ -27,31 +27,14 @@ type InternalTransferBetweenOrgsRejected = {
    Reason: InternalTransferDeclinedReason
 }
 
-// Info received from the initial domestic transfer request will
-// carry over unaltered for all further event progressions
-// (ProgressUpdate/Approved/Rejected/Retry).
-type BaseDomesticTransferInfo = {
-   Sender: DomesticTransferSender
-   Recipient: DomesticTransferRecipient
-   ScheduledDate: DateTime
-   Amount: decimal
-   Memo: string option
-}
-
-type DomesticTransferPending = {
-   BaseInfo: BaseDomesticTransferInfo
-   Status: DomesticTransferProgress
-}
+type DomesticTransferPending = { BaseInfo: BaseDomesticTransferInfo }
 
 type DomesticTransferProgressUpdate = {
    BaseInfo: BaseDomesticTransferInfo
-   Status: DomesticTransferProgress
+   InProgressInfo: string
 }
 
-type DomesticTransferApproved = {
-   BaseInfo: BaseDomesticTransferInfo
-   Status: DomesticTransferProgress
-}
+type DomesticTransferApproved = { BaseInfo: BaseDomesticTransferInfo }
 
 type DomesticTransferRejected = {
    BaseInfo: BaseDomesticTransferInfo
@@ -64,14 +47,10 @@ type RegisteredDomesticTransferRecipient = {
 
 type EditedDomesticTransferRecipient = { Recipient: DomesticTransferRecipient }
 
-type InternalTransferWithinOrgDeposited = {
-   Amount: decimal
-   Source: InternalTransferSender
-}
+type InternalTransferWithinOrgDeposited = { BaseInfo: BaseInternalTransferInfo }
 
 type InternalTransferBetweenOrgsDeposited = {
-   Amount: decimal
-   Source: InternalTransferSender
+   BaseInfo: BaseInternalTransferInfo
 }
 
 type RecipientNicknamed = {
@@ -95,7 +74,7 @@ module TransferEventToDomesticTransfer =
          Amount = info.Amount
          ScheduledDate = info.ScheduledDate
          Memo = info.Memo
-         Status = evt.Data.Status
+         Status = DomesticTransferProgress.Outgoing
       }
 
    let fromRejection

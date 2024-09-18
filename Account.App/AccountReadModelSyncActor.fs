@@ -13,6 +13,7 @@ open Bank.Transfer.Domain
 open AccountSqlMapper
 open TransactionSqlMapper
 open PaymentSqlMapper
+open TransferSqlMapper
 open Lib.ReadModelSyncActor
 
 let private platformPaymentBaseSqlParams (p: PlatformPaymentBaseInfo) = [
@@ -29,11 +30,117 @@ let private platformPaymentBaseSqlParams (p: PlatformPaymentBaseInfo) = [
    "payByAccount", PaymentSqlWriter.Platform.payByAccount None
 ]
 
+let private internalTransferBaseSqlParams (o: BaseInternalTransferInfo) = [
+   "transferId", TransferSqlWriter.transferId o.TransferId
+
+   "initiatedById", TransferSqlWriter.initiatedById o.InitiatedBy
+
+   "senderOrgId", TransferSqlWriter.senderOrgId o.Sender.OrgId
+
+   "senderAccountId", TransferSqlWriter.senderAccountId o.Sender.AccountId
+
+   "scheduledAt", TransferSqlWriter.scheduledAt o.ScheduledDate
+
+   "amount", TransferSqlWriter.amount o.Amount
+
+   "recipientAccountId",
+   TransferSqlWriter.Internal.recipientAccountId o.Recipient.AccountId
+
+   "recipientOrgId", TransferSqlWriter.Internal.recipientOrgId o.Recipient.OrgId
+]
+
+let private domesticTransferBaseSqlParams (o: BaseDomesticTransferInfo) = [
+   "transferId", TransferSqlWriter.transferId o.TransferId
+
+   "initiatedById", TransferSqlWriter.initiatedById o.InitiatedBy
+
+   "senderOrgId", TransferSqlWriter.senderOrgId o.Sender.OrgId
+
+   "senderAccountId", TransferSqlWriter.senderAccountId o.Sender.AccountId
+
+   "scheduledAt", TransferSqlWriter.scheduledAt o.ScheduledDate
+
+   "amount", TransferSqlWriter.amount o.Amount
+
+   "recipientAccountId",
+   TransferSqlWriter.Domestic.recipientAccountId o.Recipient.AccountId
+
+   "memo", TransferSqlWriter.memo o.Memo
+]
+
 type SqlParamsDerivedFromAccountEvents = {
    Transaction: (string * SqlValue) list list
    Payment: (string * SqlValue) list list
    PlatformPayment: (string * SqlValue) list list
+   Transfer: (string * SqlValue) list list
+   InternalTransfer: (string * SqlValue) list list
+   DomesticTransfer: (string * SqlValue) list list
+   DomesticTransferRecipient: (string * SqlValue) list list
 }
+
+let private internalTransferStatusReducer
+   (acc: SqlParamsDerivedFromAccountEvents)
+   (status: InternalTransferStatus)
+   (info: BaseInternalTransferInfo)
+   =
+   let qParams =
+      internalTransferBaseSqlParams info
+      @ [
+         "status", TransferSqlWriter.Internal.status status
+         "statusDetail", TransferSqlWriter.Internal.statusDetail status
+      ]
+
+   {
+      acc with
+         InternalTransfer = qParams :: acc.InternalTransfer
+   }
+
+let private domesticTransferStatusReducer
+   (acc: SqlParamsDerivedFromAccountEvents)
+   (status: DomesticTransferProgress)
+   (info: BaseDomesticTransferInfo)
+   =
+   let qParams =
+      domesticTransferBaseSqlParams info
+      @ [
+         "status", TransferSqlWriter.Domestic.status status
+         "statusDetail", TransferSqlWriter.Domestic.statusDetail status
+      ]
+
+   {
+      acc with
+         DomesticTransfer = qParams :: acc.DomesticTransfer
+   }
+
+let private domesticRecipientReducer
+   (acc: SqlParamsDerivedFromAccountEvents)
+   (recipient: DomesticTransferRecipient)
+   =
+   let qParams = [
+      "accountId",
+      TransferSqlWriter.DomesticRecipient.accountId recipient.AccountId
+      "lastName",
+      TransferSqlWriter.DomesticRecipient.lastName recipient.LastName
+      "firstName",
+      TransferSqlWriter.DomesticRecipient.firstName recipient.FirstName
+      "accountNumber",
+      TransferSqlWriter.DomesticRecipient.accountNumber recipient.AccountNumber
+      "routingNumber",
+      TransferSqlWriter.DomesticRecipient.routingNumber recipient.RoutingNumber
+      "status", TransferSqlWriter.DomesticRecipient.status recipient.Status
+      "depository",
+      TransferSqlWriter.DomesticRecipient.depository recipient.Depository
+      "paymentNetwork",
+      TransferSqlWriter.DomesticRecipient.paymentNetwork
+         recipient.PaymentNetwork
+      "nickname",
+      TransferSqlWriter.DomesticRecipient.nickname recipient.Nickname
+   ]
+
+   {
+      acc with
+         DomesticTransferRecipient = qParams :: acc.DomesticTransferRecipient
+   }
 
 let sqlParamReducer
    (acc: SqlParamsDerivedFromAccountEvents)
@@ -70,31 +177,35 @@ let sqlParamReducer
       | AccountEvent.InternalTransferWithinOrgPending evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.Out,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferWithinOrgApproved evt ->
          Some evt.Data.BaseInfo.Amount,
          None,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferWithinOrgRejected evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferWithinOrgDeposited evt ->
-         Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Source.Name
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Sender.Name
       | AccountEvent.InternalTransferBetweenOrgsPending evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.Out,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferBetweenOrgsApproved evt ->
          Some evt.Data.BaseInfo.Amount,
          None,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferBetweenOrgsRejected evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.RecipientName
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferBetweenOrgsDeposited evt ->
-         Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Source.Name
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Sender.Name
       | AccountEvent.DomesticTransferPending evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.Out,
@@ -135,6 +246,143 @@ let sqlParamReducer
    }
 
    match evt with
+   | AccountEvent.InternalTransferWithinOrgPending e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "memo", TransferSqlWriter.memo None
+            "transferCategory",
+            TransferSqlWriter.transferCategory
+               TransferCategory.InternalWithinOrg
+         ]
+
+      let status = InternalTransferStatus.Pending
+
+      let internalTransferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Internal.status status
+            "statusDetail", TransferSqlWriter.Internal.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            InternalTransfer = internalTransferParams :: acc.InternalTransfer
+      }
+   | AccountEvent.InternalTransferWithinOrgRejected e ->
+      internalTransferStatusReducer
+         acc
+         (InternalTransferStatus.Failed e.Data.Reason)
+         e.Data.BaseInfo
+   | AccountEvent.InternalTransferWithinOrgApproved e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Approved
+         e.Data.BaseInfo
+   | AccountEvent.InternalTransferWithinOrgDeposited e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Deposited
+         e.Data.BaseInfo
+   | AccountEvent.InternalTransferBetweenOrgsPending e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "memo", TransferSqlWriter.memo e.Data.Memo
+            "transferCategory",
+            TransferSqlWriter.transferCategory
+               TransferCategory.InternalBetweenOrgs
+         ]
+
+      let status = InternalTransferStatus.Pending
+
+      let internalTransferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Internal.status status
+            "statusDetail", TransferSqlWriter.Internal.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            InternalTransfer = internalTransferParams :: acc.InternalTransfer
+      }
+   | AccountEvent.InternalTransferBetweenOrgsRejected e ->
+      internalTransferStatusReducer
+         acc
+         (InternalTransferStatus.Failed e.Data.Reason)
+         e.Data.BaseInfo
+   | AccountEvent.InternalTransferBetweenOrgsApproved e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Approved
+         e.Data.BaseInfo
+   | AccountEvent.InternalTransferBetweenOrgsDeposited e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Deposited
+         e.Data.BaseInfo
+   | AccountEvent.DomesticTransferPending e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         domesticTransferBaseSqlParams info
+         @ [
+            "transferCategory",
+            TransferSqlWriter.transferCategory TransferCategory.Domestic
+         ]
+
+      let status = DomesticTransferProgress.Outgoing
+
+      let domesticTransferParams =
+         domesticTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Domestic.status status
+            "statusDetail", TransferSqlWriter.Domestic.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            DomesticTransfer = domesticTransferParams :: acc.DomesticTransfer
+      }
+   | AccountEvent.DomesticTransferProgress e ->
+      domesticTransferStatusReducer
+         acc
+         (DomesticTransferProgress.InProgress e.Data.InProgressInfo)
+         e.Data.BaseInfo
+   | AccountEvent.DomesticTransferRejected e ->
+      domesticTransferStatusReducer
+         acc
+         (DomesticTransferProgress.Failed e.Data.Reason)
+         e.Data.BaseInfo
+   | AccountEvent.DomesticTransferApproved e ->
+      domesticTransferStatusReducer
+         acc
+         DomesticTransferProgress.Complete
+         e.Data.BaseInfo
+   | AccountEvent.DomesticTransferRecipient e ->
+      domesticRecipientReducer acc e.Data.Recipient
+   | AccountEvent.RecipientNicknamed e ->
+      let qParams = [
+         "accountId",
+         TransferSqlWriter.DomesticRecipient.accountId e.Data.RecipientId
+         "nickname",
+         TransferSqlWriter.DomesticRecipient.nickname e.Data.Nickname
+      ]
+
+      {
+         acc with
+            DomesticTransferRecipient = qParams :: acc.DomesticTransferRecipient
+      }
+   | AccountEvent.EditedDomesticTransferRecipient e ->
+      domesticRecipientReducer acc e.Data.Recipient
    | AccountEvent.PlatformPaymentRequested e ->
       let pInfo = e.Data.BaseInfo
 
@@ -269,6 +517,10 @@ let upsertReadModels
          Transaction = []
          Payment = []
          PlatformPayment = []
+         Transfer = []
+         InternalTransfer = []
+         DomesticTransfer = []
+         DomesticTransferRecipient = []
       }
 
    pgTransaction [
@@ -406,6 +658,111 @@ let upsertReadModels
             {payByField} = COALESCE(@payByAccount, {table}.{payByField});
          """,
          sqlParamsDerivedFromAccountEvents.PlatformPayment
+
+      if not sqlParamsDerivedFromAccountEvents.Transfer.IsEmpty then
+         $"""
+         INSERT into {TransferSqlMapper.Table.transfer}
+            ({TransferFields.transferId},
+             {TransferFields.initiatedById},
+             {TransferFields.amount},
+             {TransferFields.transferCategory},
+             {TransferFields.scheduledAt},
+             {TransferFields.senderOrgId},
+             {TransferFields.senderAccountId},
+             {TransferFields.memo})
+         VALUES
+            (@transferId,
+             @initiatedById,
+             @amount,
+             @transferCategory::{TransferTypeCast.transferCategory},
+             @scheduledAt,
+             @senderOrgId,
+             @senderAccountId,
+             @memo)
+         ON CONFLICT ({TransferFields.transferId})
+         DO NOTHING;
+         """,
+         sqlParamsDerivedFromAccountEvents.Transfer
+
+      if not sqlParamsDerivedFromAccountEvents.InternalTransfer.IsEmpty then
+         $"""
+         INSERT into {TransferSqlMapper.Table.internalTransfer}
+            ({TransferFields.transferId},
+             {TransferFields.Internal.status},
+             {TransferFields.Internal.statusDetail},
+             {TransferFields.Internal.recipientOrgId},
+             {TransferFields.Internal.recipientAccountId})
+         VALUES
+            (@transferId,
+             @status::{TransferTypeCast.internalTransferStatus},
+             @statusDetail,
+             @recipientOrgId,
+             @recipientAccountId)
+         ON CONFLICT ({TransferFields.transferId})
+         DO UPDATE SET
+            {TransferFields.Internal.status} = @status::{TransferTypeCast.internalTransferStatus},
+            {TransferFields.Internal.statusDetail} = @statusDetail;
+         """,
+         sqlParamsDerivedFromAccountEvents.InternalTransfer
+
+      if
+         not sqlParamsDerivedFromAccountEvents.DomesticTransferRecipient.IsEmpty
+      then
+         $"""
+         INSERT into {TransferSqlMapper.Table.domesticRecipient}
+            ({TransferFields.DomesticRecipient.accountId},
+             {TransferFields.DomesticRecipient.firstName},
+             {TransferFields.DomesticRecipient.lastName},
+             {TransferFields.DomesticRecipient.nickname},
+             {TransferFields.DomesticRecipient.routingNumber},
+             {TransferFields.DomesticRecipient.accountNumber},
+             {TransferFields.DomesticRecipient.status},
+             {TransferFields.DomesticRecipient.depository},
+             {TransferFields.DomesticRecipient.paymentNetwork})
+         VALUES
+            (@accountId,
+             @firstName,
+             @lastName,
+             @nickname,
+             @routingNumber,
+             @accountNumber,
+             @status::{TransferTypeCast.domesticRecipientStatus},
+             @depository::{TransferTypeCast.domesticRecipientAccountDepository},
+             @paymentNetwork::{TransferTypeCast.paymentNetwork})
+         ON CONFLICT ({TransferFields.DomesticRecipient.accountId})
+         DO UPDATE SET
+            {TransferFields.DomesticRecipient.firstName} = @firstName,
+            {TransferFields.DomesticRecipient.lastName} = @lastName,
+            {TransferFields.DomesticRecipient.nickname} = @nickname,
+            {TransferFields.DomesticRecipient.routingNumber} = @routingNumber,
+            {TransferFields.DomesticRecipient.accountNumber} = @accountNumber,
+            {TransferFields.DomesticRecipient.status} =
+               @status::{TransferTypeCast.domesticRecipientStatus},
+            {TransferFields.DomesticRecipient.depository} =
+               @depository::{TransferTypeCast.domesticRecipientAccountDepository},
+            {TransferFields.DomesticRecipient.paymentNetwork} =
+               @paymentNetwork::{TransferTypeCast.paymentNetwork};
+         """,
+         sqlParamsDerivedFromAccountEvents.DomesticTransferRecipient
+
+      if not sqlParamsDerivedFromAccountEvents.DomesticTransfer.IsEmpty then
+         $"""
+         INSERT into {TransferSqlMapper.Table.domesticTransfer}
+            ({TransferFields.transferId},
+             {TransferFields.Domestic.status},
+             {TransferFields.Domestic.statusDetail},
+             {TransferFields.Domestic.recipientAccountId})
+         VALUES
+            (@transferId,
+             @status::{TransferTypeCast.domesticTransferStatus},
+             @statusDetail,
+             @recipientAccountId)
+         ON CONFLICT ({TransferFields.transferId})
+         DO UPDATE SET
+            {TransferFields.Domestic.status} = @status::{TransferTypeCast.domesticTransferStatus},
+            {TransferFields.Domestic.statusDetail} = @statusDetail;
+         """,
+         sqlParamsDerivedFromAccountEvents.DomesticTransfer
    ]
 
 let initProps

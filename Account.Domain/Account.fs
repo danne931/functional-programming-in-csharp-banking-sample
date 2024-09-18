@@ -224,7 +224,12 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
             InProgressDomesticTransfers =
                Map.change
                   e.CorrelationId
-                  (Option.map (fun txn -> { txn with Status = e.Data.Status }))
+                  (Option.map (fun txn -> {
+                     txn with
+                        Status =
+                           DomesticTransferProgress.InProgress
+                              e.Data.InProgressInfo
+                  }))
                   account.InProgressDomesticTransfers
         }
       | DomesticTransferApproved e -> {
@@ -304,9 +309,9 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
       | InternalTransferBetweenOrgsRejected e ->
          applyInternalTransferRejected e.CorrelationId e.Data.BaseInfo account
       | InternalTransferWithinOrgDeposited e ->
-         applyTransferDeposit account e.Data.Amount
+         applyTransferDeposit account e.Data.BaseInfo.Amount
       | InternalTransferBetweenOrgsDeposited e ->
-         applyTransferDeposit account e.Data.Amount
+         applyTransferDeposit account e.Data.BaseInfo.Amount
       | PlatformPaymentRequested _ -> account
       | PlatformPaymentCancelled _ -> account
       | PlatformPaymentDeclined _ -> account
@@ -453,14 +458,14 @@ module private StateTransition =
       (state: AccountWithEvents)
       (cmd: InternalTransferWithinOrgCommand)
       =
-      let input = cmd.Data.BaseInfo
+      let input = cmd.Data
       let account = state.Info
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       elif account.Balance - input.Amount < 0m then
          transitionErr <| InsufficientBalance account.Balance
-      elif input.RecipientOrgId <> account.OrgId then
+      elif input.Recipient.OrgId <> account.OrgId then
          transitionErr TransferExpectedToOccurWithinOrg
       elif
          TransferLimits.exceedsDailyInternalTransferLimit
@@ -519,7 +524,7 @@ module private StateTransition =
       (state: AccountWithEvents)
       (cmd: InternalTransferBetweenOrgsCommand)
       =
-      let input = cmd.Data.BaseInfo
+      let input = cmd.Data
       let account = state.Info
 
       if account.Status <> AccountStatus.Active then
@@ -629,7 +634,10 @@ module private StateTransition =
          | Some txn ->
             let existingStatus = txn.Status
 
-            if existingStatus = cmd.Data.Status then
+            if
+               existingStatus = (DomesticTransferProgress.InProgress
+                  cmd.Data.InProgressInfo)
+            then
                transitionErr TransferProgressNoChange
             else
                map

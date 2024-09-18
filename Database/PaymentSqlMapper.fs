@@ -9,8 +9,8 @@ open Bank.Transfer.Domain
 
 module Table =
    let payment = "payment"
-   let platformPayment = "platform_payment"
-   let thirdPartyPayment = "third_party_payment"
+   let platformPayment = "payment_platform"
+   let thirdPartyPayment = "payment_third_party"
 
 module PaymentTypeCast =
    let platformPaymentStatus = "platform_payment_status"

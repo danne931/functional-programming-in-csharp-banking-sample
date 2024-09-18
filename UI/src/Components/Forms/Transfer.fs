@@ -87,17 +87,18 @@ let formInternalWithinOrg
 
       let cmd =
          InternalTransferWithinOrgCommand.create account.CompositeId initiatedBy {
-            BaseInfo = {
-               ScheduledDate = DateTime.UtcNow
-               Amount = amount
-               RecipientOrgId = profile.OrgId
-               RecipientId = profile.AccountId
-               RecipientName = profile.Name
-               Sender = {
-                  Name = account.Name
-                  AccountId = account.AccountId
-                  OrgId = account.OrgId
-               }
+            Memo = None
+            ScheduledDate = DateTime.UtcNow
+            Amount = amount
+            Recipient = {
+               OrgId = profile.OrgId
+               AccountId = profile.AccountId
+               Name = profile.Name
+            }
+            Sender = {
+               Name = account.Name
+               AccountId = account.AccountId
+               OrgId = account.OrgId
             }
          }
          |> AccountCommand.InternalTransfer
@@ -150,17 +151,17 @@ let formInternalCrossOrg
             account.CompositeId
             initiatedBy
             {
-               BaseInfo = {
-                  ScheduledDate = DateTime.UtcNow
-                  Amount = amount
-                  RecipientOrgId = org.OrgId
-                  RecipientId = selectedId |> Guid.Parse |> AccountId
-                  RecipientName = org.Name
-                  Sender = {
-                     Name = account.Name
-                     AccountId = account.AccountId
-                     OrgId = account.OrgId
-                  }
+               ScheduledDate = DateTime.UtcNow
+               Amount = amount
+               Recipient = {
+                  OrgId = org.OrgId
+                  AccountId = selectedId |> Guid.Parse |> AccountId
+                  Name = org.Name
+               }
+               Sender = {
+                  Name = account.Name
+                  AccountId = account.AccountId
+                  OrgId = account.OrgId
                }
                Memo = memo
             }

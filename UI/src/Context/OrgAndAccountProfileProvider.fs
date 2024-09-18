@@ -139,7 +139,7 @@ let update msg state =
                let info = e.Data.BaseInfo
 
                state.AccountProfiles
-               |> Map.tryFind info.RecipientId
+               |> Map.tryFind info.Recipient.AccountId
                |> Option.map (fun a -> {
                   a with
                      Balance = a.Balance + info.Amount
@@ -148,7 +148,7 @@ let update msg state =
                let info = e.Data.BaseInfo
 
                state.AccountProfiles
-               |> Map.tryFind info.RecipientId
+               |> Map.tryFind info.Recipient.AccountId
                |> Option.map (fun a -> {
                   a with
                      Balance = a.Balance - info.Amount

@@ -178,7 +178,7 @@ let actorProps
                | DomesticTransferProgress.Complete ->
                   let msg = Msg.approve <| Command.approve txn
                   accountRef <! msg
-               | progress ->
+               | DomesticTransferProgress.InProgress progress ->
                   let msg = Msg.progress <| Command.progress txn progress
 
                   match action with
@@ -187,8 +187,12 @@ let actorProps
                   | DomesticTransferServiceAction.ProgressCheck ->
                      let previousProgress = txn.Status
 
-                     if progress <> previousProgress then
+                     if
+                        (DomesticTransferProgress.InProgress progress)
+                        <> previousProgress
+                     then
                         accountRef <! msg
+               | _ -> ()
 
                Ignore
             else

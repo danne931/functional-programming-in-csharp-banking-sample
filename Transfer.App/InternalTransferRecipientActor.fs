@@ -106,7 +106,7 @@ let actorProps
                InitiatedBy = e.InitiatedById
             |}
 
-      let recipientId = info.RecipientId
+      let recipientId = info.Recipient.AccountId
       let senderId = info.Sender.AccountId
       let recipientAccountRef = getAccountRef recipientId
       let senderAccountRef = getAccountRef senderId
@@ -137,10 +137,7 @@ let actorProps
                      recipientAccount.CompositeId
                      meta.CorrId
                      meta.InitiatedBy
-                     {
-                        Amount = info.Amount
-                        Source = info.Sender
-                     }
+                     { BaseInfo = info }
                   |> AccountCommand.DepositTransferWithinOrg
                   |> AccountMessage.StateChange
                | InternalTransferMessage.TransferRequestBetweenOrgs _ ->
@@ -148,10 +145,7 @@ let actorProps
                      recipientAccount.CompositeId
                      meta.CorrId
                      meta.InitiatedBy
-                     {
-                        Amount = info.Amount
-                        Source = info.Sender
-                     }
+                     { BaseInfo = info }
                   |> AccountCommand.DepositTransferBetweenOrgs
                   |> AccountMessage.StateChange
 

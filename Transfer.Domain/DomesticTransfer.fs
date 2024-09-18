@@ -11,14 +11,54 @@ type RecipientRegistrationStatus =
    | InvalidAccount
    | Closed
 
+module RecipientRegistrationStatus =
+   let fromString (str: string) : RecipientRegistrationStatus option =
+      match str.ToLower() with
+      | "confirmed" -> Some RecipientRegistrationStatus.Confirmed
+      | "invalidaccount" -> Some RecipientRegistrationStatus.InvalidAccount
+      | "closed" -> Some RecipientRegistrationStatus.Closed
+      | _ -> None
+
+   let fromStringUnsafe str : RecipientRegistrationStatus =
+      match fromString str with
+      | Some s -> s
+      | None ->
+         failwith
+            "Error attempting to cast string to RecipientRegistrationStatus"
+
 [<RequireQualifiedAccess>]
 type DomesticRecipientAccountDepository =
    | Checking
    | Savings
 
+module DomesticRecipientAccountDepository =
+   let fromString (str: string) : DomesticRecipientAccountDepository option =
+      match str.ToLower() with
+      | "checking" -> Some DomesticRecipientAccountDepository.Checking
+      | "savings" -> Some DomesticRecipientAccountDepository.Savings
+      | _ -> None
+
+   let fromStringUnsafe str : DomesticRecipientAccountDepository =
+      match fromString str with
+      | Some s -> s
+      | None ->
+         failwith
+            "Error attempting to cast string to DomesticRecipientAccountDepository"
+
 [<RequireQualifiedAccess>]
 type PaymentNetwork = | ACH
 //| FedNow
+
+module PaymentNetwork =
+   let fromString (str: string) : PaymentNetwork option =
+      match str.ToLower() with
+      | "savings" -> Some PaymentNetwork.ACH
+      | _ -> None
+
+   let fromStringUnsafe str : PaymentNetwork =
+      match fromString str with
+      | Some s -> s
+      | None -> failwith "Error attempting to cast string to PaymentNetwork"
 
 type DomesticTransferRecipient = {
    LastName: string
@@ -62,6 +102,19 @@ type DomesticTransferSender = {
    RoutingNumber: RoutingNumber
    OrgId: OrgId
    AccountId: AccountId
+}
+
+// Info received from the initial domestic transfer request will
+// carry over unaltered for all event progressions
+// (ProgressUpdate/Approved/Rejected/Retry).
+type BaseDomesticTransferInfo = {
+   Sender: DomesticTransferSender
+   Recipient: DomesticTransferRecipient
+   Amount: decimal
+   TransferId: TransferId
+   InitiatedBy: InitiatedById
+   Memo: string option
+   ScheduledDate: DateTime
 }
 
 type DomesticTransfer = {

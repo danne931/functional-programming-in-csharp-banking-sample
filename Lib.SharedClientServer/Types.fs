@@ -45,6 +45,10 @@ type CorrelationId =
 module CorrelationId =
    let create () = CorrelationId <| Guid.NewGuid()
 
+   let get (corrId: CorrelationId) : Guid =
+      let (CorrelationId id) = corrId
+      id
+
 type EventId =
    | EventId of Guid
 

@@ -163,11 +163,11 @@ let transactionUIFriendly
          props with
             Name = "Internal Transfer"
             Info =
-               $"Moved money from {info.Sender.Name} to {info.RecipientName}"
+               $"Moved money from {info.Sender.Name} to {info.Recipient.Name}"
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
-            Destination = Some <| info.RecipientName
+            Destination = Some info.Recipient.Name
       }
    | InternalTransferWithinOrgApproved evt ->
       let info = evt.Data.BaseInfo
@@ -176,7 +176,7 @@ let transactionUIFriendly
          props with
             Name = "Internal Transfer Approved"
             Info =
-               $"Approved money movement from {info.Sender.Name} to {info.RecipientName}"
+               $"Approved money movement from {info.Sender.Name} to {info.Recipient.Name}"
             Amount = Some <| Money.format info.Amount
       }
    | InternalTransferWithinOrgRejected evt ->
@@ -186,7 +186,7 @@ let transactionUIFriendly
          props with
             Name = "Internal Transfer Rejected"
             Info =
-               $"Declined money movement from {info.Sender.Name} to {info.RecipientName} 
+               $"Declined money movement from {info.Sender.Name} to {info.Recipient.Name} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
             Amount = Some <| Money.format info.Amount
@@ -199,11 +199,11 @@ let transactionUIFriendly
          props with
             Name = "Transfer Between Orgs"
             Info =
-               $"Transferred from {info.Sender.Name} to {info.RecipientName}"
+               $"Transferred from {info.Sender.Name} to {info.Recipient.Name}"
             Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.Out
             Source = Some accountName
-            Destination = Some <| info.RecipientName
+            Destination = Some info.Recipient.Name
       }
    | InternalTransferBetweenOrgsApproved evt ->
       let info = evt.Data.BaseInfo
@@ -212,7 +212,7 @@ let transactionUIFriendly
          props with
             Name = "Transfer Between Orgs Approved"
             Info =
-               $"Approved transfer from {info.Sender.Name} to {info.RecipientName}"
+               $"Approved transfer from {info.Sender.Name} to {info.Recipient.Name}"
             Amount = Some <| Money.format info.Amount
       }
    | InternalTransferBetweenOrgsRejected evt ->
@@ -222,7 +222,7 @@ let transactionUIFriendly
          props with
             Name = "Transfer Between Orgs Rejected"
             Info =
-               $"Declined transfer from {info.Sender.Name} to {info.RecipientName} 
+               $"Declined transfer from {info.Sender.Name} to {info.Recipient.Name} 
               - Reason: {evt.Data.Reason} 
               - Account refunded"
             Amount = Some <| Money.format info.Amount
@@ -287,29 +287,31 @@ let transactionUIFriendly
             Info =
                $"Progress update received for domestic transfer 
                  to {recipientName info.Recipient.AccountId}
-                 - Status {evt.Data.Status}"
+                 - {evt.Data.InProgressInfo}"
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
       }
    | InternalTransferWithinOrgDeposited evt ->
-      let sender = evt.Data.Source.Name
+      let info = evt.Data.BaseInfo
+      let sender = info.Sender.Name
 
       {
          props with
             Name = "Transfer Deposit Within Org"
             Info = $"Received transfer deposit from {sender}."
-            Amount = Some <| Money.format evt.Data.Amount
+            Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.In
             Source = Some sender
             Destination = Some accountName
       }
    | InternalTransferBetweenOrgsDeposited evt ->
-      let sender = evt.Data.Source.Name
+      let info = evt.Data.BaseInfo
+      let sender = info.Sender.Name
 
       {
          props with
             Name = "Transfer Deposit Between Orgs"
             Info = $"Received transfer deposit from {sender}."
-            Amount = Some <| Money.format evt.Data.Amount
+            Amount = Some <| Money.format info.Amount
             MoneyFlow = Some MoneyFlow.In
             Source = Some sender
             Destination = Some accountName

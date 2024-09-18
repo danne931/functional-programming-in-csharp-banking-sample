@@ -759,6 +759,7 @@ let seedAccountOwnerActions
 
             let msg =
                let ts = timestamp.AddDays(float (maxDays - 1))
+               let correlationId = Guid.NewGuid() |> CorrelationId
 
                {
                   InternalTransferBetweenOrgsCommand.create
@@ -766,17 +767,17 @@ let seedAccountOwnerActions
                      (InitiatedById sender.AccountOwnerId)
                      {
                         Memo = None
-                        BaseInfo = {
-                           Amount = 10_000m + randomAmount 1000 10_000
-                           RecipientOrgId = orgId
-                           RecipientId = arCheckingAccountId
-                           RecipientName = orgName
-                           ScheduledDate = ts
-                           Sender = {
-                              Name = sender.BusinessName
-                              AccountId = sender.PrimaryAccountId
-                              OrgId = sender.OrgId
-                           }
+                        Amount = 10_000m + randomAmount 1000 10_000
+                        Recipient = {
+                           OrgId = orgId
+                           AccountId = arCheckingAccountId
+                           Name = orgName
+                        }
+                        ScheduledDate = ts
+                        Sender = {
+                           Name = sender.BusinessName
+                           AccountId = sender.PrimaryAccountId
+                           OrgId = sender.OrgId
                         }
                      } with
                      Timestamp = ts
@@ -799,17 +800,17 @@ let seedAccountOwnerActions
                      mockAccountOwnerId
                      {
                         Memo = None
-                        BaseInfo = {
-                           RecipientOrgId = recipient.OrgId
-                           RecipientId = recipient.PrimaryAccountId
-                           RecipientName = recipient.BusinessName
-                           Amount = 3000m + randomAmount 1000 8000
-                           ScheduledDate = timestamp
-                           Sender = {
-                              Name = mockAccounts[arCheckingAccountId].Data.Name
-                              AccountId = arCheckingAccountId
-                              OrgId = orgId
-                           }
+                        Recipient = {
+                           OrgId = recipient.OrgId
+                           AccountId = recipient.PrimaryAccountId
+                           Name = recipient.BusinessName
+                        }
+                        Amount = 3000m + randomAmount 1000 8000
+                        ScheduledDate = timestamp
+                        Sender = {
+                           Name = mockAccounts[arCheckingAccountId].Data.Name
+                           AccountId = arCheckingAccountId
+                           OrgId = orgId
                         }
                      } with
                      Timestamp = timestamp
@@ -827,17 +828,18 @@ let seedAccountOwnerActions
                      (arCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
-                        BaseInfo = {
-                           RecipientOrgId = recipient.OrgId
-                           RecipientId = recipient.Data.AccountId
-                           RecipientName = recipient.Data.Name
-                           Amount = 2000m + randomAmount 1000 2000
-                           ScheduledDate = timestamp
-                           Sender = {
-                              Name = mockAccounts[arCheckingAccountId].Data.Name
-                              AccountId = arCheckingAccountId
-                              OrgId = orgId
-                           }
+                        Memo = None
+                        Recipient = {
+                           OrgId = recipient.OrgId
+                           AccountId = recipient.Data.AccountId
+                           Name = recipient.Data.Name
+                        }
+                        Amount = 2000m + randomAmount 1000 2000
+                        ScheduledDate = timestamp
+                        Sender = {
+                           Name = mockAccounts[arCheckingAccountId].Data.Name
+                           AccountId = arCheckingAccountId
+                           OrgId = orgId
                         }
                      } with
                      Timestamp = timestamp

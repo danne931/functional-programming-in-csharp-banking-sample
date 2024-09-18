@@ -4,6 +4,12 @@ open System
 
 open Lib.SharedTypes
 
+type InternalTransferRecipient = {
+   Name: string
+   AccountId: AccountId
+   OrgId: OrgId
+}
+
 type InternalTransferSender = {
    Name: string
    AccountId: AccountId
@@ -15,10 +21,17 @@ type InternalTransferDeclinedReason =
    | AccountClosed
    | InvalidAccountInfo
 
+[<RequireQualifiedAccess>]
+type InternalTransferStatus =
+   | Pending
+   | Approved
+   | Deposited
+   | Failed of InternalTransferDeclinedReason
+
 type BaseInternalTransferInfo = {
-   RecipientOrgId: OrgId
-   RecipientId: AccountId
-   RecipientName: string
+   TransferId: TransferId
+   InitiatedBy: InitiatedById
+   Recipient: InternalTransferRecipient
    Amount: decimal
    ScheduledDate: DateTime
    Sender: InternalTransferSender
