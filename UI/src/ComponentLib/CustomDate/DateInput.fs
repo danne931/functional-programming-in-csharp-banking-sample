@@ -21,34 +21,17 @@ type Msg =
    | Set of string
    | Submit
 
-let init () =
+let init initialInput () =
    {
-      Input = ""
+      Input = initialInput
       ValidationError = None
       ValidateOnKeyPress = false
       DateSubmission = None
    },
    Cmd.none
 
-let update
-   (restrictDateToFuture: bool)
-   (onValidDate: string * DateTime -> unit)
-   msg
-   state
-   =
-   let applyFutureDateValidator (formatted, date) =
-      dateInFutureValidator "Expiration" date
-      |> Result.map (fun _ -> formatted, date)
-
-   let validation =
-      Interpreter.validateInput Interpreter.DateSignifier.Single
-      >> Result.bind (
-         if restrictDateToFuture then
-            applyFutureDateValidator
-         else
-            Ok
-      )
-      >> validationErrorsHumanFriendly
+let update (onValidDate: string * DateTime -> unit) msg state =
+   let validation = Interpreter.validate Interpreter.DateSignifier.Single
 
    match msg with
    | Msg.Set input ->
@@ -98,16 +81,13 @@ let update
 let DateInputComponent
    (props:
       {|
+         InitialInput: string
          OnValidDate: string * DateTime -> unit
-         RestrictDateToFuture: bool
+         ExternalError: string option
       |})
    =
    let state, dispatch =
-      React.useElmish (
-         init,
-         update props.RestrictDateToFuture props.OnValidDate,
-         [||]
-      )
+      React.useElmish (init props.InitialInput, update props.OnValidDate, [||])
 
    React.fragment [
       Html.input [
@@ -121,11 +101,12 @@ let DateInputComponent
             if state.ValidationError.IsNone then
                dispatch Msg.Submit)
 
-         if state.ValidationError.IsSome then
+         if props.ExternalError.IsSome || state.ValidationError.IsSome then
             attr.ariaInvalid true
       ]
 
-      match state.ValidationError with
-      | Some errMsg -> Html.small [ attr.text errMsg ]
-      | None -> ()
+      match props.ExternalError, state.ValidationError with
+      | _, Some errMsg
+      | Some errMsg, _ -> Html.small [ attr.text errMsg ]
+      | _ -> ()
    ]

@@ -52,7 +52,7 @@ let expirationField =
    Form.dateField {
       Parser =
          CustomDateInterpreter.validate
-            CustomDateInterpreter.DateSignifier.Start
+            CustomDateInterpreter.DateSignifier.Single
          >> Result.bind (
             snd
             >> dateInFutureValidator "Expiration"

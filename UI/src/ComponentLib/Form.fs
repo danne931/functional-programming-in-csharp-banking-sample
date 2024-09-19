@@ -94,9 +94,9 @@ module Form =
              OnChange = onChange
              OnBlur = onBlur
              Disabled = _
-             Value = _
+             Value = value
              Error = error
-             ShowError = showError
+             ShowError = _
              Attributes = attributes
           }: TextFieldConfig<'Msg, IReactProperty>)
          =
@@ -107,11 +107,13 @@ module Form =
             attr.onBlur (fun _ -> onBlur |> Option.iter dispatch)
 
             attr.children [
+               fieldLabel attributes.Label
+
                CustomDateInput.DateInputComponent {|
+                  InitialInput = value
                   OnValidDate = onValidDate
-                  RestrictDateToFuture = true
+                  ExternalError = error |> Option.map errorToString
                |}
-               |> withLabelAndError attributes.Label showError error
             ]
          ]
 
