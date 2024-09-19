@@ -38,6 +38,6 @@ type BaseInternalTransferInfo = {
 }
 
 type InProgressInternalTransfer = {
-   CorrelationId: CorrelationId
+   TransferId: TransferId
    Info: BaseInternalTransferInfo
 }

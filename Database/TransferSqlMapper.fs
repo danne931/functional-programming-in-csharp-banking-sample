@@ -37,26 +37,26 @@ module TransferFields =
 
    // Specific to internal_transfer table
    module Internal =
-      let status = "status"
-      let statusDetail = "status_detail"
+      let status = "transfer_status"
+      let statusDetail = "transfer_status_detail"
       let recipientOrgId = "recipient_org_id"
       let recipientAccountId = "recipient_account_id"
 
    // Specific to domestic_transfer table
    module Domestic =
-      let status = "status"
-      let statusDetail = "status_detail"
+      let status = "transfer_status"
+      let statusDetail = "transfer_status_detail"
       let recipientAccountId = "recipient_account_id"
 
    // Specific to domestic_transfer_recipient table
    module DomesticRecipient =
-      let accountId = "account_id"
+      let accountId = "recipient_account_id"
       let firstName = "first_name"
       let lastName = "last_name"
       let nickname = "nickname"
       let routingNumber = "routing_number"
       let accountNumber = "account_number"
-      let status = "status"
+      let status = "recipient_status"
       let depository = "depository"
       let paymentNetwork = "payment_network"
 
@@ -99,15 +99,6 @@ module TransferSqlReader =
       let recipientAccountId (read: RowReader) =
          TransferFields.Internal.recipientAccountId |> read.uuid |> AccountId
 
-   module Domestic =
-      let status (read: RowReader) =
-         TransferFields.Domestic.statusDetail
-         |> read.text
-         |> Serialization.deserializeUnsafe<DomesticTransferProgress>
-
-      let recipientAccountId (read: RowReader) =
-         TransferFields.Domestic.recipientAccountId |> read.uuid |> AccountId
-
    module DomesticRecipient =
       let accountId (read: RowReader) =
          TransferFields.DomesticRecipient.accountId |> read.uuid |> AccountId
@@ -138,6 +129,47 @@ module TransferSqlReader =
          TransferFields.DomesticRecipient.paymentNetwork
          |> read.string
          |> PaymentNetwork.fromStringUnsafe
+
+      let recipient (read: RowReader) : DomesticTransferRecipient = {
+         FirstName = firstName read
+         LastName = lastName read
+         Nickname = nickname read
+         AccountNumber = accountNumber read
+         RoutingNumber = routingNumber read
+         Status = status read
+         AccountId = accountId read
+         Depository = depository read
+         PaymentNetwork = paymentNetwork read
+         CreatedAt = createdAt read
+      }
+
+   module Domestic =
+      let status (read: RowReader) =
+         TransferFields.Domestic.statusDetail
+         |> read.text
+         |> Serialization.deserializeUnsafe<DomesticTransferProgress>
+
+      let recipientAccountId (read: RowReader) =
+         TransferFields.Domestic.recipientAccountId |> read.uuid |> AccountId
+
+      let sender (read: RowReader) : DomesticTransferSender = {
+         Name = AccountSqlReader.name read
+         AccountNumber = read.int64 AccountFields.accountNumber |> AccountNumber
+         RoutingNumber = read.int AccountFields.routingNumber |> RoutingNumber
+         OrgId = AccountSqlReader.orgId read
+         AccountId = AccountSqlReader.accountId read
+      }
+
+      let transfer (read: RowReader) : DomesticTransfer = {
+         TransferId = transferId read
+         InitiatedBy = initiatedById read
+         Memo = memo read
+         Status = status read
+         Sender = sender read
+         Recipient = DomesticRecipient.recipient read
+         Amount = amount read
+         ScheduledDate = scheduledAt read
+      }
 
 module TransferSqlWriter =
    let transferId = TransferId.get >> Sql.uuid
@@ -194,3 +226,38 @@ module TransferSqlWriter =
          Sql.string (string status)
 
       let paymentNetwork (network: PaymentNetwork) = Sql.string (string network)
+
+module Query =
+   let domesticTransfer =
+      $"""
+      SELECT
+         dt.{TransferFields.Domestic.recipientAccountId},
+         dt.{TransferFields.Domestic.status},
+         dt.{TransferFields.Domestic.statusDetail},
+         t.{TransferFields.transferId},
+         t.{TransferFields.initiatedById},
+         t.{TransferFields.scheduledAt},
+         t.{TransferFields.senderOrgId},
+         t.{TransferFields.senderAccountId},
+         t.{TransferFields.amount},
+         t.{TransferFields.memo},
+         dr.{TransferFields.DomesticRecipient.firstName},
+         dr.{TransferFields.DomesticRecipient.lastName},
+         dr.{TransferFields.DomesticRecipient.nickname},
+         dr.{TransferFields.DomesticRecipient.accountNumber},
+         dr.{TransferFields.DomesticRecipient.routingNumber},
+         dr.{TransferFields.DomesticRecipient.depository},
+         dr.{TransferFields.DomesticRecipient.paymentNetwork},
+         dr.{TransferFields.DomesticRecipient.status},
+         dr.{TransferFields.createdAt},
+         a.{AccountFields.name},
+         a.{AccountFields.accountNumber} as sender_account_number,
+         a.{AccountFields.routingNumber} as sender_routing_number,
+         a.{AccountFields.orgId},
+         a.{AccountFields.accountId}
+      FROM {Table.domesticTransfer} dt
+      JOIN {Table.domesticRecipient} dr using({TransferFields.Domestic.recipientAccountId})
+      JOIN {Table.transfer} t using({TransferFields.transferId})
+      JOIN {AccountSqlMapper.table} a
+         ON t.{TransferFields.senderAccountId} = a.{AccountFields.accountId}
+      """

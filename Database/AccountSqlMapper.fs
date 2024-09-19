@@ -116,15 +116,15 @@ module AccountSqlReader =
       MaintenanceFeeCriteria = maintenanceFeeCriteria read
       InProgressInternalTransfers =
          inProgressInternalTransfers read
-         |> List.map (fun t -> t.CorrelationId, t)
+         |> List.map (fun t -> t.TransferId, t)
          |> Map.ofList
       InProgressDomesticTransfers =
          inProgressDomesticTransfers read
-         |> List.map (fun txn -> txn.TransferId, txn)
+         |> List.map (fun t -> t.TransferId, t)
          |> Map.ofList
       FailedDomesticTransfers =
          failedDomesticTransfers read
-         |> List.map (fun txn -> txn.TransferId, txn)
+         |> List.map (fun t -> t.TransferId, t)
          |> Map.ofList
    }
 
@@ -168,11 +168,11 @@ module AccountSqlWriter =
    let maintenanceFeeDailyBalanceThreshold = Sql.bool
 
    let inProgressInternalTransfers
-      (transfers: Map<CorrelationId, InProgressInternalTransfer>)
+      (transfers: Map<TransferId, InProgressInternalTransfer>)
       =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
-   let domesticTransfers (transfers: Map<CorrelationId, DomesticTransfer>) =
+   let domesticTransfers (transfers: Map<TransferId, DomesticTransfer>) =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let transfersCount = Sql.int

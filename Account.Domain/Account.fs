@@ -74,7 +74,6 @@ module TransferLimits =
       && (dailyDomesticTransferAccrued evts) + amount > DailyDomesticLimit
 
 let private applyInternalTransferPending
-   (corrId: CorrelationId)
    (info: BaseInternalTransferInfo)
    (account: Account)
    =
@@ -87,23 +86,25 @@ let private applyInternalTransferPending
             MaintenanceFee.fromDebit account.MaintenanceFeeCriteria balance
          InProgressInternalTransfers =
             Map.add
-               corrId
-               { CorrelationId = corrId; Info = info }
+               info.TransferId
+               {
+                  TransferId = info.TransferId
+                  Info = info
+               }
                account.InProgressInternalTransfers
    }
 
 let private applyInternalTransferApproved
-   (corrId: CorrelationId)
+   (info: BaseInternalTransferInfo)
    (account: Account)
    =
    {
       account with
          InProgressInternalTransfers =
-            Map.remove corrId account.InProgressInternalTransfers
+            Map.remove info.TransferId account.InProgressInternalTransfers
    }
 
 let private applyInternalTransferRejected
-   (corrId: CorrelationId)
    (info: BaseInternalTransferInfo)
    (account: Account)
    =
@@ -117,7 +118,7 @@ let private applyInternalTransferRejected
                account.MaintenanceFeeCriteria
                balance
          InProgressInternalTransfers =
-            Map.remove corrId account.InProgressInternalTransfers
+            Map.remove info.TransferId account.InProgressInternalTransfers
    (*
          FailedInternalTransfers =
             Map.add
@@ -212,10 +213,10 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
                // When reattempting a failed transfer, the transfer will be
                // moved from the failed map to the in-progress map.
                FailedDomesticTransfers =
-                  Map.remove e.CorrelationId account.FailedDomesticTransfers
+                  Map.remove info.TransferId account.FailedDomesticTransfers
                InProgressDomesticTransfers =
                   Map.add
-                     e.CorrelationId
+                     info.TransferId
                      (TransferEventToDomesticTransfer.fromPending e)
                      account.InProgressDomesticTransfers
          }
@@ -223,7 +224,7 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
          account with
             InProgressDomesticTransfers =
                Map.change
-                  e.CorrelationId
+                  e.Data.BaseInfo.TransferId
                   (Option.map (fun txn -> {
                      txn with
                         Status =
@@ -235,7 +236,9 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
       | DomesticTransferApproved e -> {
          account with
             InProgressDomesticTransfers =
-               Map.remove e.CorrelationId account.InProgressDomesticTransfers
+               Map.remove
+                  e.Data.BaseInfo.TransferId
+                  account.InProgressDomesticTransfers
             // When a domestic transfer is retried & approved after being
             // rejected due to invalid account details then update the
             // recipient status to Confirmed.
@@ -288,26 +291,26 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
                // When a domestic transfer fails it will be moved from the
                // in-progress map to the failed map.
                InProgressDomesticTransfers =
-                  Map.remove e.CorrelationId account.InProgressDomesticTransfers
+                  Map.remove info.TransferId account.InProgressDomesticTransfers
                FailedDomesticTransfers =
                   Map.add
-                     e.CorrelationId
+                     info.TransferId
                      (TransferEventToDomesticTransfer.fromRejection e)
                      account.FailedDomesticTransfers
                DomesticTransferRecipients = updatedRecipients
          }
       | InternalTransferWithinOrgPending e ->
-         applyInternalTransferPending e.CorrelationId e.Data.BaseInfo account
+         applyInternalTransferPending e.Data.BaseInfo account
       | InternalTransferWithinOrgApproved e ->
-         applyInternalTransferApproved e.CorrelationId account
+         applyInternalTransferApproved e.Data.BaseInfo account
       | InternalTransferWithinOrgRejected e ->
-         applyInternalTransferRejected e.CorrelationId e.Data.BaseInfo account
+         applyInternalTransferRejected e.Data.BaseInfo account
       | InternalTransferBetweenOrgsPending e ->
-         applyInternalTransferPending e.CorrelationId e.Data.BaseInfo account
+         applyInternalTransferPending e.Data.BaseInfo account
       | InternalTransferBetweenOrgsApproved e ->
-         applyInternalTransferApproved e.CorrelationId account
+         applyInternalTransferApproved e.Data.BaseInfo account
       | InternalTransferBetweenOrgsRejected e ->
-         applyInternalTransferRejected e.CorrelationId e.Data.BaseInfo account
+         applyInternalTransferRejected e.Data.BaseInfo account
       | InternalTransferWithinOrgDeposited e ->
          applyTransferDeposit account e.Data.BaseInfo.Amount
       | InternalTransferBetweenOrgsDeposited e ->
@@ -487,12 +490,13 @@ module private StateTransition =
       (cmd: ApproveInternalTransferWithinOrgCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressInternalTransfers
+         <| Map.tryFind transferId account.InProgressInternalTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
@@ -506,12 +510,13 @@ module private StateTransition =
       (cmd: RejectInternalTransferWithinOrgCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressInternalTransfers
+         <| Map.tryFind transferId account.InProgressInternalTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
@@ -551,12 +556,13 @@ module private StateTransition =
       (cmd: ApproveInternalTransferBetweenOrgsCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressInternalTransfers
+         <| Map.tryFind transferId account.InProgressInternalTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
@@ -570,12 +576,13 @@ module private StateTransition =
       (cmd: RejectInternalTransferBetweenOrgsCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressInternalTransfers
+         <| Map.tryFind transferId account.InProgressInternalTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
@@ -618,12 +625,13 @@ module private StateTransition =
       (cmd: UpdateDomesticTransferProgressCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
          let existing =
-            Map.tryFind cmd.CorrelationId account.InProgressDomesticTransfers
+            Map.tryFind transferId account.InProgressDomesticTransfers
 
          match existing with
          | None ->
@@ -650,12 +658,13 @@ module private StateTransition =
       (cmd: ApproveDomesticTransferCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressDomesticTransfers
+         <| Map.tryFind transferId account.InProgressDomesticTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else
@@ -669,12 +678,13 @@ module private StateTransition =
       (cmd: RejectDomesticTransferCommand)
       =
       let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
 
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else if
          Option.isNone
-         <| Map.tryFind cmd.CorrelationId account.InProgressDomesticTransfers
+         <| Map.tryFind transferId account.InProgressDomesticTransfers
       then
          transitionErr TransferAlreadyProgressedToApprovedOrRejected
       else

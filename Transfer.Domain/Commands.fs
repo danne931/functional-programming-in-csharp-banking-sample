@@ -507,11 +507,11 @@ module DomesticTransferToCommand =
    let progress (txn: DomesticTransfer) (progress: string) =
       UpdateDomesticTransferProgressCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
-         txn.TransferId
+         (txn.TransferId |> TransferId.get |> CorrelationId)
          txn.InitiatedBy
          {
             BaseInfo = {
-               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               TransferId = txn.TransferId
                InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
@@ -525,11 +525,11 @@ module DomesticTransferToCommand =
    let approve (txn: DomesticTransfer) =
       ApproveDomesticTransferCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
-         txn.TransferId
+         (txn.TransferId |> TransferId.get |> CorrelationId)
          txn.InitiatedBy
          {
             BaseInfo = {
-               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               TransferId = txn.TransferId
                InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
@@ -542,11 +542,11 @@ module DomesticTransferToCommand =
    let reject (txn: DomesticTransfer) (reason: DomesticTransferDeclinedReason) =
       RejectDomesticTransferCommand.create
          (txn.Sender.AccountId, txn.Sender.OrgId)
-         txn.TransferId
+         (txn.TransferId |> TransferId.get |> CorrelationId)
          txn.InitiatedBy
          {
             BaseInfo = {
-               TransferId = txn.TransferId |> CorrelationId.get |> TransferId
+               TransferId = txn.TransferId
                InitiatedBy = txn.InitiatedBy
                Sender = txn.Sender
                Recipient = txn.Recipient
@@ -561,7 +561,7 @@ module DomesticTransferToCommand =
       Command.create
          (AccountId.toEntityId txn.Sender.AccountId)
          txn.Sender.OrgId
-         txn.TransferId
+         (txn.TransferId |> TransferId.get |> CorrelationId)
          txn.InitiatedBy
          {
             ScheduledDate = txn.ScheduledDate

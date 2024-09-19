@@ -13,8 +13,8 @@ open Bank.Transfer.Domain
 open ActorUtil
 open Lib.Types
 open Lib.Postgres
-open AccountSqlMapper
 open DomesticTransferRecipientActor
+open TransferSqlMapper
 
 let actorProps
    (system: ActorSystem)
@@ -83,34 +83,16 @@ let get (system: ActorSystem) : IActorRef<TransferProgressTrackingMessage> =
 // in cases where a TransferRequest was rescheduled when the
 // domestic transfer actor's circuit breaker was open.
 let getProgressCheckReadyDomesticTransfers (lookbackMinutes: int) () = asyncResultOption {
-   let reader (read: RowReader) =
-      read.text "txns" |> Serialization.deserializeUnsafe<DomesticTransfer>
-
-   let inProgressTransfersPath =
-      AccountSqlMapper.table + "." + AccountFields.inProgressDomesticTransfers
-
-   let inProgressTransfersCountPath =
-      AccountSqlMapper.table
-      + "."
-      + AccountFields.inProgressDomesticTransfersCount
+   let query =
+      $"""
+      {TransferSqlMapper.Query.domesticTransfer}
+      WHERE
+         {TransferFields.Domestic.status} IN ('Outgoing', 'InProgress')
+         AND {TransferFields.scheduledAt} < current_timestamp - '{lookbackMinutes} minutes'::interval
+      """
 
    let! transfers =
-      pgQuery<DomesticTransfer>
-         $"""
-         SELECT txns
-         FROM
-            {AccountSqlMapper.table},
-            jsonb_array_elements({inProgressTransfersPath}) as txns
-         WHERE
-            {inProgressTransfersCountPath} > 0
-            AND (txns ->> 'ScheduledDate')::timestamptz < current_timestamp - '{lookbackMinutes} minutes'::interval
-            AND (
-               (txns #>> '{{Status}}') = 'Outgoing'
-               OR (txns #>> '{{Status,0}}') = 'InProgress'
-            )
-         """
-         None
-         reader
+      pgQuery<DomesticTransfer> query None TransferSqlReader.Domestic.transfer
 
    return transfers
 }

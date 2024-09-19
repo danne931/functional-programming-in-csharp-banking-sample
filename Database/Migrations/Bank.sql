@@ -9,8 +9,8 @@ DROP VIEW IF EXISTS monthly_purchase_accrued_by_card;
 
 DROP TABLE IF EXISTS balance_history;
 DROP TABLE IF EXISTS billingstatement;
-DROP TABLE IF EXISTS platform_payment;
-DROP TABLE IF EXISTS third_party_payment;
+DROP TABLE IF EXISTS payment_platform;
+DROP TABLE IF EXISTS payment_third_party;
 DROP TABLE IF EXISTS payment;
 DROP TABLE IF EXISTS transfer_internal;
 DROP TABLE IF EXISTS transfer_domestic;
@@ -304,8 +304,8 @@ CREATE TABLE transfer(
    amount MONEY NOT NULL,
    transfer_category transfer_category NOT NULL,
    scheduled_at TIMESTAMPTZ NOT NULL,
-   sender_org_id UUID NOT NULL REFERENCES organization,
-   sender_account_id UUID NOT NULL REFERENCES account,
+   sender_org_id UUID NOT NULL REFERENCES organization(org_id),
+   sender_account_id UUID NOT NULL REFERENCES account(account_id),
    memo TEXT,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -318,8 +318,8 @@ CREATE TYPE internal_transfer_status AS ENUM (
 );
 CREATE TABLE transfer_internal(
    transfer_id UUID PRIMARY KEY REFERENCES transfer,
-   status internal_transfer_status NOT NULL,
-   status_detail JSONB NOT NULL,
+   transfer_status internal_transfer_status NOT NULL,
+   transfer_status_detail JSONB NOT NULL,
    recipient_org_id UUID NOT NULL REFERENCES organization(org_id),
    recipient_account_id UUID REFERENCES account(account_id),
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -334,13 +334,13 @@ AS ENUM ('Confirmed', 'InvalidAccount', 'Closed');
 CREATE TYPE payment_network AS ENUM ('ACH');
 
 CREATE TABLE transfer_domestic_recipient(
-   account_id UUID PRIMARY KEY,
+   recipient_account_id UUID PRIMARY KEY,
    first_name VARCHAR(50) NOT NULL,
    last_name VARCHAR(50) NOT NULL,
    nickname VARCHAR(100),
    routing_number INT NOT NULL,
    account_number BIGINT UNIQUE NOT NULL,
-   status domestic_transfer_recipient_status NOT NULL,
+   recipient_status domestic_transfer_recipient_status NOT NULL,
    depository domestic_transfer_recipient_account_depository NOT NULL,
    payment_network payment_network NOT NULL,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -355,9 +355,9 @@ CREATE TYPE domestic_transfer_status AS ENUM (
 
 CREATE TABLE transfer_domestic(
    transfer_id UUID PRIMARY KEY REFERENCES transfer,
-   status domestic_transfer_status NOT NULL,
-   status_detail JSONB NOT NULL,
-   recipient_account_id UUID REFERENCES domestic_transfer_recipient(account_id),
+   transfer_status domestic_transfer_status NOT NULL,
+   transfer_status_detail JSONB NOT NULL,
+   recipient_account_id UUID REFERENCES transfer_domestic_recipient,
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -369,8 +369,8 @@ CREATE TABLE payment(
    memo TEXT NOT NULL,
    payment_type payment_type NOT NULL,
    expiration TIMESTAMPTZ NOT NULL,
-   payee_org_id UUID NOT NULL REFERENCES organization,
-   payee_account_id UUID NOT NULL REFERENCES account,
+   payee_org_id UUID NOT NULL REFERENCES organization(org_id),
+   payee_account_id UUID NOT NULL REFERENCES account(account_id),
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -384,7 +384,7 @@ CREATE TYPE platform_payment_status AS ENUM (
 CREATE TABLE payment_platform(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status platform_payment_status NOT NULL,
-   payer_org_id UUID NOT NULL REFERENCES organization,
+   payer_org_id UUID NOT NULL REFERENCES organization(org_id),
    -- An organization who conducts business on the platform
    -- may choose to pay by one of their accounts.  
    -- Alternatively, they may choose to pay by ACH or card (TODO)
@@ -744,7 +744,8 @@ BEGIN
         0
      ) AS domestic_transfer_accrued
   FROM transaction t
-  LEFT JOIN account using(account_id)
+  JOIN transfer ON t.correlation_id = transfer.transfer_id
+  JOIN account using(account_id)
   WHERE
      t.org_id = orgId
      AND t.amount IS NOT NULL
@@ -755,15 +756,13 @@ BEGIN
         'PlatformPaymentPaid'
      )
      AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
-     -- TODO: Create internal/domestic transfer read model tables 
-     --       and read from scheduled_date column.
      AND
        CASE
        WHEN timeFrame = 'day'
-       THEN (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date = CURRENT_DATE
+       THEN transfer.scheduled_at::date = CURRENT_DATE
 
        WHEN timeFrame = 'month'
-       THEN (t.event #>> '{1,Data,BaseInfo,ScheduledDate}')::timestamptz::date >= date_trunc('month', CURRENT_DATE)
+       THEN transfer.scheduled_at::date >= date_trunc('month', CURRENT_DATE)
        END
   GROUP BY account.account_id;
 END

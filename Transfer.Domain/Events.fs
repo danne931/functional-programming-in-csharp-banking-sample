@@ -68,7 +68,7 @@ module TransferEventToDomesticTransfer =
 
       {
          Sender = info.Sender
-         TransferId = evt.CorrelationId
+         TransferId = evt.Data.BaseInfo.TransferId
          Recipient = info.Recipient
          InitiatedBy = evt.InitiatedById
          Amount = info.Amount
@@ -85,7 +85,7 @@ module TransferEventToDomesticTransfer =
 
       {
          Sender = info.Sender
-         TransferId = evt.CorrelationId
+         TransferId = evt.Data.BaseInfo.TransferId
          Recipient = info.Recipient
          InitiatedBy = evt.InitiatedById
          Amount = info.Amount

@@ -180,9 +180,9 @@ type Account = {
    Balance: decimal
    LastBillingCycleDate: DateTime option
    DomesticTransferRecipients: Map<AccountId, DomesticTransferRecipient>
-   InProgressInternalTransfers: Map<CorrelationId, InProgressInternalTransfer>
-   InProgressDomesticTransfers: Map<CorrelationId, DomesticTransfer>
-   FailedDomesticTransfers: Map<CorrelationId, DomesticTransfer>
+   InProgressInternalTransfers: Map<TransferId, InProgressInternalTransfer>
+   InProgressDomesticTransfers: Map<TransferId, DomesticTransfer>
+   FailedDomesticTransfers: Map<TransferId, DomesticTransfer>
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber

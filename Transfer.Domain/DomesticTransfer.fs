@@ -52,7 +52,7 @@ type PaymentNetwork = | ACH
 module PaymentNetwork =
    let fromString (str: string) : PaymentNetwork option =
       match str.ToLower() with
-      | "savings" -> Some PaymentNetwork.ACH
+      | "ach" -> Some PaymentNetwork.ACH
       | _ -> None
 
    let fromStringUnsafe str : PaymentNetwork =
@@ -120,7 +120,7 @@ type BaseDomesticTransferInfo = {
 type DomesticTransfer = {
    Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
-   TransferId: CorrelationId
+   TransferId: TransferId
    InitiatedBy: InitiatedById
    Amount: decimal
    ScheduledDate: DateTime
