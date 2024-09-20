@@ -122,10 +122,10 @@ builder.Services.AddAkka(
          )
          .WithSingleton<ActorMetadata.AccountClosureMarker>(
             ActorMetadata.accountClosure.Name,
-            (fun system registry _ ->
+            (fun system _ _ ->
                let typedProps =
                   AccountClosureActor.initProps system
-                  <| SchedulingActor.get registry
+                  <| SchedulingActor.get system
                   <| AccountActor.get system
                   <| Env.config.AccountDeleteThrottle
 

@@ -92,6 +92,12 @@ builder.Services.AddAkka(
                typedefof<BillingCycleMessage>
                typedefof<AccountClosureMessage>
                typedefof<TransferProgressTrackingMessage>
+               typedefof<AccountMessage>
+               // NOTE: Akka ShardRegionProxy defined in Akka.Hosting below
+               //       does not recognize Akkling ShardEnvelope as Akka
+               //       ShardingEnvelope so need to explicitly add it for
+               //       message extraction.
+               typedefof<Akkling.Cluster.Sharding.ShardEnvelope>
             ],
             fun system -> BankSerializer(system)
          )
@@ -99,6 +105,11 @@ builder.Services.AddAkka(
             QuartzSerializer.Name,
             [ typedefof<obj> ],
             (fun system -> QuartzSerializer(system))
+         )
+         .WithShardRegionProxy<ActorMetadata.AccountMarker>(
+            ClusterMetadata.accountShardRegion.name,
+            ClusterMetadata.roles.account,
+            ClusterMetadata.accountShardRegion.messageExtractor
          )
          .WithSingletonProxy<ActorMetadata.AccountClosureMarker>(
             ActorMetadata.accountClosure.Name,
@@ -132,8 +143,8 @@ builder.Services.AddAkka(
             ClusterSingletonOptions(Role = ClusterMetadata.roles.scheduling)
          )
          .AddStartup(
-            StartupTask(fun _ registry -> task {
-               let schedulingActor = SchedulingActor.get registry
+            StartupTask(fun system _ -> task {
+               let schedulingActor = SchedulingActor.get system
 
                schedulingActor <! SchedulingActor.BillingCycleCronJobSchedule
 

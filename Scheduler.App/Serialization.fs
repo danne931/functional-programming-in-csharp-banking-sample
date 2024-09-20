@@ -5,6 +5,7 @@ open System.Text.Json
 open System.Runtime.Serialization
 open Akka.Serialization
 open Akka.Actor
+open Lib.SharedTypes
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -15,6 +16,14 @@ open BillingStatement
 // Akka.Quartz.Actor until serialization PR merged.  Akka.Quartz.Actor
 // is always passing in Object as manifest unless this PR merged:
 // https://github.com/akkadotnet/Akka.Quartz.Actor/pull/335
+
+type private QuartzAccountMessageEnvelope = {
+   Manifest: string
+   Message: {|
+      AccountMessage: AccountMessage
+      AccountId: AccountId
+   |}
+}
 
 type private QuartzBillingMessageEnvelope = {
    Manifest: string
@@ -107,4 +116,25 @@ type QuartzSerializer(system: ExtendedActorSystem) =
             )
 
          deseri.Message
+      | "AccountActorMessage" ->
+         let deseri =
+            JsonSerializer.Deserialize<QuartzAccountMessageEnvelope>(
+               bytes,
+               Serialization.jsonOptions
+            )
+
+         let entityId = string deseri.Message.AccountId
+
+         let msg: Akkling.Cluster.Sharding.ShardEnvelope = {
+            ShardId =
+               ActorUtil
+                  .ClusterMetadata
+                  .accountShardRegion
+                  .messageExtractor
+                  .ShardId(entityId)
+            EntityId = entityId
+            Message = deseri.Message.AccountMessage
+         }
+
+         msg
       | _ -> raise <| SerializationException()

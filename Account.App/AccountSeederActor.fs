@@ -703,7 +703,7 @@ let seedAccountOwnerActions
             (account.AccountId, orgId)
             mockAccountOwnerId
             {
-               ScheduledDate = timestamp
+               ScheduledDateSeedOverride = Some timestamp
                Amount = 30_000m + (randomAmount 1000 7000)
                Recipient = domesticRecipient
                Sender = {
@@ -773,7 +773,7 @@ let seedAccountOwnerActions
                            AccountId = arCheckingAccountId
                            Name = orgName
                         }
-                        ScheduledDate = ts
+                        ScheduledDateSeedOverride = Some ts
                         Sender = {
                            Name = sender.BusinessName
                            AccountId = sender.PrimaryAccountId
@@ -806,7 +806,7 @@ let seedAccountOwnerActions
                            Name = recipient.BusinessName
                         }
                         Amount = 3000m + randomAmount 1000 8000
-                        ScheduledDate = timestamp
+                        ScheduledDateSeedOverride = Some timestamp
                         Sender = {
                            Name = mockAccounts[arCheckingAccountId].Data.Name
                            AccountId = arCheckingAccountId
@@ -835,7 +835,7 @@ let seedAccountOwnerActions
                            Name = recipient.Data.Name
                         }
                         Amount = 2000m + randomAmount 1000 2000
-                        ScheduledDate = timestamp
+                        ScheduledDateSeedOverride = Some timestamp
                         Sender = {
                            Name = mockAccounts[arCheckingAccountId].Data.Name
                            AccountId = arCheckingAccountId

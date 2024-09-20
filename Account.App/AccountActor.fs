@@ -76,6 +76,7 @@ let actorProps
    (getBillingStatementActor: ActorSystem -> IActorRef<BillingStatementMessage>)
    (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   (schedulingRef: IActorRef<SchedulingActor.Message>)
    =
    let handler (mailbox: Eventsourced<obj>) =
       let logWarning, logError = logWarning mailbox, logError mailbox
@@ -145,6 +146,13 @@ let actorProps
             | InternalTransferBetweenOrgsPending e ->
                getOrStartInternalTransferActor mailbox
                <! InternalTransferMsg.TransferRequestBetweenOrgs e
+            | InternalTransferBetweenOrgsScheduled e ->
+               schedulingRef
+               <! SchedulingActor.Message.ScheduleInternalTransferBetweenOrgs
+                     e.Data
+            | DomesticTransferScheduled e ->
+               schedulingRef
+               <! SchedulingActor.Message.ScheduleDomesticTransfer e.Data
             | DomesticTransferPending e ->
                let txn = TransferEventToDomesticTransfer.fromPending e
 
@@ -343,6 +351,7 @@ let initProps
          BillingStatementActor.get
          getEmployeeRef
          (get system)
+         (SchedulingActor.get system)
 
    persistenceSupervisor
       supervisorOpts

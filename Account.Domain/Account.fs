@@ -199,6 +199,7 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
          account with
             MaintenanceFeeCriteria = MaintenanceFee.reset account.Balance
         }
+      | DomesticTransferScheduled _ -> account
       | DomesticTransferPending e ->
          let info = e.Data.BaseInfo
          let balance = account.Balance - info.Amount
@@ -305,6 +306,7 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
          applyInternalTransferApproved e.Data.BaseInfo account
       | InternalTransferWithinOrgRejected e ->
          applyInternalTransferRejected e.Data.BaseInfo account
+      | InternalTransferBetweenOrgsScheduled _ -> account
       | InternalTransferBetweenOrgsPending e ->
          applyInternalTransferPending e.Data.BaseInfo account
       | InternalTransferBetweenOrgsApproved e ->
@@ -474,7 +476,7 @@ module private StateTransition =
          TransferLimits.exceedsDailyInternalTransferLimit
             state.Events
             input.Amount
-            input.ScheduledDate
+            cmd.Timestamp
       then
          TransferLimits.DailyInternalLimit
          |> ExceededDailyInternalTransferLimit
@@ -525,6 +527,23 @@ module private StateTransition =
             state
             (RejectInternalTransferWithinOrgCommand.toEvent cmd)
 
+   let scheduleInternalTransferBetweenOrgs
+      (state: AccountWithEvents)
+      (cmd: ScheduleInternalTransferBetweenOrgsCommand)
+      =
+      let input = cmd.Data.TransferInput
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      elif account.Balance - input.Amount < 0m then
+         transitionErr <| InsufficientBalance account.Balance
+      else
+         map
+            InternalTransferBetweenOrgsScheduled
+            state
+            (ScheduleInternalTransferBetweenOrgsCommand.toEvent cmd)
+
    let internalTransferBetweenOrgs
       (state: AccountWithEvents)
       (cmd: InternalTransferBetweenOrgsCommand)
@@ -540,7 +559,7 @@ module private StateTransition =
          TransferLimits.exceedsDailyInternalTransferLimit
             state.Events
             input.Amount
-            input.ScheduledDate
+            cmd.Timestamp
       then
          TransferLimits.DailyInternalLimit
          |> ExceededDailyInternalTransferLimit
@@ -591,6 +610,29 @@ module private StateTransition =
             state
             (RejectInternalTransferBetweenOrgsCommand.toEvent cmd)
 
+   let scheduleDomesticTransfer
+      (state: AccountWithEvents)
+      (cmd: ScheduleDomesticTransferCommand)
+      =
+      let input = cmd.Data.TransferInput
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      elif account.Balance - input.Amount < 0m then
+         transitionErr <| InsufficientBalance account.Balance
+      elif
+         account.DomesticTransferRecipients
+         |> Map.containsKey input.Recipient.AccountId
+         |> not
+      then
+         transitionErr RecipientRegistrationRequired
+      else
+         map
+            DomesticTransferScheduled
+            state
+            (ScheduleDomesticTransferCommand.toEvent cmd)
+
    let domesticTransfer
       (state: AccountWithEvents)
       (cmd: DomesticTransferCommand)
@@ -612,7 +654,7 @@ module private StateTransition =
          TransferLimits.exceedsDailyDomesticTransferLimit
             state.Events
             input.Amount
-            input.ScheduledDate
+            cmd.Timestamp
       then
          TransferLimits.DailyDomesticLimit
          |> ExceededDailyDomesticTransferLimit
@@ -876,6 +918,8 @@ let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
       StateTransition.approveInternalTransfer state cmd
    | RejectInternalTransfer cmd ->
       StateTransition.rejectInternalTransfer state cmd
+   | ScheduleInternalTransferBetweenOrgs cmd ->
+      StateTransition.scheduleInternalTransferBetweenOrgs state cmd
    | InternalTransferBetweenOrgs cmd ->
       StateTransition.internalTransferBetweenOrgs state cmd
    | ApproveInternalTransferBetweenOrgs cmd ->
@@ -890,6 +934,8 @@ let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
       StateTransition.registerDomesticTransferRecipient state cmd
    | EditDomesticTransferRecipient cmd ->
       StateTransition.editDomesticTransferRecipient state cmd
+   | ScheduleDomesticTransfer cmd ->
+      StateTransition.scheduleDomesticTransfer state cmd
    | DomesticTransfer cmd -> StateTransition.domesticTransfer state cmd
    | ApproveDomesticTransfer cmd ->
       StateTransition.approveDomesticTransfer state cmd

@@ -15,6 +15,8 @@ type AccountCommand =
    | InternalTransfer of InternalTransferWithinOrgCommand
    | ApproveInternalTransfer of ApproveInternalTransferWithinOrgCommand
    | RejectInternalTransfer of RejectInternalTransferWithinOrgCommand
+   | ScheduleInternalTransferBetweenOrgs of
+      ScheduleInternalTransferBetweenOrgsCommand
    | InternalTransferBetweenOrgs of InternalTransferBetweenOrgsCommand
    | ApproveInternalTransferBetweenOrgs of
       ApproveInternalTransferBetweenOrgsCommand
@@ -25,6 +27,7 @@ type AccountCommand =
    | RegisterDomesticTransferRecipient of
       RegisterDomesticTransferRecipientCommand
    | EditDomesticTransferRecipient of EditDomesticTransferRecipientCommand
+   | ScheduleDomesticTransfer of ScheduleDomesticTransferCommand
    | DomesticTransfer of DomesticTransferCommand
    | UpdateDomesticTransferProgress of UpdateDomesticTransferProgressCommand
    | ApproveDomesticTransfer of ApproveDomesticTransferCommand
@@ -50,6 +53,8 @@ type AccountEvent =
       BankEvent<InternalTransferWithinOrgApproved>
    | InternalTransferWithinOrgRejected of
       BankEvent<InternalTransferWithinOrgRejected>
+   | InternalTransferBetweenOrgsScheduled of
+      BankEvent<InternalTransferBetweenOrgsScheduled>
    | InternalTransferBetweenOrgsPending of
       BankEvent<InternalTransferBetweenOrgsPending>
    | InternalTransferBetweenOrgsApproved of
@@ -63,6 +68,7 @@ type AccountEvent =
    | DomesticTransferRecipient of BankEvent<RegisteredDomesticTransferRecipient>
    | EditedDomesticTransferRecipient of
       BankEvent<EditedDomesticTransferRecipient>
+   | DomesticTransferScheduled of BankEvent<DomesticTransferScheduled>
    | DomesticTransferPending of BankEvent<DomesticTransferPending>
    | DomesticTransferProgress of BankEvent<DomesticTransferProgressUpdate>
    | DomesticTransferApproved of BankEvent<DomesticTransferApproved>
@@ -109,6 +115,8 @@ module AccountEnvelope =
          InternalTransferWithinOrgApproved evt
       | :? BankEvent<InternalTransferWithinOrgRejected> as evt ->
          InternalTransferWithinOrgRejected evt
+      | :? BankEvent<InternalTransferBetweenOrgsScheduled> as evt ->
+         InternalTransferBetweenOrgsScheduled evt
       | :? BankEvent<InternalTransferBetweenOrgsPending> as evt ->
          InternalTransferBetweenOrgsPending evt
       | :? BankEvent<InternalTransferBetweenOrgsApproved> as evt ->
@@ -119,6 +127,8 @@ module AccountEnvelope =
          InternalTransferWithinOrgDeposited evt
       | :? BankEvent<InternalTransferBetweenOrgsDeposited> as evt ->
          InternalTransferBetweenOrgsDeposited evt
+      | :? BankEvent<DomesticTransferScheduled> as evt ->
+         DomesticTransferScheduled evt
       | :? BankEvent<DomesticTransferPending> as evt ->
          DomesticTransferPending evt
       | :? BankEvent<DomesticTransferProgressUpdate> as evt ->
@@ -150,11 +160,13 @@ module AccountEnvelope =
       | InternalTransferWithinOrgPending evt -> wrap evt, get evt
       | InternalTransferWithinOrgApproved evt -> wrap evt, get evt
       | InternalTransferWithinOrgRejected evt -> wrap evt, get evt
+      | InternalTransferBetweenOrgsScheduled evt -> wrap evt, get evt
       | InternalTransferBetweenOrgsPending evt -> wrap evt, get evt
       | InternalTransferBetweenOrgsApproved evt -> wrap evt, get evt
       | InternalTransferBetweenOrgsRejected evt -> wrap evt, get evt
       | DomesticTransferRecipient evt -> wrap evt, get evt
       | EditedDomesticTransferRecipient evt -> wrap evt, get evt
+      | DomesticTransferScheduled evt -> wrap evt, get evt
       | DomesticTransferPending evt -> wrap evt, get evt
       | DomesticTransferProgress evt -> wrap evt, get evt
       | DomesticTransferApproved evt -> wrap evt, get evt
@@ -179,6 +191,8 @@ type Account = {
    Status: AccountStatus
    Balance: decimal
    LastBillingCycleDate: DateTime option
+   // TODO: Add Scheduled transfer fields & probably change these
+   //       in-progress/failed fields to just contain the Id
    DomesticTransferRecipients: Map<AccountId, DomesticTransferRecipient>
    InProgressInternalTransfers: Map<TransferId, InProgressInternalTransfer>
    InProgressDomesticTransfers: Map<TransferId, DomesticTransfer>

@@ -18,7 +18,28 @@ type Values = {
    Amount: string
    RecipientId: string
    Memo: string
+   ScheduledAt: string
 }
+
+let scheduledAtField =
+   Form.dateField {
+      Parser =
+         CustomDateInterpreter.validate
+            CustomDateInterpreter.DateSignifier.Single
+         >> Result.bind (
+            snd
+            >> datePresentOrFutureValidator "Scheduled date"
+            >> validationErrorsHumanFriendly
+         )
+      Value = _.ScheduledAt
+      Update = fun newValue values -> { values with ScheduledAt = newValue }
+      Error = fun _ -> None
+      Attributes = {
+         Label = "Scheduled Date:"
+         Placeholder = "Transfer scheduled for"
+         HtmlAttributes = []
+      }
+   }
 
 let amountField (account: Account) =
    Form.textField {
@@ -30,7 +51,7 @@ let amountField (account: Account) =
                Result.Error $"Insufficient Balance ${account.Balance}"
             else
                Ok amt)
-      Value = fun (values: Values) -> values.Amount
+      Value = _.Amount
       Update = fun newValue values -> { values with Amount = newValue }
       Error = fun _ -> None
       Attributes = {
@@ -43,7 +64,7 @@ let amountField (account: Account) =
 let memoField =
    Form.textField {
       Parser = Ok
-      Value = fun (values: Values) -> values.Memo
+      Value = _.Memo
       Update = fun newValue values -> { values with Memo = newValue }
       Error = fun _ -> None
       Attributes = {
@@ -85,25 +106,30 @@ let formInternalWithinOrg
    let onSubmit (selectedId: string) (amount: decimal) =
       let profile = accountProfiles[selectedId |> Guid.Parse |> AccountId]
 
-      let cmd =
-         InternalTransferWithinOrgCommand.create account.CompositeId initiatedBy {
-            Memo = None
-            ScheduledDate = DateTime.UtcNow
-            Amount = amount
-            Recipient = {
-               OrgId = profile.OrgId
-               AccountId = profile.AccountId
-               Name = profile.Name
-            }
-            Sender = {
-               Name = account.Name
-               AccountId = account.AccountId
-               OrgId = account.OrgId
-            }
+      let transfer: InternalTransferInput = {
+         Memo = None
+         ScheduledDateSeedOverride = None
+         Amount = amount
+         Recipient = {
+            OrgId = profile.OrgId
+            AccountId = profile.AccountId
+            Name = profile.Name
          }
+         Sender = {
+            Name = account.Name
+            AccountId = account.AccountId
+            OrgId = account.OrgId
+         }
+      }
+
+      let msg =
+         InternalTransferWithinOrgCommand.create
+            account.CompositeId
+            initiatedBy
+            transfer
          |> AccountCommand.InternalTransfer
 
-      Msg.Submit(account, cmd, Started)
+      Msg.Submit(account, msg, Started)
 
    Form.succeed onSubmit
    |> Form.append fieldInternalWithinOrgSelect
@@ -135,7 +161,12 @@ let formInternalCrossOrg
          }
       }
 
-   let onSubmit (selectedId: string) (amount: decimal) (memo: string option) =
+   let onSubmit
+      (selectedId: string)
+      (amount: decimal)
+      (memo: string option)
+      (scheduledAt: DateTime)
+      =
       let memo =
          memo
          |> Option.bind (fun memo ->
@@ -146,26 +177,42 @@ let formInternalCrossOrg
          |> List.find (fun o ->
             string o.Permissions.SocialTransferDiscoveryPrimaryAccountId = selectedId)
 
+      let transfer: InternalTransferInput = {
+         ScheduledDateSeedOverride = None
+         Amount = amount
+         Recipient = {
+            OrgId = org.OrgId
+            AccountId = selectedId |> Guid.Parse |> AccountId
+            Name = org.Name
+         }
+         Sender = {
+            Name = account.Name
+            AccountId = account.AccountId
+            OrgId = account.OrgId
+         }
+         Memo = memo
+      }
+
+      let scheduledTransfer: ScheduleInternalTransferInput = {
+         ScheduledDate = scheduledAt.ToUniversalTime()
+         TransferInput = transfer
+      }
+
       let cmd =
-         InternalTransferBetweenOrgsCommand.create
-            account.CompositeId
-            initiatedBy
-            {
-               ScheduledDate = DateTime.UtcNow
-               Amount = amount
-               Recipient = {
-                  OrgId = org.OrgId
-                  AccountId = selectedId |> Guid.Parse |> AccountId
-                  Name = org.Name
-               }
-               Sender = {
-                  Name = account.Name
-                  AccountId = account.AccountId
-                  OrgId = account.OrgId
-               }
-               Memo = memo
-            }
-         |> AccountCommand.InternalTransferBetweenOrgs
+         if
+            scheduledTransfer.ScheduledDate = DateTime.Today.ToUniversalTime()
+         then
+            InternalTransferBetweenOrgsCommand.create
+               account.CompositeId
+               initiatedBy
+               transfer
+            |> AccountCommand.InternalTransferBetweenOrgs
+         else
+            ScheduleInternalTransferBetweenOrgsCommand.create
+               account.CompositeId
+               initiatedBy
+               scheduledTransfer
+            |> AccountCommand.ScheduleInternalTransferBetweenOrgs
 
       Msg.Submit(account, cmd, Started)
 
@@ -173,6 +220,7 @@ let formInternalCrossOrg
    |> Form.append fieldInternalCrossOrgSelect
    |> Form.append (amountField account)
    |> Form.append memoForm
+   |> Form.append scheduledAtField
 
 let formDomestic
    (account: Account)
@@ -200,7 +248,12 @@ let formDomestic
          }
       }
 
-   let onSubmit (selectedId: string) (amount: decimal) (memo: string option) =
+   let onSubmit
+      (selectedId: string)
+      (amount: decimal)
+      (memo: string option)
+      (scheduledAt: DateTime)
+      =
       let memo =
          memo
          |> Option.bind (fun memo ->
@@ -209,21 +262,40 @@ let formDomestic
       let accountId = selectedId |> Guid.Parse |> AccountId
       let recipient = account.DomesticTransferRecipients[accountId]
 
-      let cmd =
-         DomesticTransferCommand.create account.CompositeId initiatedBy {
-            ScheduledDate = DateTime.UtcNow
-            Amount = amount
-            Sender = {
-               Name = account.Name
-               AccountNumber = account.AccountNumber
-               RoutingNumber = account.RoutingNumber
-               OrgId = account.OrgId
-               AccountId = account.AccountId
-            }
-            Recipient = recipient
-            Memo = memo
+      let transfer: DomesticTransferInput = {
+         ScheduledDateSeedOverride = None
+         Amount = amount
+         Sender = {
+            Name = account.Name
+            AccountNumber = account.AccountNumber
+            RoutingNumber = account.RoutingNumber
+            OrgId = account.OrgId
+            AccountId = account.AccountId
          }
-         |> AccountCommand.DomesticTransfer
+         Recipient = recipient
+         Memo = memo
+      }
+
+      let scheduledTransfer: ScheduleDomesticTransferInput = {
+         ScheduledDate = scheduledAt.ToUniversalTime()
+         TransferInput = transfer
+      }
+
+      let cmd =
+         if
+            scheduledTransfer.ScheduledDate = DateTime.Today.ToUniversalTime()
+         then
+            DomesticTransferCommand.create
+               account.CompositeId
+               initiatedBy
+               transfer
+            |> AccountCommand.DomesticTransfer
+         else
+            ScheduleDomesticTransferCommand.create
+               account.CompositeId
+               initiatedBy
+               scheduledTransfer
+            |> AccountCommand.ScheduleDomesticTransfer
 
       Msg.Submit(account, cmd, Started)
 
@@ -231,6 +303,7 @@ let formDomestic
    |> Form.append fieldDomesticSelect
    |> Form.append (amountField account)
    |> Form.append memoForm
+   |> Form.append scheduledAtField
 
 [<ReactComponent>]
 let TransferFormComponent
@@ -252,6 +325,7 @@ let TransferFormComponent
       Amount = ""
       RecipientId = defaultId
       Memo = ""
+      ScheduledAt = "TODAY"
    }
 
    let initiatedBy = InitiatedById session.EmployeeId

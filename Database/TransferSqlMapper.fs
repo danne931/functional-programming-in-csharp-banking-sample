@@ -185,6 +185,7 @@ module TransferSqlWriter =
    module Internal =
       let status =
          function
+         | InternalTransferStatus.Scheduled -> "Scheduled"
          | InternalTransferStatus.Pending -> "Pending"
          | InternalTransferStatus.Approved -> "Approved"
          | InternalTransferStatus.Deposited -> "Deposited"
@@ -200,6 +201,7 @@ module TransferSqlWriter =
    module Domestic =
       let status =
          function
+         | DomesticTransferProgress.Scheduled -> "Scheduled"
          | DomesticTransferProgress.Outgoing -> "Outgoing"
          | DomesticTransferProgress.Complete -> "Complete"
          | DomesticTransferProgress.InProgress _ -> "InProgress"

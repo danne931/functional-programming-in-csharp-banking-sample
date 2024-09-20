@@ -27,9 +27,13 @@ let postJson (command: AccountCommand) =
       | AccountCommand.InternalTransfer cmd ->
          Serialization.serialize cmd, TransferPath.InternalWithinOrg
       | AccountCommand.InternalTransferBetweenOrgs cmd ->
-         Serialization.serialize cmd, TransferPath.InternalCrossOrg
+         Serialization.serialize cmd, TransferPath.InternalBetweenOrgs
+      | AccountCommand.ScheduleInternalTransferBetweenOrgs cmd ->
+         Serialization.serialize cmd, TransferPath.ScheduleInternalBetweenOrgs
       | AccountCommand.DomesticTransfer cmd ->
          Serialization.serialize cmd, TransferPath.Domestic
+      | AccountCommand.ScheduleDomesticTransfer cmd ->
+         Serialization.serialize cmd, TransferPath.ScheduleDomestic
       | AccountCommand.RegisterDomesticTransferRecipient cmd ->
          Serialization.serialize cmd, TransferPath.DomesticTransferRecipient
       | AccountCommand.EditDomesticTransferRecipient cmd ->

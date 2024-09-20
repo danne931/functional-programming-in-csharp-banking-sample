@@ -41,7 +41,16 @@ let dateInFutureValidator propName (date: DateTime) =
    let msg = sprintf "%s should be in the future"
 
    Check.WithMessage.DateTime.greaterThan
-      DateTime.UtcNow
+      (DateTime.Today.ToUniversalTime())
+      msg
+      propName
+      (date.ToUniversalTime())
+
+let datePresentOrFutureValidator propName (date: DateTime) =
+   let msg = sprintf "%s should be today or the future"
+
+   Check.WithMessage.DateTime.greaterThanOrEqualTo
+      (DateTime.Today.ToUniversalTime())
       msg
       propName
       (date.ToUniversalTime())

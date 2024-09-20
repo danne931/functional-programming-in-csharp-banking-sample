@@ -10,8 +10,13 @@ type InternalTransferInput = {
    Memo: string option
    Amount: decimal
    Recipient: InternalTransferRecipient
-   ScheduledDate: DateTime
    Sender: InternalTransferSender
+   ScheduledDateSeedOverride: DateTime option
+}
+
+type ScheduleInternalTransferInput = {
+   TransferInput: InternalTransferInput
+   ScheduledDate: DateTime
 }
 
 type InternalTransferWithinOrgCommand = Command<InternalTransferInput>
@@ -37,8 +42,6 @@ module InternalTransferWithinOrgCommand =
          let info = cmd.Data
          let! _ = amountValidator "Transfer amount" info.Amount
 
-         let! _ = dateNotDefaultValidator "Transfer date" info.ScheduledDate
-
          return
             BankEvent.create2<
                InternalTransferInput,
@@ -52,7 +55,9 @@ module InternalTransferWithinOrgCommand =
                      InitiatedBy = cmd.InitiatedBy
                      Recipient = info.Recipient
                      Amount = info.Amount
-                     ScheduledDate = info.ScheduledDate
+                     ScheduledDate =
+                        info.ScheduledDateSeedOverride
+                        |> Option.defaultValue cmd.Timestamp
                      Sender = info.Sender
                   }
                }
@@ -127,8 +132,6 @@ module InternalTransferBetweenOrgsCommand =
          let info = cmd.Data
          let! _ = amountValidator "Transfer amount" info.Amount
 
-         let! _ = dateNotDefaultValidator "Transfer date" info.ScheduledDate
-
          return
             BankEvent.create2<
                InternalTransferInput,
@@ -143,10 +146,82 @@ module InternalTransferBetweenOrgsCommand =
                      InitiatedBy = cmd.InitiatedBy
                      Recipient = info.Recipient
                      Amount = info.Amount
-                     ScheduledDate = info.ScheduledDate
+                     ScheduledDate =
+                        info.ScheduledDateSeedOverride
+                        |> Option.defaultValue cmd.Timestamp
                      Sender = info.Sender
                   }
                }
+      }
+
+type ScheduleInternalTransferBetweenOrgsCommand =
+   Command<ScheduleInternalTransferInput>
+
+module ScheduleInternalTransferBetweenOrgsCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: ScheduleInternalTransferInput)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: ScheduleInternalTransferBetweenOrgsCommand)
+      : ValidationResult<BankEvent<InternalTransferBetweenOrgsScheduled>>
+      =
+      validate {
+         let info = cmd.Data.TransferInput
+         let! _ = amountValidator "Transfer amount" info.Amount
+
+         let! _ =
+            datePresentOrFutureValidator "Transfer date" cmd.Data.ScheduledDate
+
+         return
+            BankEvent.create2<
+               ScheduleInternalTransferInput,
+               InternalTransferBetweenOrgsScheduled
+             >
+               cmd
+               {
+                  Memo = info.Memo
+                  BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
+                     Recipient = info.Recipient
+                     Amount = info.Amount
+                     ScheduledDate = cmd.Data.ScheduledDate
+                     Sender = info.Sender
+                  }
+               }
+      }
+
+   let initiateTransferCommand
+      (data: InternalTransferBetweenOrgsScheduled)
+      : InternalTransferBetweenOrgsCommand
+      =
+      let info = data.BaseInfo
+
+      let cmd =
+         InternalTransferBetweenOrgsCommand.create
+            (info.Sender.AccountId, info.Sender.OrgId)
+            info.InitiatedBy
+            {
+               Amount = info.Amount
+               Sender = info.Sender
+               Recipient = info.Recipient
+               Memo = data.Memo
+               ScheduledDateSeedOverride = None
+            }
+
+      {
+         cmd with
+            CorrelationId = info.TransferId |> TransferId.get |> CorrelationId
       }
 
 type ApproveInternalTransferBetweenOrgsCommand =
@@ -383,21 +458,27 @@ module EditDomesticTransferRecipientCommand =
                { Recipient = recipient }
       }
 
-type DomesticTransferPendingInput = {
-   ScheduledDate: DateTime
-   Amount: Decimal
+type DomesticTransferInput = {
+   Amount: decimal
    Sender: DomesticTransferSender
    Recipient: DomesticTransferRecipient
    Memo: string option
+   ScheduledDateSeedOverride: DateTime option
 }
 
-type DomesticTransferCommand = Command<DomesticTransferPendingInput>
+type ScheduleDomesticTransferInput = {
+   TransferInput: DomesticTransferInput
+   ScheduledDate: DateTime
+}
+
+type DomesticTransferCommand = Command<DomesticTransferInput>
 
 module DomesticTransferCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       (initiatedBy: InitiatedById)
-      (data: DomesticTransferPendingInput)
+      (data: DomesticTransferInput)
+      : DomesticTransferCommand
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -414,12 +495,56 @@ module DomesticTransferCommand =
          let input = cmd.Data
          let! _ = amountValidator "Transfer amount" input.Amount
 
-         let! _ = dateNotDefaultValidator "Transfer date" input.ScheduledDate
+         return
+            BankEvent.create2<DomesticTransferInput, DomesticTransferPending>
+               cmd
+               {
+                  BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
+                     ScheduledDate =
+                        input.ScheduledDateSeedOverride
+                        |> Option.defaultValue cmd.Timestamp
+                     Amount = input.Amount
+                     Sender = input.Sender
+                     Recipient = input.Recipient
+                     Memo = input.Memo
+                  }
+               }
+      }
+
+type ScheduleDomesticTransferCommand = Command<ScheduleDomesticTransferInput>
+
+module ScheduleDomesticTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: ScheduleDomesticTransferInput)
+      : ScheduleDomesticTransferCommand
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: ScheduleDomesticTransferCommand)
+      : ValidationResult<BankEvent<DomesticTransferScheduled>>
+      =
+      validate {
+         let input = cmd.Data.TransferInput
+         let! _ = amountValidator "Transfer amount" input.Amount
+
+         let! _ =
+            datePresentOrFutureValidator "Transfer date" cmd.Data.ScheduledDate
 
          return
             BankEvent.create2<
-               DomesticTransferPendingInput,
-               DomesticTransferPending
+               ScheduleDomesticTransferInput,
+               DomesticTransferScheduled
              >
                cmd
                {
@@ -428,12 +553,35 @@ module DomesticTransferCommand =
                         cmd.CorrelationId |> CorrelationId.get |> TransferId
                      InitiatedBy = cmd.InitiatedBy
                      ScheduledDate = cmd.Data.ScheduledDate
-                     Amount = cmd.Data.Amount
-                     Sender = cmd.Data.Sender
-                     Recipient = cmd.Data.Recipient
-                     Memo = cmd.Data.Memo
+                     Amount = input.Amount
+                     Sender = input.Sender
+                     Recipient = input.Recipient
+                     Memo = input.Memo
                   }
                }
+      }
+
+   let initiateTransferCommand
+      (data: DomesticTransferScheduled)
+      : DomesticTransferCommand
+      =
+      let info = data.BaseInfo
+
+      let cmd =
+         DomesticTransferCommand.create
+            (info.Sender.AccountId, info.Sender.OrgId)
+            info.InitiatedBy
+            {
+               Amount = info.Amount
+               Sender = info.Sender
+               Recipient = info.Recipient
+               Memo = info.Memo
+               ScheduledDateSeedOverride = None
+            }
+
+      {
+         cmd with
+            CorrelationId = info.TransferId |> TransferId.get |> CorrelationId
       }
 
 type ApproveDomesticTransferCommand = Command<DomesticTransferApproved>
@@ -564,11 +712,11 @@ module DomesticTransferToCommand =
          (txn.TransferId |> TransferId.get |> CorrelationId)
          txn.InitiatedBy
          {
-            ScheduledDate = txn.ScheduledDate
             Amount = txn.Amount
             Sender = txn.Sender
             Recipient = txn.Recipient
             Memo = txn.Memo
+            ScheduledDateSeedOverride = None
          }
 
 type PlatformPaymentRequestInput = {

@@ -13,6 +13,11 @@ type InternalTransferWithinOrgRejected = {
    Reason: InternalTransferDeclinedReason
 }
 
+type InternalTransferBetweenOrgsScheduled = {
+   BaseInfo: BaseInternalTransferInfo
+   Memo: string option
+}
+
 type InternalTransferBetweenOrgsPending = {
    BaseInfo: BaseInternalTransferInfo
    Memo: string option
@@ -26,6 +31,8 @@ type InternalTransferBetweenOrgsRejected = {
    BaseInfo: BaseInternalTransferInfo
    Reason: InternalTransferDeclinedReason
 }
+
+type DomesticTransferScheduled = { BaseInfo: BaseDomesticTransferInfo }
 
 type DomesticTransferPending = { BaseInfo: BaseDomesticTransferInfo }
 

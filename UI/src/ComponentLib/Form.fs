@@ -88,7 +88,8 @@ module Form =
          ]
          |> withLabelAndError attributes.Label showError error
 
-      let dateField
+      [<ReactComponent>]
+      let DateFieldComponent
          ({
              Dispatch = dispatch
              OnChange = onChange
@@ -262,7 +263,7 @@ module Form =
          PasswordField = fun _ -> Html.none
          TextAreaField = fun _ -> Html.none
          ColorField = fun _ -> Html.none
-         DateField = dateField
+         DateField = DateFieldComponent
          DateTimeLocalField = fun _ -> Html.none
          SearchField = fun _ -> Html.none
          TelField = fun _ -> Html.none

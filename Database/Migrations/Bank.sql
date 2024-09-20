@@ -311,6 +311,7 @@ CREATE TABLE transfer(
 );
 
 CREATE TYPE internal_transfer_status AS ENUM (
+   'Scheduled',
    'Pending',
    'Approved',
    'Deposited',
@@ -347,6 +348,7 @@ CREATE TABLE transfer_domestic_recipient(
 );
 
 CREATE TYPE domestic_transfer_status AS ENUM (
+   'Scheduled',
    'Outgoing',
    'InProgress',
    'Complete',

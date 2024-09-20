@@ -91,6 +91,7 @@ type DomesticTransferDeclinedReason =
 
 [<RequireQualifiedAccess>]
 type DomesticTransferProgress =
+   | Scheduled
    | Outgoing
    | InProgress of string
    | Complete

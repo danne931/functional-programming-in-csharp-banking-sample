@@ -190,6 +190,10 @@ let sqlParamReducer
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.In,
          Some evt.Data.BaseInfo.Sender.Name
+      | AccountEvent.InternalTransferBetweenOrgsScheduled evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.InternalTransferBetweenOrgsPending evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.Out,
@@ -206,6 +210,10 @@ let sqlParamReducer
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.In,
          Some evt.Data.BaseInfo.Sender.Name
+      | AccountEvent.DomesticTransferScheduled evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
       | AccountEvent.DomesticTransferPending evt ->
          Some evt.Data.BaseInfo.Amount,
          Some MoneyFlow.Out,
@@ -287,6 +295,32 @@ let sqlParamReducer
          acc
          InternalTransferStatus.Deposited
          e.Data.BaseInfo
+   | AccountEvent.InternalTransferBetweenOrgsScheduled e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "memo", TransferSqlWriter.memo e.Data.Memo
+            "transferCategory",
+            TransferSqlWriter.transferCategory
+               TransferCategory.InternalBetweenOrgs
+         ]
+
+      let status = InternalTransferStatus.Scheduled
+
+      let internalTransferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Internal.status status
+            "statusDetail", TransferSqlWriter.Internal.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            InternalTransfer = internalTransferParams :: acc.InternalTransfer
+      }
    | AccountEvent.InternalTransferBetweenOrgsPending e ->
       let info = e.Data.BaseInfo
 
@@ -328,6 +362,30 @@ let sqlParamReducer
          acc
          InternalTransferStatus.Deposited
          e.Data.BaseInfo
+   | AccountEvent.DomesticTransferScheduled e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         domesticTransferBaseSqlParams info
+         @ [
+            "transferCategory",
+            TransferSqlWriter.transferCategory TransferCategory.Domestic
+         ]
+
+      let status = DomesticTransferProgress.Scheduled
+
+      let domesticTransferParams =
+         domesticTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Domestic.status status
+            "statusDetail", TransferSqlWriter.Domestic.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            DomesticTransfer = domesticTransferParams :: acc.DomesticTransfer
+      }
    | AccountEvent.DomesticTransferPending e ->
       let info = e.Data.BaseInfo
 

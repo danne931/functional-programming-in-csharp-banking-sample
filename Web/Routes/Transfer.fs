@@ -60,7 +60,7 @@ let startTransferRoutes (app: WebApplication) =
 
    app
       .MapPost(
-         TransferPath.InternalCrossOrg,
+         TransferPath.InternalBetweenOrgs,
          Func<ActorSystem, InternalTransferBetweenOrgsCommand, Task<IResult>>
             (fun sys cmd ->
                processCommand
@@ -73,10 +73,38 @@ let startTransferRoutes (app: WebApplication) =
 
    app
       .MapPost(
+         TransferPath.ScheduleInternalBetweenOrgs,
+         Func<
+            ActorSystem,
+            ScheduleInternalTransferBetweenOrgsCommand,
+            Task<IResult>
+          >
+            (fun sys cmd ->
+               processCommand
+                  sys
+                  (AccountCommand.ScheduleInternalTransferBetweenOrgs cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.SubmitTransfer)
+   |> ignore
+
+   app
+      .MapPost(
          TransferPath.Domestic,
          Func<ActorSystem, DomesticTransferCommand, Task<IResult>>
             (fun sys cmd ->
                processCommand sys (AccountCommand.DomesticTransfer cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.SubmitTransfer)
+   |> ignore
+
+   app
+      .MapPost(
+         TransferPath.ScheduleDomestic,
+         Func<ActorSystem, ScheduleDomesticTransferCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.ScheduleDomesticTransfer cmd)
                |> RouteUtil.unwrapTaskResult)
       )
       .RBAC(Permissions.SubmitTransfer)

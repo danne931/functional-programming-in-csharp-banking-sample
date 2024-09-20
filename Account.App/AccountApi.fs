@@ -197,8 +197,14 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
       | InternalTransfer cmd ->
          InternalTransferWithinOrgCommand.toEvent cmd
          |> Result.map AccountEnvelope.get
+      | ScheduleInternalTransferBetweenOrgs cmd ->
+         ScheduleInternalTransferBetweenOrgsCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | InternalTransferBetweenOrgs cmd ->
          InternalTransferBetweenOrgsCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | ScheduleDomesticTransfer cmd ->
+         ScheduleDomesticTransferCommand.toEvent cmd
          |> Result.map AccountEnvelope.get
       | DomesticTransfer cmd ->
          DomesticTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get

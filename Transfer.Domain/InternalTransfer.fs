@@ -23,6 +23,7 @@ type InternalTransferDeclinedReason =
 
 [<RequireQualifiedAccess>]
 type InternalTransferStatus =
+   | Scheduled
    | Pending
    | Approved
    | Deposited

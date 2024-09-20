@@ -4,7 +4,10 @@ module SchedulingActor
 open Akka.Hosting
 open Akka.Actor
 open Akka.Quartz.Actor.Commands
+open Akka.Cluster.Sharding
 open Akkling
+open Quartz
+open System
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -27,6 +30,8 @@ type Message =
    | TransferProgressCronJobSchedule
    | BalanceHistoryCronJobSchedule
    | TriggerBalanceHistoryCronJob
+   | ScheduleInternalTransferBetweenOrgs of InternalTransferBetweenOrgsScheduled
+   | ScheduleDomesticTransfer of DomesticTransferScheduled
 
 let actorProps (quartzPersistentActorRef: IActorRef) =
    let handler (ctx: Actor<Message>) = actor {
@@ -51,7 +56,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
-         ignored ()
+         return ignored ()
       | BillingCycleCronJobSchedule ->
          logInfo $"Scheduling monthly billing cycle"
 
@@ -69,7 +74,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
-         ignored ()
+         return ignored ()
       | DeleteAccountsJobSchedule accountIds ->
          logInfo $"Scheduling deletion of accounts {accountIds}"
 
@@ -87,7 +92,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
-         ignored ()
+         return ignored ()
       | TransferProgressCronJobSchedule ->
          logInfo $"Scheduling transfer progress tracking."
 
@@ -105,7 +110,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
-         ignored ()
+         return ignored ()
       | BalanceHistoryCronJobSchedule ->
          logInfo "Scheduling daily balance history update."
          let trigger = BalanceHistoryTriggers.scheduleNightly logInfo
@@ -122,7 +127,7 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job)
-         ignored ()
+         return ignored ()
       | TriggerBalanceHistoryCronJob ->
          logInfo "Balance history daily update triggered."
          let! res = pgProcedure "update_balance_history_for_yesterday" None
@@ -134,9 +139,99 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
          | Error err ->
             logError ctx $"Daily balance history update error: {err}"
             return unhandled ()
+      | ScheduleInternalTransferBetweenOrgs s ->
+         let name = "InternalTransferBetweenOrgs"
+         let group = "Bank"
+
+         let transferId = s.BaseInfo.TransferId
+
+         let builder =
+            TriggerBuilder
+               .Create()
+               .ForJob($"{name}Job-{transferId}", group)
+               .WithIdentity($"{name}Trigger-{transferId}", group)
+               .WithDescription("Schedule internal transfer")
+
+         let scheduledAt = s.BaseInfo.ScheduledDate
+
+         logInfo
+            $"Scheduling internal transfer for {transferId} at {scheduledAt}."
+
+         let trigger = builder.StartAt(scheduledAt).Build()
+
+         let path =
+            ClusterSharding
+               .Get(ctx.System)
+               .ShardRegionProxy(ClusterMetadata.accountShardRegion.name)
+               .Path
+
+         let job =
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "AccountActorMessage"
+                  Message = {|
+                     AccountId = s.BaseInfo.Sender.AccountId
+                     AccountMessage =
+                        s
+                        |> ScheduleInternalTransferBetweenOrgsCommand.initiateTransferCommand
+                        |> AccountCommand.InternalTransferBetweenOrgs
+                        |> AccountMessage.StateChange
+                  |}
+               },
+               trigger
+            )
+
+         quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
+         return ignored ()
+      | ScheduleDomesticTransfer s ->
+         let name = "DomesticTransfer"
+         let group = "Bank"
+
+         let transferId = s.BaseInfo.TransferId
+
+         let builder =
+            TriggerBuilder
+               .Create()
+               .ForJob($"{name}Job-{transferId}", group)
+               .WithIdentity($"{name}Trigger-{transferId}", group)
+               .WithDescription("Schedule domestic transfer")
+
+         let scheduledAt = s.BaseInfo.ScheduledDate
+
+         logInfo
+            $"Scheduling domestic transfer for {transferId} at {scheduledAt}."
+
+         let trigger = builder.StartAt(scheduledAt).Build()
+
+         let path =
+            ClusterSharding
+               .Get(ctx.System)
+               .ShardRegionProxy(ClusterMetadata.accountShardRegion.name)
+               .Path
+
+         let job =
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "AccountActorMessage"
+                  Message = {|
+                     AccountId = s.BaseInfo.Sender.AccountId
+                     AccountMessage =
+                        s
+                        |> ScheduleDomesticTransferCommand.initiateTransferCommand
+                        |> AccountCommand.DomesticTransfer
+                        |> AccountMessage.StateChange
+                  |}
+               },
+               trigger
+            )
+
+         quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
+         return ignored ()
    }
 
    props handler
 
-let get (registry: IActorRegistry) : IActorRef<Message> =
-   typed <| registry.Get<ActorMetadata.SchedulingMarker>()
+let get (system: ActorSystem) : IActorRef<Message> =
+   typed <| ActorRegistry.For(system).Get<ActorMetadata.SchedulingMarker>()

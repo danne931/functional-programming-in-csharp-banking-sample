@@ -6,6 +6,7 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Lib.SharedTypes
 open Lib.NetworkQuery
+open Lib.Time
 
 type AccountProfilesMaybe = Result<Map<AccountId, AccountProfile> option, Err>
 
@@ -205,6 +206,19 @@ let transactionUIFriendly
             Source = Some accountName
             Destination = Some info.Recipient.Name
       }
+   | InternalTransferBetweenOrgsScheduled evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Transfer Between Orgs Scheduled"
+            Info =
+               $"Transfer to {info.Recipient.Name} scheduled for {DateTime.formatShort info.ScheduledDate}"
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = None
+            Source = Some accountName
+            Destination = Some info.Recipient.Name
+      }
    | InternalTransferBetweenOrgsApproved evt ->
       let info = evt.Data.BaseInfo
 
@@ -242,6 +256,24 @@ let transactionUIFriendly
             Info = $"Domestic transfer processing to {recipientName}"
             Amount = Some <| Money.format evt.Data.BaseInfo.Amount
             MoneyFlow = Some MoneyFlow.Out
+            Source = Some accountName
+            Destination = Some recipientName
+      }
+   | DomesticTransferScheduled evt ->
+      let info = evt.Data.BaseInfo
+
+      let recipientName =
+         recipientNameAndAccountNumber
+            info.Recipient.AccountId
+            info.Recipient.AccountNumber
+
+      {
+         props with
+            Name = "Domestic Transfer"
+            Info =
+               $"Domestic transfer to {recipientName} scheduled for {DateTime.formatShort info.ScheduledDate}"
+            Amount = Some <| Money.format evt.Data.BaseInfo.Amount
+            MoneyFlow = None
             Source = Some accountName
             Destination = Some recipientName
       }
