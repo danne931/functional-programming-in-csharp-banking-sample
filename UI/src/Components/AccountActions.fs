@@ -143,7 +143,7 @@ let update
 let AccountActionsComponent
    (session: UserSession)
    (account: Account)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (view: AccountActionView)
    (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
    =
@@ -231,7 +231,7 @@ let AccountActionsComponent
          TransferForm.TransferFormComponent
             session
             account
-            accountProfiles
+            accounts
             (_.Envelope >> Msg.NetworkAckCommand >> dispatch)
             qParamsOpt
       | AccountActionView.Debit ->

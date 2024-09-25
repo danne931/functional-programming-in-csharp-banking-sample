@@ -73,7 +73,7 @@ let expirationForm =
 
 let formPlatformPayment
    (payeeOrg: Org)
-   (payeeDestinationAccounts: Map<AccountId, AccountProfile>)
+   (payeeDestinationAccounts: Map<AccountId, Account>)
    (orgs: Org list)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
@@ -174,7 +174,7 @@ let formPlatformPayment
 let PaymentRequestFormComponent
    (session: UserSession)
    (payeeOrg: Org)
-   (payeeDestinationAccounts: Map<AccountId, AccountProfile>)
+   (payeeDestinationAccounts: Map<AccountId, Account>)
    (onSubmit: ParentOnSubmitHandler)
    =
    let defaultDestinationAccount =

@@ -176,7 +176,7 @@ let update
 let PaymentDetailComponent
    (session: UserSession)
    (payment: Payment)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (notifyParentOnUpdate: AccountCommandReceipt -> unit)
    =
    let state, dispatch =
@@ -213,7 +213,7 @@ let PaymentDetailComponent
                attr.style [ style.marginLeft 10; style.display.inlineElement ]
 
                attr.text (
-                  accountProfiles
+                  accounts
                   |> Map.tryFind baseInfo.Payee.AccountId
                   |> Option.map _.FullName
                   |> Option.defaultValue baseInfo.Payee.OrgName
@@ -269,7 +269,7 @@ let PaymentDetailComponent
       if state.IsFulfillingPayment then
          PaymentFulfillmentFormComponent
             session
-            accountProfiles
+            accounts
             payment
             (fun receipt ->
                dispatch Msg.TogglePaymentFulfillment

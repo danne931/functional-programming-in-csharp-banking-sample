@@ -89,16 +89,10 @@ let getOrgAndAccountProfiles
       let query =
          $"""
          SELECT
-            o.{OrgFields.orgId},
             o.{OrgFields.name},
             op.{OrgFields.requiresEmployeeInviteApproval},
             op.{OrgFields.socialTransferDiscoveryAccountId},
-            a.{Fields.accountId},
-            a.{Fields.name},
-            a.{Fields.depository},
-            a.{Fields.balance},
-            a.{Fields.accountNumber},
-            a.{Fields.routingNumber},
+            a.*,
             dta.internal_transfer_accrued as dita,
             dta.domestic_transfer_accrued as dida,
             mta.internal_transfer_accrued as mita,
@@ -122,33 +116,29 @@ let getOrgAndAccountProfiles
             (fun read ->
                OrgSqlReader.org read,
                {
-                  AccountId = Reader.accountId read
-                  OrgId = Reader.orgId read
-                  Name = Reader.name read
-                  Depository = Reader.depository read
-                  Balance = Reader.balance read
-                  AccountNumber = Reader.accountNumber read
-                  RoutingNumber = Reader.routingNumber read
-                  DailyInternalTransferAccrued =
-                     read.decimalOrNone "dita" |> Option.defaultValue 0m
-                  DailyDomesticTransferAccrued =
-                     read.decimalOrNone "dida" |> Option.defaultValue 0m
-                  MonthlyInternalTransferAccrued =
-                     read.decimalOrNone "mita" |> Option.defaultValue 0m
-                  MonthlyDomesticTransferAccrued =
-                     read.decimalOrNone "mida" |> Option.defaultValue 0m
-                  DailyPurchaseAccrued =
-                     read.decimalOrNone "dpa" |> Option.defaultValue 0m
-                  MonthlyPurchaseAccrued =
-                     read.decimalOrNone "mpa" |> Option.defaultValue 0m
+                  Account = Reader.account read
+                  Metrics = {
+                     DailyInternalTransferAccrued =
+                        read.decimalOrNone "dita" |> Option.defaultValue 0m
+                     DailyDomesticTransferAccrued =
+                        read.decimalOrNone "dida" |> Option.defaultValue 0m
+                     MonthlyInternalTransferAccrued =
+                        read.decimalOrNone "mita" |> Option.defaultValue 0m
+                     MonthlyDomesticTransferAccrued =
+                        read.decimalOrNone "mida" |> Option.defaultValue 0m
+                     DailyPurchaseAccrued =
+                        read.decimalOrNone "dpa" |> Option.defaultValue 0m
+                     MonthlyPurchaseAccrued =
+                        read.decimalOrNone "mpa" |> Option.defaultValue 0m
+                  }
                })
 
       return {
          Org = fst (List.head res)
          AccountProfiles =
-            [ for _, account in res -> account.AccountId, account ]
+            [ for _, profile in res -> profile.Account.AccountId, profile ]
             |> Map.ofList
-         Balance = res |> List.sumBy (snd >> _.Balance)
+         Balance = res |> List.sumBy (snd >> _.Account.Balance)
       }
    }
 

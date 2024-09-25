@@ -24,7 +24,7 @@ let private rotatingMetrics = [
 ]
 
 [<ReactComponent>]
-let AccountSummaryComponent (account: AccountProfile) =
+let AccountSummaryComponent (profile: AccountProfile) =
    let isFading, setFading = React.useState false
    let flow, setFlow = React.useState MoneyFlow.Out
 
@@ -39,6 +39,8 @@ let AccountSummaryComponent (account: AccountProfile) =
    // money flow chart between in/out in this scenario.
    let flowIsDynamic, setFlowIsDynamic = React.useState false
 
+   let account = profile.Account
+   let metrics = profile.Metrics
    let changeDetection = box (string account.AccountId)
 
    React.useEffect (
@@ -158,7 +160,7 @@ let AccountSummaryComponent (account: AccountProfile) =
 
                   Html.ins [
                      attr.text (
-                        Money.formatShort account.DailyInternalTransferAccrued
+                        Money.formatShort metrics.DailyInternalTransferAccrued
                      )
                   ]
                | RotatingMetric.DailyDomesticTransfer ->
@@ -166,7 +168,7 @@ let AccountSummaryComponent (account: AccountProfile) =
 
                   Html.ins [
                      attr.text (
-                        Money.formatShort account.DailyDomesticTransferAccrued
+                        Money.formatShort metrics.DailyDomesticTransferAccrued
                      )
                   ]
                | RotatingMetric.MonthlyInternalTransfer ->
@@ -174,7 +176,7 @@ let AccountSummaryComponent (account: AccountProfile) =
 
                   Html.ins [
                      attr.text (
-                        Money.formatShort account.MonthlyInternalTransferAccrued
+                        Money.formatShort metrics.MonthlyInternalTransferAccrued
                      )
                   ]
                | RotatingMetric.MonthlyDomesticTransfer ->
@@ -182,21 +184,21 @@ let AccountSummaryComponent (account: AccountProfile) =
 
                   Html.ins [
                      attr.text (
-                        Money.formatShort account.MonthlyDomesticTransferAccrued
+                        Money.formatShort metrics.MonthlyDomesticTransferAccrued
                      )
                   ]
                | RotatingMetric.DailyPurchaseAccrued ->
                   Html.p "Daily Purchase: "
 
                   Html.ins [
-                     attr.text (Money.formatShort account.DailyPurchaseAccrued)
+                     attr.text (Money.formatShort metrics.DailyPurchaseAccrued)
                   ]
                | RotatingMetric.MonthlyPurchaseAccrued ->
                   Html.p "Monthly Purchase: "
 
                   Html.ins [
                      attr.text (
-                        Money.formatShort account.MonthlyPurchaseAccrued
+                        Money.formatShort metrics.MonthlyPurchaseAccrued
                      )
                   ]
             ]

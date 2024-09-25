@@ -10,14 +10,14 @@ open UIDomain.Account
 open Bank.Account.Forms.AccountCreateForm
 
 [<ReactComponent>]
-let AccountNumberComponent (profile: AccountProfile) =
+let AccountNumberComponent (account: Account) =
    let display, toggleDisplay = React.useState false
 
    React.fragment [
       if display then
-         Html.b (string profile.AccountNumber)
+         Html.b (string account.AccountNumber)
       else
-         Html.b $"*****{profile.AccountNumber.Last4}"
+         Html.b $"*****{account.AccountNumber.Last4}"
 
       Html.a [
          attr.href ""
@@ -71,7 +71,7 @@ let renderAccounts (orgCtx: OrgProvider.State) =
          ]
 
          classyNode Html.div [ "grid"; "accounts" ] [
-            for account in org.AccountProfiles.Values do
+            for account in org.Accounts.Values do
                Html.article [
                   Html.div [
                      Html.p account.Name
@@ -124,7 +124,6 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
             AccountCreateFormComponent
                session
                (_.PendingState
-                >> AccountProfile.fromAccount
                 >> OrgProvider.Msg.AccountCreated
                 >> orgDispatch
                 >> onClose)
@@ -159,7 +158,6 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
          | Routes.AccountUrl.CreateAccount -> renderAccounts orgCtx
          | Routes.AccountUrl.AutoBalanceManagement ->
             Html.p "Auto balance manager"
-         | Routes.AccountUrl.NotFound ->
-            Html.p "Uh oh! Unknown URL."
+         | Routes.AccountUrl.NotFound -> Html.p "Uh oh! Unknown URL."
       ]
    ]

@@ -320,6 +320,8 @@ type Account = {
 
    member x.CompositeId = x.AccountId, x.OrgId
 
+   member x.FullName = $"{x.Name} **{x.AccountNumber.Last4}"
+
    member private x.autoTransferManagement
       (computedTransferFromRule:
          AutomaticTransfer.AutomaticTransferRule
@@ -347,48 +349,28 @@ type AccountWithEvents = {
    Events: AccountEvent list
 }
 
-type AccountProfile = {
-   AccountId: AccountId
-   OrgId: OrgId
-   Name: string
-   Depository: AccountDepository
-   AccountNumber: AccountNumber
-   RoutingNumber: RoutingNumber
-   Balance: decimal
+type AccountMetrics = {
    DailyInternalTransferAccrued: decimal
    DailyDomesticTransferAccrued: decimal
    MonthlyInternalTransferAccrued: decimal
    MonthlyDomesticTransferAccrued: decimal
    DailyPurchaseAccrued: decimal
    MonthlyPurchaseAccrued: decimal
-} with
+}
 
-   member x.CompositeId = x.AccountId, x.OrgId
-
-   member x.FullName = $"{x.Name} **{x.AccountNumber.Last4}"
-
-module AccountProfile =
-   let fromAccount (account: Account) : AccountProfile = {
-      AccountId = account.AccountId
-      OrgId = account.OrgId
-      Name = account.Name
-      Depository = account.Depository
-      AccountNumber = account.AccountNumber
-      RoutingNumber = account.RoutingNumber
-      Balance = account.Balance
-      DailyInternalTransferAccrued = 0m
-      DailyDomesticTransferAccrued = 0m
-      MonthlyInternalTransferAccrued = 0m
-      MonthlyDomesticTransferAccrued = 0m
-      DailyPurchaseAccrued = 0m
-      MonthlyPurchaseAccrued = 0m
-   }
+type AccountProfile = {
+   Account: Account
+   Metrics: AccountMetrics
+}
 
 type OrgWithAccountProfiles = {
    Org: Org
    AccountProfiles: Map<AccountId, AccountProfile>
    Balance: decimal
-}
+} with
+
+   member x.Accounts: Map<AccountId, Account> =
+      x.AccountProfiles |> Map.map (fun _ profile -> profile.Account)
 
 type AccountMessage =
    | GetAccount

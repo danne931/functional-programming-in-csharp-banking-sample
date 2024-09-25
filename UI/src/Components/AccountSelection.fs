@@ -8,7 +8,7 @@ open Lib.SharedTypes
 
 let renderAccountListItem
    (selectedAccountId: AccountId option)
-   (account: AccountProfile)
+   (account: Account)
    =
    Html.li [
       Html.a [
@@ -33,7 +33,7 @@ let renderAccountListItem
 [<ReactComponent>]
 let AccountSelectionComponent
    (selectedAccountId: AccountId option)
-   (accounts: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    =
    let isAccountSelectionOpen, setAccountSelectionOpen = React.useState false
 

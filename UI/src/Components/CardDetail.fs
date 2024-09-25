@@ -424,7 +424,7 @@ let CardDetailComponent
             Html.p (
                match orgCtx with
                | Deferred.Resolved(Ok(Some org)) ->
-                  org.AccountProfiles.TryFind card.Card.AccountId
+                  org.Accounts.TryFind card.Card.AccountId
                   |> Option.map _.Name
                   |> Option.defaultValue "-"
                | _ -> "-"

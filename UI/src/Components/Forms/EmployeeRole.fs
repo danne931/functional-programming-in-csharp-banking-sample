@@ -44,7 +44,7 @@ let employeeRoleSelect (onSelect: Role -> unit) =
 let private form
    (initiatedBy: UserSession)
    (employee: Employee)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (onRoleSelect: Role -> unit)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
@@ -80,7 +80,7 @@ let private form
 
                onSubmit role cardInfo)
          |> Form.append (
-            accountProfileSelect accountProfiles
+            accountProfileSelect accounts
             |> Form.mapValues {
                Value = fun a -> { LinkedAccountId = a.LinkedAccountId }
                Update =
@@ -136,7 +136,7 @@ let EmployeeRoleFormComponent
    | Deferred.Resolved(Ok(Some org)), Deferred.Resolved session ->
       EmployeeFormContainer
       <| formProps
-      <| form session employee org.AccountProfiles onSelect
+      <| form session employee org.Accounts onSelect
       <| onSubmit
       <| Some(
          Form.View.Action.Custom(fun state _ ->

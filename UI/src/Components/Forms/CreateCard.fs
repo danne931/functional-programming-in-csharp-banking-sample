@@ -80,7 +80,7 @@ let fieldPhysicalCard =
 let private form
    (initiatedBy: UserSession)
    (employee: Employee)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let onSubmit
@@ -112,7 +112,7 @@ let private form
    Form.succeed onSubmit
    |> Form.append selectCardType
    |> Form.append (
-      accountProfileSelect accountProfiles
+      accountProfileSelect accounts
       |> Form.mapValues {
          Value = fun a -> { LinkedAccountId = a.LinkedAccountId }
          Update =
@@ -171,7 +171,7 @@ let CreateCardFormComponent
    | Deferred.Resolved(Ok(Some org)), Deferred.Resolved session ->
       EmployeeFormContainer
       <| formProps
-      <| form session employee org.AccountProfiles
+      <| form session employee org.Accounts
       <| onSubmit
       <| Some(
          Form.View.Action.Custom(fun state _ ->

@@ -3,9 +3,7 @@ module OrgService
 
 open Fable.SimpleHttp
 open FsToolkit.ErrorHandling
-open Feliz.Router
 
-open UIDomain.Account
 open Bank.Account.Domain
 open Lib.SharedTypes
 open RoutePaths

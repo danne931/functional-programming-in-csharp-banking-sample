@@ -219,7 +219,7 @@ let renderIncomingTable
 let renderTableRow
    (payment: Payment)
    (selectedId: PaymentId option)
-   (profilesOpt: Map<AccountId, AccountProfile> option)
+   (accountsOpt: Map<AccountId, Account> option)
    =
    let paymentBaseInfo = Payment.baseInfo payment
    let paymentId = paymentBaseInfo.Id
@@ -245,7 +245,7 @@ let renderTableRow
 
          Html.td (Payment.statusDisplay payment)
 
-         profilesOpt
+         accountsOpt
          |> Option.bind (Map.tryFind paymentBaseInfo.Payee.AccountId)
          |> Option.map _.FullName
          |> Option.defaultValue ""
@@ -256,7 +256,7 @@ let renderTableRow
 let renderTable
    (payments: Payment list)
    (selectedId: PaymentId option)
-   (profilesOpt: Map<AccountId, AccountProfile> option)
+   (accountsOpt: Map<AccountId, Account> option)
    =
    Html.table [
       attr.classes [ "clickable-table" ]
@@ -280,7 +280,7 @@ let renderTable
             let payments = payments |> List.sortBy Payment.displayPriority
 
             for payment in payments ->
-               renderTableRow payment selectedId profilesOpt
+               renderTableRow payment selectedId accountsOpt
          ]
       ]
    ]
@@ -290,9 +290,9 @@ let PaymentDashboardComponent (url: Routes.PaymentUrl) (session: UserSession) =
    let state, dispatch = React.useElmish (init, update session, [||])
    let orgCtx = React.useContext OrgProvider.context
 
-   let accountProfilesOpt =
+   let accountsOpt =
       match orgCtx with
-      | Deferred.Resolved(Ok(Some org)) -> Some org.AccountProfiles
+      | Deferred.Resolved(Ok(Some org)) -> Some org.Accounts
       | _ -> None
 
    let selectedPaymentId =
@@ -348,7 +348,7 @@ let PaymentDashboardComponent (url: Routes.PaymentUrl) (session: UserSession) =
                         renderTable
                            payments.OutgoingRequests
                            selectedPaymentId
-                           accountProfilesOpt
+                           accountsOpt
                   | _ -> ()
                ]
             ]
@@ -365,7 +365,7 @@ let PaymentDashboardComponent (url: Routes.PaymentUrl) (session: UserSession) =
                      PaymentRequestFormComponent
                         session
                         o.Org
-                        o.AccountProfiles
+                        o.Accounts
                         (Msg.PaymentCommandProcessing >> dispatch >> close)
                   | _ -> Html.progress []
                ]
@@ -380,13 +380,13 @@ let PaymentDashboardComponent (url: Routes.PaymentUrl) (session: UserSession) =
                   | Deferred.InProgress -> Html.progress []
                   | _ ->
                      match
-                        accountProfilesOpt, selectedPayment state.Payments payId
+                        accountsOpt, selectedPayment state.Payments payId
                      with
-                     | Some accountProfiles, Some payment ->
+                     | Some accounts, Some payment ->
                         PaymentDetailComponent
                            session
                            payment
-                           accountProfiles
+                           accounts
                            (Msg.PaymentCommandProcessing >> dispatch >> close)
                      | _ -> Html.p $"No payment found for {payId}"
                ]

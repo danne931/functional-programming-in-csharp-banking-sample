@@ -27,7 +27,7 @@ type Values = {
 let form
    (initiatedBy: UserSession)
    (org: Org)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (onRoleSelect: Role -> unit)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
@@ -131,7 +131,7 @@ let form
          |> Form.append fieldLastName
          |> Form.append fieldEmail
          |> Form.append (
-            accountProfileSelect accountProfiles
+            accountProfileSelect accounts
             |> Form.mapValues {
                Value = fun a -> { LinkedAccountId = a.LinkedAccountId }
                Update =
@@ -196,7 +196,7 @@ let EmployeeCreateFormComponent
 
          EmployeeFormContainer
             formProps
-            (form session org.Org org.AccountProfiles setRole)
+            (form session org.Org org.Accounts setRole)
             onSubmit
             (Some <| Form.View.Action.SubmitOnly submitText)
       | _ -> Html.progress []

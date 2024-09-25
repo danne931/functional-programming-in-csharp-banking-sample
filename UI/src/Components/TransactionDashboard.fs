@@ -114,7 +114,7 @@ let TransactionDashboardComponent
       fun () ->
          match orgCtx, url with
          | Deferred.Resolved(Ok(Some org)), Routes.TransactionUrl.Account ->
-            org.AccountProfiles
+            org.Accounts
             |> Map.values
             |> Seq.head
             |> _.AccountId
@@ -149,7 +149,7 @@ let TransactionDashboardComponent
    classyNode Html.div [ "transaction-dashboard" ] [
       match orgCtx with
       | Deferred.Resolved(Ok(Some org)) ->
-         AccountSelectionComponent state.CurrentAccountId org.AccountProfiles
+         AccountSelectionComponent state.CurrentAccountId org.Accounts
          |> Navigation.Portal
       | _ -> ()
 
@@ -177,7 +177,7 @@ let TransactionDashboardComponent
                AccountActions.AccountActionsComponent
                   session
                   account
-                  org.AccountProfiles
+                  org.Accounts
                   action
                   (AccountEventPersisted >> dispatch)
                |> ScreenOverlay.Portal

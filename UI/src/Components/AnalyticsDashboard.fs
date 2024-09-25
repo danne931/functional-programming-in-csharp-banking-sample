@@ -338,7 +338,7 @@ let renderTimeSeriesByOrgChart
 
 let renderTimeSeriesByAccountChart
    (series: MoneyFlowDailyTimeSeriesByAccount list)
-   (accounts: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (dateFilter: DateFilter)
    (yAxisFilter: SelectedTimeSeriesYAxis)
    =
@@ -528,7 +528,7 @@ let renderTopNMonthSelect
 
 let txnsButton
    (flow: MoneyFlow)
-   (accounts: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (selectedTopNMonth: DateTime)
    =
    let start = DateTime(selectedTopNMonth.Year, selectedTopNMonth.Month, 1)
@@ -556,7 +556,7 @@ let txnsButton
 
 let renderTopMoneyListItems
    (flow: MoneyFlow)
-   (accounts: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (topN: MoneyFlowTopNAnalytics)
    (last3MonthTimeSeries: MoneyFlowMonthlyTimeSeriesAnalytics)
    (selectedMonth: DateTime)
@@ -684,7 +684,7 @@ let AnalyticsDashboardComponent
                      | SelectedTimeSeriesChart.TimeSeriesByAccount ->
                         renderTimeSeriesByAccountChart
                            timeSeries.ByAccount
-                           org.AccountProfiles
+                           org.Accounts
                            state.SelectedTimeSeriesDateFilter
                            state.SelectedTimeSeriesYAxis
                   )
@@ -711,7 +711,7 @@ let AnalyticsDashboardComponent
                      Html.article [
                         renderTopMoneyListItems
                            MoneyFlow.In
-                           org.AccountProfiles
+                           org.Accounts
                            topN
                            timeSeries
                            state.SelectedTopNMonth
@@ -720,7 +720,7 @@ let AnalyticsDashboardComponent
                      Html.article [
                         renderTopMoneyListItems
                            MoneyFlow.Out
-                           org.AccountProfiles
+                           org.Accounts
                            topN
                            timeSeries
                            state.SelectedTopNMonth

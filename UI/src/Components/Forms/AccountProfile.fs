@@ -8,7 +8,7 @@ open Lib.SharedTypes
 
 type Values = { LinkedAccountId: string }
 
-let accountProfileSelect (accountProfiles: Map<AccountId, AccountProfile>) =
+let accountProfileSelect (accounts: Map<AccountId, Account>) =
    Form.selectField {
       Parser = Guid.Parse >> AccountId >> Ok
       Value = fun values -> values.LinkedAccountId
@@ -22,7 +22,7 @@ let accountProfileSelect (accountProfiles: Map<AccountId, AccountProfile>) =
          Label = "Select an account to link the card to:"
          Placeholder = "No account selected"
          Options = [
-            for a in accountProfiles.Values ->
+            for a in accounts.Values ->
                string a.AccountId, $"{a.Name} ({Money.format a.Balance})"
          ]
       }

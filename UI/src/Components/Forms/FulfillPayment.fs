@@ -14,7 +14,7 @@ open Lib.SharedTypes
 type Values = { AccountIdSourceOfFunds: string }
 
 let formFulfillPlatformPayment
-   (payerAccounts: Map<AccountId, AccountProfile>)
+   (payerAccounts: Map<AccountId, Account>)
    (payment: PlatformPayment)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
@@ -64,7 +64,7 @@ let formFulfillPlatformPayment
 [<ReactComponent>]
 let PaymentFulfillmentFormComponent
    (session: UserSession)
-   (payerAccounts: Map<AccountId, AccountProfile>)
+   (payerAccounts: Map<AccountId, Account>)
    (payment: Payment)
    (onSubmit: ParentOnSubmitHandler)
    =

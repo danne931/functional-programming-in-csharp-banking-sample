@@ -148,7 +148,7 @@ let private close () = actionNav None
 
 let renderTableRow
    (card: CardWithMetrics)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (selectedCardId: CardId option)
    =
    Html.tr [
@@ -179,7 +179,7 @@ let renderTableRow
          Html.td (if card.Card.Virtual then "Virtual" else "Physical")
 
          Html.td (
-            accountProfiles.TryFind card.Card.AccountId
+            accounts.TryFind card.Card.AccountId
             |> Option.map _.Name
             |> Option.defaultValue "-"
          )
@@ -188,7 +188,7 @@ let renderTableRow
 
 let renderTable
    (cards: CardWithMetrics list)
-   (accounts: Map<AccountId, AccountProfile>)
+   (accounts: Map<AccountId, Account>)
    (selectedCardId: CardId option)
    =
    Html.table [
@@ -286,7 +286,7 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                            | Deferred.Resolved(Ok(Some org)) ->
                               CheckboxFieldset.render {|
                                  Options =
-                                    org.AccountProfiles.Values
+                                    org.Accounts.Values
                                     |> List.ofSeq
                                     |> List.map (fun o -> {
                                        Id = o.AccountId
@@ -300,7 +300,7 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                                     Option.map (fun accountIds ->
                                        List.choose
                                           (fun (accountId: AccountId) ->
-                                             org.AccountProfiles
+                                             org.Accounts
                                              |> Map.tryFind accountId
                                              |> Option.map (fun account -> {
                                                 Id = accountId
@@ -381,7 +381,7 @@ let CardDashboardComponent (url: Routes.CardUrl) (session: UserSession) =
                      Html.small "Uh oh. Error getting cards."
                   | Resolved(Ok None), _ -> Html.small "No cards."
                   | Resolved(Ok(Some cards)), Resolved(Ok(Some org)) ->
-                     renderTable cards org.AccountProfiles selectedCardId
+                     renderTable cards org.Accounts selectedCardId
                   | _ -> ()
                ]
             ]

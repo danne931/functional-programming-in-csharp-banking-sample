@@ -78,12 +78,12 @@ let memoForm = Form.succeed id |> Form.append memoField |> Form.optional
 
 let formInternalWithinOrg
    (account: Account)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (recipients: Map<AccountId, Account>)
    (initiatedBy: InitiatedById)
    : Form.Form<Values, Msg<Values>, IReactProperty>
    =
    let internalWithinOrgOptions =
-      accountProfiles
+      recipients
       |> Map.toList
       |> List.filter (fun (acctId, _) -> acctId <> account.AccountId)
       |> List.map (fun (acctId, profile) ->
@@ -104,16 +104,16 @@ let formInternalWithinOrg
       }
 
    let onSubmit (selectedId: string) (amount: decimal) =
-      let profile = accountProfiles[selectedId |> Guid.Parse |> AccountId]
+      let recipient = recipients[selectedId |> Guid.Parse |> AccountId]
 
       let transfer: InternalTransferInput = {
          Memo = None
          ScheduledDateSeedOverride = None
          Amount = amount
          Recipient = {
-            OrgId = profile.OrgId
-            AccountId = profile.AccountId
-            Name = profile.Name
+            OrgId = recipient.OrgId
+            AccountId = recipient.AccountId
+            Name = recipient.Name
          }
          Sender = {
             Name = account.Name
@@ -309,7 +309,7 @@ let formDomestic
 let TransferFormComponent
    (session: UserSession)
    (account: Account)
-   (accountProfiles: Map<AccountId, AccountProfile>)
+   (recipients: Map<AccountId, Account>)
    (onSubmit: ParentOnSubmitHandler)
    (selectedRecipient: (RecipientAccountEnvironment * AccountId) option)
    =
@@ -389,7 +389,7 @@ let TransferFormComponent
       | RecipientAccountEnvironment.InternalWithinOrg ->
          AccountFormContainer
             initValues
-            (formInternalWithinOrg account accountProfiles initiatedBy)
+            (formInternalWithinOrg account recipients initiatedBy)
             onSubmit
       | RecipientAccountEnvironment.Domestic ->
          if account.DomesticTransferRecipients.Count = 0 then
