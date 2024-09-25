@@ -27,6 +27,7 @@ module AnalyticsUrl =
 type AccountUrl =
    | Account
    | CreateAccount
+   | AutoBalanceManagement
    | NotFound
 
 module AccountUrl =
@@ -35,11 +36,14 @@ module AccountUrl =
 
    let CreateAccountPath = [| BasePath; "create" |]
 
+   let AutoBalanceManagementPath = [| BasePath; "auto-balance-management" |]
+
    let parse =
       function
       // Matches /
       | [] -> AccountUrl.Account
       | [ "create" ] -> AccountUrl.CreateAccount
+      | [ "auto-balance-management" ] -> AccountUrl.AutoBalanceManagement
       | _ -> AccountUrl.NotFound
 
 [<RequireQualifiedAccess>]

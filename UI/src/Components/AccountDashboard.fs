@@ -38,6 +38,77 @@ let AccountNumberComponent (profile: AccountProfile) =
 let private onClose _ =
    Router.navigate Routes.AccountUrl.BasePath
 
+let renderAccounts (orgCtx: OrgProvider.State) =
+   React.fragment [
+      classyNode Html.div [ "title-and-button-container" ] [
+         Html.h4 "Accounts"
+         Html.button [
+            attr.children [
+               Fa.i [ Fa.Solid.Plus ] []
+               Html.span "Create Account"
+            ]
+
+            attr.onClick (fun _ ->
+               Router.navigate Routes.AccountUrl.CreateAccountPath)
+         ]
+      ]
+
+      Html.progress [
+         match orgCtx with
+         | Deferred.Resolved _ -> attr.value 100
+         | _ -> ()
+      ]
+
+      match orgCtx with
+      | Deferred.Resolved(Ok(Some org)) ->
+         classyNode Html.div [ "org-summary" ] [
+            Html.small "Balance across all accounts: "
+
+            Html.h2 [
+               attr.classes [ "balance" ]
+               attr.text (Money.format org.Balance)
+            ]
+         ]
+
+         classyNode Html.div [ "grid"; "accounts" ] [
+            for account in org.AccountProfiles.Values do
+               Html.article [
+                  Html.div [
+                     Html.p account.Name
+                     Html.h5 [
+                        attr.style [ style.margin 0 ]
+                        attr.text (Money.format account.Balance)
+                     ]
+                  ]
+
+                  Html.div [
+                     Html.small "Account Number:"
+                     AccountNumberComponent account
+                  ]
+
+                  Html.div [
+                     Html.small "Routing Number:"
+                     Html.b (string account.RoutingNumber)
+                  ]
+
+                  Html.button [
+                     attr.classes [ "outline" ]
+                     attr.children [
+                        Fa.i [ Fa.Solid.History ] []
+                        Html.span "View Transactions"
+                     ]
+
+                     attr.onClick (fun _ ->
+                        Router.navigate (
+                           Routes.TransactionUrl.selectedPath account.AccountId
+                        ))
+                  ]
+               ]
+         ]
+      | Deferred.Resolved(Ok None) -> Html.p "No accounts found."
+      | _ -> ()
+   ]
+
 [<ReactComponent>]
 let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
    let orgCtx = React.useContext OrgProvider.context
@@ -62,73 +133,33 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
       | _ -> ()
 
       classyNode Html.main [ "container-fluid" ] [
-         classyNode Html.div [ "title-and-button-container" ] [
-            Html.h4 "Accounts"
-            Html.button [
-               attr.children [
-                  Fa.i [ Fa.Solid.Plus ] []
-                  Html.span "Create Account"
-               ]
+         classyNode Html.nav [ "link-menu" ] [
+            Html.a [
+               attr.text "Accounts"
+               attr.href ""
+               attr.onClick (fun e ->
+                  e.preventDefault ()
+                  Router.navigate Routes.AccountUrl.BasePath)
+            ]
 
-               attr.onClick (fun _ ->
-                  Router.navigate Routes.AccountUrl.CreateAccountPath)
+            Html.a [
+               attr.text "Automatic Balance Management"
+               attr.href ""
+               attr.onClick (fun e ->
+                  e.preventDefault ()
+                  Router.navigate Routes.AccountUrl.AutoBalanceManagementPath)
             ]
          ]
 
-         Html.progress [
-            match orgCtx with
-            | Deferred.Resolved _ -> attr.value 100
-            | _ -> ()
-         ]
+         Html.hr []
+         Html.br []
 
-         match orgCtx with
-         | Deferred.Resolved(Ok(Some org)) ->
-            classyNode Html.div [ "org-summary" ] [
-               Html.small "Balance across all accounts: "
-
-               Html.h2 [
-                  attr.classes [ "balance" ]
-                  attr.text (Money.format org.Balance)
-               ]
-            ]
-
-            classyNode Html.div [ "grid"; "accounts" ] [
-               for account in org.AccountProfiles.Values do
-                  Html.article [
-                     Html.div [
-                        Html.p account.Name
-                        Html.h5 [
-                           attr.style [ style.margin 0 ]
-                           attr.text (Money.format account.Balance)
-                        ]
-                     ]
-
-                     Html.div [
-                        Html.small "Account Number:"
-                        AccountNumberComponent account
-                     ]
-
-                     Html.div [
-                        Html.small "Routing Number:"
-                        Html.b (string account.RoutingNumber)
-                     ]
-
-                     Html.button [
-                        attr.classes [ "outline" ]
-                        attr.children [
-                           Fa.i [ Fa.Solid.History ] []
-                           Html.span "View Transactions"
-                        ]
-
-                        attr.onClick (fun _ ->
-                           Router.navigate (
-                              Routes.TransactionUrl.selectedPath
-                                 account.AccountId
-                           ))
-                     ]
-                  ]
-            ]
-         | Deferred.Resolved(Ok None) -> Html.p "No accounts found."
-         | _ -> ()
+         match url with
+         | Routes.AccountUrl.Account
+         | Routes.AccountUrl.CreateAccount -> renderAccounts orgCtx
+         | Routes.AccountUrl.AutoBalanceManagement ->
+            Html.p "Auto balance manager"
+         | Routes.AccountUrl.NotFound ->
+            Html.p "Uh oh! Unknown URL."
       ]
    ]
