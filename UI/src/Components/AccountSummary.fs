@@ -34,6 +34,11 @@ let AccountSummaryComponent (account: AccountProfile) =
    let monthlyMoneyFlow, setMonthlyMoneyFlow =
       React.useState Deferred.InProgress
 
+   // Sometimes we have monthly analytics for just money flow in
+   // or just money flow out.  No need to alternate the monthly
+   // money flow chart between in/out in this scenario.
+   let flowIsDynamic, setFlowIsDynamic = React.useState false
+
    let changeDetection = box (string account.AccountId)
 
    React.useEffect (
@@ -44,6 +49,24 @@ let AccountSummaryComponent (account: AccountProfile) =
                   account.AccountId
 
             setMonthlyMoneyFlow (Deferred.Resolved res)
+
+            match res with
+            | Ok(Some analytics) ->
+               let moneyIn =
+                  analytics.TimeSeries
+                  |> List.tryFind (fun t -> t.AmountIn > 0m)
+
+               let moneyOut =
+                  analytics.TimeSeries
+                  |> List.tryFind (fun t -> t.AmountOut > 0m)
+
+               match moneyIn, moneyOut with
+               | Some _, None -> setFlow MoneyFlow.In
+               | None, Some _ -> setFlow MoneyFlow.Out
+               | _ -> ()
+
+               setFlowIsDynamic (moneyIn.IsSome && moneyOut.IsSome)
+            | _ -> ()
          }
          |> Async.StartImmediate
       , [| changeDetection |]
@@ -56,18 +79,19 @@ let AccountSummaryComponent (account: AccountProfile) =
          let interval =
             setInterval
                (fun () ->
-                  let updatedFlow =
-                     if flow = MoneyFlow.In then
-                        MoneyFlow.Out
-                     else
-                        MoneyFlow.In
+                  if flowIsDynamic then
+                     let updatedFlow =
+                        if flow = MoneyFlow.In then
+                           MoneyFlow.Out
+                        else
+                           MoneyFlow.In
 
-                  flow <- updatedFlow
-                  setFlow flow)
+                     flow <- updatedFlow
+                     setFlow flow)
                10000
 
          React.createDisposable (fun _ -> clearInterval interval)
-      , [||]
+      , [| box flowIsDynamic |]
    )
 
    React.useEffect (
