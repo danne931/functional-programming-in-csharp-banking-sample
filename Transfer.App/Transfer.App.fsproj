@@ -7,7 +7,8 @@
     <Compile Include="Environment.fs" />
     <Compile Include="InternalTransferRecipientActor.fs" />
     <Compile Include="DomesticTransferRecipientActor.fs" />
-    <Compile Include="TransferProgressTrackingActor.fs" /> 
+    <Compile Include="TransferProgressTrackingActor.fs" />
+    <Compile Include="AutomaticTransferSchedulingActor.fs" />
     <Compile Include="Api.fs" />
   </ItemGroup>
 

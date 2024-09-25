@@ -13,6 +13,7 @@ type private DeclinedReason = InternalTransferDeclinedReason
 
 [<RequireQualifiedAccess>]
 type InternalTransferMessage =
+   | AutomatedTransferRequest of BankEvent<InternalAutomatedTransferPending>
    | TransferRequestWithinOrg of BankEvent<InternalTransferWithinOrgPending>
    | TransferRequestBetweenOrgs of BankEvent<InternalTransferBetweenOrgsPending>
 
@@ -23,7 +24,7 @@ let private declineTransferWithinOrgMsg
    let info = evt.Data.BaseInfo
 
    RejectInternalTransferWithinOrgCommand.create
-      (info.Sender.AccountId, evt.OrgId)
+      (info.Sender.AccountId, info.Sender.OrgId)
       evt.CorrelationId
       evt.InitiatedById
       { BaseInfo = info; Reason = reason }
@@ -42,6 +43,24 @@ let private declineTransferBetweenOrgsMsg
       evt.InitiatedById
       { BaseInfo = info; Reason = reason }
    |> AccountCommand.RejectInternalTransferBetweenOrgs
+   |> AccountMessage.StateChange
+
+let private declineAutoTransferMsg
+   (evt: BankEvent<InternalAutomatedTransferPending>)
+   (reason: DeclinedReason)
+   =
+   let info = evt.Data.BaseInfo
+
+   RejectInternalAutoTransferCommand.create
+      (info.Sender.AccountId, info.Sender.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      {
+         Rule = evt.Data.Rule
+         BaseInfo = info
+         Reason = reason
+      }
+   |> AccountCommand.RejectInternalAutoTransfer
    |> AccountMessage.StateChange
 
 let private approveTransferWithinOrgMsg
@@ -70,6 +89,22 @@ let private approveTransferBetweenOrgsMsg
    |> AccountCommand.ApproveInternalTransferBetweenOrgs
    |> AccountMessage.StateChange
 
+let private approveAutoTransferMsg
+   (evt: BankEvent<InternalAutomatedTransferPending>)
+   =
+   let info = evt.Data.BaseInfo
+
+   ApproveInternalAutoTransferCommand.create
+      (info.Sender.AccountId, evt.OrgId)
+      evt.CorrelationId
+      evt.InitiatedById
+      {
+         Rule = evt.Data.Rule
+         BaseInfo = info
+      }
+   |> AccountCommand.ApproveInternalAutoTransfer
+   |> AccountMessage.StateChange
+
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    : Props<InternalTransferMessage>
@@ -83,6 +118,8 @@ let actorProps
             declineTransferWithinOrgMsg e
          | InternalTransferMessage.TransferRequestBetweenOrgs e ->
             declineTransferBetweenOrgsMsg e
+         | InternalTransferMessage.AutomatedTransferRequest e ->
+            declineAutoTransferMsg e
 
       let approveTransferMsg () =
          match msg with
@@ -90,6 +127,8 @@ let actorProps
             approveTransferWithinOrgMsg e
          | InternalTransferMessage.TransferRequestBetweenOrgs e ->
             approveTransferBetweenOrgsMsg e
+         | InternalTransferMessage.AutomatedTransferRequest e ->
+            approveAutoTransferMsg e
 
       let info, meta =
          match msg with
@@ -100,6 +139,12 @@ let actorProps
                InitiatedBy = e.InitiatedById
             |}
          | InternalTransferMessage.TransferRequestBetweenOrgs e ->
+            e.Data.BaseInfo,
+            {|
+               CorrId = e.CorrelationId
+               InitiatedBy = e.InitiatedById
+            |}
+         | InternalTransferMessage.AutomatedTransferRequest e ->
             e.Data.BaseInfo,
             {|
                CorrId = e.CorrelationId
@@ -147,6 +192,17 @@ let actorProps
                      meta.InitiatedBy
                      { BaseInfo = info }
                   |> AccountCommand.DepositTransferBetweenOrgs
+                  |> AccountMessage.StateChange
+               | InternalTransferMessage.AutomatedTransferRequest evt ->
+                  DepositInternalAutoTransferCommand.create
+                     recipientAccount.CompositeId
+                     meta.CorrId
+                     meta.InitiatedBy
+                     {
+                        BaseInfo = info
+                        Rule = evt.Data.Rule
+                     }
+                  |> AccountCommand.DepositInternalAutoTransfer
                   |> AccountMessage.StateChange
 
             recipientAccountRef <! msg

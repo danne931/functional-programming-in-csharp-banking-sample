@@ -190,3 +190,30 @@ type ThirdPartyPaymentCancelled = {
    BaseInfo: ThirdPartyPaymentBaseInfo
    Reason: string option
 }
+
+type AutomaticTransferRuleConfigured = {
+   Config: AutomaticTransfer.AutomaticTransferConfig
+}
+
+type AutomaticTransferRuleDeleted = { RuleId: Guid }
+
+type InternalAutomatedTransferPending = {
+   BaseInfo: BaseInternalTransferInfo
+   Rule: AutomaticTransfer.AutomaticTransferRule
+}
+
+type InternalAutomatedTransferApproved = {
+   BaseInfo: BaseInternalTransferInfo
+   Rule: AutomaticTransfer.AutomaticTransferRule
+}
+
+type InternalAutomatedTransferRejected = {
+   BaseInfo: BaseInternalTransferInfo
+   Reason: InternalTransferDeclinedReason
+   Rule: AutomaticTransfer.AutomaticTransferRule
+}
+
+type InternalAutomatedTransferDeposited = {
+   BaseInfo: BaseInternalTransferInfo
+   Rule: AutomaticTransfer.AutomaticTransferRule
+}

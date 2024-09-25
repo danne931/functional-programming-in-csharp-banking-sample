@@ -46,6 +46,7 @@ let ManageTransactionCategory = Access [ admin; scholar ]
 let ManageTransactionNotes = Access all
 let GetMerchants = Access all
 let ManageMerchants = Access [ admin; scholar ]
+let ManageAutoTransferRules = Access [ admin ]
 
 // Account
 let GetOrgAndAccountProfiles = Access [ admin; scholar ]

@@ -23,6 +23,7 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open Bank.Employee.Domain
 open ActorUtil
+open AutomaticTransfer
 
 let randomAmount min max =
    let rnd = new Random()
@@ -47,6 +48,8 @@ let orgName = "Sapphire Optics"
 type OrgSetup = {
    OrgId: OrgId
    PrimaryAccountId: AccountId
+   OpsAccountId: AccountId
+   SavingsAccountId: AccountId
    AccountOwnerId: EmployeeId
    AccountOwnerName: {| First: string; Last: string |}
    AccountOwnerEmail: string
@@ -58,6 +61,10 @@ let socialTransferCandidates = [
       OrgId = "6b20162e-61f3-4434-82e0-e7d27337316b" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "2eb09ebc-bb20-4ef8-88c0-15d5e23125f5" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "1b3bb3b3-0cbe-4a7c-8716-736a864076b4" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "8b13cf01-c950-415b-b906-4873e24eaecb" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {|
@@ -71,6 +78,10 @@ let socialTransferCandidates = [
       OrgId = "55e75321-b9ad-48cc-b5ad-74af0a7e31b2" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "7918f574-9600-481f-bbc8-0a0430f5a416" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "7918f574-9600-481f-bbc8-0a0430f5a417" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "7918f574-9600-481f-bbc8-0a0430f5a418" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
@@ -81,6 +92,10 @@ let socialTransferCandidates = [
       OrgId = "4c6d31a0-51de-4ab8-b805-f61eadb78f81" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "c923710d-610d-4bea-a324-de8a66d072cc" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "7918f574-9600-481f-bbc8-0a0430f5a419" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "3452f54a-02d6-4c22-82f0-71ad7cd8a613" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "c931c059-8bff-4a30-ad5f-fc85b3092c11" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {|
@@ -97,6 +112,10 @@ let socialTransferSenders = [
       OrgId = "5f808408-04a1-45f3-9e45-eba1ecd7a2da" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "24dc1103-0682-4141-a97e-b3870b8fadbf" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "edcdc95a-a372-4a4c-ba3e-b07a148724e3" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "547f5d9d-6bf3-4458-90b9-ec39be5d9aa5" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "3c2d88fd-d3aa-4999-8e73-d8129404f00b" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Meorise"; Last = "Sarlee" |}
@@ -107,6 +126,10 @@ let socialTransferSenders = [
       OrgId = "b854d513-c40e-4582-bf2f-688d6a73a21a" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "29963c00-c366-431e-84c2-cee5a3258581" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "9f592501-64a4-41aa-9321-d78c29c4629f" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "52a9b399-7094-409e-87de-f9c141f4e066" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "e8e8de39-dce0-4c70-89e4-5ab345949f99" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Pruncha"; Last = "Yukio" |}
@@ -117,6 +140,10 @@ let socialTransferSenders = [
       OrgId = "1e01868e-adcb-4c5d-8a8b-f75bc36db0f5" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "b260b00f-8f09-47c2-9fe5-c6d19742b125" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "9c5fe0bd-fb24-46a3-a419-e5685ea5f56a" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "82a62039-4d61-4c98-a063-697385631c54" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "20038dd5-e7f2-478d-a57b-6165969471a4" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Aio"; Last = "Usagi" |}
@@ -132,6 +159,10 @@ let paymentRequesters = [
       OrgId = "e6641c29-b980-4a7a-9b5a-24e01ebd9af0" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "ade87fa5-df43-43da-9903-90d66e986bf8" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "5c6cff2c-34ae-48bd-983e-6604a7e0e9ec" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "26deaa3f-8453-4eaa-96eb-a25c156f4fef" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "ff4b01e1-5d63-4eb1-a03a-11a976cb2f68" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {|
@@ -145,6 +176,10 @@ let paymentRequesters = [
       OrgId = "7ef9d8f8-741f-4138-8aa8-37ab6e2e576d" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "0b6c7486-4228-411d-8f39-6db9a98faf27" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "96364a32-4974-4ce7-afc8-4ef4eba57e41" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "5f5fa2bd-5374-4115-87b2-fd799b200d6a" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "d7cbb60f-c7e7-4cf9-b28c-b5da6c57f493" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Bích"; Last = "Phương" |}
@@ -158,6 +193,10 @@ let paymentPayers = [
       OrgId = "4ccbb100-c023-4957-82fd-36c35004a9fd" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "a8ffdd09-4502-4054-bb20-1c12e3f26821" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "accda5d0-7b33-4f84-8f43-a6cbac2af008" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "32d73bb5-5cc4-4f96-856f-ff7dc32734ee" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "3565a715-a7e9-4ef2-b81a-628605aabaa0" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Mahatma"; Last = "Gandhi" |}
@@ -168,6 +207,10 @@ let paymentPayers = [
       OrgId = "9f7a2ae5-9cb5-46ac-908e-4427230bf0fe" |> Guid.Parse |> OrgId
       PrimaryAccountId =
          "60b76142-bded-4eb3-8c87-89ab9949a65e" |> Guid.Parse |> AccountId
+      OpsAccountId =
+         "e44504ef-1dc1-47a4-a65f-0187dce7e100" |> Guid.Parse |> AccountId
+      SavingsAccountId =
+         "3561a703-5c37-456c-942c-ecf38090d919" |> Guid.Parse |> AccountId
       AccountOwnerId =
          "d260f814-186f-451c-8a9c-8ce2e565fbb4" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Zhi"; Last = "Ng" |}
@@ -178,7 +221,7 @@ let paymentPayers = [
 
 let otherOrgs = socialTransferOrgs @ paymentRequesters @ paymentPayers
 
-// TODO: Temporarily create org here until fleshed Out
+// TODO: Temporarily create org here until fleshed out
 let createOrgs () =
    let myOrg = orgId, orgName
 
@@ -345,6 +388,9 @@ let apCheckingAccountId =
 let opsCheckingAccountId =
    "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a6" |> Guid.Parse |> AccountId
 
+let savingsAccountId =
+   "ec3e94cc-eba1-4ff4-b3dc-55010ecf67a7" |> Guid.Parse |> AccountId
+
 let mockAccounts =
    let withModifiedTimestamp (command: CreateAccountCommand) = {
       command with
@@ -353,10 +399,10 @@ let mockAccounts =
 
    let cmd1 =
       CreateAccountCommand.create {
-         Name = "AR"
+         Name = "AP"
          Currency = Currency.USD
          Depository = AccountDepository.Checking
-         AccountId = arCheckingAccountId
+         AccountId = apCheckingAccountId
          AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
@@ -365,10 +411,10 @@ let mockAccounts =
 
    let cmd2 =
       CreateAccountCommand.create {
-         Name = "AP"
+         Name = "AR"
          Currency = Currency.USD
          Depository = AccountDepository.Checking
-         AccountId = apCheckingAccountId
+         AccountId = arCheckingAccountId
          AccountNumber = AccountNumber.generate ()
          OrgId = orgId
          InitiatedBy = mockAccountOwnerId
@@ -387,11 +433,25 @@ let mockAccounts =
       }
       |> withModifiedTimestamp
 
+   let cmd4 =
+      CreateAccountCommand.create {
+         Name = "Savings"
+         Currency = Currency.USD
+         Depository = AccountDepository.Savings
+         AccountId = savingsAccountId
+         AccountNumber = AccountNumber.generate ()
+         OrgId = orgId
+         InitiatedBy = mockAccountOwnerId
+      }
+      |> withModifiedTimestamp
+
    let otherOrgs =
       otherOrgs
       |> List.fold
          (fun acc o ->
-            let cmd =
+            acc
+            |> List.append [
+               o.PrimaryAccountId,
                CreateAccountCommand.create {
                   Name = "AR"
                   Currency = Currency.USD
@@ -403,7 +463,30 @@ let mockAccounts =
                }
                |> withModifiedTimestamp
 
-            (o.PrimaryAccountId, cmd) :: acc)
+               o.OpsAccountId,
+               CreateAccountCommand.create {
+                  Name = "Operations"
+                  Currency = Currency.USD
+                  Depository = AccountDepository.Checking
+                  AccountId = o.OpsAccountId
+                  AccountNumber = AccountNumber.generate ()
+                  OrgId = o.OrgId
+                  InitiatedBy = InitiatedById o.AccountOwnerId
+               }
+               |> withModifiedTimestamp
+
+               o.SavingsAccountId,
+               CreateAccountCommand.create {
+                  Name = "Savings"
+                  Currency = Currency.USD
+                  Depository = AccountDepository.Savings
+                  AccountId = o.SavingsAccountId
+                  AccountNumber = AccountNumber.generate ()
+                  OrgId = o.OrgId
+                  InitiatedBy = InitiatedById o.AccountOwnerId
+               }
+               |> withModifiedTimestamp
+            ])
          []
 
    Map [
@@ -413,12 +496,14 @@ let mockAccounts =
 
       cmd3.Data.AccountId, cmd3
 
+      cmd4.Data.AccountId, cmd4
+
       yield! otherOrgs
    ]
 
 let accountInitialDeposits =
    Map [
-      arCheckingAccountId, 2_500_931m
+      apCheckingAccountId, 2_500_931m
       opsCheckingAccountId, 1_391_100m
 
       for org in otherOrgs do
@@ -434,7 +519,7 @@ let mockAccountOwnerCards =
          CardId = Guid.NewGuid() |> CardId
          EmployeeId = emId
          OrgId = orgId
-         AccountId = arCheckingAccountId
+         AccountId = opsCheckingAccountId
          PersonName = $"{cmd.Data.FirstName} {cmd.Data.LastName}"
          CardNickname = Some "Travel"
          CardType = CardType.Debit
@@ -519,7 +604,7 @@ let mockEmployees =
          CardId = Guid.NewGuid() |> CardId
          EmployeeId = EmployeeId.fromEntityId cmd.EntityId
          OrgId = orgId
-         AccountId = arCheckingAccountId
+         AccountId = opsCheckingAccountId
          PersonName = $"{cmd.Data.FirstName} {cmd.Data.LastName}"
          CardNickname = Some "Travel"
          CardType = CardType.Debit
@@ -568,14 +653,12 @@ let mockEmployeesPendingInviteConfirmation =
    })
 
 let seedPayments (getAccountRef: AccountId -> IEntityRef<AccountMessage>) = task {
-   let demoAccountId = arCheckingAccountId
-
    // Payment requests from main demo org to other orgs
    let requestsFromDemoAccount = [
       for payer in paymentPayers ->
          payer,
          RequestPlatformPaymentCommand.create
-            (demoAccountId, orgId)
+            (arCheckingAccountId, orgId)
             mockAccountOwnerId
             {
                Memo = "Services rendered..."
@@ -603,7 +686,7 @@ let seedPayments (getAccountRef: AccountId -> IEntityRef<AccountMessage>) = task
          |> AccountCommand.RequestPlatformPayment
          |> AccountMessage.StateChange
 
-      (getAccountRef demoAccountId) <! msg
+      (getAccountRef request.Data.BaseInfo.Payee.AccountId) <! msg
 
    // Some payment requests fulfilled
    for payer, request in [ List.head requestsFromDemoAccount ] do
@@ -660,6 +743,101 @@ let seedPayments (getAccountRef: AccountId -> IEntityRef<AccountMessage>) = task
       (getAccountRef payee.PrimaryAccountId) <! msg
 }
 
+let configureAutoTransferRules
+   (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
+   (timestamp: DateTime)
+   =
+   let percentDistributionRule =
+      PercentDistributionRule.create
+         AutomaticTransfer.Frequency.PerTransaction
+         {
+            Name = mockAccounts[arCheckingAccountId].Data.Name
+            AccountId = arCheckingAccountId
+            OrgId = orgId
+         }
+         [
+            let recipient = mockAccounts[opsCheckingAccountId]
+
+            {
+               ProposedPercentAllocated = 40m
+               Recipient = {
+                  OrgId = recipient.OrgId
+                  AccountId = recipient.Data.AccountId
+                  Name = recipient.Data.Name
+               }
+            }
+
+            let recipient = mockAccounts[savingsAccountId]
+
+            {
+               ProposedPercentAllocated = 60m
+               Recipient = {
+                  OrgId = recipient.OrgId
+                  AccountId = recipient.Data.AccountId
+                  Name = recipient.Data.Name
+               }
+            }
+         ]
+      |> Result.toValueOption
+      |> _.Value
+
+   let msg =
+      {
+         ConfigureAutoTransferRuleCommand.create
+            (arCheckingAccountId, orgId)
+            mockAccountOwnerId
+            {
+               Config = {
+                  Id = Guid.NewGuid()
+                  Info =
+                     percentDistributionRule
+                     |> AutomaticTransferRule.PercentDistribution
+               }
+            } with
+            Timestamp = timestamp
+      }
+      |> AccountCommand.ConfigureAutoTransferRule
+      |> AccountMessage.StateChange
+
+   (getAccountRef arCheckingAccountId) <! msg
+
+   let initZeroBalanceRule (candidate: OrgSetup) =
+      let sender: InternalTransferSender = {
+         OrgId = candidate.OrgId
+         AccountId = candidate.PrimaryAccountId
+         Name = candidate.BusinessName
+      }
+
+      let recipient = mockAccounts[candidate.OpsAccountId]
+
+      let msg =
+         {
+            ConfigureAutoTransferRuleCommand.create
+               (sender.AccountId, sender.OrgId)
+               (InitiatedById candidate.AccountOwnerId)
+               {
+                  Config = {
+                     Id = Guid.NewGuid()
+                     Info =
+                        AutomaticTransferRule.ZeroBalance {
+                           Sender = sender
+                           Recipient = {
+                              OrgId = recipient.OrgId
+                              AccountId = recipient.Data.AccountId
+                              Name = recipient.Data.Name
+                           }
+                        }
+                  }
+               } with
+               Timestamp = timestamp
+         }
+         |> AccountCommand.ConfigureAutoTransferRule
+         |> AccountMessage.StateChange
+
+      (getAccountRef sender.AccountId) <! msg
+
+   socialTransferCandidates |> List.iter initZeroBalanceRule
+
 let seedAccountOwnerActions
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (timestamp: DateTime)
@@ -667,7 +845,7 @@ let seedAccountOwnerActions
    =
    let domesticRecipientCmd =
       RegisterDomesticTransferRecipientCommand.create
-         (arCheckingAccountId, orgId)
+         (apCheckingAccountId, orgId)
          mockAccountOwnerId
          {
             AccountId = Guid.NewGuid() |> AccountId
@@ -741,7 +919,7 @@ let seedAccountOwnerActions
             let msg =
                {
                   DepositCashCommand.create
-                     (arCheckingAccountId, orgId)
+                     (apCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
                         Amount = 5000m + randomAmount 1000 10_000
@@ -757,9 +935,9 @@ let seedAccountOwnerActions
             let ind = int (randomAmount 0 (socialTransferSenders.Length - 1))
             let sender = socialTransferSenders |> List.item ind
 
+            // Transfers from other orgs on the platform to the primary demo org
             let msg =
                let ts = timestamp.AddDays(float (maxDays - 1))
-               let correlationId = Guid.NewGuid() |> CorrelationId
 
                {
                   InternalTransferBetweenOrgsCommand.create
@@ -770,7 +948,7 @@ let seedAccountOwnerActions
                         Amount = 10_000m + randomAmount 1000 10_000
                         Recipient = {
                            OrgId = orgId
-                           AccountId = arCheckingAccountId
+                           AccountId = apCheckingAccountId
                            Name = orgName
                         }
                         ScheduledDateSeedOverride = Some ts
@@ -785,31 +963,38 @@ let seedAccountOwnerActions
                |> AccountCommand.InternalTransferBetweenOrgs
                |> AccountMessage.StateChange
 
-            accountRef <! msg
-
-            let ind = int (randomAmount 0 (socialTransferCandidates.Length - 1))
-
-            let recipient = socialTransferCandidates |> List.item ind
+            (getAccountRef sender.PrimaryAccountId) <! msg
 
             let timestamp = timestamp.AddDays(float (maxDays - 1))
 
+            // Transfers from primary demo org to other orgs on the platform
             let msg =
                {
                   InternalTransferBetweenOrgsCommand.create
-                     (arCheckingAccountId, orgId)
+                     (apCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
                         Memo = None
-                        Recipient = {
-                           OrgId = recipient.OrgId
-                           AccountId = recipient.PrimaryAccountId
-                           Name = recipient.BusinessName
-                        }
+                        Recipient =
+                           let ind =
+                              randomAmount
+                                 0
+                                 (socialTransferCandidates.Length - 1)
+                              |> int
+
+                           let recipient =
+                              socialTransferCandidates |> List.item ind
+
+                           {
+                              OrgId = recipient.OrgId
+                              AccountId = recipient.PrimaryAccountId
+                              Name = recipient.BusinessName
+                           }
                         Amount = 3000m + randomAmount 1000 8000
                         ScheduledDateSeedOverride = Some timestamp
                         Sender = {
-                           Name = mockAccounts[arCheckingAccountId].Data.Name
-                           AccountId = arCheckingAccountId
+                           Name = mockAccounts[apCheckingAccountId].Data.Name
+                           AccountId = apCheckingAccountId
                            OrgId = orgId
                         }
                      } with
@@ -820,25 +1005,26 @@ let seedAccountOwnerActions
 
             accountRef <! msg
 
-            let recipient = mockAccounts[opsCheckingAccountId]
-
             let msg =
                {
                   InternalTransferWithinOrgCommand.create
-                     (arCheckingAccountId, orgId)
+                     (apCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
                         Memo = None
-                        Recipient = {
-                           OrgId = recipient.OrgId
-                           AccountId = recipient.Data.AccountId
-                           Name = recipient.Data.Name
-                        }
+                        Recipient =
+                           let recipient = mockAccounts[opsCheckingAccountId]
+
+                           {
+                              OrgId = recipient.OrgId
+                              AccountId = recipient.Data.AccountId
+                              Name = recipient.Data.Name
+                           }
                         Amount = 2000m + randomAmount 1000 2000
                         ScheduledDateSeedOverride = Some timestamp
                         Sender = {
-                           Name = mockAccounts[arCheckingAccountId].Data.Name
-                           AccountId = arCheckingAccountId
+                           Name = mockAccounts[apCheckingAccountId].Data.Name
+                           AccountId = apCheckingAccountId
                            OrgId = orgId
                         }
                      } with
@@ -1084,29 +1270,28 @@ let seedAccountTransactions
          accountRef <! msg
       | None -> ()
 
-      if accountId = arCheckingAccountId then
+      if accountId = apCheckingAccountId then
          createEmployees getEmployeeRef
          do! Task.Delay 10_000
          let cardCreateCmds = createEmployeeCards getEmployeeRef
          do! Task.Delay 10_000
 
          let businessCardCreateCmd = cardCreateCmds.AccountOwnerBusinessCard
+         let timestamp = businessCardCreateCmd.Timestamp
 
-         let accountOwnerId =
-            EmployeeId.fromEntityId businessCardCreateCmd.EntityId
+         configureAutoTransferRules getAccountRef timestamp
 
          let! account = accountRef <? AccountMessage.GetAccount
 
          match account with
          | None ->
+            let accountOwnerId = businessCardCreateCmd.EntityId
+
             logError
                mailbox
                $"Can not proceed with account owner actions - eId: {accountOwnerId}"
          | Some account ->
-            seedAccountOwnerActions
-               getAccountRef
-               businessCardCreateCmd.Timestamp
-               account
+            seedAccountOwnerActions getAccountRef timestamp account
 
          for cmd in
             cardCreateCmds.AccountOwnerTravelCard :: cardCreateCmds.Employee do
@@ -1268,13 +1453,11 @@ let actorProps
                logInfo "Finished seeding accounts"
 
                match! enableOrgSocialTransferDiscovery () with
-               | Ok _ ->
-                  logInfo
-                     $"Enabled social transfer discovery for {arCheckingAccountId}"
+               | Ok _ -> logInfo "Enabled social transfer discovery"
                | Error err ->
                   logError ctx $"Error enabling social transfer discovery {err}"
 
-               do! Task.Delay 40_000
+               do! Task.Delay 50_000
                let! res = seedBalanceHistory ()
 
                match res with

@@ -28,7 +28,6 @@ module TransferLimits =
          0m
          events
 
-   // TODO: Add monthly transfer accrued
    let dailyInternalTransferAccrued =
       transferAccrued DateTime.isToday (function
          | AccountEvent.InternalTransferWithinOrgPending e ->
@@ -45,6 +44,12 @@ module TransferLimits =
             Some(info.ScheduledDate, -info.Amount)
          | AccountEvent.PlatformPaymentPaid e ->
             Some(e.Timestamp, e.Data.BaseInfo.Amount)
+         | AccountEvent.InternalAutomatedTransferPending e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, info.Amount)
+         | AccountEvent.InternalAutomatedTransferRejected e ->
+            let info = e.Data.BaseInfo
+            Some(info.ScheduledDate, -info.Amount)
          | _ -> None)
 
    let dailyDomesticTransferAccrued =
@@ -163,6 +168,7 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
             QualifyingDepositFound = false
             DailyBalanceThreshold = false
          }
+         AutoTransferRules = Map.empty
         }
       | AccountEvent.AccountClosed _ -> {
          account with
@@ -371,6 +377,25 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
                   }))
                   account.DomesticTransferRecipients
         }
+      | AutoTransferRuleConfigured e -> {
+         account with
+            AutoTransferRules =
+               account.AutoTransferRules
+               |> Map.add e.Data.Config.Id e.Data.Config
+        }
+      | AutoTransferRuleDeleted e -> {
+         account with
+            AutoTransferRules =
+               account.AutoTransferRules |> Map.remove e.Data.RuleId
+        }
+      | InternalAutomatedTransferPending e ->
+         applyInternalTransferPending e.Data.BaseInfo account
+      | InternalAutomatedTransferApproved e ->
+         applyInternalTransferApproved e.Data.BaseInfo account
+      | InternalAutomatedTransferRejected e ->
+         applyInternalTransferRejected e.Data.BaseInfo account
+      | InternalAutomatedTransferDeposited e ->
+         applyTransferDeposit account e.Data.BaseInfo.Amount
 
    let updatedEvents = evt :: state.Events
 
@@ -905,6 +930,113 @@ module private StateTransition =
       else
          map RecipientNicknamed state (NicknameRecipientCommand.toEvent cmd)
 
+   let configureAutoTransferRule
+      (state: AccountWithEvents)
+      (cmd: ConfigureAutoTransferRuleCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            AutoTransferRuleConfigured
+            state
+            (ConfigureAutoTransferRuleCommand.toEvent cmd)
+
+   let deleteAutoTransferRule
+      (state: AccountWithEvents)
+      (cmd: DeleteAutoTransferRuleCommand)
+      =
+      let account = state.Info
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map
+            AutoTransferRuleDeleted
+            state
+            (DeleteAutoTransferRuleCommand.toEvent cmd)
+
+   let internalAutoTransfer
+      (state: AccountWithEvents)
+      (cmd: InternalAutoTransferCommand)
+      =
+      let input = cmd.Data.Transfer
+      let account = state.Info
+      let amount = PositiveAmount.get input.Amount
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      elif account.Balance - amount < 0m then
+         transitionErr <| InsufficientBalance account.Balance
+      elif input.Recipient.OrgId <> account.OrgId then
+         transitionErr TransferExpectedToOccurWithinOrg
+      elif
+         TransferLimits.exceedsDailyInternalTransferLimit
+            state.Events
+            amount
+            cmd.Timestamp
+      then
+         TransferLimits.DailyInternalLimit
+         |> ExceededDailyInternalTransferLimit
+         |> transitionErr
+      else
+         map
+            InternalAutomatedTransferPending
+            state
+            (InternalAutoTransferCommand.toEvent cmd)
+
+   let approveInternalAutoTransfer
+      (state: AccountWithEvents)
+      (cmd: ApproveInternalAutoTransferCommand)
+      =
+      let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else if
+         Option.isNone
+         <| Map.tryFind transferId account.InProgressInternalTransfers
+      then
+         transitionErr TransferAlreadyProgressedToApprovedOrRejected
+      else
+         map
+            InternalAutomatedTransferApproved
+            state
+            (ApproveInternalAutoTransferCommand.toEvent cmd)
+
+   let rejectInternalAutoTransfer
+      (state: AccountWithEvents)
+      (cmd: RejectInternalAutoTransferCommand)
+      =
+      let account = state.Info
+      let transferId = cmd.Data.BaseInfo.TransferId
+
+      if account.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else if
+         Option.isNone
+         <| Map.tryFind transferId account.InProgressInternalTransfers
+      then
+         transitionErr TransferAlreadyProgressedToApprovedOrRejected
+      else
+         map
+            InternalAutomatedTransferRejected
+            state
+            (RejectInternalAutoTransferCommand.toEvent cmd)
+
+   let depositInternalAutoTransfer
+      (state: AccountWithEvents)
+      (cmd: DepositInternalAutoTransferCommand)
+      =
+      if state.Info.Status <> AccountStatus.Active then
+         transitionErr AccountNotActive
+      else
+         map InternalAutomatedTransferDeposited state
+         <| (DepositInternalAutoTransferCommand.toEvent cmd)
+
 let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
    match command with
    | CreateAccount cmd -> StateTransition.create state cmd
@@ -954,6 +1086,17 @@ let stateTransition (state: AccountWithEvents) (command: AccountCommand) =
       StateTransition.platformPaymentCancelled state cmd
    | DeclinePlatformPayment cmd ->
       StateTransition.platformPaymentDeclined state cmd
+   | ConfigureAutoTransferRule cmd ->
+      StateTransition.configureAutoTransferRule state cmd
+   | DeleteAutoTransferRule cmd ->
+      StateTransition.deleteAutoTransferRule state cmd
+   | InternalAutoTransfer cmd -> StateTransition.internalAutoTransfer state cmd
+   | ApproveInternalAutoTransfer cmd ->
+      StateTransition.approveInternalAutoTransfer state cmd
+   | RejectInternalAutoTransfer cmd ->
+      StateTransition.rejectInternalAutoTransfer state cmd
+   | DepositInternalAutoTransfer cmd ->
+      StateTransition.depositInternalAutoTransfer state cmd
 
 let empty: Account = {
    AccountId = AccountId System.Guid.Empty
@@ -974,4 +1117,5 @@ let empty: Account = {
    }
    AccountNumber = AccountNumber <| System.Int64.Parse "123456789123456"
    RoutingNumber = RoutingNumber 123456789
+   AutoTransferRules = Map.empty
 }

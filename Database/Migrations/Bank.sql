@@ -66,6 +66,10 @@ CREATE TABLE account (
    balance MONEY NOT NULL,
    currency VARCHAR(3) NOT NULL,
    status account_status NOT NULL,
+   auto_transfer_rules JSONB NOT NULL,
+   auto_transfer_rules_per_transaction_count INT NOT NULL,
+   auto_transfer_rules_daily_count INT NOT NULL,
+   auto_transfer_rules_twice_monthly_count INT NOT NULL,
    domestic_transfer_recipients JSONB NOT NULL,
    maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
    maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
@@ -722,11 +726,16 @@ BEGIN
            WHEN t.name IN(
               'InternalTransferWithinOrgPending',
               'InternalTransferBetweenOrgsPending',
-              'PlatformPaymentPaid'
+              'PlatformPaymentPaid',
+              'InternalAutomatedTransferPending'
            )
            THEN t.amount::numeric
 
-           WHEN t.name IN('InternalTransferWithinOrgRejected', 'InternalTransferBetweenOrgsRejected') 
+           WHEN t.name IN(
+              'InternalTransferWithinOrgRejected',
+              'InternalTransferBetweenOrgsRejected',
+              'InternalAutomatedTransferRejected'
+           )
            THEN -t.amount::numeric
 
            ELSE 0
@@ -752,6 +761,7 @@ BEGIN
      t.org_id = orgId
      AND t.amount IS NOT NULL
      AND t.name IN (
+        'InternalAutomatedTransferPending', 'InternalAutomatedTransferRejected',
         'InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected',
         'InternalTransferBetweenOrgsPending', 'InternalTransferBetweenOrgsRejected',
         'DomesticTransferPending', 'DomesticTransferRejected',

@@ -63,6 +63,20 @@ let private billingCycle
 
       mailbox.Parent() <! msg
 
+// Account events with an in/out money flow can produce an
+// automatic transfer.  Automated transfer account events have
+// money flow but they can not generate an auto transfer.
+// TODO: verify
+let canProduceAutoTransfer =
+   function
+   | AccountEvent.InternalAutomatedTransferPending _
+   | AccountEvent.InternalAutomatedTransferApproved _
+   | AccountEvent.InternalAutomatedTransferRejected _
+   | AccountEvent.InternalAutomatedTransferDeposited _ -> false
+   | e ->
+      let _, flow, _ = AccountEvent.moneyTransaction e
+      flow.IsSome
+
 // TODO: Comment out all account related email messages until
 //       I associate account owners with the account.
 //getEmailActor mailbox.System <! EmailActor.BillingStatement account
@@ -146,6 +160,9 @@ let actorProps
             | InternalTransferBetweenOrgsPending e ->
                getOrStartInternalTransferActor mailbox
                <! InternalTransferMsg.TransferRequestBetweenOrgs e
+            | InternalAutomatedTransferPending e ->
+               getOrStartInternalTransferActor mailbox
+               <! InternalTransferMsg.AutomatedTransferRequest e
             | InternalTransferBetweenOrgsScheduled e ->
                schedulingRef
                <! SchedulingActor.Message.ScheduleInternalTransferBetweenOrgs
@@ -202,6 +219,15 @@ let actorProps
             *)
             | _ -> ()
 
+            if canProduceAutoTransfer evt then
+               for t in account.AutoTransfersPerTransaction do
+                  let msg =
+                     InternalAutoTransferCommand.create t
+                     |> AccountCommand.InternalAutoTransfer
+                     |> AccountMessage.StateChange
+
+                  (getAccountRef t.Transfer.Sender.AccountId) <! msg
+
             return! loop <| Some state
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? ConfirmableMessageEnvelope as envelope ->
@@ -219,7 +245,8 @@ let actorProps
                            (AccountMessage.Event event)
                            envelope.ConfirmationId
                   | Error err ->
-                     logWarning $"Validation fail %s{string err}"
+                     logWarning
+                        $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
 
                      let signalRBroadcastValidationErr () =
                         broadcaster.accountEventValidationFail
@@ -290,6 +317,23 @@ let actorProps
                   }
 
                return! loop state <@> DeleteMessages Int64.MaxValue
+            | AccountMessage.AutoTransferOnSchedule schedule ->
+               let rules =
+                  match schedule with
+                  | AutomaticTransfer.CronSchedule.Daily ->
+                     account.AutoTransfersDaily
+                  | AutomaticTransfer.CronSchedule.TwiceMonthly ->
+                     account.AutoTransfersDaily
+
+               for t in rules do
+                  printfn "T CRON: %A" t
+
+                  let msg =
+                     InternalAutoTransferCommand.create t
+                     |> AccountCommand.InternalAutoTransfer
+                     |> AccountMessage.StateChange
+
+                  (getAccountRef t.Transfer.Sender.AccountId) <! msg
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent state e)

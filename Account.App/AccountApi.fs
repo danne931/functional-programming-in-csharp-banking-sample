@@ -230,6 +230,12 @@ let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult 
       | FulfillPlatformPayment cmd ->
          FulfillPlatformPaymentCommand.toEvent cmd
          |> Result.map AccountEnvelope.get
+      | ConfigureAutoTransferRule cmd ->
+         ConfigureAutoTransferRuleCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | DeleteAutoTransferRule cmd ->
+         DeleteAutoTransferRuleCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
       | cmd ->
          Error
          <| ValidationErrors.create "" [

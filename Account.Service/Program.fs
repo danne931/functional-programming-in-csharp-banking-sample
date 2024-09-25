@@ -120,6 +120,17 @@ builder.Services.AddAkka(
                typedProps.ToProps()),
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
+         .WithSingleton<ActorMetadata.AutoTransferSchedulingMarker>(
+            ActorMetadata.autoTransferScheduling.Name,
+            (fun system _ _ ->
+               let typedProps =
+                  AutomaticTransferSchedulingActor.initProps
+                     system
+                     (AccountActor.get system)
+
+               typedProps.ToProps()),
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
          .WithSingleton<ActorMetadata.AccountClosureMarker>(
             ActorMetadata.accountClosure.Name,
             (fun system _ _ ->

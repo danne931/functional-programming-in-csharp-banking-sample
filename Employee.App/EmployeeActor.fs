@@ -167,7 +167,8 @@ let actorProps
                            (EmployeeMessage.Event evt)
                            envelope.ConfirmationId
                   | Error err ->
-                     logWarning $"Validation fail %s{string err}"
+                     logWarning
+                        $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
 
                      match err with
                      | EmployeeStateTransitionError e ->

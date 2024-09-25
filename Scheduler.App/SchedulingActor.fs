@@ -7,7 +7,6 @@ open Akka.Quartz.Actor.Commands
 open Akka.Cluster.Sharding
 open Akkling
 open Quartz
-open System
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
@@ -32,6 +31,7 @@ type Message =
    | TriggerBalanceHistoryCronJob
    | ScheduleInternalTransferBetweenOrgs of InternalTransferBetweenOrgsScheduled
    | ScheduleDomesticTransfer of DomesticTransferScheduled
+   | BalanceManagementCronJobSchedule
 
 let actorProps (quartzPersistentActorRef: IActorRef) =
    let handler (ctx: Actor<Message>) = actor {
@@ -74,6 +74,44 @@ let actorProps (quartzPersistentActorRef: IActorRef) =
             )
 
          quartzPersistentActorRef.Tell(job, ActorRefs.Nobody)
+         return ignored ()
+      | BalanceManagementCronJobSchedule ->
+         logInfo $"Scheduling balance management cron jobs"
+
+         let path = ActorMetadata.autoTransferScheduling.ProxyPath
+         let trigger = BalanceManagementTriggers.schedule logInfo
+
+         let dailyJob =
+            let schedule = AutomaticTransfer.CronSchedule.Daily
+
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "BalanceManagementMessage"
+                  Message =
+                     AutomaticTransfer.Message.StartScheduledAutoTransfers
+                        schedule
+               },
+               (trigger schedule)
+            )
+
+         let twiceMonthlyJob =
+            let schedule = AutomaticTransfer.CronSchedule.TwiceMonthly
+
+            CreatePersistentJob(
+               path,
+               {
+                  Manifest = "BalanceManagementMessage"
+                  Message =
+                     AutomaticTransfer.Message.StartScheduledAutoTransfers
+                        schedule
+               },
+               (trigger schedule)
+            )
+
+         quartzPersistentActorRef.Tell(dailyJob, ActorRefs.Nobody)
+         quartzPersistentActorRef.Tell(twiceMonthlyJob, ActorRefs.Nobody)
+
          return ignored ()
       | DeleteAccountsJobSchedule accountIds ->
          logInfo $"Scheduling deletion of accounts {accountIds}"

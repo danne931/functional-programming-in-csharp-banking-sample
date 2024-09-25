@@ -5,9 +5,10 @@
 
   <ItemGroup>
     <Compile Include="Environment.fs" />
-    <Compile Include="BalanceHistoryTriggers.fs" /> 
+    <Compile Include="BalanceHistoryTriggers.fs" />
     <Compile Include="AccountClosureTriggers.fs" />
     <Compile Include="BillingCycleTriggers.fs" />
+    <Compile Include="BalanceManagementTriggers.fs" />
     <Compile Include="TransferProgressTriggers.fs" />
     <Compile Include="SchedulingActor.fs" />
     <Compile Include="Serialization.fs" />

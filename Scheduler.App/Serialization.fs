@@ -30,6 +30,11 @@ type private QuartzBillingMessageEnvelope = {
    Message: BillingCycleMessage
 }
 
+type private QuartzBalanceManagementMessageEnvelope = {
+   Manifest: string
+   Message: AutomaticTransfer.Message
+}
+
 type private QuartzAccountClosureMessageEnvelope = {
    Manifest: string
    Message: AccountClosureMessage
@@ -95,6 +100,14 @@ type QuartzSerializer(system: ExtendedActorSystem) =
       | "BillingCycleActorMessage" ->
          let deseri =
             JsonSerializer.Deserialize<QuartzBillingMessageEnvelope>(
+               bytes,
+               Serialization.jsonOptions
+            )
+
+         deseri.Message
+      | "BalanceManagementMessage" ->
+         let deseri =
+            JsonSerializer.Deserialize<QuartzBalanceManagementMessageEnvelope>(
                bytes,
                Serialization.jsonOptions
             )

@@ -350,7 +350,7 @@ module private StateTransition =
             (RefreshInvitationTokenCommand.toEvent cmd)
       | _ ->
          transitionErr
-         <| EmployeeStatusDisallowsInviteProgression(string em.Role)
+         <| EmployeeStatusDisallowsInviteProgression(string em.Status)
 
    let cancelEmployeeInvitation
       (state: EmployeeWithEvents)
@@ -364,7 +364,7 @@ module private StateTransition =
          map InvitationCancelled state (CancelInvitationCommand.toEvent cmd)
       | _ ->
          transitionErr
-         <| EmployeeStatusDisallowsInviteProgression(string em.Role)
+         <| EmployeeStatusDisallowsInviteProgression(string em.Status)
 
    let approveEmployeeInvitation
       (state: EmployeeWithEvents)
@@ -377,7 +377,7 @@ module private StateTransition =
          map InvitationApproved state (ApproveInvitationCommand.toEvent cmd)
       | _ ->
          transitionErr
-         <| EmployeeStatusDisallowsInviteProgression(string em.Role)
+         <| EmployeeStatusDisallowsInviteProgression(string em.Status)
 
    let denyEmployeeInvitation
       (state: EmployeeWithEvents)
@@ -389,7 +389,7 @@ module private StateTransition =
          map InvitationDenied state (DenyInvitationCommand.toEvent cmd)
       else
          transitionErr
-         <| EmployeeStatusDisallowsInviteProgression(string em.Role)
+         <| EmployeeStatusDisallowsInviteProgression(string em.Status)
 
    let confirmEmployeeInvitation
       (state: EmployeeWithEvents)
@@ -402,7 +402,7 @@ module private StateTransition =
          map InvitationConfirmed state (ConfirmInvitationCommand.toEvent cmd)
       | _ ->
          transitionErr
-         <| EmployeeStatusDisallowsInviteProgression(string em.Role)
+         <| EmployeeStatusDisallowsInviteProgression(string em.Status)
 
    let restoreAccess (state: EmployeeWithEvents) (cmd: RestoreAccessCommand) =
       let em = state.Info

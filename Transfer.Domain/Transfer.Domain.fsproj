@@ -6,6 +6,7 @@
   <ItemGroup>
     <Compile Include="CoreTypes.fs" />
     <Compile Include="InternalTransfer.fs" />
+    <Compile Include="AutomaticTransfer.fs" />
     <Compile Include="DomesticTransfer.fs" />
     <Compile Include="Payment.fs" />
     <Compile Include="Events.fs" />

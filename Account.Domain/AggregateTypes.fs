@@ -40,6 +40,12 @@ type AccountCommand =
    | NicknameRecipient of NicknameRecipientCommand
    | CloseAccount of CloseAccountCommand
    | StartBillingCycle of StartBillingCycleCommand
+   | ConfigureAutoTransferRule of ConfigureAutoTransferRuleCommand
+   | DeleteAutoTransferRule of DeleteAutoTransferRuleCommand
+   | InternalAutoTransfer of InternalAutoTransferCommand
+   | ApproveInternalAutoTransfer of ApproveInternalAutoTransferCommand
+   | RejectInternalAutoTransfer of RejectInternalAutoTransferCommand
+   | DepositInternalAutoTransfer of DepositInternalAutoTransferCommand
 
 type AccountEvent =
    | CreatedAccount of BankEvent<CreatedAccount>
@@ -81,6 +87,97 @@ type AccountEvent =
    | RecipientNicknamed of BankEvent<RecipientNicknamed>
    | AccountClosed of BankEvent<AccountClosed>
    | BillingCycleStarted of BankEvent<BillingCycleStarted>
+   | AutoTransferRuleConfigured of BankEvent<AutomaticTransferRuleConfigured>
+   | AutoTransferRuleDeleted of BankEvent<AutomaticTransferRuleDeleted>
+   | InternalAutomatedTransferPending of
+      BankEvent<InternalAutomatedTransferPending>
+   | InternalAutomatedTransferApproved of
+      BankEvent<InternalAutomatedTransferApproved>
+   | InternalAutomatedTransferRejected of
+      BankEvent<InternalAutomatedTransferRejected>
+   | InternalAutomatedTransferDeposited of
+      BankEvent<InternalAutomatedTransferDeposited>
+
+module AccountEvent =
+   let moneyTransaction =
+      function
+      | AccountEvent.DepositedCash evt ->
+         Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Origin
+      | AccountEvent.DebitedAccount evt ->
+         Some evt.Data.Amount, Some MoneyFlow.Out, Some evt.Data.Origin
+      | AccountEvent.InternalTransferWithinOrgPending evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.Out,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferWithinOrgApproved evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferWithinOrgRejected evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferWithinOrgDeposited evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Sender.Name
+      | AccountEvent.InternalAutomatedTransferPending evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.Out,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalAutomatedTransferApproved evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalAutomatedTransferRejected evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalAutomatedTransferDeposited evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Sender.Name
+      | AccountEvent.InternalTransferBetweenOrgsScheduled evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferBetweenOrgsPending evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.Out,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferBetweenOrgsApproved evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferBetweenOrgsRejected evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.InternalTransferBetweenOrgsDeposited evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Sender.Name
+      | AccountEvent.DomesticTransferScheduled evt ->
+         Some evt.Data.BaseInfo.Amount,
+         None,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.DomesticTransferPending evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.Out,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.DomesticTransferRejected evt ->
+         Some evt.Data.BaseInfo.Amount,
+         Some MoneyFlow.In,
+         Some evt.Data.BaseInfo.Recipient.Name
+      | AccountEvent.MaintenanceFeeDebited evt ->
+         Some evt.Data.Amount, Some MoneyFlow.Out, Some "Maintenance Fee"
+      | AccountEvent.PlatformPaymentPaid evt ->
+         let p = evt.Data.BaseInfo
+         Some p.Amount, Some MoneyFlow.Out, Some p.Payee.OrgName
+      | AccountEvent.PlatformPaymentDeposited evt ->
+         let p = evt.Data.BaseInfo
+         Some p.Amount, Some MoneyFlow.In, Some p.Payer.OrgName
+      | _ -> None, None, None
 
 type OpenEventEnvelope = AccountEvent * Envelope
 
@@ -148,6 +245,18 @@ module AccountEnvelope =
          PlatformPaymentDeposited evt
       | :? BankEvent<AccountClosed> as evt -> AccountClosed evt
       | :? BankEvent<BillingCycleStarted> as evt -> BillingCycleStarted evt
+      | :? BankEvent<AutomaticTransferRuleConfigured> as evt ->
+         AutoTransferRuleConfigured evt
+      | :? BankEvent<AutomaticTransferRuleDeleted> as evt ->
+         AutoTransferRuleDeleted evt
+      | :? BankEvent<InternalAutomatedTransferPending> as evt ->
+         InternalAutomatedTransferPending evt
+      | :? BankEvent<InternalAutomatedTransferApproved> as evt ->
+         InternalAutomatedTransferApproved evt
+      | :? BankEvent<InternalAutomatedTransferRejected> as evt ->
+         InternalAutomatedTransferRejected evt
+      | :? BankEvent<InternalAutomatedTransferDeposited> as evt ->
+         InternalAutomatedTransferDeposited evt
       | _ -> failwith "Missing definition for AccountEvent message"
 
    let unwrap (o: AccountEvent) : OpenEventEnvelope =
@@ -181,6 +290,12 @@ module AccountEnvelope =
       | PlatformPaymentDeposited evt -> wrap evt, get evt
       | AccountClosed evt -> wrap evt, get evt
       | BillingCycleStarted evt -> wrap evt, get evt
+      | AutoTransferRuleConfigured evt -> wrap evt, get evt
+      | AutoTransferRuleDeleted evt -> wrap evt, get evt
+      | InternalAutomatedTransferPending evt -> wrap evt, get evt
+      | InternalAutomatedTransferApproved evt -> wrap evt, get evt
+      | InternalAutomatedTransferRejected evt -> wrap evt, get evt
+      | InternalAutomatedTransferDeposited evt -> wrap evt, get evt
 
 type Account = {
    AccountId: AccountId
@@ -200,9 +315,32 @@ type Account = {
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber
+   AutoTransferRules: Map<Guid, AutomaticTransfer.AutomaticTransferConfig>
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
+
+   member private x.autoTransferManagement
+      (computedTransferFromRule:
+         AutomaticTransfer.AutomaticTransferRule
+            -> decimal
+            -> AutomaticTransfer.AutoTransferDerivedFromRule list option)
+      : AutomaticTransfer.AutoTransferDerivedFromRule list =
+      x.AutoTransferRules.Values
+      |> Seq.toList
+      |> List.choose (fun rule -> computedTransferFromRule rule.Info x.Balance)
+      |> List.collect id
+
+   member x.AutoTransfersPerTransaction =
+      x.autoTransferManagement
+         AutomaticTransfer.requiresPerTransactionBalanceManagement
+
+   member x.AutoTransfersDaily =
+      x.autoTransferManagement AutomaticTransfer.requiresDailyBalanceManagement
+
+   member x.AutoTransfersTwiceMonthly =
+      x.autoTransferManagement
+         AutomaticTransfer.requiresTwiceMonthlyBalanceManagement
 
 type AccountWithEvents = {
    Info: Account
@@ -256,6 +394,7 @@ type AccountMessage =
    | GetAccount
    | StateChange of AccountCommand
    | Event of AccountEvent
+   | AutoTransferOnSchedule of AutomaticTransfer.CronSchedule
    | Delete
 
 type AccountEventPersistedConfirmation = {

@@ -420,6 +420,78 @@ let transactionUIFriendly
             Amount = Some <| Money.format p.Amount
             MoneyFlow = None
       }
+   | InternalAutomatedTransferPending evt ->
+      let info = evt.Data.BaseInfo
+
+      let reason =
+         match evt.Data.Rule with
+         | AutomaticTransfer.AutomaticTransferRule.ZeroBalance _ ->
+            "Maintain a zero balance."
+         | AutomaticTransfer.AutomaticTransferRule.TargetBalance rule ->
+            let msg = $"Restore balance to {rule.TargetAccountBalance}."
+
+            match rule.TargetBalanceRange with
+            | None -> msg
+            | Some range ->
+               let low =
+                  range.LowerBound |> PositiveAmount.get |> Money.formatShort
+
+               let upper =
+                  range.UpperBound |> PositiveAmount.get |> Money.formatShort
+
+               $"{msg} Balance out of range ({low}, {upper})"
+         | AutomaticTransfer.AutomaticTransferRule.PercentDistribution rule ->
+            let rule = AutomaticTransfer.PercentDistributionRule.get rule
+            $"Maintain a zero balance by distributing it among {rule.DestinationAccounts.Length} accounts."
+
+      {
+         props with
+            Name = "Internal Automated Transfer"
+            Info =
+               $"Auto Balance Management: moved money from {info.Sender.Name} to {info.Recipient.Name}
+               - Reason: {reason}"
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.Out
+            Source = Some accountName
+            Destination = Some info.Recipient.Name
+      }
+   | InternalAutomatedTransferApproved evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Internal Automated Transfer Approved"
+            Info =
+               $"Auto Balance Management: approve transfer from {info.Sender.Name} to {info.Recipient.Name}"
+            Amount = Some <| Money.format info.Amount
+      }
+   | InternalAutomatedTransferRejected evt ->
+      let info = evt.Data.BaseInfo
+
+      {
+         props with
+            Name = "Internal Automated Transfer Rejected"
+            Info =
+               $"Auto Balance Management: declined transfer from {info.Sender.Name} to {info.Recipient.Name} 
+              - Reason: {evt.Data.Reason} 
+              - Account refunded"
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.In
+      }
+   | InternalAutomatedTransferDeposited evt ->
+      let info = evt.Data.BaseInfo
+      let sender = info.Sender.Name
+
+      {
+         props with
+            Name = "Internal Automated Transfer Deposit"
+            Info =
+               $"Auto Balance Management: received transfer deposit from {sender}."
+            Amount = Some <| Money.format info.Amount
+            MoneyFlow = Some MoneyFlow.In
+            Source = Some sender
+            Destination = Some accountName
+      }
 
 type SelectedCard = { Display: string; CardId: CardId }
 

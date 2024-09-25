@@ -5,6 +5,7 @@ open System
 
 open Lib.SharedTypes
 open Lib.Validators
+open AutomaticTransfer
 
 type InternalTransferInput = {
    Memo: string option
@@ -881,3 +882,156 @@ module DepositPlatformPaymentCommand =
       : ValidationResult<BankEvent<PlatformPaymentDeposited>>
       =
       BankEvent.create<PlatformPaymentDeposited> cmd |> Ok
+
+type ConfigureAutoTransferRuleCommand = Command<AutomaticTransferRuleConfigured>
+
+module ConfigureAutoTransferRuleCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: AutomaticTransferRuleConfigured)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: ConfigureAutoTransferRuleCommand)
+      : ValidationResult<BankEvent<AutomaticTransferRuleConfigured>>
+      =
+      Ok <| BankEvent.create<AutomaticTransferRuleConfigured> cmd
+
+type DeleteAutoTransferRuleCommand = Command<AutomaticTransferRuleDeleted>
+
+module DeleteAutoTransferRuleCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      (initiatedBy: InitiatedById)
+      (data: AutomaticTransferRuleDeleted)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         (CorrelationId.create ())
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: DeleteAutoTransferRuleCommand)
+      : ValidationResult<BankEvent<AutomaticTransferRuleDeleted>>
+      =
+      Ok <| BankEvent.create<AutomaticTransferRuleDeleted> cmd
+
+type InternalAutoTransferCommand =
+   Command<AutomaticTransfer.AutoTransferDerivedFromRule>
+
+module InternalAutoTransferCommand =
+   let create (data: AutomaticTransfer.AutoTransferDerivedFromRule) =
+      let t = data.Transfer
+
+      Command.create
+         (AccountId.toEntityId t.Sender.AccountId)
+         t.Sender.OrgId
+         (CorrelationId.create ())
+         (InitiatedById Constants.SYSTEM_USER_ID)
+         data
+
+   let toEvent
+      (cmd: InternalAutoTransferCommand)
+      : ValidationResult<BankEvent<InternalAutomatedTransferPending>>
+      =
+      validate {
+         let info = cmd.Data
+         let t = info.Transfer
+
+         return
+            BankEvent.create2<
+               AutomaticTransfer.AutoTransferDerivedFromRule,
+               InternalAutomatedTransferPending
+             >
+               cmd
+               {
+                  Rule = cmd.Data.Rule
+                  BaseInfo = {
+                     TransferId =
+                        cmd.CorrelationId |> CorrelationId.get |> TransferId
+                     InitiatedBy = cmd.InitiatedBy
+                     Recipient = t.Recipient
+                     Amount = PositiveAmount.get t.Amount
+                     ScheduledDate = cmd.Timestamp
+                     Sender = t.Sender
+                  }
+               }
+      }
+
+type ApproveInternalAutoTransferCommand =
+   Command<InternalAutomatedTransferApproved>
+
+module ApproveInternalAutoTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (initiatedBy: InitiatedById)
+      (data: InternalAutomatedTransferApproved)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: ApproveInternalAutoTransferCommand)
+      : ValidationResult<BankEvent<InternalAutomatedTransferApproved>>
+      =
+      BankEvent.create<InternalAutomatedTransferApproved> cmd |> Ok
+
+type RejectInternalAutoTransferCommand =
+   Command<InternalAutomatedTransferRejected>
+
+module RejectInternalAutoTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (initiatedBy: InitiatedById)
+      (data: InternalAutomatedTransferRejected)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: RejectInternalAutoTransferCommand)
+      : ValidationResult<BankEvent<InternalAutomatedTransferRejected>>
+      =
+      BankEvent.create<InternalAutomatedTransferRejected> cmd |> Ok
+
+type DepositInternalAutoTransferCommand =
+   Command<InternalAutomatedTransferDeposited>
+
+module DepositInternalAutoTransferCommand =
+   let create
+      (accountId: AccountId, orgId: OrgId)
+      correlationId
+      (initiatedBy: InitiatedById)
+      (data: InternalAutomatedTransferDeposited)
+      =
+      Command.create
+         (AccountId.toEntityId accountId)
+         orgId
+         correlationId
+         initiatedBy
+         data
+
+   let toEvent
+      (cmd: DepositInternalAutoTransferCommand)
+      : ValidationResult<BankEvent<InternalAutomatedTransferDeposited>>
+      =
+      BankEvent.create<InternalAutomatedTransferDeposited> cmd |> Ok

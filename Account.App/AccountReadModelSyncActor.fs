@@ -168,69 +168,7 @@ let sqlParamReducer
       "event", TransactionSqlWriter.event evt
    ]
 
-   let amountOpt, moneyFlowOpt, sourceOpt =
-      match evt with
-      | AccountEvent.DepositedCash evt ->
-         Some evt.Data.Amount, Some MoneyFlow.In, Some evt.Data.Origin
-      | AccountEvent.DebitedAccount evt ->
-         Some evt.Data.Amount, Some MoneyFlow.Out, Some evt.Data.Origin
-      | AccountEvent.InternalTransferWithinOrgPending evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.Out,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferWithinOrgApproved evt ->
-         Some evt.Data.BaseInfo.Amount,
-         None,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferWithinOrgRejected evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferWithinOrgDeposited evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.Sender.Name
-      | AccountEvent.InternalTransferBetweenOrgsScheduled evt ->
-         Some evt.Data.BaseInfo.Amount,
-         None,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferBetweenOrgsPending evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.Out,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferBetweenOrgsApproved evt ->
-         Some evt.Data.BaseInfo.Amount,
-         None,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferBetweenOrgsRejected evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.InternalTransferBetweenOrgsDeposited evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.Sender.Name
-      | AccountEvent.DomesticTransferScheduled evt ->
-         Some evt.Data.BaseInfo.Amount,
-         None,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.DomesticTransferPending evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.Out,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.DomesticTransferRejected evt ->
-         Some evt.Data.BaseInfo.Amount,
-         Some MoneyFlow.In,
-         Some evt.Data.BaseInfo.Recipient.Name
-      | AccountEvent.MaintenanceFeeDebited evt ->
-         Some evt.Data.Amount, Some MoneyFlow.Out, Some "Maintenance Fee"
-      | AccountEvent.PlatformPaymentPaid evt ->
-         let p = evt.Data.BaseInfo
-         Some p.Amount, Some MoneyFlow.Out, Some p.Payee.OrgName
-      | AccountEvent.PlatformPaymentDeposited evt ->
-         let p = evt.Data.BaseInfo
-         Some p.Amount, Some MoneyFlow.In, Some p.Payer.OrgName
-      | _ -> None, None, None
+   let amountOpt, moneyFlowOpt, sourceOpt = AccountEvent.moneyTransaction evt
 
    let transactionSqlParams =
       transactionSqlParams
@@ -561,6 +499,24 @@ let sqlParamsFromAccount (account: Account) : (string * SqlValue) list = [
 
    "failedDomesticTransfersCount",
    AccountSqlWriter.transfersCount account.FailedDomesticTransfers.Count
+
+   "autoTransferRules",
+   AccountSqlWriter.autoTransferRules account.AutoTransferRules
+
+   let autoTransferRuleCount =
+      account.AutoTransferRules.Values
+      |> Seq.toList
+      |> List.map _.Info
+      |> AutomaticTransfer.autoTransferRuleCounts
+
+   "autoTransferRulePerTxnCount",
+   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.PerTransaction
+
+   "autoTransferRuleDailyCount",
+   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.Daily
+
+   "autoTransferRuleTwiceMonthlyCount",
+   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.TwiceMonthly
 ]
 
 let upsertReadModels
@@ -602,7 +558,11 @@ let upsertReadModels
           {AccountFields.inProgressDomesticTransfers},
           {AccountFields.inProgressDomesticTransfersCount},
           {AccountFields.failedDomesticTransfers},
-          {AccountFields.failedDomesticTransfersCount})
+          {AccountFields.failedDomesticTransfersCount},
+          {AccountFields.autoTransferRules},
+          {AccountFields.autoTransferRuleCounts.perTxn},
+          {AccountFields.autoTransferRuleCounts.daily},
+          {AccountFields.autoTransferRuleCounts.twiceMonthly})
       VALUES
          (@id,
           @accountNumber,
@@ -622,7 +582,11 @@ let upsertReadModels
           @inProgressDomesticTransfers,
           @inProgressDomesticTransfersCount,
           @failedDomesticTransfers,
-          @failedDomesticTransfersCount)
+          @failedDomesticTransfersCount,
+          @autoTransferRules,
+          @autoTransferRulePerTxnCount,
+          @autoTransferRuleDailyCount,
+          @autoTransferRuleTwiceMonthlyCount)
       ON CONFLICT ({AccountFields.accountId})
       DO UPDATE SET
          {AccountFields.balance} = @balance,
@@ -636,7 +600,11 @@ let upsertReadModels
          {AccountFields.inProgressDomesticTransfers} = @inProgressDomesticTransfers,
          {AccountFields.inProgressDomesticTransfersCount} = @inProgressDomesticTransfersCount,
          {AccountFields.failedDomesticTransfers} = @failedDomesticTransfers,
-         {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount;
+         {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount,
+         {AccountFields.autoTransferRules} = @autoTransferRules,
+         {AccountFields.autoTransferRuleCounts.perTxn} = @autoTransferRulePerTxnCount,
+         {AccountFields.autoTransferRuleCounts.daily} = @autoTransferRuleDailyCount,
+         {AccountFields.autoTransferRuleCounts.twiceMonthly} = @autoTransferRuleTwiceMonthlyCount;
       """,
       accountSqlParams
 

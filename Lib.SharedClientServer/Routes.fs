@@ -1,5 +1,7 @@
 module RoutePaths
 
+open System
+
 open Lib.SharedTypes
 
 let private API = "/api"
@@ -43,6 +45,8 @@ module TransferPath =
    let DomesticTransferRecipient = Domestic + "/register-recipient"
    let DomesticTransferRecipientEdit = Domestic + "/edit-recipient"
    let NicknameRecipient = Base + "/recipient-nickname"
+   let ConfigureAutoTransferRule = Base + "configure-auto-transfer-rule"
+   let DeleteAutoTransferRule = Base + "delete-auto-transfer-rule"
 
 module PaymentPath =
    let Base = $"{API}/payments"

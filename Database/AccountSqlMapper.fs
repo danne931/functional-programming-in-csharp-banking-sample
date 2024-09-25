@@ -7,6 +7,7 @@ open MaintenanceFee
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 open OrganizationSqlMapper
+open AutomaticTransfer
 
 let table = "account"
 
@@ -41,6 +42,14 @@ module AccountFields =
 
    let failedDomesticTransfers = "failed_domestic_transfers"
    let failedDomesticTransfersCount = "failed_domestic_transfers_count"
+
+   let autoTransferRules = "auto_transfer_rules"
+
+   let autoTransferRuleCounts = {|
+      perTxn = "auto_transfer_rules_per_transaction_count"
+      daily = "auto_transfer_rules_daily_count"
+      twiceMonthly = "auto_transfer_rules_twice_monthly_count"
+   |}
 
 module AccountSqlReader =
    let accountId (read: RowReader) =
@@ -98,6 +107,10 @@ module AccountSqlReader =
       read.text AccountFields.failedDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
+   let autoTransferRules (read: RowReader) =
+      read.text AccountFields.autoTransferRules
+      |> Serialization.deserializeUnsafe<AutomaticTransferConfig list>
+
    let account (read: RowReader) : Account = {
       AccountId = accountId read
       OrgId = orgId read
@@ -126,6 +139,8 @@ module AccountSqlReader =
          failedDomesticTransfers read
          |> List.map (fun t -> t.TransferId, t)
          |> Map.ofList
+      AutoTransferRules =
+         autoTransferRules read |> List.map (fun r -> r.Id, r) |> Map.ofList
    }
 
 module AccountSqlWriter =
@@ -176,3 +191,8 @@ module AccountSqlWriter =
       transfers.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
 
    let transfersCount = Sql.int
+
+   let autoTransferRules (rules: Map<Guid, AutomaticTransferConfig>) =
+      rules.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
+
+   let autoTransferRuleCount = Sql.int

@@ -111,6 +111,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          "DomesticTransferActorMessage"
       | :? TransferProgressTrackingMessage ->
          "TransferProgressTrackingActorMessage"
+      | :? AutomaticTransfer.Message -> "AutomaticTransferActorMessage"
       | :? ShardEnvelope as e ->
          match e.Message with
          | :? AccountMessage -> "AccountShardEnvelope"
@@ -153,8 +154,10 @@ type BankSerializer(system: ExtendedActorSystem) =
       | :? SchedulingActor.Message
       // Messages from SchedulingActor to BillingCycleActor
       | :? BillingCycleMessage
-      // Messages from SchedulingActor TransferProgressTrackingActor
+      // Messages from SchedulingActor to TransferProgressTrackingActor
       | :? TransferProgressTrackingMessage
+      // Messages from SchedulingActor to AutomaticTransferSchedulingActor
+      | :? AutomaticTransfer.Message
       // ProgressCheck messages from TransferProgressTracking
       // singleton actor to DomesticTransferActor
       | :? DomesticTransferRecipientActor.DomesticTransferMessage
@@ -245,6 +248,7 @@ type BankSerializer(system: ExtendedActorSystem) =
          | "BillingCycleActorMessage" -> typeof<BillingCycleMessage>
          | "TransferProgressTrackingActorMessage" ->
             typeof<TransferProgressTrackingMessage>
+         | "AutomaticTransferActorMessage" -> typeof<AutomaticTransfer.Message>
          | "DomesticTransferActorMessage" ->
             typeof<DomesticTransferRecipientActor.DomesticTransferMessage>
          | "AccountClosureActorMessage" -> typeof<AccountClosureMessage>

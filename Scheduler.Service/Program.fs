@@ -92,6 +92,7 @@ builder.Services.AddAkka(
                typedefof<BillingCycleMessage>
                typedefof<AccountClosureMessage>
                typedefof<TransferProgressTrackingMessage>
+               typedefof<AutomaticTransfer.Message>
                typedefof<AccountMessage>
                // NOTE: Akka ShardRegionProxy defined in Akka.Hosting below
                //       does not recognize Akkling ShardEnvelope as Akka
@@ -121,6 +122,10 @@ builder.Services.AddAkka(
          )
          .WithSingletonProxy<ActorMetadata.TransferProgressTrackingMarker>(
             ActorMetadata.transferProgressTracking.Name,
+            ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
+         )
+         .WithSingletonProxy<ActorMetadata.AutoTransferSchedulingMarker>(
+            ActorMetadata.autoTransferScheduling.Name,
             ClusterSingletonOptions(Role = ClusterMetadata.roles.account)
          )
          .WithSingleton<QuartzPersistentActor>(
@@ -156,6 +161,9 @@ builder.Services.AddAkka(
 
                schedulingActor
                <! SchedulingActor.BalanceHistoryCronJobSchedule
+
+               schedulingActor
+               <! SchedulingActor.BalanceManagementCronJobSchedule
             })
          )
       |> ignore

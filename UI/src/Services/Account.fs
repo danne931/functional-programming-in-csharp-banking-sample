@@ -48,6 +48,10 @@ let postJson (command: AccountCommand) =
          Serialization.serialize cmd, PaymentPath.DeclinePayment
       | AccountCommand.FulfillPlatformPayment cmd ->
          Serialization.serialize cmd, PaymentPath.FulfillPayment
+      | AccountCommand.ConfigureAutoTransferRule cmd ->
+         Serialization.serialize cmd, TransferPath.ConfigureAutoTransferRule
+      | AccountCommand.DeleteAutoTransferRule cmd ->
+         Serialization.serialize cmd, TransferPath.DeleteAutoTransferRule
       | other -> notImplemented other
 
    Http.postJson url serialized

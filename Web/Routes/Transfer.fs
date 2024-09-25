@@ -173,3 +173,27 @@ let startTransferRoutes (app: WebApplication) =
       )
       .RBAC(Permissions.ManagePayment)
    |> ignore
+
+   app
+      .MapPost(
+         TransferPath.ConfigureAutoTransferRule,
+         Func<ActorSystem, ConfigureAutoTransferRuleCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand
+                  sys
+                  (AccountCommand.ConfigureAutoTransferRule cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManageAutoTransferRules)
+   |> ignore
+
+   app
+      .MapPost(
+         TransferPath.DeleteAutoTransferRule,
+         Func<ActorSystem, DeleteAutoTransferRuleCommand, Task<IResult>>
+            (fun sys cmd ->
+               processCommand sys (AccountCommand.DeleteAutoTransferRule cmd)
+               |> RouteUtil.unwrapTaskResult)
+      )
+      .RBAC(Permissions.ManageAutoTransferRules)
+   |> ignore

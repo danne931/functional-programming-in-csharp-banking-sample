@@ -443,3 +443,24 @@ type Email = private {
    static member deserialize(email: string) : Email = { Email = email }
 
    static member empty = { Email = "" }
+
+module PositiveAmount =
+   type T = private PositiveAmount of decimal
+
+   let create (value: decimal) =
+      if value > 0m then Some(PositiveAmount value) else None
+
+   let get (PositiveAmount v) = v
+
+   let map (transform: decimal -> decimal) (amount: T) : T =
+      amount |> get |> transform |> PositiveAmount
+
+   let map2
+      (transform: decimal * decimal -> decimal)
+      (amount: T)
+      (amount2: T)
+      : T
+      =
+      let amount = get amount
+      let amount2 = get amount2
+      (amount, amount2) |> transform |> PositiveAmount
