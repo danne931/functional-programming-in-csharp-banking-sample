@@ -108,6 +108,7 @@ type TransactionGroupFilter =
    | Deposit
    | InternalTransferWithinOrg
    | InternalTransferBetweenOrgs
+   | InternalAutomatedTransfer
    | DomesticTransfer
    | PlatformPayment
    //| ThirdPartyPayment
@@ -120,6 +121,8 @@ type TransactionGroupFilter =
          "Transfers within your org"
       | TransactionGroupFilter.InternalTransferBetweenOrgs ->
          "Transfers between orgs on the platform"
+      | TransactionGroupFilter.InternalAutomatedTransfer ->
+         "Automated balance management transfers"
       | TransactionGroupFilter.DomesticTransfer ->
          "Domestic transfers outside the platform"
       | TransactionGroupFilter.PlatformPayment ->
@@ -136,6 +139,8 @@ module TransactionGroupFilter =
          Some TransactionGroupFilter.InternalTransferWithinOrg
       | "InternalTransferBetweenOrgs" ->
          Some TransactionGroupFilter.InternalTransferBetweenOrgs
+      | "InternalAutomatedTransfer" ->
+         Some TransactionGroupFilter.InternalAutomatedTransfer
       | "DomesticTransfer" -> Some TransactionGroupFilter.DomesticTransfer
       | "PlatformPayment" -> Some TransactionGroupFilter.PlatformPayment
       //| "ThirdPartyPayment" -> Some TransactionGroupFilter.ThirdPartyPayment

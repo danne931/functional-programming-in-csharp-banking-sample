@@ -37,6 +37,12 @@ let filtersToEventNames (filters: TransactionGroupFilter list) : string array =
               typeof<InternalTransferBetweenOrgsRejected>.Name
               typeof<InternalTransferBetweenOrgsDeposited>.Name
              ]
+           | TransactionGroupFilter.InternalAutomatedTransfer -> [
+              typeof<InternalAutomatedTransferPending>.Name
+              typeof<InternalAutomatedTransferApproved>.Name
+              typeof<InternalAutomatedTransferRejected>.Name
+              typeof<InternalAutomatedTransferDeposited>.Name
+             ]
            | TransactionGroupFilter.DomesticTransfer -> [
               typeof<DomesticTransferPending>.Name
               typeof<DomesticTransferApproved>.Name

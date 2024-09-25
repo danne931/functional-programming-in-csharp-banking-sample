@@ -275,6 +275,7 @@ let renderControlPanel
                      TransactionGroupFilter.Deposit
                      TransactionGroupFilter.InternalTransferWithinOrg
                      TransactionGroupFilter.InternalTransferBetweenOrgs
+                     TransactionGroupFilter.InternalAutomatedTransfer
                      TransactionGroupFilter.DomesticTransfer
                      TransactionGroupFilter.PlatformPayment
                   ]
