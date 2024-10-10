@@ -49,6 +49,26 @@ type Frequency =
    | PerTransaction
    | Schedule of CronSchedule
 
+   override x.ToString() =
+      match x with
+      | Frequency.PerTransaction -> "PerTransaction"
+      | Frequency.Schedule CronSchedule.Daily -> "Daily"
+      | Frequency.Schedule CronSchedule.TwiceMonthly -> "TwiceMonthly"
+
+   static member fromString(input: string) : Frequency option =
+      match input with
+      | "PerTransaction" -> Some Frequency.PerTransaction
+      | "Daily" -> Some(Frequency.Schedule CronSchedule.Daily)
+      | "TwiceMonthly" -> Some(Frequency.Schedule CronSchedule.TwiceMonthly)
+      | _ -> None
+
+   member x.Display =
+      match x with
+      | Frequency.PerTransaction -> "Every transaction"
+      | Frequency.Schedule CronSchedule.Daily -> "Every day at 8AM"
+      | Frequency.Schedule CronSchedule.TwiceMonthly ->
+         "Twice monthy on the 1st and 15th"
+
 type UnvalidatedDistributionDestinationAccount = {
    Recipient: InternalTransferRecipient
    ProposedPercentAllocated: decimal
@@ -69,22 +89,45 @@ module PercentDistributionRule =
             DestinationAccounts: PercentDistributionDestinationAccount list
          |}
 
+   [<RequireQualifiedAccess>]
+   type ValidationError =
+      | LessThan1Destination
+      | TotalPercentAllocatedNot100 of decimal
+      | ContainsNegativePercentAllocation
+      | SenderIsDestination
+
+      override x.ToString() =
+         match x with
+         | ValidationError.LessThan1Destination ->
+            "Should have at least 1 destination."
+         | ValidationError.TotalPercentAllocatedNot100 allocatedSum ->
+            string allocatedSum
+            + " of 100% allocated.  Total allocated must be equal to 100."
+         | ValidationError.ContainsNegativePercentAllocation ->
+            "Destinations should only contain positive percent allocations."
+         | ValidationError.SenderIsDestination ->
+            "A sender can not be included as a destination."
+
    let get (T value) = value
 
    let create
       (frequency: Frequency)
       (sender: InternalTransferSender)
       (unvalidatedDestination: UnvalidatedDistributionDestinationAccount list)
-      : ValidationResult<T>
+      : Result<T, ValidationError>
       =
       validate {
-         let field = "destination"
-         let! _ = Check.List.greaterThanLen 1 field unvalidatedDestination
+         let! _ =
+            Check.List.greaterThanLen 0 "Destination" unvalidatedDestination
+            |> Result.mapError (fun _ -> ValidationError.LessThan1Destination)
 
          let percentSum =
             unvalidatedDestination |> List.sumBy _.ProposedPercentAllocated
 
-         let! _ = Check.Decimal.equals 100m field percentSum
+         let! _ =
+            Check.Decimal.equals 100m "Percent allocated" percentSum
+            |> Result.mapError (fun _ ->
+               ValidationError.TotalPercentAllocatedNot100 percentSum)
 
          let senderIsNotARecipient =
             unvalidatedDestination
@@ -94,10 +137,7 @@ module PercentDistributionRule =
             if senderIsNotARecipient then
                Ok unvalidatedDestination
             else
-               Error
-               <| ValidationErrors.create field [
-                  "Sender should not be included as a destination."
-               ]
+               Error ValidationError.SenderIsDestination
 
          let destination =
             destination
@@ -112,11 +152,7 @@ module PercentDistributionRule =
             if destination.Length = unvalidatedDestination.Length then
                Ok destination
             else
-               Error
-               <| ValidationErrors.create field [
-                  "Percent allocated must be a positive amount for each
-                  destination account."
-               ]
+               Error ValidationError.ContainsNegativePercentAllocation
 
          return
             T {|
@@ -175,7 +211,7 @@ type TargetBalanceRule = {
 module TargetBalanceRule =
    let computeTransfer
       (rule: TargetBalanceRule)
-      (currBalance: PositiveAmount.T)
+      (currBalance: decimal)
       : AutoTransfer option
       =
       let target = rule.TargetAccount
@@ -185,11 +221,20 @@ module TargetBalanceRule =
          match rule.TargetBalanceRange with
          | None -> true
          | Some range ->
-            currBalance < range.LowerBound || currBalance > range.UpperBound
+            currBalance < PositiveAmount.get range.LowerBound
+            || currBalance > PositiveAmount.get range.UpperBound
 
-      if currBalance < rule.TargetAccountBalance && rangeSatisfied then
+      if
+         rangeSatisfied
+         && currBalance < (PositiveAmount.get rule.TargetAccountBalance)
+      then
+         let transferAmount =
+            PositiveAmount.map
+               (fun target -> target - currBalance)
+               rule.TargetAccountBalance
+
          Some {
-            Amount = currBalance
+            Amount = transferAmount
             Sender = {
                Name = partner.Name
                AccountId = partner.AccountId
@@ -201,9 +246,17 @@ module TargetBalanceRule =
                OrgId = target.OrgId
             }
          }
-      elif currBalance > rule.TargetAccountBalance && rangeSatisfied then
+      elif
+         rangeSatisfied
+         && currBalance > (PositiveAmount.get rule.TargetAccountBalance)
+      then
+         let transferAmount =
+            PositiveAmount.map
+               (fun target -> currBalance - target)
+               rule.TargetAccountBalance
+
          Some {
-            Amount = currBalance
+            Amount = transferAmount
             Sender = {
                Name = target.Name
                AccountId = target.AccountId
@@ -229,36 +282,48 @@ type AutoTransferDerivedFromRule = {
    Transfer: AutoTransfer
 }
 
+let computeTransfer
+   (rule: AutomaticTransferRule)
+   (currBalance: decimal)
+   : AutoTransferDerivedFromRule list option
+   =
+   match rule with
+   | AutomaticTransferRule.ZeroBalance r ->
+      PositiveAmount.create currBalance
+      |> Option.map (fun balance -> [
+         {
+            Rule = rule
+            Transfer = ZeroBalanceRule.computeTransfer r balance
+         }
+      ])
+   | AutomaticTransferRule.TargetBalance r ->
+      TargetBalanceRule.computeTransfer r currBalance
+      |> Option.map (fun transfer -> [ { Rule = rule; Transfer = transfer } ])
+   | AutomaticTransferRule.PercentDistribution r ->
+      PositiveAmount.create currBalance
+      |> Option.map (fun balance ->
+         PercentDistributionRule.computeTransfer r balance
+         |> List.map (fun t -> { Transfer = t; Rule = rule }))
+
 let requiresBalanceManagement
    (frequency: Frequency)
    (rule: AutomaticTransferRule)
    (currBalance: decimal)
    : AutoTransferDerivedFromRule list option
    =
-   PositiveAmount.create currBalance
-   |> Option.bind (fun balance ->
+   let requiresManagement =
       match rule, frequency with
-      | AutomaticTransferRule.ZeroBalance o, Frequency.PerTransaction ->
-         Some [
-            {
-               Rule = rule
-               Transfer = ZeroBalanceRule.computeTransfer o balance
-            }
-         ]
-      | AutomaticTransferRule.TargetBalance r, Frequency.Schedule s when
+      | AutomaticTransferRule.ZeroBalance _, Frequency.PerTransaction -> true
+      | AutomaticTransferRule.TargetBalance _, Frequency.Schedule s ->
          s = CronSchedule.Daily
-         ->
-         TargetBalanceRule.computeTransfer r balance
-         |> Option.map (fun transfer -> [
-            { Rule = rule; Transfer = transfer }
-         ])
-      | AutomaticTransferRule.PercentDistribution r, frequency when
+      | AutomaticTransferRule.PercentDistribution r, frequency ->
          frequency = (PercentDistributionRule.get r).Frequency
-         ->
-         PercentDistributionRule.computeTransfer r balance
-         |> List.map (fun t -> { Transfer = t; Rule = rule })
-         |> Some
-      | _ -> None)
+      | _ -> false
+
+   if requiresManagement then
+      computeTransfer rule currBalance
+   else
+      None
 
 let requiresPerTransactionBalanceManagement =
    requiresBalanceManagement Frequency.PerTransaction
@@ -274,46 +339,92 @@ type AutomaticTransferConfig = {
    Info: AutomaticTransferRule
 }
 
-type AutomaticTransferRuleCount = {
-   PerTransaction: int
-   Daily: int
-   TwiceMonthly: int
-}
+let frequencyFromAutoTransferRule =
+   function
+   | AutomaticTransferRule.ZeroBalance _ -> Frequency.PerTransaction
+   | AutomaticTransferRule.TargetBalance _ ->
+      Frequency.Schedule(CronSchedule.Daily)
+   | AutomaticTransferRule.PercentDistribution r ->
+      (PercentDistributionRule.get r).Frequency
 
-let autoTransferRuleCounts
-   (rules: AutomaticTransferRule list)
-   : AutomaticTransferRuleCount
-   =
-   List.fold
-      (fun acc rule ->
-         match rule with
-         | AutomaticTransferRule.ZeroBalance _ -> {
-            acc with
-               PerTransaction = acc.PerTransaction + 1
-           }
-         | AutomaticTransferRule.TargetBalance _ -> {
-            acc with
-               Daily = acc.Daily + 1
-           }
-         | AutomaticTransferRule.PercentDistribution r ->
-            match (PercentDistributionRule.get r).Frequency with
-            | Frequency.PerTransaction -> {
-               acc with
-                  PerTransaction = acc.PerTransaction + 1
-              }
-            | Frequency.Schedule schedule ->
-               match schedule with
-               | CronSchedule.Daily -> { acc with Daily = acc.Daily + 1 }
-               | CronSchedule.TwiceMonthly -> {
-                  acc with
-                     TwiceMonthly = acc.TwiceMonthly + 1
-                 })
-      {
-         PerTransaction = 0
-         Daily = 0
-         TwiceMonthly = 0
-      }
-      rules
+module CycleDetection =
+   type private Edge = {
+      Sender: AccountId
+      Recipients: AccountId list
+   }
+
+   let private getRecipients (sender: AccountId) (existingEdges: Edge list) =
+      existingEdges
+      |> List.collect (fun edge ->
+         if edge.Sender = sender then edge.Recipients else [])
+
+   let rec private dfs
+      (existingEdges: Edge list)
+      (visited: Set<AccountId>)
+      (target: AccountId)
+      (currRecipientId: AccountId)
+      =
+      if visited.Contains(currRecipientId) then
+         false
+      elif currRecipientId = target then
+         true
+      else
+         let visited = visited.Add currRecipientId
+         let neighbors = getRecipients currRecipientId existingEdges
+         neighbors |> List.exists (dfs existingEdges visited target)
+
+   let cycleDetected
+      (ruleToAdd: AutomaticTransferRule)
+      (existingRules: AutomaticTransferRule list)
+      =
+      let edges =
+         existingRules
+         |> List.collect (function
+            | AutomaticTransferRule.ZeroBalance r -> [
+               {
+                  Recipients = [ r.Recipient.AccountId ]
+                  Sender = r.Sender.AccountId
+               }
+              ]
+            | AutomaticTransferRule.PercentDistribution r ->
+               let r = PercentDistributionRule.get r
+
+               [
+                  {
+                     Sender = r.Sender.AccountId
+                     Recipients =
+                        r.DestinationAccounts |> List.map _.Recipient.AccountId
+                  }
+               ]
+            | AutomaticTransferRule.TargetBalance r ->
+               let targetId = r.TargetAccount.AccountId
+               let partnerId = r.ManagingPartnerAccount.AccountId
+
+               [
+                  {
+                     Sender = targetId
+                     Recipients = [ partnerId ]
+                  }
+                  {
+                     Sender = partnerId
+                     Recipients = [ targetId ]
+                  }
+               ])
+
+      let dfs = dfs edges Set.empty
+
+      match ruleToAdd with
+      | AutomaticTransferRule.TargetBalance r ->
+         let targetId = r.TargetAccount.AccountId
+         let partnerId = r.ManagingPartnerAccount.AccountId
+         dfs targetId partnerId || dfs partnerId targetId
+      | AutomaticTransferRule.ZeroBalance r ->
+         dfs r.Sender.AccountId r.Recipient.AccountId
+      | AutomaticTransferRule.PercentDistribution r ->
+         let r = PercentDistributionRule.get r
+
+         r.DestinationAccounts
+         |> List.exists (fun d -> dfs r.Sender.AccountId d.Recipient.AccountId)
 
 [<RequireQualifiedAccess>]
 type Message = StartScheduledAutoTransfers of CronSchedule

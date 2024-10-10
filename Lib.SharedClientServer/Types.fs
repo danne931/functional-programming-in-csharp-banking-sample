@@ -215,6 +215,8 @@ type AccountStateTransitionError =
    | TransferProgressNoChange
    | TransferAlreadyProgressedToApprovedOrRejected
    | TransferExpectedToOccurWithinOrg
+   | OnlyOneAutoTransferRuleMayExistAtATime
+   | AutoTransferRuleDoesNotExist
 
 type EmployeeStateTransitionError =
    | EmployeeNotReadyToActivate
@@ -295,6 +297,10 @@ type Err =
             "Transfer progress no change"
          | AccountStateTransitionError.TransferExpectedToOccurWithinOrg ->
             "Expected to transfer funds within organization."
+         | AccountStateTransitionError.OnlyOneAutoTransferRuleMayExistAtATime ->
+            "Only one auto transfer rule may exist at time."
+         | AccountStateTransitionError.AutoTransferRuleDoesNotExist ->
+            "Attempted to update an auto transfer rule which does not exist."
       | EmployeeStateTransitionError e ->
          match e with
          | EmployeeStateTransitionError.DebitAlreadyProgressedToApprovedOrDeclined ->

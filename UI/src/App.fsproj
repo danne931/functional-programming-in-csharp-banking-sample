@@ -8,6 +8,7 @@
     <Compile Include="Lib/Logger.fs" />
     <Compile Include="Lib/AsyncUtil.fs" />
     <Compile Include="Lib/SignalR.fs" />
+    <Compile Include="Lib/LeaderLine.fs" />
     <Compile Include="Lib/ElmishExtensions.fs" />
     <Compile Include="Lib/FelizExtensions.fs" />
     <Compile Include="Lib/Util.fs" />
@@ -43,9 +44,14 @@
     <Compile Include="ComponentLib/TableControlPanel.fs" />
     <Compile Include="Components/EmployeePermissions.fs" />
     <Compile Include="Components/OrgSocialTransferDiscovery.fs" />
+    <Compile Include="Components/Forms/Util.fs" />
     <Compile Include="Components/Forms/EmployeeFormContainer.fs" />
     <Compile Include="Components/Forms/AccountFormContainer.fs" />
     <Compile Include="Components/Forms/AccountProfile.fs" />
+    <Compile Include="Components/Forms/ConfigureAutoTransferRuleContainer.fs" />
+    <Compile Include="Components/Forms/ConfigureAutoTransferZeroBalanceRule.fs" />
+    <Compile Include="Components/Forms/ConfigureAutoTransferTargetBalanceRule.fs" />
+    <Compile Include="Components/Forms/ConfigureAutoTransferPercentDistributionRule.fs" />
     <Compile Include="Components/Forms/CardAccess.fs" />
     <Compile Include="Components/Forms/Transfer.fs" />
     <Compile Include="Components/Forms/RequestPayment.fs" />
@@ -75,6 +81,8 @@
     <Compile Include="Components/PaymentDetail.fs" />
     <Compile Include="Components/PaymentDashboard.fs" />
     <Compile Include="Components/TransactionDashboard.fs" />
+    <Compile Include="Components/AutomaticTransferRule.fs" />
+    <Compile Include="Components/AutomaticBalanceManagementDashboard.fs" />
     <Compile Include="Components/AccountDashboard.fs" />
     <Compile Include="Components/CardDetail.fs" />
     <Compile Include="Components/CardDashboard.fs" />

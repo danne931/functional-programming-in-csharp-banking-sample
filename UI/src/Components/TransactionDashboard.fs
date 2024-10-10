@@ -134,12 +134,7 @@ let TransactionDashboardComponent
                |> _.MoneyFlow
 
             if moneyFlow.IsSome then
-               orgDispatch
-               <| OrgProvider.Msg.BalanceUpdated {|
-                  AccountId = conf.Account.AccountId
-                  Balance = conf.Account.Balance
-                  PersistedEvent = conf.EventPersisted
-               |}
+               orgDispatch <| OrgProvider.Msg.AccountUpdated conf
 
             dispatch <| Msg.AccountEventPersisted [ conf ]
    }

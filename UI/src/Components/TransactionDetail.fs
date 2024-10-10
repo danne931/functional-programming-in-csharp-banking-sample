@@ -299,7 +299,12 @@ let RecipientNicknameEditComponent
    (recipientId: AccountId)
    (recipientEnv: RecipientAccountEnvironment)
    =
-   let name, nickname = nameAndNicknamePair account recipientId
+   let name, nickname =
+      account.DomesticTransferRecipients
+      |> Map.tryFind recipientId
+      |> Option.map (fun r -> r.Name, r.Nickname)
+      |> Option.defaultValue ("", None)
+
    let pendingNickname, setNickname = React.useState nickname
 
    let nicknameInputRef = React.useInputRef ()

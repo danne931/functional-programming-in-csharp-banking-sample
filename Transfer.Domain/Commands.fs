@@ -883,13 +883,18 @@ module DepositPlatformPaymentCommand =
       =
       BankEvent.create<PlatformPaymentDeposited> cmd |> Ok
 
-type ConfigureAutoTransferRuleCommand = Command<AutomaticTransferRuleConfigured>
+type ConfigureAutoTransferRuleInput = {
+   RuleIdToUpdate: Guid option
+   Rule: AutomaticTransferRule
+}
+
+type ConfigureAutoTransferRuleCommand = Command<ConfigureAutoTransferRuleInput>
 
 module ConfigureAutoTransferRuleCommand =
    let create
       (accountId: AccountId, orgId: OrgId)
       (initiatedBy: InitiatedById)
-      (data: AutomaticTransferRuleConfigured)
+      (data: ConfigureAutoTransferRuleInput)
       =
       Command.create
          (AccountId.toEntityId accountId)
@@ -902,7 +907,20 @@ module ConfigureAutoTransferRuleCommand =
       (cmd: ConfigureAutoTransferRuleCommand)
       : ValidationResult<BankEvent<AutomaticTransferRuleConfigured>>
       =
-      Ok <| BankEvent.create<AutomaticTransferRuleConfigured> cmd
+      BankEvent.create2<
+         ConfigureAutoTransferRuleInput,
+         AutomaticTransferRuleConfigured
+       >
+         cmd
+         {
+            Config = {
+               Id =
+                  cmd.Data.RuleIdToUpdate
+                  |> Option.defaultValue (Guid.NewGuid())
+               Info = cmd.Data.Rule
+            }
+         }
+      |> Ok
 
 type DeleteAutoTransferRuleCommand = Command<AutomaticTransferRuleDeleted>
 

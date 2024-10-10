@@ -8,6 +8,7 @@ open Bank.Account.Domain
 open Bank.Employee.Domain
 open UIDomain.Account
 open Bank.Account.Forms.AccountCreateForm
+open AutomaticBalanceManagementDashboard
 
 [<ReactComponent>]
 let AccountNumberComponent (account: Account) =
@@ -136,6 +137,9 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
             Html.a [
                attr.text "Accounts"
                attr.href ""
+               if url <> Routes.AccountUrl.Account then
+                  attr.className "secondary"
+
                attr.onClick (fun e ->
                   e.preventDefault ()
                   Router.navigate Routes.AccountUrl.BasePath)
@@ -144,6 +148,9 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
             Html.a [
                attr.text "Automatic Balance Management"
                attr.href ""
+               if url <> Routes.AccountUrl.AutoBalanceManagement then
+                  attr.className "secondary"
+
                attr.onClick (fun e ->
                   e.preventDefault ()
                   Router.navigate Routes.AccountUrl.AutoBalanceManagementPath)
@@ -156,8 +163,16 @@ let AccountDashboardComponent (url: Routes.AccountUrl) (session: UserSession) =
          match url with
          | Routes.AccountUrl.Account
          | Routes.AccountUrl.CreateAccount -> renderAccounts orgCtx
-         | Routes.AccountUrl.AutoBalanceManagement ->
-            Html.p "Auto balance manager"
+         | Routes.AccountUrl.AutoBalanceManagement
+         | Routes.AccountUrl.CreateRule _
+         | Routes.AccountUrl.EditRule _ ->
+            match orgCtx with
+            | Deferred.Resolved(Ok(Some org)) ->
+               AutomaticBalanceManagementDashboardComponent
+                  session
+                  org.Accounts
+                  url
+            | _ -> ()
          | Routes.AccountUrl.NotFound -> Html.p "Uh oh! Unknown URL."
       ]
    ]

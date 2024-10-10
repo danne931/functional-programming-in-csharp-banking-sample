@@ -14,6 +14,7 @@ let table = "account"
 module AccountTypeCast =
    let depository = "account_depository"
    let status = "account_status"
+   let autoTransferRuleFrequency = "auto_transfer_rule_frequency"
 
 module AccountFields =
    let accountId = "account_id"
@@ -43,13 +44,9 @@ module AccountFields =
    let failedDomesticTransfers = "failed_domestic_transfers"
    let failedDomesticTransfersCount = "failed_domestic_transfers_count"
 
-   let autoTransferRules = "auto_transfer_rules"
+   let autoTransferRule = "auto_transfer_rule"
 
-   let autoTransferRuleCounts = {|
-      perTxn = "auto_transfer_rules_per_transaction_count"
-      daily = "auto_transfer_rules_daily_count"
-      twiceMonthly = "auto_transfer_rules_twice_monthly_count"
-   |}
+   let autoTransferRuleFrequency = "auto_transfer_rule_frequency"
 
 module AccountSqlReader =
    let accountId (read: RowReader) =
@@ -107,9 +104,9 @@ module AccountSqlReader =
       read.text AccountFields.failedDomesticTransfers
       |> Serialization.deserializeUnsafe<DomesticTransfer list>
 
-   let autoTransferRules (read: RowReader) =
-      read.text AccountFields.autoTransferRules
-      |> Serialization.deserializeUnsafe<AutomaticTransferConfig list>
+   let autoTransferRule (read: RowReader) : AutomaticTransferConfig option =
+      read.textOrNone AccountFields.autoTransferRule
+      |> Option.map Serialization.deserializeUnsafe<AutomaticTransferConfig>
 
    let account (read: RowReader) : Account = {
       AccountId = accountId read
@@ -139,8 +136,7 @@ module AccountSqlReader =
          failedDomesticTransfers read
          |> List.map (fun t -> t.TransferId, t)
          |> Map.ofList
-      AutoTransferRules =
-         autoTransferRules read |> List.map (fun r -> r.Id, r) |> Map.ofList
+      AutoTransferRule = autoTransferRule read
    }
 
 module AccountSqlWriter =
@@ -192,7 +188,12 @@ module AccountSqlWriter =
 
    let transfersCount = Sql.int
 
-   let autoTransferRules (rules: Map<Guid, AutomaticTransferConfig>) =
-      rules.Values |> Seq.toList |> Serialization.serialize |> Sql.jsonb
+   let autoTransferRule (rule: AutomaticTransferConfig option) =
+      rule |> Option.map Serialization.serialize |> Sql.jsonbOrNone
 
    let autoTransferRuleCount = Sql.int
+
+   let autoTransferRuleFrequency
+      (frequency: AutomaticTransfer.Frequency option)
+      =
+      frequency |> Option.map string |> Sql.stringOrNone

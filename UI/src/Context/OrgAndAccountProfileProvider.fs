@@ -7,6 +7,7 @@ open Elmish
 open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Employee.Domain
+open UIDomain.Account
 
 type State = Deferred<Result<OrgWithAccountProfiles option, Err>>
 
@@ -21,13 +22,8 @@ type Msg =
    | Load of
       OrgId *
       AsyncOperationStatus<Result<OrgWithAccountProfiles option, Err>>
-   | BalanceUpdated of
-      {|
-         AccountId: AccountId
-         Balance: decimal
-         PersistedEvent: AccountEvent
-      |}
    | AccountCreated of Account
+   | AccountUpdated of AccountEventPersistedConfirmation
 
 let private initState = Deferred.Idle
 
@@ -46,10 +42,9 @@ let update msg state =
    | Load(_, Finished(Error err)) ->
       Log.error $"Issue loading org + account profiles. {err}"
       state, Cmd.none
-   | BalanceUpdated o ->
-      let persistedEvt = o.PersistedEvent
-      let balance = o.Balance
-      let accountId = o.AccountId
+   | AccountUpdated conf ->
+      let accountId = conf.Account.AccountId
+      let evt = conf.EventPersisted
 
       let transform state =
          state.AccountProfiles
@@ -57,62 +52,40 @@ let update msg state =
          |> Option.map (fun profile ->
             let metrics = profile.Metrics
 
+            let internalTransferAccrued (amount: decimal) = {
+               metrics with
+                  DailyInternalTransferAccrued =
+                     metrics.DailyInternalTransferAccrued + amount
+                  MonthlyInternalTransferAccrued =
+                     metrics.MonthlyInternalTransferAccrued + amount
+            }
+
+            let domesticTransferAccrued (amount: decimal) = {
+               metrics with
+                  DailyDomesticTransferAccrued =
+                     metrics.DailyDomesticTransferAccrued + amount
+                  MonthlyDomesticTransferAccrued =
+                     metrics.MonthlyDomesticTransferAccrued + amount
+            }
+
             let metrics =
-               match persistedEvt with
-               | AccountEvent.InternalTransferBetweenOrgsPending e -> {
-                  metrics with
-                     DailyInternalTransferAccrued =
-                        metrics.DailyInternalTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                     MonthlyInternalTransferAccrued =
-                        metrics.MonthlyInternalTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                 }
-               | AccountEvent.InternalTransferWithinOrgPending e -> {
-                  metrics with
-                     DailyInternalTransferAccrued =
-                        metrics.DailyInternalTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                     MonthlyInternalTransferAccrued =
-                        metrics.MonthlyInternalTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                 }
-               | AccountEvent.DomesticTransferPending e -> {
-                  metrics with
-                     DailyDomesticTransferAccrued =
-                        metrics.DailyDomesticTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                     MonthlyDomesticTransferAccrued =
-                        metrics.MonthlyDomesticTransferAccrued
-                        + e.Data.BaseInfo.Amount
-                 }
-               | AccountEvent.InternalTransferWithinOrgRejected e -> {
-                  metrics with
-                     DailyInternalTransferAccrued =
-                        metrics.DailyInternalTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                     MonthlyInternalTransferAccrued =
-                        metrics.MonthlyInternalTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                 }
-               | AccountEvent.InternalTransferBetweenOrgsRejected e -> {
-                  metrics with
-                     DailyInternalTransferAccrued =
-                        metrics.DailyInternalTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                     MonthlyInternalTransferAccrued =
-                        metrics.MonthlyInternalTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                 }
-               | AccountEvent.DomesticTransferRejected e -> {
-                  metrics with
-                     DailyDomesticTransferAccrued =
-                        metrics.DailyDomesticTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                     MonthlyDomesticTransferAccrued =
-                        metrics.MonthlyDomesticTransferAccrued
-                        - e.Data.BaseInfo.Amount
-                 }
+               match evt with
+               | AccountEvent.InternalTransferBetweenOrgsPending e ->
+                  internalTransferAccrued e.Data.BaseInfo.Amount
+               | AccountEvent.InternalTransferWithinOrgPending e ->
+                  internalTransferAccrued e.Data.BaseInfo.Amount
+               | AccountEvent.InternalAutomatedTransferPending e ->
+                  internalTransferAccrued e.Data.BaseInfo.Amount
+               | AccountEvent.DomesticTransferPending e ->
+                  domesticTransferAccrued e.Data.BaseInfo.Amount
+               | AccountEvent.InternalTransferWithinOrgRejected e ->
+                  internalTransferAccrued -e.Data.BaseInfo.Amount
+               | AccountEvent.InternalTransferBetweenOrgsRejected e ->
+                  internalTransferAccrued -e.Data.BaseInfo.Amount
+               | AccountEvent.InternalAutomatedTransferRejected e ->
+                  internalTransferAccrued -e.Data.BaseInfo.Amount
+               | AccountEvent.DomesticTransferRejected e ->
+                  domesticTransferAccrued -e.Data.BaseInfo.Amount
                | AccountEvent.DebitedAccount e -> {
                   metrics with
                      DailyPurchaseAccrued =
@@ -124,10 +97,7 @@ let update msg state =
 
             let profile = {
                Metrics = metrics
-               Account = {
-                  profile.Account with
-                     Balance = balance
-               }
+               Account = conf.Account
             }
 
             let profiles = Map.add accountId profile state.AccountProfiles
@@ -142,36 +112,39 @@ let update msg state =
       let state = updateProfiles state transform
 
       let internalTransferTransform state =
-         let internalRecipient =
-            match persistedEvt with
+         let recipientBalanceUpdate recipientId transferAmount =
+            state.AccountProfiles
+            |> Map.tryFind recipientId
+            |> Option.map (fun a ->
+               let account = {
+                  a.Account with
+                     Balance = a.Account.Balance + transferAmount
+               }
+
+               { a with Account = account })
+
+         let recipient =
+            match evt with
             | AccountEvent.InternalTransferWithinOrgPending e ->
-               let info = e.Data.BaseInfo
-
-               state.AccountProfiles
-               |> Map.tryFind info.Recipient.AccountId
-               |> Option.map (fun a ->
-                  let account = {
-                     a.Account with
-                        Balance = a.Account.Balance + info.Amount
-                  }
-
-                  { a with Account = account })
+               recipientBalanceUpdate
+                  e.Data.BaseInfo.Recipient.AccountId
+                  e.Data.BaseInfo.Amount
+            | AccountEvent.InternalAutomatedTransferPending e ->
+               recipientBalanceUpdate
+                  e.Data.BaseInfo.Recipient.AccountId
+                  e.Data.BaseInfo.Amount
             | AccountEvent.InternalTransferWithinOrgRejected e ->
-               let info = e.Data.BaseInfo
-
-               state.AccountProfiles
-               |> Map.tryFind info.Recipient.AccountId
-               |> Option.map (fun a ->
-                  let account = {
-                     a.Account with
-                        Balance = a.Account.Balance - info.Amount
-                  }
-
-                  { a with Account = account })
+               recipientBalanceUpdate
+                  e.Data.BaseInfo.Recipient.AccountId
+                  -e.Data.BaseInfo.Amount
+            | AccountEvent.InternalAutomatedTransferRejected e ->
+               recipientBalanceUpdate
+                  e.Data.BaseInfo.Recipient.AccountId
+                  -e.Data.BaseInfo.Amount
             | _ -> None
 
          let profiles =
-            match internalRecipient with
+            match recipient with
             | Some profile ->
                Map.add profile.Account.AccountId profile state.AccountProfiles
             | None -> state.AccountProfiles

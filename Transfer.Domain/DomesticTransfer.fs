@@ -75,6 +75,9 @@ type DomesticTransferRecipient = {
 
    member x.Name = $"{x.FirstName} {x.LastName}"
 
+   member x.FullName =
+      $"{x.Nickname |> Option.defaultValue x.Name} **{x.AccountNumber.Last4}"
+
 [<RequireQualifiedAccess>]
 type TransferProgressTrackingMessage = | ProgressCheck
 

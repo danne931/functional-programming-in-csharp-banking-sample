@@ -34,6 +34,7 @@ DROP TYPE IF EXISTS employee_status;
 DROP TYPE IF EXISTS employee_role;
 DROP TYPE IF EXISTS account_depository;
 DROP TYPE IF EXISTS account_status;
+DROP TYPE IF EXISTS auto_transfer_rule_frequency;
 DROP TYPE IF EXISTS card_status;
 DROP TYPE IF EXISTS card_type;
 DROP TYPE IF EXISTS platform_payment_status;
@@ -57,6 +58,7 @@ CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
 CREATE TYPE account_depository AS ENUM ('checking', 'savings');
 CREATE TYPE account_status AS ENUM ('pending', 'active', 'closed', 'readyfordelete');
+CREATE TYPE auto_transfer_rule_frequency AS ENUM ('PerTransaction', 'Daily', 'TwiceMonthly');
 CREATE TABLE account (
    account_id UUID PRIMARY KEY,
    routing_number INT NOT NULL,
@@ -66,10 +68,8 @@ CREATE TABLE account (
    balance MONEY NOT NULL,
    currency VARCHAR(3) NOT NULL,
    status account_status NOT NULL,
-   auto_transfer_rules JSONB NOT NULL,
-   auto_transfer_rules_per_transaction_count INT NOT NULL,
-   auto_transfer_rules_daily_count INT NOT NULL,
-   auto_transfer_rules_twice_monthly_count INT NOT NULL,
+   auto_transfer_rule JSONB,
+   auto_transfer_rule_frequency auto_transfer_rule_frequency,
    domestic_transfer_recipients JSONB NOT NULL,
    maintenance_fee_qualifying_deposit_found BOOLEAN NOT NULL,
    maintenance_fee_daily_balance_threshold BOOLEAN NOT NULL,
@@ -299,9 +299,12 @@ CREATE TABLE balance_history(
    CONSTRAINT account_date UNIQUE (account_id, date)
 );
 
-CREATE TYPE transfer_category
-AS ENUM ('InternalWithinOrg','InternalBetweenOrgs', 'Domestic');
-
+CREATE TYPE transfer_category AS ENUM (
+  'InternalWithinOrg',
+  'InternalAutomatedWithinOrg',
+  'InternalBetweenOrgs',
+  'Domestic'
+);
 CREATE TABLE transfer(
    transfer_id UUID PRIMARY KEY,
    initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
@@ -478,26 +481,35 @@ transaction amounts pertaining to (CURRENT_DATE - 1).
 */
 CREATE OR REPLACE PROCEDURE update_balance_history_for_yesterday()
 AS $$
+DECLARE
+   yesterday CONSTANT DATE := CURRENT_DATE - '1 day'::interval;
 BEGIN
    INSERT INTO balance_history (account_id, date, balance)
    SELECT
-      t.account_id,
-      t.date,
-      COALESCE(bh.balance, 0) + t.daily_diff AS balance
-   FROM (
-      SELECT
-         t.account_id,
-         t.day AS date,
-         t.amount_in - t.amount_out AS daily_diff
-      FROM money_flow_time_series_daily(
-         CURRENT_DATE - interval '1 day',
-         CURRENT_DATE - interval '1 day'
-      ) t
-   ) t
+      account.account_id,
+      yesterday as date,
+
+      COALESCE(bh.balance, 0)
+      +
+      COALESCE(
+         SUM(
+            CASE
+            WHEN t.money_flow = 'In' THEN t.amount::numeric
+            ELSE -t.amount::numeric
+            END
+         ),
+         0
+      ) AS balance
+   FROM account
+   LEFT JOIN transaction t
+      ON t.account_id = account.account_id
+      AND t.money_flow IS NOT NULL
+      AND t.timestamp::date = yesterday
    JOIN balance_history bh
-      ON bh.account_id = t.account_id
+      ON bh.account_id = account.account_id
       -- Join on the balance_history date 1 day prior to yesterday.
-      AND bh.date = CURRENT_DATE - interval '2 day'
+      AND bh.date = yesterday - interval '1 day'
+   GROUP BY account.account_id, bh.balance
    ON CONFLICT(account_id, date) DO NOTHING;
 END
 $$ LANGUAGE plpgsql;
@@ -539,6 +551,16 @@ BEGIN
       ON t.account_id = ids.account_id
       AND t.timestamp::date = ds.day::date
       AND t.money_flow IS NOT NULL
+      -- Exclude internal transfers within an org while
+      -- still fetching internal transfers between orgs.
+      AND t.name NOT IN(
+         'InternalTransferWithinOrgPending',
+         'InternalTransferWithinOrgRejected',
+         'InternalTransferWithinOrgDeposited',
+         'InternalAutomatedTransferPending',
+         'InternalAutomatedTransferRejected',
+         'InternalAutomatedTransferDeposited'
+      )
    GROUP BY ds.day, ids.account_id
    ORDER BY ds.day;
 END
@@ -585,12 +607,15 @@ BEGIN
          END
          AND t.money_flow IS NOT NULL
          AND DATE_TRUNC('month', t.timestamp) = months.month
-         -- Exclude internal transfers within an org while still fetching
-         -- internal transfers between orgs.
+         -- Exclude internal transfers within an org while
+         -- still fetching internal transfers between orgs.
          AND t.name NOT IN(
             'InternalTransferWithinOrgPending',
             'InternalTransferWithinOrgRejected',
-            'InternalTransferWithinOrgDeposited'
+            'InternalTransferWithinOrgDeposited',
+            'InternalAutomatedTransferPending',
+            'InternalAutomatedTransferRejected',
+            'InternalAutomatedTransferDeposited'
          )
    ) t ON true
    GROUP BY months.month
@@ -622,9 +647,16 @@ BEGIN
       AND t.timestamp::date
          BETWEEN DATE_TRUNC('month', d)
          AND (DATE_TRUNC('month', d) + INTERVAL '1 month' - INTERVAL '1 day')
-      -- Exclude internal transfers within an org while still fetching
-      -- internal transfers between orgs.
-      AND t.name NOT IN('InternalTransferWithinOrgPending', 'InternalTransferWithinOrgRejected', 'InternalTransferWithinOrgDeposited')
+      -- Exclude internal transfers within an org while
+      -- still fetching internal transfers between orgs.
+      AND t.name NOT IN(
+         'InternalTransferWithinOrgPending',
+         'InternalTransferWithinOrgRejected', 
+         'InternalTransferWithinOrgDeposited',
+         'InternalAutomatedTransferPending',
+         'InternalAutomatedTransferRejected',
+         'InternalAutomatedTransferDeposited'
+      )
    GROUP BY t.source
    ORDER BY amount DESC
    LIMIT topN;

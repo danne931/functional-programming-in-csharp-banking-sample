@@ -17,6 +17,7 @@ module TransferId =
 [<RequireQualifiedAccess>]
 type TransferCategory =
    | InternalWithinOrg
+   | InternalAutomatedWithinOrg
    | InternalBetweenOrgs
    | Domestic
 
@@ -24,6 +25,8 @@ module TransferCategory =
    let fromString (str: string) : TransferCategory option =
       match str.ToLower() with
       | "internalwithingorg" -> Some TransferCategory.InternalWithinOrg
+      | "internalautomatedwithinorg" ->
+         Some TransferCategory.InternalAutomatedWithinOrg
       | "internalbetweenorgs" -> Some TransferCategory.InternalBetweenOrgs
       | "domestic" -> Some TransferCategory.Domestic
       | _ -> None

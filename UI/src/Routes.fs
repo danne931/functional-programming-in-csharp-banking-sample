@@ -1,6 +1,7 @@
 [<RequireQualifiedAccess>]
 module Routes
 
+open System
 open Feliz.Router
 
 open UIDomain.Account
@@ -24,10 +25,18 @@ module AnalyticsUrl =
       | _ -> AnalyticsUrl.NotFound
 
 [<RequireQualifiedAccess>]
+type CreateAutoTransferRuleUrl =
+   | ZeroBalance
+   | TargetBalance
+   | PercentDistribution
+
+[<RequireQualifiedAccess>]
 type AccountUrl =
    | Account
    | CreateAccount
    | AutoBalanceManagement
+   | CreateRule of CreateAutoTransferRuleUrl
+   | EditRule of ruleId: Guid
    | NotFound
 
 module AccountUrl =
@@ -38,12 +47,40 @@ module AccountUrl =
 
    let AutoBalanceManagementPath = [| BasePath; "auto-balance-management" |]
 
+   let CreateZeroBalanceRulePath = [|
+      yield! AutoBalanceManagementPath
+      "zero-balance"
+   |]
+
+   let CreateTargetBalanceRulePath = [|
+      yield! AutoBalanceManagementPath
+      "target-balance"
+   |]
+
+   let CreatePercentDistributionRulePath = [|
+      yield! AutoBalanceManagementPath
+      "percent-distribution"
+   |]
+
+   let editRulePath (ruleId: Guid) = [|
+      yield! AutoBalanceManagementPath
+      (string ruleId)
+   |]
+
    let parse =
       function
       // Matches /
       | [] -> AccountUrl.Account
       | [ "create" ] -> AccountUrl.CreateAccount
       | [ "auto-balance-management" ] -> AccountUrl.AutoBalanceManagement
+      | [ "auto-balance-management"; "zero-balance" ] ->
+         AccountUrl.CreateRule CreateAutoTransferRuleUrl.ZeroBalance
+      | [ "auto-balance-management"; "target-balance" ] ->
+         AccountUrl.CreateRule CreateAutoTransferRuleUrl.TargetBalance
+      | [ "auto-balance-management"; "percent-distribution" ] ->
+         AccountUrl.CreateRule CreateAutoTransferRuleUrl.PercentDistribution
+      | [ "auto-balance-management"; Route.Guid ruleId ] ->
+         AccountUrl.EditRule(ruleId)
       | _ -> AccountUrl.NotFound
 
 [<RequireQualifiedAccess>]

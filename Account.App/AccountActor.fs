@@ -17,6 +17,7 @@ open Bank.Transfer.Domain
 open Bank.Employee.Domain
 open BillingStatement
 open DomesticTransferRecipientActor
+open AutomaticTransfer
 
 type private InternalTransferMsg =
    InternalTransferRecipientActor.InternalTransferMessage
@@ -66,7 +67,6 @@ let private billingCycle
 // Account events with an in/out money flow can produce an
 // automatic transfer.  Automated transfer account events have
 // money flow but they can not generate an auto transfer.
-// TODO: verify
 let canProduceAutoTransfer =
    function
    | AccountEvent.InternalAutomatedTransferPending _
@@ -81,6 +81,63 @@ let canProduceAutoTransfer =
 //       I associate account owners with the account.
 //getEmailActor mailbox.System <! EmailActor.BillingStatement account
 
+let handleValidationError
+   (broadcaster: AccountBroadcast)
+   mailbox
+   (getEmployeeRef: EmployeeId -> IEntityRef<EmployeeMessage>)
+   (account: Account)
+   (cmd: AccountCommand)
+   (err: Err)
+   =
+   logWarning
+      mailbox
+      $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
+
+   let signalRBroadcastValidationErr () =
+      broadcaster.accountEventValidationFail account.AccountId err
+
+   match err with
+   | AccountStateTransitionError e ->
+      match e with
+      // NOOP
+      | TransferProgressNoChange
+      | TransferAlreadyProgressedToApprovedOrRejected
+      | AccountNotReadyToActivate ->
+         logDebug mailbox $"AccountTransferActor NOOP msg {e}"
+      | InsufficientBalance e ->
+         match cmd with
+         | AccountCommand.Debit cmd ->
+            let info = cmd.Data
+            let employee = cmd.Data.EmployeePurchaseReference
+
+            let msg =
+               DeclineDebitCommand.create (employee.EmployeeId, cmd.OrgId) {
+                  Info = {
+                     AccountId = account.AccountId
+                     CorrelationId = cmd.CorrelationId
+                     EmployeeId = employee.EmployeeId
+                     CardId = employee.CardId
+                     CardNumberLast4 = employee.EmployeeCardNumberLast4
+                     Date = info.Date
+                     Amount = info.Amount
+                     Origin = info.Origin
+                     Reference = info.Reference
+                  }
+               }
+               |> EmployeeCommand.DeclineDebit
+               |> EmployeeMessage.StateChange
+
+            getEmployeeRef employee.EmployeeId <! msg
+         | _ -> ()
+         (*
+         getEmailActor mailbox.System
+         <! EmailActor.DebitDeclined(string err, account)
+         *)
+
+         signalRBroadcastValidationErr ()
+      | _ -> signalRBroadcastValidationErr ()
+   | _ -> ()
+
 let actorProps
    (broadcaster: AccountBroadcast)
    (getOrStartInternalTransferActor: Actor<_> -> IActorRef<InternalTransferMsg>)
@@ -93,7 +150,7 @@ let actorProps
    (schedulingRef: IActorRef<SchedulingActor.Message>)
    =
    let handler (mailbox: Eventsourced<obj>) =
-      let logWarning, logError = logWarning mailbox, logError mailbox
+      let logError = logError mailbox
 
       let rec loop (stateOpt: AccountWithEvents option) = actor {
          let! msg = mailbox.Receive()
@@ -103,6 +160,9 @@ let actorProps
             |> Option.defaultValue { Info = Account.empty; Events = [] }
 
          let account = state.Info
+
+         let handleValidationError =
+            handleValidationError broadcaster mailbox getEmployeeRef account
 
          match box msg with
          | Persisted mailbox e ->
@@ -219,18 +279,20 @@ let actorProps
             *)
             | _ -> ()
 
-            if canProduceAutoTransfer evt then
-               for t in account.AutoTransfersPerTransaction do
-                  let msg =
-                     InternalAutoTransferCommand.create t
-                     |> AccountCommand.InternalAutoTransfer
-                     |> AccountMessage.StateChange
-
-                  (getAccountRef t.Transfer.Sender.AccountId) <! msg
+            if
+               canProduceAutoTransfer evt
+               && not account.AutoTransfersPerTransaction.IsEmpty
+            then
+               mailbox.Self
+               <! AccountMessage.AutoTransferCompute Frequency.PerTransaction
 
             return! loop <| Some state
          | :? SnapshotOffer as o -> return! loop <| Some(unbox o.Snapshot)
          | :? ConfirmableMessageEnvelope as envelope ->
+            let unknownMsg msg =
+               logError $"Unknown message in ConfirmableMessageEnvelope - {msg}"
+               unhandled ()
+
             match envelope.Message with
             | :? AccountMessage as msg ->
                match msg with
@@ -238,73 +300,15 @@ let actorProps
                   let validation = Account.stateTransition state cmd
 
                   match validation with
-                  | Ok(event, _) ->
+                  | Ok(evt, _) ->
                      return!
                         confirmPersist
                            mailbox
-                           (AccountMessage.Event event)
+                           (AccountMessage.Event evt)
                            envelope.ConfirmationId
-                  | Error err ->
-                     logWarning
-                        $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
-
-                     let signalRBroadcastValidationErr () =
-                        broadcaster.accountEventValidationFail
-                           account.AccountId
-                           err
-
-                     match err with
-                     | AccountStateTransitionError e ->
-                        match e with
-                        // NOOP
-                        | TransferProgressNoChange
-                        | TransferAlreadyProgressedToApprovedOrRejected
-                        | AccountNotReadyToActivate ->
-                           logDebug mailbox $"AccountTransferActor NOOP msg {e}"
-                        | InsufficientBalance e ->
-                           match cmd with
-                           | AccountCommand.Debit cmd ->
-                              let info = cmd.Data
-                              let employee = cmd.Data.EmployeePurchaseReference
-
-                              let msg =
-                                 DeclineDebitCommand.create
-                                    (employee.EmployeeId, cmd.OrgId)
-                                    {
-                                       Info = {
-                                          AccountId = account.AccountId
-                                          CorrelationId = cmd.CorrelationId
-                                          EmployeeId = employee.EmployeeId
-                                          CardId = employee.CardId
-                                          CardNumberLast4 =
-                                             employee.EmployeeCardNumberLast4
-                                          Date = info.Date
-                                          Amount = info.Amount
-                                          Origin = info.Origin
-                                          Reference = info.Reference
-                                       }
-                                    }
-                                 |> EmployeeCommand.DeclineDebit
-                                 |> EmployeeMessage.StateChange
-
-                              getEmployeeRef employee.EmployeeId <! msg
-                           | _ -> ()
-                           (*
-                           getEmailActor mailbox.System
-                           <! EmailActor.DebitDeclined(string err, account)
-                           *)
-
-                           signalRBroadcastValidationErr ()
-                        | _ -> signalRBroadcastValidationErr ()
-                     | _ -> ()
-               | msg ->
-                  logError
-                     $"Unknown message in ConfirmableMessageEnvelope - {msg}"
-
-                  unhandled ()
-            | msg ->
-               logError $"Unknown message in ConfirmableMessageEnvelope - {msg}"
-               return unhandled ()
+                  | Error err -> handleValidationError cmd err
+               | msg -> return unknownMsg msg
+            | msg -> return unknownMsg msg
          | :? AccountMessage as msg ->
             match msg with
             | AccountMessage.GetAccount ->
@@ -317,23 +321,68 @@ let actorProps
                   }
 
                return! loop state <@> DeleteMessages Int64.MaxValue
-            | AccountMessage.AutoTransferOnSchedule schedule ->
-               let rules =
-                  match schedule with
-                  | AutomaticTransfer.CronSchedule.Daily ->
+            | AccountMessage.AutoTransferCompute frequency ->
+               let transfers =
+                  match frequency with
+                  | Frequency.PerTransaction ->
+                     account.AutoTransfersPerTransaction
+                  | Frequency.Schedule CronSchedule.Daily ->
                      account.AutoTransfersDaily
-                  | AutomaticTransfer.CronSchedule.TwiceMonthly ->
-                     account.AutoTransfersDaily
+                  | Frequency.Schedule CronSchedule.TwiceMonthly ->
+                     account.AutoTransfersTwiceMonthly
 
-               for t in rules do
-                  printfn "T CRON: %A" t
+               let transfersOut, transfersIn =
+                  transfers
+                  |> List.partition (fun t ->
+                     t.Transfer.Sender.AccountId = account.AccountId)
 
+               // NOTE: Transfers-in
+               // Computed transfers which are generated from a
+               // TargetBalanceRule.  When the target balance is lower
+               // than desired, the ManagingPartnerAccount is designated
+               // as the sender in order to restore funds to the target.
+               for t in transfersIn do
                   let msg =
                      InternalAutoTransferCommand.create t
                      |> AccountCommand.InternalAutoTransfer
                      |> AccountMessage.StateChange
 
                   (getAccountRef t.Transfer.Sender.AccountId) <! msg
+
+               // NOTE: Transfers-out
+               // Outgoing auto transfers are computed, applied against the
+               // aggregate state, and persisted in one go.
+               //
+               // If instead they were computed and then sent as individual
+               // StateChange InternalAutoTransfer messages then you would
+               // run the risk of other StateChange messages being processed
+               // before the computed InternalAutoTransfer message leading to
+               // InsufficientBalance validation errors in busy workloads.
+               match transfersOut with
+               | [] -> return ignored ()
+               | transfers ->
+                  let validations =
+                     transfers
+                     |> List.map (
+                        InternalAutoTransferCommand.create
+                        >> AccountCommand.InternalAutoTransfer
+                     )
+                     |> List.fold
+                           (fun acc cmd ->
+                              match acc with
+                              | Ok(accountState, events) ->
+                                 Account.stateTransition accountState cmd
+                                 |> Result.map (fun (evt, newState) ->
+                                    newState, evt :: events)
+                                 |> Result.mapError (fun err -> cmd, err)
+                              | Error err -> Error err)
+                           (Ok(state, []))
+
+                  match validations with
+                  | Ok(_, evts) ->
+                     let evts = List.map (AccountMessage.Event >> box) evts
+                     return! PersistAll evts
+                  | Error(cmd, err) -> handleValidationError cmd err
          // Event replay on actor start
          | :? AccountEvent as e when mailbox.IsRecovering() ->
             return! loop <| Some(Account.applyEvent state e)

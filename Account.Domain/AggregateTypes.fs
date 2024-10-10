@@ -5,6 +5,7 @@ open System
 open Lib.SharedTypes
 open Bank.Transfer.Domain
 open MaintenanceFee
+open AutomaticTransfer
 
 type AccountCommand =
    | CreateAccount of CreateAccountCommand
@@ -315,7 +316,7 @@ type Account = {
    MaintenanceFeeCriteria: MaintenanceFeeCriteria
    AccountNumber: AccountNumber
    RoutingNumber: RoutingNumber
-   AutoTransferRules: Map<Guid, AutomaticTransfer.AutomaticTransferConfig>
+   AutoTransferRule: AutomaticTransferConfig option
 } with
 
    member x.CompositeId = x.AccountId, x.OrgId
@@ -324,14 +325,13 @@ type Account = {
 
    member private x.autoTransferManagement
       (computedTransferFromRule:
-         AutomaticTransfer.AutomaticTransferRule
+         AutomaticTransferRule
             -> decimal
-            -> AutomaticTransfer.AutoTransferDerivedFromRule list option)
-      : AutomaticTransfer.AutoTransferDerivedFromRule list =
-      x.AutoTransferRules.Values
-      |> Seq.toList
-      |> List.choose (fun rule -> computedTransferFromRule rule.Info x.Balance)
-      |> List.collect id
+            -> AutoTransferDerivedFromRule list option)
+      : AutoTransferDerivedFromRule list =
+      x.AutoTransferRule
+      |> Option.bind (fun conf -> computedTransferFromRule conf.Info x.Balance)
+      |> Option.defaultValue []
 
    member x.AutoTransfersPerTransaction =
       x.autoTransferManagement
@@ -343,6 +343,9 @@ type Account = {
    member x.AutoTransfersTwiceMonthly =
       x.autoTransferManagement
          AutomaticTransfer.requiresTwiceMonthlyBalanceManagement
+
+   member x.AutoTransfers =
+      x.autoTransferManagement AutomaticTransfer.computeTransfer
 
 type AccountWithEvents = {
    Info: Account
@@ -376,7 +379,7 @@ type AccountMessage =
    | GetAccount
    | StateChange of AccountCommand
    | Event of AccountEvent
-   | AutoTransferOnSchedule of AutomaticTransfer.CronSchedule
+   | AutoTransferCompute of AutomaticTransfer.Frequency
    | Delete
 
 type AccountEventPersistedConfirmation = {

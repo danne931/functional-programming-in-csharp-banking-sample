@@ -7,10 +7,13 @@
 .swal2-title, .swal2-content
   color: var(--color)
 
-.swal2-styled.swal2-confirm
-  color: var(--color)
-  background-color: var(--background-color)
-  border-color: var(--border-color)
+.swal2-styled
+  &.swal2-confirm
+    color: var(--color)
+    background-color: var(--background-color)
+    border-color: var(--border-color)
+  &.swal2-cancel
+    background-color: var(--secondary)
 
 .swal2-icon.swal2-error
   border-color: var(--del-color)

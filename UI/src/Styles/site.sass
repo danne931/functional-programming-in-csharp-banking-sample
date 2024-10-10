@@ -9,7 +9,12 @@
     --primary-focus:rgba(253, 216, 53, 0.25)
     --primary-inverse:rgba(0, 0, 0, 0.75)
 
-:where(input,select,textarea,fieldset,.grid)[aria-invalid=true] + small
+:where(input,select,textarea,fieldset,div)[aria-invalid=true] + small
+  color: var(--del-color)
+
+progress.invalid
+  --progress-color: var(--del-color)
+small.invalid
   color: var(--del-color)
 
 :root
@@ -78,15 +83,33 @@ button
 .form-wrapper 
   fieldset
     width: 100%
+  // TODO:
+  // Update code with a form-wrapper-header container class
+  // around h6 & buttons.  We want h6 to be inline only if there
+  // is a close button.
   h6
     display: inline-block
     margin-top: 0.35rem
+  // TODO: Remove h6 display block when form-wrapper-header added
+  &.automatic-balance-create-rule
+    h6
+      display: block
 
 .form-submit-controls
+  margin-top: 1.5rem
   .grid
     grid-template-columns: 30% auto
   button
     padding: .4rem
+
+.form-list-container
+  button
+    width: auto
+    i.fas.fa-plus
+      margin-right: .7rem
+
+.form-list
+  align-items: start
 
 aside button.close
   position: relative
@@ -336,6 +359,60 @@ p[role='employee-role']
       i
         padding: 0 .5rem
 
+.automatic-balance-management
+  .grid
+    align-items: start
+  p
+    margin-bottom: 0
+  small
+    display: block
+  .configure-rule-options
+    h6, small
+      display: inline-block
+    h6
+      margin-right: 1em
+    small
+      color: var(--del-color)
+    .grid 
+      grid-template-columns: 30% 50%
+    button
+      i
+        padding: 0 .5rem
+  .balance-management-container
+    grid-template-columns: 60% 40%
+    .balance-management-nodes
+      grid-template-columns: 50% 50%
+      justify-items: start
+      article
+        margin-top: 0
+      .account-node
+        padding-top: 1rem
+        padding-bottom: 1rem
+        min-width: 13rem
+        b
+          color: var(--primary)
+    .balance-management-rules
+      article
+        padding: .8rem 1rem 0 1rem
+        margin-top: 0
+        margin-bottom: 0
+        border-left: solid .1rem transparent
+        &:hover
+          border-color: var(--primary)
+      details[role=list]
+        padding-bottom: .3rem
+        summary::after
+          width: 0
+
+.automatic-balance-create-rule
+  .form-list-container
+    .grid
+      grid-template-columns: 15% 50% 10%
+  .form-external-error-container
+    margin-bottom: 1rem
+  .percent-distribution-progress
+    margin-bottom: 1rem
+
 .control-panel-and-table-container
   position: relative
   overflow: hidden
@@ -456,6 +533,7 @@ main
   transition: right 0.3s ease-in-out
   &.active
     right: 0
+    padding-right: 0
   >.grid
     height: 100%
     grid-template-columns: auto 40%

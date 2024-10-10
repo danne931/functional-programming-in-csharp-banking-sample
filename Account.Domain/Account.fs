@@ -168,7 +168,7 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
             QualifyingDepositFound = false
             DailyBalanceThreshold = false
          }
-         AutoTransferRules = Map.empty
+         AutoTransferRule = None
         }
       | AccountEvent.AccountClosed _ -> {
          account with
@@ -379,15 +379,9 @@ let applyEvent (state: AccountWithEvents) (evt: AccountEvent) =
         }
       | AutoTransferRuleConfigured e -> {
          account with
-            AutoTransferRules =
-               account.AutoTransferRules
-               |> Map.add e.Data.Config.Id e.Data.Config
+            AutoTransferRule = Some e.Data.Config
         }
-      | AutoTransferRuleDeleted e -> {
-         account with
-            AutoTransferRules =
-               account.AutoTransferRules |> Map.remove e.Data.RuleId
-        }
+      | AutoTransferRuleDeleted _ -> { account with AutoTransferRule = None }
       | InternalAutomatedTransferPending e ->
          applyInternalTransferPending e.Data.BaseInfo account
       | InternalAutomatedTransferApproved e ->
@@ -939,10 +933,16 @@ module private StateTransition =
       if account.Status <> AccountStatus.Active then
          transitionErr AccountNotActive
       else
-         map
-            AutoTransferRuleConfigured
-            state
-            (ConfigureAutoTransferRuleCommand.toEvent cmd)
+         match account.AutoTransferRule, cmd.Data.RuleIdToUpdate with
+         | Some _, None -> transitionErr OnlyOneAutoTransferRuleMayExistAtATime
+         | Some r, Some existingId when r.Id <> existingId ->
+            transitionErr AutoTransferRuleDoesNotExist
+         | None, Some _ -> transitionErr AutoTransferRuleDoesNotExist
+         | _ ->
+            map
+               AutoTransferRuleConfigured
+               state
+               (ConfigureAutoTransferRuleCommand.toEvent cmd)
 
    let deleteAutoTransferRule
       (state: AccountWithEvents)
@@ -1117,5 +1117,5 @@ let empty: Account = {
    }
    AccountNumber = AccountNumber <| System.Int64.Parse "123456789123456"
    RoutingNumber = RoutingNumber 123456789
-   AutoTransferRules = Map.empty
+   AutoTransferRule = None
 }

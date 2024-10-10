@@ -7,6 +7,7 @@ module Form =
 
       open Fable.Form
       open Fable.Form.Simple.Form.View
+      open Fable.FontAwesome
 
       let group (fields: ReactElement list) =
          Html.div [
@@ -80,6 +81,7 @@ module Form =
             attr.ariaLabel attributes.Label
             if showError && error.IsSome then
                attr.ariaInvalid true
+
             match typ with
             | Email -> attr.autoComplete "email"
             | _ -> ()
@@ -158,6 +160,9 @@ module Form =
 
                yield! attributes.Options |> List.map toOption
             ]
+
+            if showError && error.IsSome then
+               attr.ariaInvalid true
          ]
          |> withLabelAndError attributes.Label showError error
 
@@ -187,6 +192,113 @@ module Form =
             Html.div []
          ]
 
+      let radioField
+         ({
+             Dispatch = dispatch
+             OnChange = onChange
+             OnBlur = onBlur
+             Disabled = disabled
+             Value = value
+             Error = error
+             ShowError = showError
+             Attributes = attributes
+          }: RadioFieldConfig<'Msg>)
+         =
+         let radio (key: string, label: string) =
+            Html.div [
+               Html.input [
+                  attr.type' "radio"
+                  attr.disabled disabled
+                  attr.isChecked ((key = value))
+                  attr.onChange (fun (_: bool) -> onChange key |> dispatch)
+                  match onBlur with
+                  | Some onBlur -> attr.onBlur (fun _ -> dispatch onBlur)
+                  | None -> ()
+               ]
+
+               Html.label [ attr.text label ]
+            ]
+
+         Html.div [
+            if showError && error.IsSome then
+               attr.ariaInvalid true
+
+            attr.children (attributes.Options |> List.map radio)
+         ]
+         |> withLabelAndError attributes.Label showError error
+
+      let formList
+         ({
+             Dispatch = dispatch
+             Forms = forms
+             Label = label
+             Add = add
+             Disabled = disabled
+          }: FormListConfig<'Msg>)
+         =
+         let addButton =
+            match disabled, add with
+            | (false, Some add) ->
+               Html.button [
+                  attr.onClick (fun _ -> add.Action() |> dispatch)
+
+                  attr.children [
+                     Fa.i [ Fa.Solid.Plus ] []
+
+                     Html.span add.Label
+                  ]
+               ]
+            | _ -> Html.none
+
+         classyNode Html.div [ "form-list-container" ] [
+            Html.div [
+               fieldLabel label
+
+               yield! forms
+
+               addButton
+            ]
+         ]
+
+      let formListItem
+         ({
+             Dispatch = dispatch
+             Fields = fields
+             Delete = delete
+             Disabled = disabled
+          }: FormListItemConfig<'Msg>)
+         =
+         let removeButton =
+            match disabled, delete with
+            | (false, Some delete) ->
+               Html.button [
+                  attr.onClick (fun _ -> delete.Action() |> dispatch)
+
+                  attr.children [
+                     Fa.i [ Fa.Solid.Trash ] []
+
+                     if delete.Label <> "" then
+                        Html.span delete.Label
+                  ]
+               ]
+            | _ -> Html.none
+
+         classyNode Html.div [ "form-list"; "grid" ] [
+            for field in fields do
+               Html.div [ field ]
+
+            Html.div [
+               // NOTE:
+               // Ghost label ensures the button stays aligned with the previous
+               // elements in case one of them displays a validation error.
+               Html.label [
+                  attr.text "g"
+                  attr.style [ style.visibility.hidden ]
+               ]
+               removeButton
+            ]
+         ]
+
       let submitButton (buttonText: string) (state: State) =
          Html.button [
             attr.type' "submit"
@@ -197,21 +309,28 @@ module Form =
             | _ -> attr.text buttonText
          ]
 
-      let cancelButton (onCancel: unit -> unit) (state: State) =
+      let secondaryButton (txt: string) (onClick: unit -> unit) (state: State) =
          Html.button [
-            attr.text "Cancel"
-            attr.classes [ "secondary" ]
+            attr.text txt
+            attr.classes [ "secondary"; "outline" ]
             attr.onClick (fun e ->
                e.preventDefault ()
-               onCancel ())
+               onClick ())
 
             match state with
             | State.Loading -> attr.ariaBusy true
             | _ -> ()
          ]
 
+      let cancelButton = secondaryButton "Cancel"
+
+      let backButton = secondaryButton "Go Back"
+
       let submitAndCancelButton buttonText onCancel state =
          group [ cancelButton onCancel state; submitButton buttonText state ]
+
+      let submitAndBackButton buttonText onBack state =
+         group [ backButton onBack state; submitButton buttonText state ]
 
       let form
          ({
@@ -268,10 +387,10 @@ module Form =
          SearchField = fun _ -> Html.none
          TelField = fun _ -> Html.none
          TimeField = fun _ -> Html.none
-         RadioField = fun _ -> Html.none
+         RadioField = radioField
          Section = fun _ _ -> Html.none
-         FormList = fun _ -> Html.none
-         FormListItem = fun _ -> Html.none
+         FormList = formList
+         FormListItem = formListItem
          FileField = fun _ -> Html.none
       }
 

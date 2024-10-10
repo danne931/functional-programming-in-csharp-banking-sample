@@ -46,6 +46,8 @@ let manageVisibility (url: Routes.IndexUrl) =
       | Routes.IndexUrl.Account url ->
          match url with
          | Routes.AccountUrl.CreateAccount -> Some OverlaySize.Standard
+         | Routes.AccountUrl.CreateRule _
+         | Routes.AccountUrl.EditRule _ -> Some OverlaySize.Wide
          | _ -> None
       | Routes.IndexUrl.Payments url ->
          match url with

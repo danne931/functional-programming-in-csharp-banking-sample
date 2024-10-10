@@ -233,6 +233,47 @@ let sqlParamReducer
          acc
          InternalTransferStatus.Deposited
          e.Data.BaseInfo
+   | AccountEvent.InternalAutomatedTransferPending e ->
+      let info = e.Data.BaseInfo
+
+      let transferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "memo", TransferSqlWriter.memo None
+            "transferCategory",
+            TransferSqlWriter.transferCategory
+               TransferCategory.InternalAutomatedWithinOrg
+         ]
+
+      let status = InternalTransferStatus.Pending
+
+      let internalTransferParams =
+         internalTransferBaseSqlParams info
+         @ [
+            "status", TransferSqlWriter.Internal.status status
+            "statusDetail", TransferSqlWriter.Internal.statusDetail status
+         ]
+
+      {
+         acc with
+            Transfer = transferParams :: acc.Transfer
+            InternalTransfer = internalTransferParams :: acc.InternalTransfer
+      }
+   | AccountEvent.InternalAutomatedTransferRejected e ->
+      internalTransferStatusReducer
+         acc
+         (InternalTransferStatus.Failed e.Data.Reason)
+         e.Data.BaseInfo
+   | AccountEvent.InternalAutomatedTransferApproved e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Approved
+         e.Data.BaseInfo
+   | AccountEvent.InternalAutomatedTransferDeposited e ->
+      internalTransferStatusReducer
+         acc
+         InternalTransferStatus.Deposited
+         e.Data.BaseInfo
    | AccountEvent.InternalTransferBetweenOrgsScheduled e ->
       let info = e.Data.BaseInfo
 
@@ -500,23 +541,13 @@ let sqlParamsFromAccount (account: Account) : (string * SqlValue) list = [
    "failedDomesticTransfersCount",
    AccountSqlWriter.transfersCount account.FailedDomesticTransfers.Count
 
-   "autoTransferRules",
-   AccountSqlWriter.autoTransferRules account.AutoTransferRules
+   "autoTransferRule",
+   AccountSqlWriter.autoTransferRule account.AutoTransferRule
 
-   let autoTransferRuleCount =
-      account.AutoTransferRules.Values
-      |> Seq.toList
-      |> List.map _.Info
-      |> AutomaticTransfer.autoTransferRuleCounts
-
-   "autoTransferRulePerTxnCount",
-   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.PerTransaction
-
-   "autoTransferRuleDailyCount",
-   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.Daily
-
-   "autoTransferRuleTwiceMonthlyCount",
-   AccountSqlWriter.autoTransferRuleCount autoTransferRuleCount.TwiceMonthly
+   "autoTransferRuleFrequency",
+   account.AutoTransferRule
+   |> Option.map (_.Info >> AutomaticTransfer.frequencyFromAutoTransferRule)
+   |> AccountSqlWriter.autoTransferRuleFrequency
 ]
 
 let upsertReadModels
@@ -559,10 +590,8 @@ let upsertReadModels
           {AccountFields.inProgressDomesticTransfersCount},
           {AccountFields.failedDomesticTransfers},
           {AccountFields.failedDomesticTransfersCount},
-          {AccountFields.autoTransferRules},
-          {AccountFields.autoTransferRuleCounts.perTxn},
-          {AccountFields.autoTransferRuleCounts.daily},
-          {AccountFields.autoTransferRuleCounts.twiceMonthly})
+          {AccountFields.autoTransferRule},
+          {AccountFields.autoTransferRuleFrequency})
       VALUES
          (@id,
           @accountNumber,
@@ -583,10 +612,8 @@ let upsertReadModels
           @inProgressDomesticTransfersCount,
           @failedDomesticTransfers,
           @failedDomesticTransfersCount,
-          @autoTransferRules,
-          @autoTransferRulePerTxnCount,
-          @autoTransferRuleDailyCount,
-          @autoTransferRuleTwiceMonthlyCount)
+          @autoTransferRule,
+          @autoTransferRuleFrequency::{AccountTypeCast.autoTransferRuleFrequency})
       ON CONFLICT ({AccountFields.accountId})
       DO UPDATE SET
          {AccountFields.balance} = @balance,
@@ -601,10 +628,8 @@ let upsertReadModels
          {AccountFields.inProgressDomesticTransfersCount} = @inProgressDomesticTransfersCount,
          {AccountFields.failedDomesticTransfers} = @failedDomesticTransfers,
          {AccountFields.failedDomesticTransfersCount} = @failedDomesticTransfersCount,
-         {AccountFields.autoTransferRules} = @autoTransferRules,
-         {AccountFields.autoTransferRuleCounts.perTxn} = @autoTransferRulePerTxnCount,
-         {AccountFields.autoTransferRuleCounts.daily} = @autoTransferRuleDailyCount,
-         {AccountFields.autoTransferRuleCounts.twiceMonthly} = @autoTransferRuleTwiceMonthlyCount;
+         {AccountFields.autoTransferRule} = @autoTransferRule,
+         {AccountFields.autoTransferRuleFrequency} = @autoTransferRuleFrequency::{AccountTypeCast.autoTransferRuleFrequency};
       """,
       accountSqlParams
 

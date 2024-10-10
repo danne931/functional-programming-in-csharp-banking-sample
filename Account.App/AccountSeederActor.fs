@@ -43,7 +43,7 @@ type State = {
 }
 
 let orgId = Constants.ORG_ID_REMOVE_SOON
-let orgName = "Sapphire Optics"
+let orgName = "Sapphire Health"
 
 type OrgSetup = {
    OrgId: OrgId
@@ -505,6 +505,7 @@ let accountInitialDeposits =
    Map [
       apCheckingAccountId, 2_500_931m
       opsCheckingAccountId, 1_391_100m
+      savingsAccountId, 70_000m
 
       for org in otherOrgs do
          org.PrimaryAccountId, randomAmount 700_000 13_550_003
@@ -747,19 +748,23 @@ let configureAutoTransferRules
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (timestamp: DateTime)
    =
+   // Set up percent distribution rule for demo account
+   // ----------------------------------------
+   let sender: InternalTransferSender = {
+      Name = mockAccounts[arCheckingAccountId].Data.Name
+      AccountId = arCheckingAccountId
+      OrgId = orgId
+   }
+
    let percentDistributionRule =
       PercentDistributionRule.create
          AutomaticTransfer.Frequency.PerTransaction
-         {
-            Name = mockAccounts[arCheckingAccountId].Data.Name
-            AccountId = arCheckingAccountId
-            OrgId = orgId
-         }
+         sender
          [
             let recipient = mockAccounts[opsCheckingAccountId]
 
             {
-               ProposedPercentAllocated = 40m
+               ProposedPercentAllocated = 80m
                Recipient = {
                   OrgId = recipient.OrgId
                   AccountId = recipient.Data.AccountId
@@ -770,7 +775,7 @@ let configureAutoTransferRules
             let recipient = mockAccounts[savingsAccountId]
 
             {
-               ProposedPercentAllocated = 60m
+               ProposedPercentAllocated = 20m
                Recipient = {
                   OrgId = recipient.OrgId
                   AccountId = recipient.Data.AccountId
@@ -784,23 +789,98 @@ let configureAutoTransferRules
    let msg =
       {
          ConfigureAutoTransferRuleCommand.create
-            (arCheckingAccountId, orgId)
+            (sender.AccountId, sender.OrgId)
             mockAccountOwnerId
             {
-               Config = {
-                  Id = Guid.NewGuid()
-                  Info =
-                     percentDistributionRule
-                     |> AutomaticTransferRule.PercentDistribution
-               }
+               RuleIdToUpdate = None
+               Rule =
+                  percentDistributionRule
+                  |> AutomaticTransferRule.PercentDistribution
             } with
             Timestamp = timestamp
       }
       |> AccountCommand.ConfigureAutoTransferRule
       |> AccountMessage.StateChange
 
-   (getAccountRef arCheckingAccountId) <! msg
+   (getAccountRef sender.AccountId) <! msg
 
+   // Set up zero balance rule for demo account
+   // ----------------------------------------
+   let sender: InternalTransferSender = {
+      Name = mockAccounts[apCheckingAccountId].Data.Name
+      AccountId = apCheckingAccountId
+      OrgId = orgId
+   }
+
+   let recipient = mockAccounts[savingsAccountId]
+
+   let msg =
+      {
+         ConfigureAutoTransferRuleCommand.create
+            (sender.AccountId, sender.OrgId)
+            mockAccountOwnerId
+            {
+               RuleIdToUpdate = None
+               Rule =
+                  AutomaticTransferRule.ZeroBalance {
+                     Sender = sender
+                     Recipient = {
+                        OrgId = recipient.OrgId
+                        AccountId = recipient.Data.AccountId
+                        Name = recipient.Data.Name
+                     }
+                  }
+            } with
+            Timestamp = timestamp
+      }
+      |> AccountCommand.ConfigureAutoTransferRule
+      |> AccountMessage.StateChange
+
+   (getAccountRef sender.AccountId) <! msg
+
+   // Set up target balance rule for demo savings account
+   // ----------------------------------------
+   let target: BiDirectionalTransferContact = {
+      Name = mockAccounts[savingsAccountId].Data.Name
+      AccountId = savingsAccountId
+      OrgId = orgId
+   }
+
+   let partner = mockAccounts[opsCheckingAccountId]
+
+   let msg =
+      {
+         ConfigureAutoTransferRuleCommand.create
+            (target.AccountId, target.OrgId)
+            mockAccountOwnerId
+            {
+               RuleIdToUpdate = None
+               Rule =
+                  AutomaticTransferRule.TargetBalance {
+                     TargetAccount = target
+                     TargetAccountBalance =
+                        (PositiveAmount.create 40_000m).Value
+                     TargetBalanceRange =
+                        Some {
+                           LowerBound = (PositiveAmount.create 30_000m).Value
+                           UpperBound = (PositiveAmount.create 50_000m).Value
+                        }
+                     ManagingPartnerAccount = {
+                        OrgId = partner.OrgId
+                        AccountId = partner.Data.AccountId
+                        Name = partner.Data.Name
+                     }
+                  }
+            } with
+            Timestamp = timestamp
+      }
+      |> AccountCommand.ConfigureAutoTransferRule
+      |> AccountMessage.StateChange
+
+   (getAccountRef target.AccountId) <! msg
+
+   // Create auto transfer rules for other orgs
+   // ---------------------------------------
    let initZeroBalanceRule (candidate: OrgSetup) =
       let sender: InternalTransferSender = {
          OrgId = candidate.OrgId
@@ -816,18 +896,16 @@ let configureAutoTransferRules
                (sender.AccountId, sender.OrgId)
                (InitiatedById candidate.AccountOwnerId)
                {
-                  Config = {
-                     Id = Guid.NewGuid()
-                     Info =
-                        AutomaticTransferRule.ZeroBalance {
-                           Sender = sender
-                           Recipient = {
-                              OrgId = recipient.OrgId
-                              AccountId = recipient.Data.AccountId
-                              Name = recipient.Data.Name
-                           }
+                  RuleIdToUpdate = None
+                  Rule =
+                     AutomaticTransferRule.ZeroBalance {
+                        Sender = sender
+                        Recipient = {
+                           OrgId = recipient.OrgId
+                           AccountId = recipient.Data.AccountId
+                           Name = recipient.Data.Name
                         }
-                  }
+                     }
                } with
                Timestamp = timestamp
          }
@@ -922,7 +1000,7 @@ let seedAccountOwnerActions
                      (apCheckingAccountId, orgId)
                      mockAccountOwnerId
                      {
-                        Amount = 5000m + randomAmount 1000 10_000
+                        Amount = randomAmount 5000 20_000
                         Origin = Some "Deposit"
                      } with
                      Timestamp = timestamp.AddDays(float maxDays)

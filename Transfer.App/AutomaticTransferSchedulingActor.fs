@@ -59,7 +59,7 @@ let actorProps
                throttle.Duration
          |> Source.runForEach mat (fun accountId ->
             getAccountRef accountId
-            <! AccountMessage.AutoTransferOnSchedule schedule)
+            <! AccountMessage.AutoTransferCompute(Frequency.Schedule schedule))
 
       logInfo ctx $"Finished running {schedule} balance management."
 
@@ -74,22 +74,26 @@ let get (system: ActorSystem) : IActorRef<Message> =
       .For(system)
       .Get<ActorMetadata.AutoTransferSchedulingMarker>()
 
-// TODO: CHANGE NAME
-let getAccounts (schedule: CronSchedule) = asyncResultOption {
-   let countField =
-      match schedule with
-      | CronSchedule.Daily -> AccountFields.autoTransferRuleCounts.daily
-      | CronSchedule.TwiceMonthly ->
-         AccountFields.autoTransferRuleCounts.twiceMonthly
+let getAccountsWithScheduledAutoTransfer (schedule: CronSchedule) = asyncResultOption {
+   let field = AccountFields.autoTransferRuleFrequency
 
    let query =
       $"""
       SELECT {AccountFields.accountId}
       FROM {AccountSqlMapper.table}
-      WHERE {countField} > 0
+      WHERE {field} = @frequency::{AccountTypeCast.autoTransferRuleFrequency}
       """
 
-   let! accountIds = pgQuery<AccountId> query None AccountSqlReader.accountId
+   let frequency =
+      Frequency.Schedule schedule
+      |> Some
+      |> AccountSqlWriter.autoTransferRuleFrequency
+
+   let! accountIds =
+      pgQuery<AccountId>
+         query
+         (Some [ "frequency", frequency ])
+         AccountSqlReader.accountId
 
    return accountIds
 }
@@ -101,6 +105,6 @@ let initProps
    actorProps
       system
       getAccountRef
-      getAccounts
+      getAccountsWithScheduledAutoTransfer
       // TODO: CONFIG
       EnvTransfer.config.TransferProgressTrackingThrottle
