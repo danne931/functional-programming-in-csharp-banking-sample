@@ -33,13 +33,16 @@ The UI is built with React libraries for the F# landscape.  See [Feliz](https://
 
 ## Demonstration
 ### Automatic Balance Management
-![auto-balance-management](https://github.com/user-attachments/assets/f6be8238-b637-496e-b617-00a4d1b42ff2)
+![auto-balance-management](https://github.com/user-attachments/assets/47b576d2-dbbc-4f0e-b7ff-35ff7141f21d)
+
 ### Analytics
 ![analytics-timeseries](https://github.com/user-attachments/assets/ad4566f6-c2af-42cd-98bf-e06367437a84)
 ![analytics-top-n](https://github.com/user-attachments/assets/9359f424-9f1c-4e0e-90a8-bff3476683da)
 ### Transactions
+![transaction-back-button](https://github.com/user-attachments/assets/99437c22-e484-4d57-957e-3bb5253784e1)
 ![transactions-date](https://github.com/user-attachments/assets/f5f8d6da-93fe-451c-a739-775d6108c02f)
-### More Demonstration GIFs included at the bottom of the README.
+
+## More Demonstration GIFs included at the bottom of the README.
 
 ## Running with Kubernetes via minikube
 1. Dependencies: [.NET 8](https://dotnet.microsoft.com/en-us/download), [minikube](https://minikube.sigs.k8s.io/docs/start/), [pulumi](https://www.pulumi.com/docs/install/), [Node.js 18](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
@@ -87,6 +90,9 @@ de facto library for functional programming in C#, [language-ext](https://github
 The second iteration [(see FSharpWithAkka directory)](https://github.com/danne931/akka-dotnet-bank/tree/main/Archive/FSharpWithAkka) is close to a one-to-one representation of the CSharpWithLanguageExt directory, with all use cases rewritten in F# and **Paul Louth**'s echo-process actor library replaced with Akka.  I saw that [F#'s type inference](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/type-inference), [computation expressions](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/computation-expressions) and immutable data structures made writing programs with typed functional programming more second nature than with C# so I decided to continue with it for the final iteration.
 
 ## Additional Demonstration
+### Payments
+![payments](https://github.com/user-attachments/assets/7c6baaa3-9e5b-4cd6-a7d2-afccc2e3be41)
+
 ### Employee Card Management & Employee History
 ![card-purchase-limits-and-nickname](https://github.com/user-attachments/assets/821518a2-6c29-4152-9ba9-1f1dd3aef969)
 ![card-lock-employee-history](https://github.com/user-attachments/assets/303676ba-3534-487b-bc7f-3eb99ea87aab)
@@ -102,7 +108,6 @@ The second iteration [(see FSharpWithAkka directory)](https://github.com/danne93
 ![transactions-initiated-by](https://github.com/user-attachments/assets/a07cf94f-d915-4839-adb9-58f900b5aacf)
 ![transactions-employee-card](https://github.com/user-attachments/assets/acd51183-8cc3-49d5-abe0-0d8d7b7613de)
 ![transactions-category](https://github.com/user-attachments/assets/772f5fd1-fba6-48e9-84ad-710dda18e8d6)
-![transaction-back-button](https://github.com/user-attachments/assets/99437c22-e484-4d57-957e-3bb5253784e1)
 
 ### Domestic transfers to a mock 3rd party bank server with circuit breaker integration:
 ![bank-domestic-transfer-1-30](https://github.com/danne931/akka-dotnet-bank/assets/4181901/8d200b11-99d8-4e8f-98d4-0ab5941f1447)
