@@ -139,9 +139,12 @@ let rangeCheckbox =
 
 let form
    (accounts: Map<AccountId, Account>)
-   (existingTargetAccountId: AccountId option)
+   (existingRule: TargetBalanceRule option)
    : Form.Form<Values, Msg<Values, FormResult>, IReactProperty>
    =
+   let existingTargetAccountId =
+      existingRule |> Option.map _.TargetAccount.AccountId
+
    let fieldTargetAccountSelect (values: Values) =
       let optionIsPartner (a: Account) =
          string a.AccountId = values.ManagingPartnerAccountId
@@ -224,7 +227,19 @@ let form
             AutomaticTransferRule.TargetBalance rule
          )
 
-      if hasCycle then
+      // The bidirectional nature of the TargetBalance rule appears to detect
+      // a cycle if we are updating an existing rule without changing the
+      // target or managing partner account.  So, do not apply cycle
+      // detection if the target or partner has not changed.
+      let isTargetOrPartnerChanged =
+         match existingRule with
+         | None -> true
+         | Some existing ->
+            existing.TargetAccount.AccountId <> rule.TargetAccount.AccountId
+            || existing.ManagingPartnerAccount.AccountId
+               <> rule.ManagingPartnerAccount.AccountId
+
+      if hasCycle && isTargetOrPartnerChanged then
          Msg.ExternalError
             "You may not add a rule which would create cyclic transfers."
       else
@@ -373,7 +388,7 @@ let ConfigureAutoTransferTargetBalanceRuleFormComponent
       RuleIsUnchanged = fun result -> existingRule = Some result.Rule
       RenderCalculationDisplay = renderCalculationDisplay
       Values = initValues
-      Form = form accounts existingTargetAccountId
+      Form = form accounts existingRule
       Validation = Form.View.Validation.ValidateOnSubmit
       Action = None
    |}

@@ -215,7 +215,7 @@ let form
                      // Disallow creating another list item if no more
                      // potential destination accounts available
                      if values.Destinations.Length < accounts.Count - 1 then
-                        Some "Connect another account"
+                        Some "Add another account"
                      else
                         None
                   Delete =

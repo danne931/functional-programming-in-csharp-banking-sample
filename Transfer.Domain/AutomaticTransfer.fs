@@ -67,7 +67,7 @@ type Frequency =
       | Frequency.PerTransaction -> "Every transaction"
       | Frequency.Schedule CronSchedule.Daily -> "Every day at 8AM"
       | Frequency.Schedule CronSchedule.TwiceMonthly ->
-         "Twice monthy on the 1st and 15th"
+         "Twice monthly on the 1st and 15th"
 
 type UnvalidatedDistributionDestinationAccount = {
    Recipient: InternalTransferRecipient
