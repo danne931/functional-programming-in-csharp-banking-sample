@@ -33,7 +33,7 @@ The UI is built with React libraries for the F# landscape.  See [Feliz](https://
 
 ## Demonstration
 ### Automatic Balance Management
-![auto-balance-management](https://github.com/user-attachments/assets/47b576d2-dbbc-4f0e-b7ff-35ff7141f21d)
+![auto-balance-management](https://github.com/user-attachments/assets/865ca660-d7a6-435c-9b26-ff4c4789dbf0)
 
 ### Analytics
 ![analytics-timeseries](https://github.com/user-attachments/assets/ad4566f6-c2af-42cd-98bf-e06367437a84)
