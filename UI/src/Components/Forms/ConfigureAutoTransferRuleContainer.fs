@@ -5,22 +5,35 @@ open Feliz.Router
 open Fable.Form.Simple
 open Elmish
 open Feliz.UseElmish
+open System
 
 open Fable.Form.Simple.Pico
 open Bank.Account.Domain
 open Bank.Transfer.Domain
+open Bank.Employee.Domain
 open Lib.SharedTypes
 open UIDomain.Account
+open AutomaticTransfer
+
+type FormResult = {
+   Target: Account
+   Rule: AutomaticTransferRule
+}
 
 [<RequireQualifiedAccess>]
-type State<'Values, 'FormResult> =
+type State<'Values> =
    | FillingForm of Form.View.Model<'Values>
-   | DisplayingCalculation of Form.View.Model<'Values> * 'FormResult
+   | DisplayingCalculation of Form.View.Model<'Values> * FormResult
 
-type Msg<'Values, 'FormResult> =
+type S<'Values> = {
+   DetectExternalErrorOnChange: bool
+   State: State<'Values>
+}
+
+type Msg<'Values> =
    | FormChanged of Form.View.Model<'Values>
    | GoBackToFormFilling
-   | DisplayCalculation of 'FormResult
+   | DisplayCalculation of FormResult
    | Submit of
       Account *
       AccountCommand *
@@ -28,33 +41,35 @@ type Msg<'Values, 'FormResult> =
    | ExternalError of string
 
 let init (values: 'Values) () =
-   values |> Form.View.idle |> State.FillingForm, Cmd.none
+   {
+      DetectExternalErrorOnChange = false
+      State = values |> Form.View.idle |> State.FillingForm
+   },
+   Cmd.none
 
 let update
    (onSubmit: AccountCommandReceipt -> unit)
-   (msg: Msg<'Values, 'FormResult>)
-   (state: State<'Values, 'FormResult>)
+   (msg: Msg<'Values>)
+   (s: S<'Values>)
    =
+   let update (state: State<'Values>) = { s with State = state }
+   let state = s.State
+
    match msg with
    | FormChanged formModel ->
       match state with
-      | State.FillingForm _ -> State.FillingForm formModel, Cmd.none
-      | _ -> state, Cmd.none
+      | State.FillingForm _ -> update (State.FillingForm formModel), Cmd.none
+      | _ -> s, Cmd.none
    | DisplayCalculation formResult ->
       match state with
       | State.FillingForm model ->
-         let model = {
-            model with
-               State = Form.View.State.Idle
-         }
-
-         State.DisplayingCalculation(model, formResult), Cmd.none
-      | _ -> state, Cmd.none
+         update (State.DisplayingCalculation(model, formResult)), Cmd.none
+      | _ -> s, Cmd.none
    | GoBackToFormFilling ->
       match state with
       | State.DisplayingCalculation(model, _) ->
-         State.FillingForm model, Cmd.none
-      | _ -> state, Cmd.none
+         update (State.FillingForm model), Cmd.none
+      | _ -> s, Cmd.none
    | Submit(account, command, Started) ->
       let submit = async {
          let! res = AccountService.submitCommand account command
@@ -63,12 +78,12 @@ let update
 
       match state with
       | State.DisplayingCalculation(model, _) ->
-         model |> Form.View.setLoading |> State.FillingForm,
+         update (model |> Form.View.setLoading |> State.FillingForm),
          Cmd.fromAsync submit
-      | _ -> state, Cmd.none
+      | _ -> s, Cmd.none
    | Submit(_, _, Finished(Ok receipt)) ->
       onSubmit receipt
-      state, Cmd.none
+      s, Cmd.none
    | Submit(_, command, Finished(Error err)) ->
       Log.error $"Error submitting command {command} {err}"
 
@@ -79,8 +94,9 @@ let update
                State = Form.View.State.Error err.HumanFriendly
          }
 
-         State.DisplayingCalculation(model, formResult), Alerts.toastCommand err
-      | _ -> state, Cmd.none
+         update (State.DisplayingCalculation(model, formResult)),
+         Alerts.toastCommand err
+      | _ -> s, Cmd.none
    | ExternalError errMsg ->
       match state with
       | State.FillingForm(model) ->
@@ -89,8 +105,13 @@ let update
                State = Form.View.State.Error errMsg
          }
 
-         State.FillingForm model, Cmd.none
-      | _ -> state, Cmd.none
+         {
+            s with
+               DetectExternalErrorOnChange = true
+               State = State.FillingForm model
+         },
+         Cmd.none
+      | _ -> s, Cmd.none
 
 let close _ =
    Router.navigate Routes.AccountUrl.AutoBalanceManagementPath
@@ -98,51 +119,115 @@ let close _ =
 let renderError (msg: string) =
    Html.small [ attr.className "invalid"; attr.text msg ]
 
+let private cyclicTransferErrorMsg =
+   "You may not add a rule which would create cyclic transfers."
+
+let private hasCycle
+   (accounts: Map<AccountId, Account>)
+   (newRule: AutomaticTransferConfig)
+   =
+   accounts.Values
+   |> Seq.toList
+   |> List.choose _.AutoTransferRule
+   |> CycleDetection.cycleDetected newRule
+
+let private modelWithExternalErrorMaybe
+   (accounts: Map<AccountId, Account>)
+   (form: Form.Form<'Values, Result<FormResult, Err>, IReactProperty>)
+   (existingRuleId: Guid option)
+   (model: Form.View.Model<'Values>)
+   =
+   let filled = Form.fill form model.Values
+
+   match filled.Result with
+   | Ok res ->
+      match res with
+      | Ok parsedResult ->
+         let ruleConfig = {
+            Id = existingRuleId |> Option.defaultValue (Guid.NewGuid())
+            Info = parsedResult.Rule
+         }
+
+         if hasCycle accounts ruleConfig then
+            {
+               model with
+                  State = Form.View.State.Error cyclicTransferErrorMsg
+            }
+         else
+            {
+               model with
+                  State = Form.View.State.Idle
+            }
+      | Error _ -> model
+   | Error _ -> model
+
 [<ReactComponent>]
 let ConfigureAutoTransferRuleFormContainer
    (props:
       {|
          // Handle command submit success from the parent.
          OnSubmitSuccess: AccountCommandReceipt -> unit
-         // Create a ConfigureAutoTransferRuleCommand from the 'FormResult.
-         // The command will be sent to the AccountActor upon form submit.
-         GenerateCommand:
-            'FormResult -> Account * ConfigureAutoTransferRuleCommand
-         // Indicate whether to display the calculation or notify user of
-         // no changes to the original rule.
-         RuleIsUnchanged: 'FormResult -> bool
-         IntendToUpdateExistingRule: bool
-         // Render the calculation based on the 'FormResult
-         RenderCalculationDisplay: 'FormResult -> ReactElement
+         // Render the calculation based on the FormResult
+         RenderCalculationDisplay: FormResult -> ReactElement
          // Initial values to pre-fill the form with in case of updating an
          // existing rule.
          Values: 'Values
-         Form: Form.Form<'Values, Msg<'Values, 'FormResult>, IReactProperty>
+         Form: Form.Form<'Values, Result<FormResult, Err>, IReactProperty>
          // Custom action to allow user to override typical
          // submit buttons & behavior.
          Action:
-            (Form.View.Model<'Values>
-               -> Form.View.Action<Msg<'Values, 'FormResult>>) option
-         // Validate fields on blur or submit
-         Validation: Form.View.Validation
+            (Form.View.Model<'Values> -> Form.View.Action<Msg<'Values>>) option
+         Session: UserSession
+         Accounts: Map<AccountId, Account>
+         ExistingRule: (Guid * AutomaticTransferRule) option
       |})
    =
    let onSubmitSuccess = props.OnSubmitSuccess
-   let generateCommand = props.GenerateCommand
-   let ruleIsUnchanged = props.RuleIsUnchanged
-   let intendToUpdateExistingRule = props.IntendToUpdateExistingRule
    let renderCalculationDisplay = props.RenderCalculationDisplay
    let initValues = props.Values
+   let accounts = props.Accounts
+   let existingRuleId = props.ExistingRule |> Option.map fst
+   let existingRule = props.ExistingRule |> Option.map snd
+
+   let modelWithExternalErrorMaybe =
+      modelWithExternalErrorMaybe accounts props.Form existingRuleId
 
    let state, dispatch =
       React.useElmish (init initValues, update (onSubmitSuccess >> close), [||])
 
-   match state with
+   let form =
+      Form.succeed (fun (res: Result<FormResult, Err>) ->
+         match res with
+         | Ok formResult ->
+            let ruleConfig = {
+               Id = existingRuleId |> Option.defaultValue (Guid.NewGuid())
+               Info = formResult.Rule
+            }
+
+            if hasCycle accounts ruleConfig then
+               Msg.ExternalError cyclicTransferErrorMsg
+            else
+               Msg.DisplayCalculation formResult
+         | Error e -> Msg.ExternalError(string e))
+      |> Form.append props.Form
+
+   match state.State with
    | State.FillingForm model ->
       Form.View.asHtml
          {
             Dispatch = dispatch
-            OnChange = Msg.FormChanged
+            OnChange =
+               fun model ->
+                  // Display potential cyclic transfer error on change after the
+                  // submit button pressed for first time, keeping in line with
+                  // Form.View.Validation.ValidateOnSubmit functionality.
+                  let model =
+                     if state.DetectExternalErrorOnChange then
+                        modelWithExternalErrorMaybe model
+                     else
+                        model
+
+                  Msg.FormChanged model
             Action =
                props.Action
                |> Option.map (fun act -> act model)
@@ -163,15 +248,16 @@ let ConfigureAutoTransferRuleFormContainer
                            state
                      ])
                )
-            Validation = props.Validation
+            Validation = Form.View.Validation.ValidateOnSubmit
          }
-         props.Form
+         form
          model
    | State.DisplayingCalculation(model, formResult) ->
       let goBack () = dispatch Msg.GoBackToFormFilling
 
       React.fragment [
-         if (intendToUpdateExistingRule && ruleIsUnchanged formResult) then
+         match existingRule with
+         | Some existing when existing = formResult.Rule ->
             Html.hr []
             Html.br []
 
@@ -179,7 +265,7 @@ let ConfigureAutoTransferRuleFormContainer
                "No changes made to the rule so no updates will be submitted."
 
             Form.View.backButton goBack model.State
-         else
+         | _ ->
             renderCalculationDisplay formResult
 
             classyNode Html.div [ "grid"; "form-submit-controls" ] [
@@ -188,7 +274,7 @@ let ConfigureAutoTransferRuleFormContainer
 
                   Html.button [
                      attr.text (
-                        if intendToUpdateExistingRule then
+                        if existingRule.IsSome then
                            "Update Rule"
                         else
                            "Create Rule"
@@ -196,8 +282,18 @@ let ConfigureAutoTransferRuleFormContainer
 
                      attr.onClick (fun e ->
                         e.preventDefault ()
-                        let account, cmd = generateCommand formResult
-                        let cmd = AccountCommand.ConfigureAutoTransferRule cmd
+                        let account = formResult.Target
+
+                        let cmd =
+                           ConfigureAutoTransferRuleCommand.create
+                              account.CompositeId
+                              (InitiatedById props.Session.EmployeeId)
+                              {
+                                 RuleIdToUpdate = existingRuleId
+                                 Rule = formResult.Rule
+                              }
+                           |> AccountCommand.ConfigureAutoTransferRule
+
                         dispatch <| Msg.Submit(account, cmd, Started))
 
                      match model.State with

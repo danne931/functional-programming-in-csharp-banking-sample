@@ -14,11 +14,6 @@ open AutomaticTransfer
 open UIDomain.Account
 open Bank.Account.Forms.ConfigureAutomaticTransferFormContainer
 
-type FormResult = {
-   Target: Account
-   Rule: TargetBalanceRule
-}
-
 type Values = {
    TargetAccountId: string
    ManagingPartnerAccountId: string
@@ -140,7 +135,7 @@ let rangeCheckbox =
 let form
    (accounts: Map<AccountId, Account>)
    (existingRule: TargetBalanceRule option)
-   : Form.Form<Values, Msg<Values, FormResult>, IReactProperty>
+   : Form.Form<Values, Result<FormResult, Err>, IReactProperty>
    =
    let existingTargetAccountId =
       existingRule |> Option.map _.TargetAccount.AccountId
@@ -219,31 +214,10 @@ let form
          }
       }
 
-      let hasCycle =
-         accounts.Values
-         |> Seq.toList
-         |> List.choose (_.AutoTransferRule >> Option.map _.Info)
-         |> CycleDetection.cycleDetected (
-            AutomaticTransferRule.TargetBalance rule
-         )
-
-      // The bidirectional nature of the TargetBalance rule appears to detect
-      // a cycle if we are updating an existing rule without changing the
-      // target or managing partner account.  So, do not apply cycle
-      // detection if the target or partner has not changed.
-      let isTargetOrPartnerChanged =
-         match existingRule with
-         | None -> true
-         | Some existing ->
-            existing.TargetAccount.AccountId <> rule.TargetAccount.AccountId
-            || existing.ManagingPartnerAccount.AccountId
-               <> rule.ManagingPartnerAccount.AccountId
-
-      if hasCycle && isTargetOrPartnerChanged then
-         Msg.ExternalError
-            "You may not add a rule which would create cyclic transfers."
-      else
-         Msg.DisplayCalculation { Target = target; Rule = rule }
+      Ok {
+         Target = target
+         Rule = AutomaticTransferRule.TargetBalance rule
+      }
 
    Form.succeed renderCalculation
    |> Form.append (
@@ -271,12 +245,11 @@ let form
             Form.succeed None)
    )
 
-let renderCalculationDisplay (formResult: FormResult) =
-   let rule = formResult.Rule
+let renderCalculationDisplay (target: Account) (rule: TargetBalanceRule) =
    let targetName = rule.TargetAccount.Name
    let partnerName = rule.ManagingPartnerAccount.Name
    let targetBalance = PositiveAmount.get rule.TargetAccountBalance
-   let currentBalance = formResult.Target.Balance
+   let currentBalance = target.Balance
 
    React.fragment [
       Html.small (Frequency.Schedule CronSchedule.Daily).Display
@@ -342,7 +315,6 @@ let ConfigureAutoTransferTargetBalanceRuleFormComponent
    (accounts: Map<AccountId, Account>)
    (ruleToEdit: (Guid * TargetBalanceRule) option)
    =
-   let existingRuleId = ruleToEdit |> Option.map fst
    let existingRule = ruleToEdit |> Option.map snd
 
    let existingTargetAccountId =
@@ -373,22 +345,20 @@ let ConfigureAutoTransferTargetBalanceRuleFormComponent
    }
 
    ConfigureAutoTransferRuleFormContainer {|
+      Accounts = accounts
+      Session = session
+      ExistingRule =
+         ruleToEdit
+         |> Option.map (fun (ruleId, rule) ->
+            ruleId, AutomaticTransferRule.TargetBalance rule)
       OnSubmitSuccess = onSubmit
-      GenerateCommand =
-         fun result ->
-            result.Target,
-            ConfigureAutoTransferRuleCommand.create
-               result.Target.CompositeId
-               (InitiatedById session.EmployeeId)
-               {
-                  RuleIdToUpdate = existingRuleId
-                  Rule = AutomaticTransferRule.TargetBalance result.Rule
-               }
-      IntendToUpdateExistingRule = existingRule.IsSome
-      RuleIsUnchanged = fun result -> existingRule = Some result.Rule
-      RenderCalculationDisplay = renderCalculationDisplay
+      RenderCalculationDisplay =
+         fun formResult ->
+            match formResult.Rule with
+            | AutomaticTransferRule.TargetBalance r ->
+               renderCalculationDisplay formResult.Target r
+            | _ -> Html.none
       Values = initValues
       Form = form accounts existingRule
-      Validation = Form.View.Validation.ValidateOnSubmit
       Action = None
    |}

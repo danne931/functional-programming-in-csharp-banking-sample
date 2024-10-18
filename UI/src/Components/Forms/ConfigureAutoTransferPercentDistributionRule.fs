@@ -14,11 +14,6 @@ open AutomaticTransfer
 open UIDomain.Account
 open Bank.Account.Forms.ConfigureAutomaticTransferFormContainer
 
-type FormResult = {
-   Target: Account
-   Rule: PercentDistributionRule.T
-}
-
 type DestinationAccountValues = {
    AccountId: string
    PercentToAllocate: string
@@ -124,7 +119,7 @@ let destinationAccountForm
 let form
    (accounts: Map<AccountId, Account>)
    (existingSenderAccountId: AccountId option)
-   : Form.Form<Values, Msg<Values, FormResult>, IReactProperty>
+   : Form.Form<Values, Result<FormResult, Err>, IReactProperty>
    =
    let fieldTargetAccountSelect (values: Values) =
       let optionIsDestination (a: Account) =
@@ -174,22 +169,14 @@ let form
             }
             destinations
 
-      match ruleRes with
-      | Ok rule ->
-         let hasCycle =
-            accounts.Values
-            |> Seq.toList
-            |> List.choose (_.AutoTransferRule >> Option.map _.Info)
-            |> CycleDetection.cycleDetected (
-               AutomaticTransferRule.PercentDistribution rule
-            )
-
-         if hasCycle then
-            Msg.ExternalError
-               "You may not add a rule which would create cyclic transfers."
-         else
-            Msg.DisplayCalculation { Rule = rule; Target = targetAccount }
-      | Error e -> Msg.ExternalError(string e)
+      ruleRes
+      |> Result.map (fun rule -> {
+         Rule = AutomaticTransferRule.PercentDistribution rule
+         Target = targetAccount
+      })
+      |> Result.mapError (fun err ->
+         Validus.ValidationErrors.create "" [ string err ]
+         |> Err.ValidationError)
 
    Form.succeed renderCalculation
    |> Form.append (Form.meta fieldTargetAccountSelect)
@@ -227,8 +214,8 @@ let form
    )
    |> Form.append fieldFrequency
 
-let renderCalculationDisplay (formResult: FormResult) =
-   let rule = PercentDistributionRule.get formResult.Rule
+let renderCalculationDisplay (target: Account) (r: PercentDistributionRule.T) =
+   let rule = PercentDistributionRule.get r
    let targetName = rule.Sender.Name
 
    classyNode Html.div [ "auto-transfer-calculation-display" ] [
@@ -247,14 +234,13 @@ let renderCalculationDisplay (formResult: FormResult) =
       Html.small "Estimated 1st transfer"
       Html.hr []
 
-      match PositiveAmount.create formResult.Target.Balance with
+      match PositiveAmount.create target.Balance with
       | None ->
          Html.p
             $"Balance of {targetName} is too low for distribution,
               so no transfer needed."
       | Some balance ->
-         let computed =
-            PercentDistributionRule.computeTransfer formResult.Rule balance
+         let computed = PercentDistributionRule.computeTransfer r balance
 
          let totalAmount =
             computed |> List.sumBy (_.Amount >> PositiveAmount.get)
@@ -287,8 +273,6 @@ let ConfigureAutoTransferPercentDistributionRuleFormComponent
    (accounts: Map<AccountId, Account>)
    (ruleToEdit: (Guid * PercentDistributionRule.T) option)
    =
-   let existingRuleId = ruleToEdit |> Option.map fst
-
    let existingRule =
       ruleToEdit |> Option.map (snd >> PercentDistributionRule.get)
 
@@ -320,24 +304,21 @@ let ConfigureAutoTransferPercentDistributionRuleFormComponent
    }
 
    ConfigureAutoTransferRuleFormContainer {|
+      Accounts = accounts
+      Session = session
+      ExistingRule =
+         ruleToEdit
+         |> Option.map (fun (ruleId, rule) ->
+            ruleId, AutomaticTransferRule.PercentDistribution rule)
       OnSubmitSuccess = onSubmit
-      GenerateCommand =
-         fun result ->
-            result.Target,
-            ConfigureAutoTransferRuleCommand.create
-               result.Target.CompositeId
-               (InitiatedById session.EmployeeId)
-               {
-                  RuleIdToUpdate = existingRuleId
-                  Rule = AutomaticTransferRule.PercentDistribution result.Rule
-               }
-      IntendToUpdateExistingRule = existingRule.IsSome
-      RuleIsUnchanged =
-         fun result -> (ruleToEdit |> Option.map snd) = Some result.Rule
-      RenderCalculationDisplay = renderCalculationDisplay
+      RenderCalculationDisplay =
+         fun formResult ->
+            match formResult.Rule with
+            | AutomaticTransferRule.PercentDistribution r ->
+               renderCalculationDisplay formResult.Target r
+            | _ -> Html.none
       Values = initValues
       Form = form accounts existingTargetAccountId
-      Validation = Form.View.Validation.ValidateOnSubmit
       Action =
          Some(fun model ->
             Form.View.Action.Custom(fun state _ ->

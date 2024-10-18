@@ -13,11 +13,6 @@ open AutomaticTransfer
 open UIDomain.Account
 open Bank.Account.Forms.ConfigureAutomaticTransferFormContainer
 
-type FormResult = {
-   SelectedTarget: Account
-   Rule: ZeroBalanceRule
-}
-
 type Values = {
    TargetAccountId: string
    DestinationAccountId: string
@@ -26,7 +21,7 @@ type Values = {
 let form
    (accounts: Map<AccountId, Account>)
    (existingTargetAccountId: AccountId option)
-   : Form.Form<Values, Msg<Values, FormResult>, IReactProperty>
+   : Form.Form<Values, Result<FormResult, Err>, IReactProperty>
    =
    let fieldTargetAccountSelect (values: Values) =
       let optionIsDestination (a: Account) =
@@ -94,19 +89,10 @@ let form
          }
       }
 
-      let hasCycle =
-         accounts.Values
-         |> Seq.toList
-         |> List.choose (_.AutoTransferRule >> Option.map _.Info)
-         |> CycleDetection.cycleDetected (
-            AutomaticTransferRule.ZeroBalance rule
-         )
-
-      if hasCycle then
-         Msg.ExternalError
-            "You may not add a rule which would create cyclic transfers."
-      else
-         Msg.DisplayCalculation { SelectedTarget = target; Rule = rule }
+      Ok {
+         Target = target
+         Rule = AutomaticTransferRule.ZeroBalance rule
+      }
 
    Form.succeed renderCalculation
    |> Form.append (
@@ -117,8 +103,7 @@ let form
       |> Form.group
    )
 
-let renderCalculationDisplay (formResult: FormResult) =
-   let rule = formResult.Rule
+let renderCalculationDisplay (target: Account) (rule: ZeroBalanceRule) =
    let targetName = rule.Sender.Name
    let recipientName = rule.Recipient.Name
 
@@ -130,7 +115,7 @@ let renderCalculationDisplay (formResult: FormResult) =
       Html.small "Estimated 1st transfer"
       Html.hr []
 
-      match PositiveAmount.create formResult.SelectedTarget.Balance with
+      match PositiveAmount.create target.Balance with
       | None ->
          Html.p
             $"Balance of {targetName} is currently zero, 
@@ -160,7 +145,6 @@ let ConfigureAutoTransferZeroBalanceRuleFormComponent
    (accounts: Map<AccountId, Account>)
    (ruleToEdit: (Guid * ZeroBalanceRule) option)
    =
-   let existingRuleId = ruleToEdit |> Option.map fst
    let existingRule = ruleToEdit |> Option.map snd
    let existingTargetAccountId = existingRule |> Option.map _.Sender.AccountId
 
@@ -174,22 +158,20 @@ let ConfigureAutoTransferZeroBalanceRuleFormComponent
    }
 
    ConfigureAutoTransferRuleFormContainer {|
+      Accounts = accounts
+      Session = session
+      ExistingRule =
+         ruleToEdit
+         |> Option.map (fun (ruleId, rule) ->
+            ruleId, AutomaticTransferRule.ZeroBalance rule)
       OnSubmitSuccess = onSubmit
-      GenerateCommand =
-         fun result ->
-            result.SelectedTarget,
-            ConfigureAutoTransferRuleCommand.create
-               result.SelectedTarget.CompositeId
-               (InitiatedById session.EmployeeId)
-               {
-                  RuleIdToUpdate = existingRuleId
-                  Rule = AutomaticTransferRule.ZeroBalance result.Rule
-               }
-      IntendToUpdateExistingRule = existingRule.IsSome
-      RuleIsUnchanged = fun result -> existingRule = Some result.Rule
-      RenderCalculationDisplay = renderCalculationDisplay
+      RenderCalculationDisplay =
+         fun formResult ->
+            match formResult.Rule with
+            | AutomaticTransferRule.ZeroBalance r ->
+               renderCalculationDisplay formResult.Target r
+            | _ -> Html.none
       Values = initValues
       Form = form accounts existingTargetAccountId
-      Validation = Form.View.Validation.ValidateOnSubmit
       Action = None
    |}

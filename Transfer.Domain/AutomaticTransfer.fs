@@ -374,11 +374,14 @@ module CycleDetection =
          neighbors |> List.exists (dfs existingEdges visited target)
 
    let cycleDetected
-      (ruleToAdd: AutomaticTransferRule)
-      (existingRules: AutomaticTransferRule list)
+      (ruleToAdd: AutomaticTransferConfig)
+      (existingRules: AutomaticTransferConfig list)
       =
       let edges =
          existingRules
+         // Ignore an existing rule's previous config if we are editing it.
+         |> List.choose (fun rule ->
+            if rule.Id <> ruleToAdd.Id then Some rule.Info else None)
          |> List.collect (function
             | AutomaticTransferRule.ZeroBalance r -> [
                {
@@ -413,7 +416,7 @@ module CycleDetection =
 
       let dfs = dfs edges Set.empty
 
-      match ruleToAdd with
+      match ruleToAdd.Info with
       | AutomaticTransferRule.TargetBalance r ->
          let targetId = r.TargetAccount.AccountId
          let partnerId = r.ManagingPartnerAccount.AccountId
