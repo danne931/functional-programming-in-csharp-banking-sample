@@ -200,12 +200,10 @@ let tests =
             $"SenderAccountId from Transfer Transaction should be
               EntityId of resulting UpdateTransferProgressCommand"
 
-         let evt =
+         let _ =
             Expect.wantOk
                (UpdateDomesticTransferProgressCommand.toEvent cmd)
                "TransferProgress cmd -> event validation ok"
-
-         let txn = { txn with Status = evt.Data.Status }
 
          domesticTransferRef
          <! DomesticTransferMessage.TransferRequest(
@@ -343,12 +341,10 @@ let tests =
 
          let cmd = tck.ExpectMsg<UpdateDomesticTransferProgressCommand>()
 
-         let evt =
+         let _ =
             Expect.wantOk
                (UpdateDomesticTransferProgressCommand.toEvent cmd)
                "TransferProgress cmd -> event validation ok"
-
-         let txn = { txn with Status = evt.Data.Status }
 
          domesticTransferRef
          <! DomesticTransferMessage.TransferRequest(

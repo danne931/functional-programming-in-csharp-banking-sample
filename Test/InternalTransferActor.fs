@@ -27,7 +27,7 @@ let initMockAccountActor (tck: TestKit.Tck) (accountOpt: Account option) =
                ignored ()
             | AccountMessage.StateChange msg ->
                match msg with
-               | DepositTransfer cmd ->
+               | DepositTransferWithinOrg cmd ->
                   tck.TestActor.Tell cmd
                   ignored ()
                | RejectInternalTransfer cmd ->
@@ -63,10 +63,10 @@ let tests =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
          ref
-         <! InternalTransferMessage.TransferRequest
+         <! InternalTransferMessage.TransferRequestWithinOrg
                Stub.event.internalTransferPending
 
-         tck.ExpectMsg<RejectInternalTransferCommand>() |> ignore
+         tck.ExpectMsg<RejectInternalTransferWithinOrgCommand>() |> ignore
 
       akkaTest
          "Issuing a transfer to a closed account should reject the transfer"
@@ -78,11 +78,10 @@ let tests =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
          ref
-         <! InternalTransferMessage.TransferRequest
+         <! InternalTransferMessage.TransferRequestWithinOrg
                Stub.event.internalTransferPending
 
-
-         tck.ExpectMsg<RejectInternalTransferCommand>() |> ignore
+         tck.ExpectMsg<RejectInternalTransferWithinOrgCommand>() |> ignore
 
       akkaTest
          "Issuing a transfer to an active account should approve the transfer"
@@ -96,9 +95,9 @@ let tests =
             initInternalTransferActor tck <| getAccountEntityRef mockAccountRef
 
          let transferRequest = Stub.event.internalTransferPending
-         ref <! InternalTransferMessage.TransferRequest transferRequest
+         ref <! InternalTransferMessage.TransferRequestWithinOrg transferRequest
 
-         let msg = tck.ExpectMsg<ApproveInternalTransferCommand>()
+         let msg = tck.ExpectMsg<ApproveInternalTransferWithinOrgCommand>()
 
          Expect.equal
             (AccountId.fromEntityId msg.EntityId)
@@ -106,7 +105,7 @@ let tests =
             $"EntityId from Transfer Transaction should be
             EntityId of resulting ApproveTransferCommand"
 
-         let msg = tck.ExpectMsg<DepositTransferCommand>()
+         let msg = tck.ExpectMsg<DepositInternalTransferWithinOrgCommand>()
 
          (*
          Expect.equal
@@ -117,8 +116,8 @@ let tests =
          *)
 
          Expect.equal
-            msg.Data.Amount
-            transferRequest.Data.Amount
+            msg.Data.BaseInfo.Amount
+            transferRequest.Data.BaseInfo.Amount
             $"Debit amount from TransferPending event should
             equal deposit amount of resulting DepositTransferCommand"
    ]

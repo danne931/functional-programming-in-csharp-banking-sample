@@ -28,3 +28,14 @@ let getAccountEntityRef (actorRef: IActorRef<_>) (accountId: AccountId) =
 
    let (AccountId id) = accountId
    fac.RefFor shardRegionName <| string id
+
+let getEmployeeEntityRef (actorRef: IActorRef<_>) (employeeId: EmployeeId) =
+   let shardRegionName = "mock-employee-shard"
+
+   let fac = {
+      TypeName = shardRegionName
+      ShardRegion = untyped actorRef
+   }
+
+   let (EmployeeId id) = employeeId
+   fac.RefFor shardRegionName <| string id

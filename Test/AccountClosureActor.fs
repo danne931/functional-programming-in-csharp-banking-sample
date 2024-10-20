@@ -37,7 +37,8 @@ let initMockAccountActor (tck: TestKit.Tck) =
    spawn tck "account-mock" <| props (actorOf2 handler)
 
 let mockDeleteHistoricalRecords (_: AccountId list) = taskResultOption {
-   return [ Email.deserialize "jellyfish@gmail.com" ]
+   let accountNum = AccountNumber.generate () |> int64 |> AccountNumber
+   return [ accountNum ]
 }
 
 let init (tck: TestKit.Tck) =
