@@ -6,7 +6,6 @@ open System
 open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
-open Bank.Employee.Domain
 open BillingStatement
 
 let accountId = Guid.NewGuid() |> AccountId
@@ -14,10 +13,6 @@ let accountNumber = AccountNumber.generate () |> int64 |> AccountNumber
 let orgId = Guid.NewGuid() |> OrgId
 let compositeId = accountId, orgId
 let correlationId = Guid.NewGuid() |> CorrelationId
-let employeeId = Guid.NewGuid() |> EmployeeId
-let employeeCompositeId = employeeId, orgId
-let cardId = Guid.NewGuid() |> CardId
-let cardNumberLast4 = "9310"
 let initiatedById = Guid.NewGuid() |> EmployeeId |> InitiatedById
 
 let internalRecipient: InternalTransferRecipient = {
@@ -97,9 +92,9 @@ let command = {|
             Reference = None
             EmployeePurchaseReference = {
                EmployeeName = "Dan Eis"
-               EmployeeCardNumberLast4 = cardNumberLast4
-               EmployeeId = employeeId
-               CardId = cardId
+               EmployeeCardNumberLast4 = EmployeeStub.cardNumberLast4
+               EmployeeId = EmployeeStub.employeeId
+               CardId = EmployeeStub.cardId
             }
          }
    depositCash =
@@ -107,14 +102,6 @@ let command = {|
          DepositCashCommand.create compositeId initiatedById {
             Amount = amount
             Origin = None
-         }
-   limitDailyDebits =
-      fun amount ->
-         LimitDailyDebitsCommand.create employeeCompositeId initiatedById {
-            PriorLimit = 7_000m
-            DebitLimit = amount
-            CardId = cardId
-            CardNumberLast4 = cardNumberLast4
          }
    registerDomesticRecipient =
       RegisterDomesticTransferRecipientCommand.create compositeId initiatedById {
@@ -201,18 +188,6 @@ let command = {|
                      Amount = amount
                }
             }
-   lockCard =
-      LockCardCommand.create employeeCompositeId initiatedById {
-         CardId = cardId
-         Reference = None
-         CardNumberLast4 = cardNumberLast4
-      }
-   unlockCard =
-      UnlockCardCommand.create employeeCompositeId initiatedById {
-         CardId = cardId
-         Reference = None
-         CardNumberLast4 = cardNumberLast4
-      }
    maintenanceFee = MaintenanceFeeCommand.create compositeId
    skipMaintenanceFee =
       SkipMaintenanceFeeCommand.create compositeId {

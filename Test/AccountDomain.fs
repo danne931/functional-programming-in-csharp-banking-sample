@@ -256,24 +256,6 @@ let tests =
                "should result in account balanced decremented by command amount"
       }
 
-      (*
-      test "DebitCommand against an account with locked card" {
-         let state = {
-            initState with
-               Info.CardLocked = true
-         }
-
-         let command = Stub.command.debit 9.31m
-         let res = update state <| AccountCommand.Debit command
-         let err = Expect.wantError res "should be Result.Error"
-
-         Expect.stringContains
-            (string err)
-            "AccountCardLocked"
-            "should be an AccountCardLocked validation error"
-      }
-      *)
-
       test "DebitCommand against an account with insufficient balance" {
          let state = { initState with Info.Balance = 200m }
 
@@ -286,84 +268,6 @@ let tests =
             "InsufficientBalance"
             "should be an InsufficientBalance validation error"
       }
-
-      (* TODO: move to employee domain
-      test "Debits accrue a daily debit balance" {
-         let initState = {
-            Stub.accountState with
-               DailyDebitAccrued = 0m
-         }
-
-         let updates =
-            List.fold
-               (fun acc amount ->
-                  let account, total = acc
-                  let cmd = Stub.command.debit amount
-                  let res = update account <| AccountCommand.Debit cmd
-
-                  let _, newState = Expect.wantOk res "should be Result.Ok"
-
-                  newState, total + amount)
-               (initState, 0m)
-               [ 21m; 33m; 109m ]
-
-         let newState, debitTotal = updates
-
-         Expect.equal
-            newState.DailyDebitAccrued
-            debitTotal
-            "DailyDebitAccrued should accrue debits for the day"
-
-         let command =
-            Stub.command.debitWithDate 10m <| DateTime.UtcNow.AddDays(-1)
-
-         let res = update newState <| AccountCommand.Debit command
-         let _, newState = Expect.wantOk res "should be Result.Ok"
-
-         Expect.equal
-            newState.DailyDebitAccrued
-            debitTotal
-            "DailyDebitAccrued should not accrue debits older than a day"
-      }
-      *)
-
-      (* TODO: move to employee domain
-      test "Setting a daily debit limit" {
-         let state = {
-            Stub.accountState with
-               Balance = 1000m
-               DailyDebitAccrued = 0m
-               DailyDebitLimit = 0m
-         }
-
-         let command = Stub.command.limitDailyDebits 100m
-         let res = update state <| AccountCommand.LimitDailyDebits command
-         let _, account = Expect.wantOk res "should be Result.Ok"
-
-         Expect.equal
-            account.DailyDebitLimit
-            100m
-            "Daily debit limit should be set"
-
-         let command = Stub.command.debit 99m
-         let res = update account <| AccountCommand.Debit command
-         let _, account = Expect.wantOk res "should be Result.Ok"
-
-         Expect.equal
-            (account.Balance, account.DailyDebitAccrued)
-            (state.Balance - 99m, 99m)
-            "Daily debit should be accrued if under daily limit"
-
-         let command = Stub.command.debit 2m
-         let res = update account <| AccountCommand.Debit command
-         let err = Expect.wantError res "should be Result.Error"
-
-         Expect.stringContains
-            (string err)
-            "ExceededDailyDebit"
-            "should be an ExceededDailyDebit validation error"
-      }
-      *)
 
       test "Internal transfers accrue a daily transfer balance" {
          let updates =
@@ -674,69 +578,4 @@ let tests =
 
          Expect.wantOk res "should be Result.Ok" |> ignore
       }
-
-   // TODO
-   (*
-      test "Commands against account with locked card" {
-         let state = {
-            initState with
-               Info.CardLocked = true
-         }
-
-         let (commands: AccountCommand list) = [
-            AccountCommand.DepositCash <| Stub.command.depositCash 10m
-            AccountCommand.LimitDailyDebits
-            <| Stub.command.limitDailyDebits 101m
-            AccountCommand.RegisterInternalTransferRecipient
-               Stub.command.registerInternalRecipient
-            AccountCommand.RegisterDomesticTransferRecipient
-               Stub.command.registerDomesticRecipient
-            AccountCommand.DepositTransfer <| Stub.command.depositTransfer 931m
-            AccountCommand.LockCard Stub.command.lockCard
-            AccountCommand.UnlockCard Stub.command.unlockCard
-            AccountCommand.MaintenanceFee Stub.command.maintenanceFee
-            AccountCommand.SkipMaintenanceFee Stub.command.skipMaintenanceFee
-         ]
-
-         for command in commands do
-            let res = update state command
-            Expect.wantOk res "should be Result.Ok" |> ignore
-
-         let state = {
-            state with
-               InternalTransferRecipients =
-                  Map [
-                     Stub.internalRecipient.AccountId, Stub.internalRecipient
-                  ]
-               DomesticTransferRecipients =
-                  Map [
-                     Stub.domesticRecipient.AccountId, Stub.domesticRecipient
-                  ]
-         }
-
-         let (commands: AccountCommand list) = [
-            AccountCommand.InternalTransfer <| Stub.command.internalTransfer 33m
-            AccountCommand.DomesticTransfer <| Stub.command.domesticTransfer 31m
-         ]
-
-         for command in commands do
-            let res = update state command
-            Expect.wantOk res "should be Result.Ok" |> ignore
-
-         let cmd = Stub.command.debit 13m
-         let res = update state <| AccountCommand.Debit cmd
-         let err = Expect.wantError res "should be Result.Error"
-
-         Expect.stringContains
-            (string err)
-            "AccountCardLocked"
-            "debit should result in an AccountCardLocked StateTransition error"
-
-         let res =
-            update state
-            <| AccountCommand.CloseAccount Stub.command.closeAccount
-
-         Expect.wantOk res "should be Result.Ok" |> ignore
-      }
-      *)
    ]

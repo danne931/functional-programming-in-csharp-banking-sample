@@ -7,10 +7,12 @@
 
   <ItemGroup>
     <Compile Include="Util.fs" />
+    <Compile Include="EmployeeStub.fs" /> 
     <Compile Include="Stub.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="DomesticTransferActor.fs" />
     <Compile Include="InternalTransferActor.fs" />
+    <Compile Include="EmployeeDomain.fs" />
     <Compile Include="AccountDomain.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="BillingStatementActor.fs" />
