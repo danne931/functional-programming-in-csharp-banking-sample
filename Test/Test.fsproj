@@ -13,6 +13,7 @@
     <Compile Include="DomesticTransferActor.fs" />
     <Compile Include="InternalTransferActor.fs" />
     <Compile Include="EmployeeDomain.fs" />
+    <Compile Include="EmployeeActor.fs" />
     <Compile Include="AccountDomain.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="BillingStatementActor.fs" />

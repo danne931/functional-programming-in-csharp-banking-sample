@@ -33,6 +33,14 @@ let command =
    let monthlyPurchaseLimit = 20_000m
 
    {|
+      createAccountOwner =
+         CreateAccountOwnerCommand.create {
+            OrgId = orgId
+            Email = "smartfish@gmail.com"
+            FirstName = "Smart"
+            LastName = "Fish"
+            EmployeeId = Guid.NewGuid() |> EmployeeId
+         }
       createEmployee = {
          CreateEmployeeCommand.create initiatedById {
             OrgId = orgId
@@ -45,6 +53,28 @@ let command =
          } with
             EntityId = EmployeeId.toEntityId employeeId
       }
+      confirmInvite =
+         ConfirmInvitationCommand.create compositeId {
+            AuthProviderUserId = Guid.NewGuid()
+            Email = Email.deserialize "jellyfish@gmail.com"
+            Reference = None
+         }
+      refreshInviteToken =
+         RefreshInvitationTokenCommand.create compositeId initiatedById {
+            OrgRequiresEmployeeInviteApproval = false
+            Reason = None
+         }
+      updateRoleWithSupplementaryCardInfo =
+         UpdateRoleCommand.create compositeId initiatedById {
+            PriorRole = Role.Admin
+            Role = Role.CardOnly
+            CardInfo =
+               Some {
+                  DailyPurchaseLimit = 1300m
+                  MonthlyPurchaseLimit = 13_000m
+                  LinkedAccountId = accountId
+               }
+         }
       createCard =
          CreateCardCommand.create {
             Virtual = true
@@ -104,6 +134,12 @@ let command =
          }
    |}
 
+let initCommands: EmployeeCommand list = [
+   EmployeeCommand.CreateEmployee command.createEmployee
+   EmployeeCommand.ConfirmInvitation command.confirmInvite
+   EmployeeCommand.CreateCard command.createCard
+]
+
 type EventIndex = {
    employeeCreated: BankEvent<CreatedEmployee>
    cardCreated: BankEvent<CreatedCard>
@@ -123,7 +159,7 @@ let event: EventIndex = {
 }
 
 let employeeState =
-   let e = command.createEmployee
+   let e = event.employeeCreated
 
    {
       Employee.empty with
@@ -131,7 +167,7 @@ let employeeState =
          OrgId = e.OrgId
          FirstName = e.Data.FirstName
          LastName = e.Data.LastName
-         Email = Email.deserialize e.Data.Email
+         Email = e.Data.Email
          Role = e.Data.Role
          Status = EmployeeStatus.Active
          Cards =

@@ -15,6 +15,26 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Employee.Domain
 
+let supplementaryCardInfoToCreateCardCommand
+   (employee: Employee)
+   (initiatedBy: InitiatedById)
+   (info: EmployeeInviteSupplementaryCardInfo)
+   =
+   CreateCardCommand.create {
+      AccountId = info.LinkedAccountId
+      DailyPurchaseLimit = Some info.DailyPurchaseLimit
+      MonthlyPurchaseLimit = Some info.MonthlyPurchaseLimit
+      PersonName = employee.Name
+      CardNickname = None
+      OrgId = employee.OrgId
+      EmployeeId = employee.EmployeeId
+      CardId = CardId <| Guid.NewGuid()
+      Virtual = true
+      CardType = CardType.Debit
+      InitiatedBy = initiatedBy
+   }
+   |> EmployeeCommand.CreateCard
+
 let actorProps
    (getAccountRef: AccountId -> IEntityRef<AccountMessage>)
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
@@ -73,45 +93,23 @@ let actorProps
                for task in employee.OnboardingTasks do
                   match task with
                   | EmployeeOnboardingTask.CreateCard info ->
-                     let msg =
-                        CreateCardCommand.create {
-                           AccountId = info.LinkedAccountId
-                           DailyPurchaseLimit = Some info.DailyPurchaseLimit
-                           MonthlyPurchaseLimit = Some info.MonthlyPurchaseLimit
-                           PersonName = employee.Name
-                           CardNickname = None
-                           OrgId = employee.OrgId
-                           EmployeeId = employee.EmployeeId
-                           CardId = CardId <| Guid.NewGuid()
-                           Virtual = true
-                           CardType = CardType.Debit
-                           InitiatedBy = e.InitiatedById
-                        }
-                        |> EmployeeCommand.CreateCard
-                        |> EmployeeMessage.StateChange
+                     let cmd =
+                        supplementaryCardInfoToCreateCardCommand
+                           employee
+                           e.InitiatedById
+                           info
 
-                     mailbox.Parent() <! msg
+                     mailbox.Parent() <! (EmployeeMessage.StateChange cmd)
             | EmployeeEvent.UpdatedRole e ->
                match e.Data.CardInfo with
                | Some info ->
-                  let msg =
-                     CreateCardCommand.create {
-                        AccountId = info.LinkedAccountId
-                        DailyPurchaseLimit = Some info.DailyPurchaseLimit
-                        MonthlyPurchaseLimit = Some info.MonthlyPurchaseLimit
-                        PersonName = employee.Name
-                        CardNickname = None
-                        OrgId = employee.OrgId
-                        EmployeeId = employee.EmployeeId
-                        CardId = CardId <| Guid.NewGuid()
-                        Virtual = true
-                        CardType = CardType.Debit
-                        InitiatedBy = e.InitiatedById
-                     }
-                     |> EmployeeCommand.CreateCard
-                     |> EmployeeMessage.StateChange
+                  let cmd =
+                     supplementaryCardInfoToCreateCardCommand
+                        employee
+                        e.InitiatedById
+                        info
 
-                  mailbox.Parent() <! msg
+                  mailbox.Parent() <! (EmployeeMessage.StateChange cmd)
                | None -> ()
             | EmployeeEvent.DebitRequested e ->
                let accountId = e.Data.Info.AccountId
