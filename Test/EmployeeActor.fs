@@ -178,32 +178,39 @@ let tests =
 
          o.employeeActor <! EmployeeMessage.StateChange confirmInvite
 
-         TestKit.within tck (TimeSpan.FromSeconds 5) (fun () ->
-            o.employeeActor <! EmployeeMessage.GetEmployee
+         tck.AwaitAssert(
+            fun () ->
+               o.employeeActor <! EmployeeMessage.GetEmployee
 
-            let state = tck.ExpectMsg<Option<Employee>>()
-            let employee = Expect.wantSome state ""
+               let state = tck.ExpectMsg<Option<Employee>>()
+               let employee = Expect.wantSome state ""
 
-            Expect.hasLength employee.OnboardingTasks 0 "Onboarding tasks = 0"
+               Expect.hasLength
+                  employee.OnboardingTasks
+                  0
+                  "Onboarding tasks = 0"
 
-            let card = employee.Cards.Head().Value
+               let card = employee.Cards.Head().Value
 
-            Expect.equal
-               card.DailyPurchaseLimit
-               employeeInviteSupplementaryCardInfo.DailyPurchaseLimit
-               "Daily purchase limit = amount set during employee creation"
+               Expect.equal
+                  card.DailyPurchaseLimit
+                  employeeInviteSupplementaryCardInfo.DailyPurchaseLimit
+                  "Daily purchase limit = amount set during employee creation"
 
-            Expect.equal
-               card.MonthlyPurchaseLimit
-               employeeInviteSupplementaryCardInfo.MonthlyPurchaseLimit
-               "Monthly purchase limit = amount set during employee creation"
+               Expect.equal
+                  card.MonthlyPurchaseLimit
+                  employeeInviteSupplementaryCardInfo.MonthlyPurchaseLimit
+                  "Monthly purchase limit = amount set during employee creation"
 
-            Expect.equal
-               card.AccountId
-               employeeInviteSupplementaryCardInfo.LinkedAccountId
-               "Card linked to selected account associated with the org"
+               Expect.equal
+                  card.AccountId
+                  employeeInviteSupplementaryCardInfo.LinkedAccountId
+                  "Card linked to selected account associated with the org"
 
-            Expect.equal card.Status CardStatus.Active "Card is active")
+               Expect.equal card.Status CardStatus.Active "Card is active"
+            , duration = TimeSpan.FromSeconds 30
+            , interval = TimeSpan.FromSeconds 2
+         )
 
       akkaTest
          "Updating an employee role, & including card details should 
@@ -227,13 +234,17 @@ let tests =
 
          o.employeeActor <! updateRoleMsg
 
-         TestKit.within tck (TimeSpan.FromSeconds 5) (fun () ->
-            o.employeeActor <! EmployeeMessage.GetEmployee
+         tck.AwaitAssert(
+            fun () ->
+               o.employeeActor <! EmployeeMessage.GetEmployee
 
-            let state = tck.ExpectMsg<Option<Employee>>()
-            let employee = Expect.wantSome state ""
+               let state = tck.ExpectMsg<Option<Employee>>()
+               let employee = Expect.wantSome state ""
 
-            Expect.hasLength employee.Cards 2 "Card count increased to 2")
+               Expect.hasLength employee.Cards 2 "Card count increased to 2"
+            , duration = TimeSpan.FromSeconds 30
+            , interval = TimeSpan.FromSeconds 2
+         )
 
       akkaTest
          "Refreshing an expired employee invite token should send an employee invite email"

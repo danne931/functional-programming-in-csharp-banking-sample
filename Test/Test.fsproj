@@ -17,6 +17,7 @@
     <Compile Include="AccountDomain.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="BillingStatementActor.fs" />
+    <Compile Include="AutomaticBalanceManagement.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
