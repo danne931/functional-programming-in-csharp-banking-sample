@@ -132,7 +132,7 @@ let update
                   return checkAgainMsg
                | Ok(Some conf) ->
                   handlePollingConfirmation conf
-                  return Msg.AccountEventReceived action.CorrelationId
+                  return Msg.Noop
             }
 
             state, Cmd.fromAsync getReadModel
@@ -145,9 +145,23 @@ let AccountActionsComponent
    (account: Account)
    (accounts: Map<AccountId, Account>)
    (view: AccountActionView)
-   (handlePollingConfirmation: AccountEventPersistedConfirmation list -> unit)
    =
-   let state, dispatch =
+   let signalRDispatch =
+      React.useContext SignalRAccountEventProvider.dispatchContext
+
+   let orgDispatch = React.useContext OrgProvider.dispatchContext
+
+   // Did not receive a SignalR event in time so reverted to polling.
+   // If the polling confirmation succeeds then update the SignalR context
+   // to mimick a SignalR AccountEventPersisted event being received.
+   let handlePollingConfirmation
+      (confs: AccountEventPersistedConfirmation list)
+      =
+      for conf in confs do
+         signalRDispatch
+         <| SignalRAccountEventProvider.Msg.AccountEventPersisted conf
+
+   let _, dispatch =
       React.useElmish (
          init,
          update handlePollingConfirmation account.AccountId,
@@ -158,12 +172,25 @@ let AccountActionsComponent
       ComponentName = "AccountAction"
       AccountId = Some account.AccountId
       OnReceive =
-         _.EventPersisted
-         >> AccountEnvelope.unwrap
-         >> snd
-         >> _.CorrelationId
-         >> Msg.AccountEventReceived
-         >> dispatch
+         fun conf ->
+            let moneyFlow =
+               transactionUIFriendly conf.Account conf.EventPersisted
+               |> _.MoneyFlow
+
+            // Update account context so AccountSummary & AccountSelection
+            // components are up to date with the latest balance
+            // & other metrics info.
+            if moneyFlow.IsSome then
+               orgDispatch (OrgProvider.Msg.AccountUpdated conf)
+
+            // Handle closing the ScreenOverlayPortal containing the
+            // submitted form or redirecting to another form.
+            conf.EventPersisted
+            |> AccountEnvelope.unwrap
+            |> snd
+            |> _.CorrelationId
+            |> Msg.AccountEventReceived
+            |> dispatch
    }
 
    classyNode Html.article [ "form-wrapper" ] [

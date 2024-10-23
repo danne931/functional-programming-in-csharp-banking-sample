@@ -1,113 +1,21 @@
 module TransactionDashboard
 
 open Feliz
-open Feliz.UseElmish
 open Feliz.Router
-open Elmish
 
 open Bank.Account.Domain
 open Bank.Employee.Domain
 open UIDomain.Account
-open Lib.SharedTypes
 open TransactionDetail
 open AccountSelection
-
-type State = {
-   CurrentAccountId: AccountId option
-   CurrentAccountAndTransactions: Deferred<AccountAndTransactionsMaybe>
-}
-
-let selectedAccount (state: State) : Account option =
-   match state.CurrentAccountAndTransactions with
-   | Resolved(Ok(Some(account, _))) -> Some account
-   | _ -> None
-
-let updateAccountAndTransactions
-   (transform: Account * AccountEvent list -> Account * AccountEvent list)
-   (state: State)
-   : Deferred<AccountAndTransactionsMaybe>
-   =
-   (Deferred.map << Result.map << Option.map)
-      transform
-      state.CurrentAccountAndTransactions
-
-type Msg =
-   | LoadAccountAndTransactions of
-      AccountId *
-      AsyncOperationStatus<AccountAndTransactionsMaybe>
-   | AccountEventPersisted of AccountEventPersistedConfirmation list
-
-let init () =
-   {
-      CurrentAccountId = None
-      CurrentAccountAndTransactions = Deferred.Idle
-   },
-   Cmd.none
-
-let update msg state =
-   match msg with
-   | LoadAccountAndTransactions(accountId, Started) ->
-      let query =
-         TransactionService.transactionQueryFromAccountBrowserQuery
-            accountId
-            (Routes.IndexUrl.accountBrowserQuery ())
-
-      let load = async {
-         let! res = AccountService.getAccountAndTransactions query
-         return Msg.LoadAccountAndTransactions(accountId, Finished res)
-      }
-
-      {
-         state with
-            CurrentAccountId = Some accountId
-            CurrentAccountAndTransactions = Deferred.InProgress
-      },
-      Cmd.fromAsync load
-   | LoadAccountAndTransactions(_, Finished(Ok res)) ->
-      {
-         state with
-            CurrentAccountAndTransactions = Deferred.Resolved(Ok res)
-      },
-      Cmd.none
-   | LoadAccountAndTransactions(_, Finished(Error err)) ->
-      Log.error $"Issue loading account + transactions. {err}"
-      state, Cmd.none
-   | AccountEventPersisted items ->
-      if items.IsEmpty then
-         Log.error "AccountEventPersisted with no items."
-         state, Cmd.none
-      else
-         let account = items |> List.head |> _.Account
-         let evts = items |> List.map _.EventPersisted
-
-         {
-            state with
-               CurrentAccountAndTransactions =
-                  updateAccountAndTransactions
-                     (fun (_, txns) -> account, evts @ txns)
-                     state
-         },
-         Cmd.none
 
 [<ReactComponent>]
 let TransactionDashboardComponent
    (url: Routes.TransactionUrl)
    (session: UserSession)
    =
-   let state, dispatch = React.useElmish (init, update, [||])
-
    let orgCtx = React.useContext OrgProvider.context
-   let orgDispatch = React.useContext OrgProvider.dispatchContext
-
    let accountIdOpt = Routes.TransactionUrl.accountIdMaybe url
-
-   React.useEffect (
-      fun () ->
-         match accountIdOpt with
-         | Some id -> dispatch <| Msg.LoadAccountAndTransactions(id, Started)
-         | _ -> ()
-      , [| box (string accountIdOpt) |]
-   )
 
    // Redirect /account to /account/{first-account-id}
    React.useEffect (
@@ -124,27 +32,16 @@ let TransactionDashboardComponent
       , [| box orgCtx; box (string url) |]
    )
 
-   SignalRAccountEventProvider.useAccountEventSubscription {
-      ComponentName = "TransactionDashboard"
-      AccountId = accountIdOpt
-      OnReceive =
-         fun conf ->
-            let moneyFlow =
-               transactionUIFriendly conf.Account conf.EventPersisted
-               |> _.MoneyFlow
-
-            if moneyFlow.IsSome then
-               orgDispatch <| OrgProvider.Msg.AccountUpdated conf
-
-            dispatch <| Msg.AccountEventPersisted [ conf ]
-   }
-
-   let accountOpt = selectedAccount state
+   let accountOpt =
+      match accountIdOpt, orgCtx with
+      | Some accountId, Deferred.Resolved(Ok(Some org)) ->
+         org.Accounts |> Map.tryFind accountId
+      | _ -> None
 
    classyNode Html.div [ "transaction-dashboard" ] [
       match orgCtx with
       | Deferred.Resolved(Ok(Some org)) ->
-         AccountSelectionComponent state.CurrentAccountId org.Accounts
+         AccountSelectionComponent accountIdOpt org.Accounts
          |> Navigation.Portal
       | _ -> ()
 
@@ -154,14 +51,10 @@ let TransactionDashboardComponent
          classyNode Html.div [ "grid" ] [
             Html.section [
                Html.h4 "Transactions"
-               match state.CurrentAccountAndTransactions with
-               | Deferred.Resolved(Error _)
-               | Deferred.Resolved(Ok None) -> Html.p "No transactions."
-               | Deferred.Resolved(Ok(Some(account, _))) ->
-                  TransactionTable.TransactionTableComponent
-                     account
-                     state.CurrentAccountAndTransactions
-                     session
+
+               match accountOpt with
+               | Some account ->
+                  TransactionTable.TransactionTableComponent account session
                | _ -> Html.progress []
             ]
 
@@ -174,7 +67,6 @@ let TransactionDashboardComponent
                   account
                   org.Accounts
                   action
-                  (AccountEventPersisted >> dispatch)
                |> ScreenOverlay.Portal
             | _, Some account, _ ->
                Html.aside [ AccountActionMenu.render account ]

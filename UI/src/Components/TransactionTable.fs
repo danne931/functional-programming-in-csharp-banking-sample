@@ -47,16 +47,11 @@ type Msg =
       TransactionQuery *
       AsyncOperationStatus<TransactionsMaybe>
    | RefreshTransactions of TransactionQuery
-   | TransactionPropsResolved of Deferred<TransactionsMaybe>
    | ViewTransaction of EventId
 
-let init
-   (txnsDeferred: Deferred<TransactionsMaybe>)
-   (txnQuery: TransactionQuery)
-   ()
-   =
+let init (txnQuery: TransactionQuery) () =
    {
-      Transactions = Map [ 1, txnsDeferred ]
+      Transactions = Map [ 1, Deferred.Idle ]
       Query = txnQuery
    },
    Cmd.none
@@ -176,12 +171,6 @@ let update msg state =
                |> Map.change
                      query.Page
                      (Option.map (fun _ -> Deferred.Resolved(Error err)))
-      },
-      Cmd.none
-   | TransactionPropsResolved txnsDeferred ->
-      {
-         state with
-            Transactions = Map [ 1, txnsDeferred ]
       },
       Cmd.none
    | ViewTransaction(txnId) ->
@@ -488,13 +477,8 @@ let renderTable
    ]
 
 [<ReactComponent>]
-let TransactionTableComponent
-   (account: Account)
-   (deferred: Deferred<AccountAndTransactionsMaybe>)
-   (session: UserSession)
-   =
+let TransactionTableComponent (account: Account) (session: UserSession) =
    let isInitialMount = React.useRef true
-   let txnsDeferred = (Deferred.map << Result.map << Option.map) snd deferred
    let categories = React.useContext TransactionCategoryProvider.context
    let merchants = React.useContext MerchantProvider.stateContext
    let signalRCtx = React.useContext SignalRAccountEventProvider.context
@@ -506,17 +490,21 @@ let TransactionTableComponent
          browserQuery
 
    let state, dispatch =
-      React.useElmish (
-         init txnsDeferred txnQuery,
-         update,
-         [| box account.AccountId |]
-      )
+      React.useElmish (init txnQuery, update, [| box account.AccountId |])
 
    React.useEffect (
       fun () ->
          if isInitialMount.current then
             isInitialMount.current <- false
          else
+            // When filter applied, force page reset to 1 but keep selected
+            // diagnostic setting.
+            let txnQuery = {
+               txnQuery with
+                  Page = 1
+                  Diagnostic = state.Query.Diagnostic
+            }
+
             dispatch (Msg.RefreshTransactions txnQuery)
       , [| box browserQuery.ChangeDetection |]
    )
@@ -529,22 +517,6 @@ let TransactionTableComponent
       match q.Amount, q.Category, q.MoneyFlow, q.DateRange, q.Page with
       | None, None, None, None, 1 -> true
       | _ -> false
-
-   React.useEffect (
-      (fun _ ->
-         let txnsResolvedInState =
-            Map.tryFind state.Query.Page state.Transactions
-            |> Option.map Deferred.resolved
-
-         let txnsResolvedInProps = Deferred.resolved txnsDeferred
-
-         match txnsResolvedInState, txnsResolvedInProps with
-         | Some false, true
-         | Some true, false ->
-            dispatch <| TransactionPropsResolved txnsDeferred
-         | _ -> ()),
-      [| box deferred |]
-   )
 
    React.fragment [
       Html.progress [

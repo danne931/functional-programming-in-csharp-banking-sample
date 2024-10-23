@@ -56,7 +56,7 @@ let postJson (command: AccountCommand) =
 
    Http.postJson url serialized
 
-let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = async {
+let getAccount (accountId: AccountId) : Async<AccountMaybe> = async {
    let path = AccountPath.account accountId
 
    let! (code, responseText) = Http.get path
@@ -69,33 +69,6 @@ let getAccount (accountId: AccountId) : Async<Result<Account option, Err>> = asy
       return
          responseText |> Serialization.deserialize<Account> |> Result.map Some
 }
-
-let getAccountAndTransactions
-   (query: TransactionQuery)
-   : Async<AccountAndTransactionsMaybe>
-   =
-   async {
-      let basePath = AccountPath.accountAndTransactions query.AccountId
-
-      let queryParams =
-         query
-         |> TransactionService.transactionQueryParams
-         |> Router.encodeQueryString
-
-      let path = basePath + queryParams
-
-      let! (code, responseText) = Http.get path
-
-      if code = 404 then
-         return Ok None
-      elif code <> 200 then
-         return Error <| Err.InvalidStatusCodeError(serviceName, code)
-      else
-         return
-            responseText
-            |> Serialization.deserialize<Account * AccountEvent list>
-            |> Result.map Some
-   }
 
 let submitCommand
    (account: Account)

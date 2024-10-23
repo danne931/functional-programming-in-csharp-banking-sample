@@ -44,16 +44,6 @@ let startAccountRoutes (app: WebApplication) =
    |> ignore
 
    app
-      .MapGet(
-         AccountPath.AccountAndTransactions,
-         Bank.Transaction.Routes.withQueryParams<Task<IResult>> (
-            getAccountAndTransactions >> RouteUtil.unwrapTaskResultOption
-         )
-      )
-      .RBAC(Permissions.GetTransactions)
-   |> ignore
-
-   app
       .MapPost(
          AccountPath.Base,
          Func<ActorSystem, CreateAccountCommand, Task<IResult>>

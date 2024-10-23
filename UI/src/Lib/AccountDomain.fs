@@ -10,8 +10,7 @@ open Lib.Time
 
 type AccountProfilesMaybe = Result<Map<AccountId, AccountProfile> option, Err>
 
-type AccountAndTransactionsMaybe =
-   Result<(Account * AccountEvent list) option, Err>
+type AccountMaybe = Result<Account option, Err>
 
 type TransactionsMaybe = Result<AccountEvent list option, Err>
 

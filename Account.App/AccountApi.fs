@@ -26,33 +26,75 @@ let getAccount (id: AccountId) =
       (Some [ "accountId", Writer.accountId id ])
       Reader.account
 
-let getAccountAndTransactions (txnQuery: TransactionQuery) = taskResultOption {
-   let queryParams, txnQueryString =
-      Bank.Transaction.Api.transactionQuery txnQuery
+let getAccountsByIds (accountIds: AccountId list) =
+   pgQuery<Account>
+      $"SELECT * FROM {accountTable} 
+        WHERE {Fields.accountId} = ANY(@accountIds)"
+      (Some [
+         "accountIds",
+         accountIds |> List.map AccountId.get |> List.toArray |> Sql.uuidArray
+      ])
+      Reader.account
 
-   let query =
-      $"""
-      SELECT
-         {accountTable}.*,
-         COALESCE(
-            (
-               SELECT jsonb_agg(event)
-               FROM ({txnQueryString})
-            ),
-            '[]'::jsonb
-         ) as txns
-      FROM {accountTable}
-      WHERE {Fields.accountId} = @accountId
-      """
+let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult {
+   let validation =
+      match command with
+      | CreateAccount cmd ->
+         CreateAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | DepositCash cmd ->
+         DepositCashCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | InternalTransfer cmd ->
+         InternalTransferWithinOrgCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | ScheduleInternalTransferBetweenOrgs cmd ->
+         ScheduleInternalTransferBetweenOrgsCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | InternalTransferBetweenOrgs cmd ->
+         InternalTransferBetweenOrgsCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | ScheduleDomesticTransfer cmd ->
+         ScheduleDomesticTransferCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | DomesticTransfer cmd ->
+         DomesticTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | RegisterDomesticTransferRecipient cmd ->
+         RegisterDomesticTransferRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | EditDomesticTransferRecipient cmd ->
+         EditDomesticTransferRecipientCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | NicknameRecipient cmd ->
+         NicknameRecipientCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | CloseAccount cmd ->
+         CloseAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
+      | RequestPlatformPayment cmd ->
+         RequestPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | CancelPlatformPayment cmd ->
+         CancelPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | DeclinePlatformPayment cmd ->
+         DeclinePlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | FulfillPlatformPayment cmd ->
+         FulfillPlatformPaymentCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | ConfigureAutoTransferRule cmd ->
+         ConfigureAutoTransferRuleCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | DeleteAutoTransferRule cmd ->
+         DeleteAutoTransferRuleCommand.toEvent cmd
+         |> Result.map AccountEnvelope.get
+      | cmd ->
+         Error
+         <| ValidationErrors.create "" [
+            $"Command processing not implemented for {cmd}"
+         ]
 
-   return!
-      pgQuerySingle<Account * AccountEvent list>
-         query
-         (Some queryParams)
-         (fun read ->
-            Reader.account read,
-            read.text "txns"
-            |> Serialization.deserializeUnsafe<AccountEvent list>)
+   let! res = validation |> Result.mapError Err.ValidationError
+   let ref = AccountActor.get system (AccountId.fromEntityId res.EntityId)
+   ref <! AccountMessage.StateChange command
+   return res
 }
 
 open OrganizationSqlMapper
@@ -166,77 +208,6 @@ let searchOrgTransferSocialDiscovery (fromOrgId: OrgId) (nameQuery: string) =
          "nameQuery", OrgSqlWriter.name nameQuery
       ])
       OrgSqlReader.org
-
-let getAccountsByIds (accountIds: AccountId list) =
-   pgQuery<Account>
-      $"SELECT * FROM {accountTable} 
-        WHERE {Fields.accountId} = ANY(@accountIds)"
-      (Some [
-         "accountIds",
-         accountIds |> List.map AccountId.get |> List.toArray |> Sql.uuidArray
-      ])
-      Reader.account
-
-let processCommand (system: ActorSystem) (command: AccountCommand) = taskResult {
-   let validation =
-      match command with
-      | CreateAccount cmd ->
-         CreateAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | DepositCash cmd ->
-         DepositCashCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | InternalTransfer cmd ->
-         InternalTransferWithinOrgCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | ScheduleInternalTransferBetweenOrgs cmd ->
-         ScheduleInternalTransferBetweenOrgsCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | InternalTransferBetweenOrgs cmd ->
-         InternalTransferBetweenOrgsCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | ScheduleDomesticTransfer cmd ->
-         ScheduleDomesticTransferCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | DomesticTransfer cmd ->
-         DomesticTransferCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | RegisterDomesticTransferRecipient cmd ->
-         RegisterDomesticTransferRecipientCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | EditDomesticTransferRecipient cmd ->
-         EditDomesticTransferRecipientCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | NicknameRecipient cmd ->
-         NicknameRecipientCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | CloseAccount cmd ->
-         CloseAccountCommand.toEvent cmd |> Result.map AccountEnvelope.get
-      | RequestPlatformPayment cmd ->
-         RequestPlatformPaymentCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | CancelPlatformPayment cmd ->
-         CancelPlatformPaymentCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | DeclinePlatformPayment cmd ->
-         DeclinePlatformPaymentCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | FulfillPlatformPayment cmd ->
-         FulfillPlatformPaymentCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | ConfigureAutoTransferRule cmd ->
-         ConfigureAutoTransferRuleCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | DeleteAutoTransferRule cmd ->
-         DeleteAutoTransferRuleCommand.toEvent cmd
-         |> Result.map AccountEnvelope.get
-      | cmd ->
-         Error
-         <| ValidationErrors.create "" [
-            $"Command processing not implemented for {cmd}"
-         ]
-
-   let! res = validation |> Result.mapError Err.ValidationError
-   let ref = AccountActor.get system (AccountId.fromEntityId res.EntityId)
-   ref <! AccountMessage.StateChange command
-   return res
-}
 
 // Diagnostic
 let getAccountFromAkka
