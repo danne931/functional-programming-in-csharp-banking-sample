@@ -1,5 +1,7 @@
 begin;
 
+ALTER DATABASE akkabank SET TIMEZONE TO 'UTC';
+
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DROP VIEW IF EXISTS daily_purchase_accrued;
@@ -54,6 +56,14 @@ DROP TYPE IF EXISTS transfer_category;
 DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS akka_snapshots;
 DROP TABLE IF EXISTS akka_event_journal;
+
+CREATE OR REPLACE FUNCTION prevent_update()
+RETURNS trigger AS $$
+BEGIN
+   RAISE EXCEPTION 'UPDATE is not allowed on table: %', TG_TABLE_NAME;
+   RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -160,7 +170,8 @@ CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
 
-CREATE OR REPLACE FUNCTION update_search_query() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION update_search_query()
+RETURNS trigger AS $$
 BEGIN
   NEW.search_query = concat_ws(' ', NEW.first_name, NEW.last_name, NEW.email);
   RETURN NEW;
@@ -182,6 +193,11 @@ CREATE TABLE employee_event (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+
+CREATE TRIGGER prevent_update
+BEFORE UPDATE ON employee_event
+FOR EACH STATEMENT
+EXECUTE FUNCTION prevent_update();
 
 CREATE TYPE card_status AS ENUM ('Active', 'Frozen', 'Closed');
 CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
@@ -224,6 +240,11 @@ CREATE TABLE transaction (
 
 CREATE INDEX transaction_accrued_amount_view_query_idx
 ON transaction(amount, name, timestamp);
+
+CREATE TRIGGER prevent_update
+BEFORE UPDATE ON transaction
+FOR EACH STATEMENT
+EXECUTE FUNCTION prevent_update();
 
 CREATE TABLE ancillarytransactioninfo (
    note TEXT,
