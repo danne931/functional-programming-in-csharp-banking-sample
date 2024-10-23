@@ -322,13 +322,13 @@ let getCards (orgId: OrgId) (query: CardQuery) =
                match amountFilter with
                | AmountFilter.LessThanOrEqualTo max ->
                   $"{where} AND {monthlyAccrued} <= @max",
-                  [ "max", Sql.moneyOrNone (Some max) ]
+                  [ "max", Sql.decimal max ]
                | AmountFilter.GreaterThanOrEqualTo min ->
                   $"{where} AND {monthlyAccrued} >= @min",
-                  [ "min", Sql.money min ]
+                  [ "min", Sql.decimal min ]
                | AmountFilter.Between(min, max) ->
                   $"{where} AND {monthlyAccrued} >= @min AND {monthlyAccrued} <= @max",
-                  [ "min", Sql.money min; "max", Sql.money max ]
+                  [ "min", Sql.decimal min; "max", Sql.decimal max ]
 
             amountParams @ queryParams, where)
          agg
