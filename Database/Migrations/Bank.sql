@@ -65,11 +65,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION add_created_at_column(table_name text)
+RETURNS void AS $$
+BEGIN
+   EXECUTE format(
+      'ALTER TABLE %I ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;',
+      table_name
+   );
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-   org_name VARCHAR(100) UNIQUE NOT NULL,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   org_name VARCHAR(100) UNIQUE NOT NULL
 );
+SELECT add_created_at_column('organization');
 CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
 CREATE TYPE account_depository AS ENUM ('Checking', 'Savings');
@@ -96,10 +106,9 @@ CREATE TABLE account (
    failed_domestic_transfers JSONB NOT NULL,
    failed_domestic_transfers_count INT NOT NULL,
    org_id UUID NOT NULL REFERENCES organization,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
    last_billing_cycle_at TIMESTAMPTZ
 );
-
+SELECT add_created_at_column('account');
 CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
 
@@ -107,9 +116,9 @@ CREATE TABLE org_permissions (
    requires_employee_invite_approval BOOLEAN NOT NULL,
    social_transfer_discovery_account_id UUID REFERENCES account,
    org_id UUID NOT NULL UNIQUE REFERENCES organization,
-   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
+SELECT add_created_at_column('org_permissions');
 
 CREATE TABLE billingstatement (
    name VARCHAR(100) NOT NULL,
@@ -120,25 +129,25 @@ CREATE TABLE billingstatement (
    month INT NOT NULL,
    year INT NOT NULL,
    account_snapshot BYTEA NOT NULL,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
    org_id UUID NOT NULL REFERENCES organization
 );
+SELECT add_created_at_column('billingstatement');
 
 CREATE TABLE category (
    category_id SMALLSERIAL PRIMARY KEY,
-   name VARCHAR(100) UNIQUE NOT NULL,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   name VARCHAR(100) UNIQUE NOT NULL
 );
+SELECT add_created_at_column('category');
 
 CREATE TABLE merchant (
    org_id UUID NOT NULL REFERENCES organization,
    name VARCHAR(100) NOT NULL,
    alias VARCHAR(100),
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
    PRIMARY KEY (org_id, name)
 );
+SELECT add_created_at_column('merchant');
 
 CREATE TYPE employee_status AS ENUM (
   'PendingInviteConfirmation',
@@ -163,9 +172,9 @@ CREATE TABLE employee (
    invite_token UUID,
    invite_expiration TIMESTAMPTZ,
    auth_provider_user_id UUID,
-   org_id UUID NOT NULL REFERENCES organization,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   org_id UUID NOT NULL REFERENCES organization
 );
+SELECT add_created_at_column('employee');
 CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
@@ -193,6 +202,7 @@ CREATE TABLE employee_event (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+SELECT add_created_at_column('employee_event');
 
 CREATE TRIGGER prevent_update
 BEFORE UPDATE ON employee_event
@@ -215,9 +225,9 @@ CREATE TABLE card (
    card_id UUID PRIMARY KEY,
    employee_id UUID NOT NULL REFERENCES employee,
    account_id UUID NOT NULL REFERENCES account,
-   org_id UUID NOT NULL REFERENCES organization,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   org_id UUID NOT NULL REFERENCES organization
 );
+SELECT add_created_at_column('card');
 
 CREATE TYPE money_flow AS ENUM ('In', 'Out');
 CREATE TABLE transaction (
@@ -237,6 +247,7 @@ CREATE TABLE transaction (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+SELECT add_created_at_column('transaction');
 
 CREATE INDEX transaction_accrued_amount_view_query_idx
 ON transaction(amount, name, timestamp);
@@ -251,6 +262,8 @@ CREATE TABLE ancillarytransactioninfo (
    category_id SMALLSERIAL REFERENCES category,
    transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
 );
+SELECT add_created_at_column('ancillarytransactioninfo');
+
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
 
@@ -261,6 +274,7 @@ CREATE TABLE balance_history(
    id SERIAL PRIMARY KEY,
    CONSTRAINT account_date UNIQUE (account_id, date)
 );
+SELECT add_created_at_column('balance_history');
 
 CREATE TYPE transfer_category AS ENUM (
   'InternalWithinOrg',
@@ -276,9 +290,9 @@ CREATE TABLE transfer(
    scheduled_at TIMESTAMPTZ NOT NULL,
    sender_org_id UUID NOT NULL REFERENCES organization(org_id),
    sender_account_id UUID NOT NULL REFERENCES account(account_id),
-   memo TEXT,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   memo TEXT
 );
+SELECT add_created_at_column('transfer');
 
 CREATE TYPE internal_transfer_status AS ENUM (
    'Scheduled',
@@ -292,9 +306,9 @@ CREATE TABLE transfer_internal(
    transfer_status internal_transfer_status NOT NULL,
    transfer_status_detail JSONB NOT NULL,
    recipient_org_id UUID NOT NULL REFERENCES organization(org_id),
-   recipient_account_id UUID REFERENCES account(account_id),
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   recipient_account_id UUID REFERENCES account(account_id)
 );
+SELECT add_created_at_column('transfer_internal');
 
 CREATE TYPE domestic_transfer_recipient_account_depository
 AS ENUM ('Checking', 'Savings'); 
@@ -313,9 +327,9 @@ CREATE TABLE transfer_domestic_recipient(
    account_number BIGINT UNIQUE NOT NULL,
    recipient_status domestic_transfer_recipient_status NOT NULL,
    depository domestic_transfer_recipient_account_depository NOT NULL,
-   payment_network payment_network NOT NULL,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   payment_network payment_network NOT NULL
 );
+SELECT add_created_at_column('transfer_domestic_recipient');
 
 CREATE TYPE domestic_transfer_status AS ENUM (
    'Scheduled',
@@ -329,9 +343,9 @@ CREATE TABLE transfer_domestic(
    transfer_id UUID PRIMARY KEY REFERENCES transfer,
    transfer_status domestic_transfer_status NOT NULL,
    transfer_status_detail JSONB NOT NULL,
-   recipient_account_id UUID REFERENCES transfer_domestic_recipient,
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   recipient_account_id UUID REFERENCES transfer_domestic_recipient
 );
+SELECT add_created_at_column('transfer_domestic');
 
 CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
 CREATE TABLE payment(
@@ -342,9 +356,9 @@ CREATE TABLE payment(
    payment_type payment_type NOT NULL,
    expiration TIMESTAMPTZ NOT NULL,
    payee_org_id UUID NOT NULL REFERENCES organization(org_id),
-   payee_account_id UUID NOT NULL REFERENCES account(account_id),
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+   payee_account_id UUID NOT NULL REFERENCES account(account_id)
 );
+SELECT add_created_at_column('payment');
 
 CREATE TYPE platform_payment_status AS ENUM (
    'Unpaid',
@@ -360,11 +374,11 @@ CREATE TABLE payment_platform(
    -- An organization who conducts business on the platform
    -- may choose to pay by one of their accounts.  
    -- Alternatively, they may choose to pay by ACH or card (TODO)
-   pay_by_account UUID REFERENCES account(account_id),
+   pay_by_account UUID REFERENCES account(account_id)
    --pay_by_card ...
    --pay_by_ach ...
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+SELECT add_created_at_column('payment_platform');
 
 CREATE TYPE third_party_payment_status AS ENUM (
    'Unpaid',
@@ -382,11 +396,11 @@ CREATE TABLE payment_third_party(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status_tp third_party_payment_status NOT NULL,
    payer_email VARCHAR(255) NOT NULL,
-   payer_name VARCHAR(100) NOT NULL,
+   payer_name VARCHAR(100) NOT NULL
    --pay_by_card ...
    --pay_by_ach ...
-   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+SELECT add_created_at_column('payment_third_party');
 
 CREATE OR REPLACE PROCEDURE seed_balance_history()
 AS $$
