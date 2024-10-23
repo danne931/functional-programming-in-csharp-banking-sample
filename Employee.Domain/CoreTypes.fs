@@ -34,9 +34,9 @@ type CardStatus =
 
    override x.ToString() =
       match x with
-      | Active -> "active"
-      | Frozen -> "frozen"
-      | Closed -> "closed"
+      | Active -> "Active"
+      | Frozen -> "Frozen"
+      | Closed -> "Closed"
 
    static member fromString(status: string) : CardStatus option =
       if String.IsNullOrEmpty status then
@@ -132,13 +132,13 @@ type EmployeeStatus =
 
    override x.ToString() =
       match x with
-      | InitialEmptyState -> "initialemptystate"
-      | PendingInviteApproval -> "pendinginviteapproval"
-      | PendingInviteConfirmation _ -> "pendinginviteconfirmation"
-      | Active -> "active"
-      | Closed -> "closed"
-      | PendingRestoreAccessApproval -> "pendingrestoreaccessapproval"
-      | ReadyForDelete -> "readyfordelete"
+      | InitialEmptyState -> "InitialEmptyState"
+      | PendingInviteApproval -> "PendingInviteApproval"
+      | PendingInviteConfirmation _ -> "PendingInviteConfirmation"
+      | Active -> "Active"
+      | Closed -> "Closed"
+      | PendingRestoreAccessApproval -> "PendingRestoreAccessApproval"
+      | ReadyForDelete -> "ReadyForDelete"
 
 type DebitInfo = {
    AccountId: AccountId

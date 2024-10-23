@@ -60,7 +60,7 @@ module EmployeeSqlReader =
    let status (read: RowReader) =
       let status = read.string EmployeeFields.status
 
-      match status with
+      match status.ToLower() with
       | "active" -> EmployeeStatus.Active
       | "closed" -> EmployeeStatus.Closed
       | "pendingrestoreaccessapproval" ->

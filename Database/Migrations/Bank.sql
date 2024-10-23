@@ -47,7 +47,13 @@ DROP TYPE IF EXISTS domestic_transfer_status;
 DROP TYPE IF EXISTS internal_transfer_status;
 DROP TYPE IF EXISTS transfer_category;
 
-CREATE TYPE time_frame AS ENUM ('day', 'month');
+-- Drop Akka event sourcing tables.
+-- These tables are initiated in Infrastructure/Akka.fs.
+-- They are created automatically when starting up the app so no need
+-- create those tables here.
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS akka_snapshots;
+DROP TABLE IF EXISTS akka_event_journal;
 
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,8 +62,8 @@ CREATE TABLE organization (
 );
 CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
-CREATE TYPE account_depository AS ENUM ('checking', 'savings');
-CREATE TYPE account_status AS ENUM ('pending', 'active', 'closed', 'readyfordelete');
+CREATE TYPE account_depository AS ENUM ('Checking', 'Savings');
+CREATE TYPE account_status AS ENUM ('Pending', 'Active', 'Closed', 'ReadyForDelete');
 CREATE TYPE auto_transfer_rule_frequency AS ENUM ('PerTransaction', 'Daily', 'TwiceMonthly');
 CREATE TABLE account (
    account_id UUID PRIMARY KEY,
@@ -124,45 +130,15 @@ CREATE TABLE merchant (
    PRIMARY KEY (org_id, name)
 );
 
-INSERT INTO category (name)
-VALUES
-   ('Airlines'),
-   ('Alcohol and Bars'),
-   ('Books'),
-   ('Car Rental'),
-   ('Charity'),
-   ('Clothing'),
-   ('Conferences'),
-   ('Education'),
-   ('Electronics'),
-   ('Entertainment'),
-   ('Food Delivery'),
-   ('Grocery'),
-   ('Internet and Telephone'),
-   ('Legal'),
-   ('Lodging'),
-   ('Medical'),
-   ('Memberships'),
-   ('Office Supplies'),
-   ('Parking'),
-   ('Restaurants'),
-   ('Retail'),
-   ('Rideshare and Taxis'),
-   ('Shipping'),
-   ('Software'),
-   ('Utilities'),
-   ('Vehicle Expenses'),
-   ('Other');
-
 CREATE TYPE employee_status AS ENUM (
-  'pendinginviteconfirmation',
-  'pendinginviteapproval',
-  'pendingrestoreaccessapproval',
-  'active',
-  'closed',
-  'readyfordelete'
+  'PendingInviteConfirmation',
+  'PendingInviteApproval',
+  'PendingRestoreAccessApproval',
+  'Active',
+  'Closed',
+  'ReadyForDelete'
 );
-CREATE TYPE employee_role AS ENUM ('admin', 'scholar', 'cardonly');
+CREATE TYPE employee_role AS ENUM ('Admin', 'Scholar', 'CardOnly');
 CREATE TABLE employee (
    employee_id UUID PRIMARY KEY,
    email VARCHAR(255) UNIQUE NOT NULL,
@@ -183,40 +159,6 @@ CREATE TABLE employee (
 CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
-
-
-/**
- * Create a "system" user to represent transactions which do not originate
- * from a human user.  Used in BillingCycleCommand, MaintenanceFeeCommand, etc.
-**/
-INSERT INTO organization (org_name) VALUES ('system');
-INSERT INTO employee (
-   employee_id,
-   email,
-   first_name,
-   last_name,
-   role,
-   status,
-   pending_purchases,
-   onboarding_tasks,
-   cards,
-   org_id
-)
-VALUES (
-    -- This employee_id is defined in Lib.SharedClientServer/Constants.fs as
-    -- SYSTEM_USER_ID.  Account commands such as BillingCycle, which do not originate
-    -- from a human, are created with initiated_by_id set to SYSTEM_USER_ID.
-   '029528ee-a120-4301-b8b5-e9c60d859346',
-   'system@gmail.com',
-   'system',
-   'system',
-   'admin',
-   'active',
-   '{}'::jsonb,
-   '{}'::jsonb,
-   '{}'::jsonb,
-   (SELECT org_id FROM organization WHERE org_name = 'system')
-);
 
 CREATE OR REPLACE FUNCTION update_search_query() RETURNS TRIGGER AS $$
 BEGIN
@@ -241,7 +183,7 @@ CREATE TABLE employee_event (
    org_id UUID NOT NULL REFERENCES organization
 );
 
-CREATE TYPE card_status AS ENUM ('active', 'frozen', 'closed');
+CREATE TYPE card_status AS ENUM ('Active', 'Frozen', 'Closed');
 CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
 CREATE TABLE card (
    card_number_last_4 VARCHAR(4) NOT NULL,
@@ -566,7 +508,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-CREATE TYPE monthly_time_series_filter_by AS ENUM ('org', 'account');
+CREATE TYPE monthly_time_series_filter_by AS ENUM ('Org', 'Account');
 
 CREATE OR REPLACE FUNCTION money_flow_time_series_monthly(
    filterBy monthly_time_series_filter_by,
@@ -602,8 +544,8 @@ BEGIN
       FROM transaction t
       WHERE
          CASE
-            WHEN filterBy = 'org' THEN t.org_id = filterId
-            WHEN filterBy = 'account' THEN t.account_id = filterId
+            WHEN filterBy = 'Org' THEN t.org_id = filterId
+            WHEN filterBy = 'Account' THEN t.account_id = filterId
          END
          AND t.money_flow IS NOT NULL
          AND DATE_TRUNC('month', t.timestamp) = months.month
@@ -738,6 +680,8 @@ WHERE
    AND timestamp::date >= date_trunc('month', CURRENT_DATE)
 GROUP BY card_id;
 
+CREATE TYPE time_frame AS ENUM ('Day', 'Month');
+
 CREATE OR REPLACE FUNCTION transfer_accrued(
    orgId UUID,
    timeFrame time_frame
@@ -802,14 +746,89 @@ BEGIN
      AND (account.last_billing_cycle_at IS NULL OR t.timestamp > account.last_billing_cycle_at)
      AND
        CASE
-       WHEN timeFrame = 'day'
+       WHEN timeFrame = 'Day'
        THEN transfer.scheduled_at::date = CURRENT_DATE
 
-       WHEN timeFrame = 'month'
+       WHEN timeFrame = 'Month'
        THEN transfer.scheduled_at::date >= date_trunc('month', CURRENT_DATE)
        END
   GROUP BY account.account_id;
 END
 $$ LANGUAGE plpgsql;
+
+/**
+ * SEED DATA:
+ * NOTE:
+ * This seed data is necessary for the app to work in any environment
+ * (local, production, staging, etc.).
+ *
+ * Seed data specific to local dev environment & demonstration purposes
+ * is created via actor messages in Account.App/AccountSeederActor.fs
+**/
+
+/**
+ * Create a "system" user to represent transactions which do not originate
+ * from a human user.  Used in BillingCycleCommand, MaintenanceFeeCommand, etc.
+**/
+INSERT INTO organization (org_name) VALUES ('system');
+INSERT INTO employee (
+   employee_id,
+   email,
+   first_name,
+   last_name,
+   role,
+   status,
+   pending_purchases,
+   onboarding_tasks,
+   cards,
+   org_id
+)
+VALUES (
+    -- This employee_id is defined in Lib.SharedClientServer/Constants.fs as
+    -- SYSTEM_USER_ID.  Account commands such as BillingCycle, which do not originate
+    -- from a human, are created with initiated_by_id set to SYSTEM_USER_ID.
+   '029528ee-a120-4301-b8b5-e9c60d859346',
+   'system@gmail.com',
+   'system',
+   'system',
+   'Admin',
+   'Active',
+   '{}'::jsonb,
+   '{}'::jsonb,
+   '{}'::jsonb,
+   (SELECT org_id FROM organization WHERE org_name = 'system')
+);
+
+-- Allows users to filter transactions by these predefined categories.
+-- NOTE: No implementation of custom category creation at this time.
+INSERT INTO category (name)
+VALUES
+   ('Airlines'),
+   ('Alcohol and Bars'),
+   ('Books'),
+   ('Car Rental'),
+   ('Charity'),
+   ('Clothing'),
+   ('Conferences'),
+   ('Education'),
+   ('Electronics'),
+   ('Entertainment'),
+   ('Food Delivery'),
+   ('Grocery'),
+   ('Internet and Telephone'),
+   ('Legal'),
+   ('Lodging'),
+   ('Medical'),
+   ('Memberships'),
+   ('Office Supplies'),
+   ('Parking'),
+   ('Restaurants'),
+   ('Retail'),
+   ('Rideshare and Taxis'),
+   ('Shipping'),
+   ('Software'),
+   ('Utilities'),
+   ('Vehicle Expenses'),
+   ('Other');
 
 commit;

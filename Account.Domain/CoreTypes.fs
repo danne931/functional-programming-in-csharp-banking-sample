@@ -22,11 +22,11 @@ type AccountStatus =
 
    override x.ToString() =
       match x with
-      | AccountStatus.InitialEmptyState -> "initialemptystate"
-      | AccountStatus.Pending -> "pending"
-      | AccountStatus.Active -> "active"
-      | AccountStatus.Closed -> "closed"
-      | AccountStatus.ReadyForDelete -> "readyfordelete"
+      | AccountStatus.InitialEmptyState -> "InitialEmptyState"
+      | AccountStatus.Pending -> "Pending"
+      | AccountStatus.Active -> "Active"
+      | AccountStatus.Closed -> "Closed"
+      | AccountStatus.ReadyForDelete -> "ReadyForDelete"
 
    static member fromString(status: string) : AccountStatus option =
       if String.IsNullOrEmpty status then
@@ -51,8 +51,8 @@ type AccountDepository =
 
    override x.ToString() =
       match x with
-      | AccountDepository.Checking -> "checking"
-      | AccountDepository.Savings -> "savings"
+      | AccountDepository.Checking -> "Checking"
+      | AccountDepository.Savings -> "Savings"
 
    static member fromString(dep: string) : AccountDepository option =
       if String.IsNullOrEmpty dep then

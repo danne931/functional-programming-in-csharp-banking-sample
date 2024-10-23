@@ -273,8 +273,8 @@ let moneyFlowMonthlyTimeSeriesAnalytics
       let qParams = [
          "filterBy",
          match txnQuery.FilterBy with
-         | MoneyFlowMonthlyTimeSeriesFilterBy.Account _ -> Sql.string "account"
-         | MoneyFlowMonthlyTimeSeriesFilterBy.Org _ -> Sql.string "org"
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Account _ -> Sql.string "Account"
+         | MoneyFlowMonthlyTimeSeriesFilterBy.Org _ -> Sql.string "Org"
 
          "filterId",
          match txnQuery.FilterBy with

@@ -144,8 +144,8 @@ let getOrgAndAccountProfiles
          FROM {OrganizationSqlMapper.table} o
          JOIN {OrganizationSqlMapper.permissionsTable} op using({OrgFields.orgId})
          JOIN {accountTable} a using({OrgFields.orgId})
-         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'day')) dta using({Fields.accountId})
-         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'month')) mta using({Fields.accountId})
+         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'Day')) dta using({Fields.accountId})
+         LEFT JOIN (SELECT * FROM {transferAccrued}(@orgId, 'Month')) mta using({Fields.accountId})
          LEFT JOIN {dpaView} using({Fields.accountId})
          LEFT JOIN {mpaView} using({Fields.accountId})
          WHERE {Fields.orgId} = @orgId

@@ -368,9 +368,9 @@ type Role =
 
    override x.ToString() =
       match x with
-      | Admin -> "admin"
-      | CardOnly -> "cardonly"
-      | Scholar -> "scholar"
+      | Admin -> "Admin"
+      | CardOnly -> "CardOnly"
+      | Scholar -> "Scholar"
 
    static member fromString(role: string) : Role option =
       if String.IsNullOrEmpty role then
