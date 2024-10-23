@@ -57,11 +57,24 @@ DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS akka_snapshots;
 DROP TABLE IF EXISTS akka_event_journal;
 
-CREATE OR REPLACE FUNCTION prevent_update()
+CREATE OR REPLACE FUNCTION raise_update_not_allowed()
 RETURNS trigger AS $$
 BEGIN
    RAISE EXCEPTION 'UPDATE is not allowed on table: %', TG_TABLE_NAME;
    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_update(table_name text)
+RETURNS void AS $$
+BEGIN
+   EXECUTE format('
+      CREATE TRIGGER prevent_update_%I
+      BEFORE UPDATE ON %I
+      FOR EACH STATEMENT
+      EXECUTE FUNCTION raise_update_not_allowed();',
+      table_name, table_name
+   );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -75,11 +88,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION update_timestamp()
+RETURNS trigger AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION add_updated_at_column_and_trigger(table_name text)
+RETURNS void AS $$
+BEGIN
+   EXECUTE format(
+      'ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;',
+      table_name
+   );
+
+   EXECUTE format('
+      CREATE TRIGGER set_timestamp_%I
+      BEFORE UPDATE ON %I
+      FOR EACH ROW
+      EXECUTE FUNCTION update_timestamp();',
+      table_name, table_name
+   );
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
    org_name VARCHAR(100) UNIQUE NOT NULL
 );
 SELECT add_created_at_column('organization');
+SELECT add_updated_at_column_and_trigger('organization');
 CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
 CREATE TYPE account_depository AS ENUM ('Checking', 'Savings');
@@ -109,6 +149,7 @@ CREATE TABLE account (
    last_billing_cycle_at TIMESTAMPTZ
 );
 SELECT add_created_at_column('account');
+SELECT add_updated_at_column_and_trigger('account');
 CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
 
@@ -119,6 +160,7 @@ CREATE TABLE org_permissions (
    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
 SELECT add_created_at_column('org_permissions');
+SELECT add_updated_at_column_and_trigger('org_permissions');
 
 CREATE TABLE billingstatement (
    name VARCHAR(100) NOT NULL,
@@ -133,12 +175,14 @@ CREATE TABLE billingstatement (
    org_id UUID NOT NULL REFERENCES organization
 );
 SELECT add_created_at_column('billingstatement');
+SELECT prevent_update('billingstatement');
 
 CREATE TABLE category (
    category_id SMALLSERIAL PRIMARY KEY,
    name VARCHAR(100) UNIQUE NOT NULL
 );
 SELECT add_created_at_column('category');
+SELECT add_updated_at_column_and_trigger('category');
 
 CREATE TABLE merchant (
    org_id UUID NOT NULL REFERENCES organization,
@@ -148,6 +192,7 @@ CREATE TABLE merchant (
    PRIMARY KEY (org_id, name)
 );
 SELECT add_created_at_column('merchant');
+SELECT add_updated_at_column_and_trigger('merchant');
 
 CREATE TYPE employee_status AS ENUM (
   'PendingInviteConfirmation',
@@ -175,6 +220,7 @@ CREATE TABLE employee (
    org_id UUID NOT NULL REFERENCES organization
 );
 SELECT add_created_at_column('employee');
+SELECT add_updated_at_column_and_trigger('employee');
 CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
@@ -203,11 +249,7 @@ CREATE TABLE employee_event (
    org_id UUID NOT NULL REFERENCES organization
 );
 SELECT add_created_at_column('employee_event');
-
-CREATE TRIGGER prevent_update
-BEFORE UPDATE ON employee_event
-FOR EACH STATEMENT
-EXECUTE FUNCTION prevent_update();
+SELECT prevent_update('employee_event');
 
 CREATE TYPE card_status AS ENUM ('Active', 'Frozen', 'Closed');
 CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
@@ -228,6 +270,7 @@ CREATE TABLE card (
    org_id UUID NOT NULL REFERENCES organization
 );
 SELECT add_created_at_column('card');
+SELECT add_updated_at_column_and_trigger('card');
 
 CREATE TYPE money_flow AS ENUM ('In', 'Out');
 CREATE TABLE transaction (
@@ -248,14 +291,10 @@ CREATE TABLE transaction (
    org_id UUID NOT NULL REFERENCES organization
 );
 SELECT add_created_at_column('transaction');
+SELECT prevent_update('transaction');
 
 CREATE INDEX transaction_accrued_amount_view_query_idx
 ON transaction(amount, name, timestamp);
-
-CREATE TRIGGER prevent_update
-BEFORE UPDATE ON transaction
-FOR EACH STATEMENT
-EXECUTE FUNCTION prevent_update();
 
 CREATE TABLE ancillarytransactioninfo (
    note TEXT,
@@ -263,6 +302,7 @@ CREATE TABLE ancillarytransactioninfo (
    transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
 );
 SELECT add_created_at_column('ancillarytransactioninfo');
+SELECT add_updated_at_column_and_trigger('ancillarytransactioninfo');
 
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
@@ -275,6 +315,7 @@ CREATE TABLE balance_history(
    CONSTRAINT account_date UNIQUE (account_id, date)
 );
 SELECT add_created_at_column('balance_history');
+SELECT prevent_update('balance_history');
 
 CREATE TYPE transfer_category AS ENUM (
   'InternalWithinOrg',
@@ -293,6 +334,7 @@ CREATE TABLE transfer(
    memo TEXT
 );
 SELECT add_created_at_column('transfer');
+SELECT add_updated_at_column_and_trigger('transfer');
 
 CREATE TYPE internal_transfer_status AS ENUM (
    'Scheduled',
@@ -309,6 +351,7 @@ CREATE TABLE transfer_internal(
    recipient_account_id UUID REFERENCES account(account_id)
 );
 SELECT add_created_at_column('transfer_internal');
+SELECT add_updated_at_column_and_trigger('transfer_internal');
 
 CREATE TYPE domestic_transfer_recipient_account_depository
 AS ENUM ('Checking', 'Savings'); 
@@ -330,6 +373,7 @@ CREATE TABLE transfer_domestic_recipient(
    payment_network payment_network NOT NULL
 );
 SELECT add_created_at_column('transfer_domestic_recipient');
+SELECT add_updated_at_column_and_trigger('transfer_domestic_recipient');
 
 CREATE TYPE domestic_transfer_status AS ENUM (
    'Scheduled',
@@ -346,6 +390,7 @@ CREATE TABLE transfer_domestic(
    recipient_account_id UUID REFERENCES transfer_domestic_recipient
 );
 SELECT add_created_at_column('transfer_domestic');
+SELECT add_updated_at_column_and_trigger('transfer_domestic');
 
 CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
 CREATE TABLE payment(
@@ -359,6 +404,7 @@ CREATE TABLE payment(
    payee_account_id UUID NOT NULL REFERENCES account(account_id)
 );
 SELECT add_created_at_column('payment');
+SELECT add_updated_at_column_and_trigger('payment');
 
 CREATE TYPE platform_payment_status AS ENUM (
    'Unpaid',
@@ -379,6 +425,7 @@ CREATE TABLE payment_platform(
    --pay_by_ach ...
 );
 SELECT add_created_at_column('payment_platform');
+SELECT add_updated_at_column_and_trigger('payment_platform');
 
 CREATE TYPE third_party_payment_status AS ENUM (
    'Unpaid',
@@ -401,6 +448,7 @@ CREATE TABLE payment_third_party(
    --pay_by_ach ...
 );
 SELECT add_created_at_column('payment_third_party');
+SELECT add_updated_at_column_and_trigger('payment_third_party');
 
 CREATE OR REPLACE PROCEDURE seed_balance_history()
 AS $$
