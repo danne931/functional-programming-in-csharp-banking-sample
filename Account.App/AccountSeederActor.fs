@@ -1,6 +1,7 @@
 [<RequireQualifiedAccess>]
 module AccountSeederActor
 
+// NOTE:
 // Actor runs in local development or staging environments to ensure
 // some data is available to interact with.
 
@@ -220,6 +221,22 @@ let paymentPayers = [
 ]
 
 let otherOrgs = socialTransferOrgs @ paymentRequesters @ paymentPayers
+
+// Disable transaction & employee_event update prevention triggers
+// during seeding so can backdate the timestamps during seeding.
+let disableUpdatePreventionTriggers () =
+   pgTransaction [
+      "ALTER TABLE employee_event DISABLE TRIGGER prevent_update;", []
+      "ALTER TABLE transaction DISABLE TRIGGER prevent_update;", []
+   ]
+
+// Ensure updates will not occur on employee_event & transaction tables
+// once seeding finished.
+let enableUpdatePreventionTriggers () =
+   pgTransaction [
+      "ALTER TABLE employee_event ENABLE TRIGGER prevent_update;", []
+      "ALTER TABLE transaction ENABLE TRIGGER prevent_update;", []
+   ]
 
 // TODO: Temporarily create org here until fleshed out
 let createOrgs () =
@@ -1467,6 +1484,7 @@ let actorProps
                      }
                else
                   logInfo "Seed postgres with accounts"
+                  do! disableUpdatePreventionTriggers ()
 
                   match! createOrgs () with
                   | Error err ->
@@ -1537,6 +1555,7 @@ let actorProps
 
                do! Task.Delay 50_000
                let! res = seedBalanceHistory ()
+               do! enableUpdatePreventionTriggers ()
 
                match res with
                | Ok(Some _) ->

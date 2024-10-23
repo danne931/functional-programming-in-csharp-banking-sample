@@ -69,11 +69,11 @@ CREATE OR REPLACE FUNCTION prevent_update(table_name text)
 RETURNS void AS $$
 BEGIN
    EXECUTE format('
-      CREATE TRIGGER prevent_update_%I
+      CREATE TRIGGER prevent_update
       BEFORE UPDATE ON %I
       FOR EACH STATEMENT
       EXECUTE FUNCTION raise_update_not_allowed();',
-      table_name, table_name
+      table_name
    );
 END;
 $$ LANGUAGE plpgsql;
