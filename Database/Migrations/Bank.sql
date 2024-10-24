@@ -125,6 +125,7 @@ CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 CREATE TYPE account_depository AS ENUM ('Checking', 'Savings');
 CREATE TYPE account_status AS ENUM ('Pending', 'Active', 'Closed', 'ReadyForDelete');
 CREATE TYPE auto_transfer_rule_frequency AS ENUM ('PerTransaction', 'Daily', 'TwiceMonthly');
+
 CREATE TABLE account (
    account_id UUID PRIMARY KEY,
    routing_number INT NOT NULL,
@@ -152,6 +153,7 @@ SELECT add_created_at_column('account');
 SELECT add_updated_at_column_and_trigger('account');
 CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
+CREATE INDEX account_org_id_idx ON account(org_id);
 
 CREATE TABLE org_permissions (
    requires_employee_invite_approval BOOLEAN NOT NULL,
@@ -161,6 +163,10 @@ CREATE TABLE org_permissions (
 );
 SELECT add_created_at_column('org_permissions');
 SELECT add_updated_at_column_and_trigger('org_permissions');
+
+CREATE INDEX org_permissions_social_transfer_discovery_account_id_idx
+ON org_permissions (social_transfer_discovery_account_id)
+WHERE social_transfer_discovery_account_id IS NOT NULL;
 
 CREATE TABLE billingstatement (
    name VARCHAR(100) NOT NULL,
@@ -176,6 +182,8 @@ CREATE TABLE billingstatement (
 );
 SELECT add_created_at_column('billingstatement');
 SELECT prevent_update('billingstatement');
+CREATE INDEX billingstatement_org_id_idx ON billingstatement(org_id);
+CREATE INDEX billingstatement_account_id_idx ON billingstatement(account_id);
 
 CREATE TABLE category (
    category_id SMALLSERIAL PRIMARY KEY,
@@ -224,6 +232,7 @@ SELECT add_updated_at_column_and_trigger('employee');
 CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
+CREATE INDEX employee_org_id_idx ON employee(org_id);
 
 CREATE OR REPLACE FUNCTION update_search_query()
 RETURNS trigger AS $$
@@ -250,6 +259,9 @@ CREATE TABLE employee_event (
 );
 SELECT add_created_at_column('employee_event');
 SELECT prevent_update('employee_event');
+CREATE INDEX employee_event_org_id_idx ON employee_event(org_id);
+CREATE INDEX employee_event_employee_id_idx ON employee_event(employee_id);
+CREATE INDEX employee_event_initiated_by_id_idx ON employee_event(initiated_by_id);
 
 CREATE TYPE card_status AS ENUM ('Active', 'Frozen', 'Closed');
 CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
@@ -271,6 +283,9 @@ CREATE TABLE card (
 );
 SELECT add_created_at_column('card');
 SELECT add_updated_at_column_and_trigger('card');
+CREATE INDEX card_org_id_idx ON card(org_id);
+CREATE INDEX card_account_id_idx ON card(account_id);
+CREATE INDEX card_employee_id_idx ON card(employee_id);
 
 CREATE TYPE money_flow AS ENUM ('In', 'Out');
 CREATE TABLE transaction (
@@ -292,9 +307,11 @@ CREATE TABLE transaction (
 );
 SELECT add_created_at_column('transaction');
 SELECT prevent_update('transaction');
-
-CREATE INDEX transaction_accrued_amount_view_query_idx
-ON transaction(amount, name, timestamp);
+CREATE INDEX transaction_account_id_idx ON transaction(account_id);
+CREATE INDEX transaction_initiated_by_id_idx ON transaction(initiated_by_id);
+CREATE INDEX transaction_card_id_idx ON transaction(card_id);
+CREATE INDEX transaction_org_id_idx ON transaction(org_id);
+CREATE INDEX transaction_accrued_amount_view_query_idx ON transaction(amount, name, timestamp);
 
 CREATE TABLE ancillarytransactioninfo (
    note TEXT,
@@ -303,6 +320,7 @@ CREATE TABLE ancillarytransactioninfo (
 );
 SELECT add_created_at_column('ancillarytransactioninfo');
 SELECT add_updated_at_column_and_trigger('ancillarytransactioninfo');
+CREATE INDEX ancillarytransactioninfo_category_id_idx ON ancillarytransactioninfo(category_id) WHERE category_id IS NOT NULL;
 
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
@@ -335,6 +353,9 @@ CREATE TABLE transfer(
 );
 SELECT add_created_at_column('transfer');
 SELECT add_updated_at_column_and_trigger('transfer');
+CREATE INDEX transfer_initiated_by_id_idx ON transfer (initiated_by_id);
+CREATE INDEX transfer_sender_account_id_idx ON transfer (sender_account_id);
+CREATE INDEX transfer_sender_org_id_idx ON transfer (sender_org_id);
 
 CREATE TYPE internal_transfer_status AS ENUM (
    'Scheduled',
@@ -352,6 +373,9 @@ CREATE TABLE transfer_internal(
 );
 SELECT add_created_at_column('transfer_internal');
 SELECT add_updated_at_column_and_trigger('transfer_internal');
+CREATE INDEX transfer_internal_recipient_org_id_idx ON transfer_internal (recipient_org_id);
+CREATE INDEX transfer_internal_recipient_account_id_idx ON transfer_internal (recipient_account_id)
+WHERE recipient_account_id IS NOT NULL;
 
 CREATE TYPE domestic_transfer_recipient_account_depository
 AS ENUM ('Checking', 'Savings'); 
@@ -391,6 +415,8 @@ CREATE TABLE transfer_domestic(
 );
 SELECT add_created_at_column('transfer_domestic');
 SELECT add_updated_at_column_and_trigger('transfer_domestic');
+CREATE INDEX transfer_domestic_recipient_account_id_idx ON transfer_domestic (recipient_account_id)
+WHERE recipient_account_id IS NOT NULL;
 
 CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
 CREATE TABLE payment(
@@ -405,6 +431,9 @@ CREATE TABLE payment(
 );
 SELECT add_created_at_column('payment');
 SELECT add_updated_at_column_and_trigger('payment');
+CREATE INDEX payment_payee_org_id_idx ON payment(payee_org_id);
+CREATE INDEX payment_payee_account_id_idx ON payment(payee_account_id);
+CREATE INDEX payment_initiated_by_id_idx ON payment(initiated_by_id);
 
 CREATE TYPE platform_payment_status AS ENUM (
    'Unpaid',
@@ -426,6 +455,8 @@ CREATE TABLE payment_platform(
 );
 SELECT add_created_at_column('payment_platform');
 SELECT add_updated_at_column_and_trigger('payment_platform');
+CREATE INDEX payment_platform_payer_org_id_idx ON payment_platform(payer_org_id);
+CREATE INDEX payment_platform_pay_by_account_idx ON payment_platform (pay_by_account) WHERE pay_by_account IS NOT NULL;
 
 CREATE TYPE third_party_payment_status AS ENUM (
    'Unpaid',
