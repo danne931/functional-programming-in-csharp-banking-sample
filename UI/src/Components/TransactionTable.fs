@@ -478,7 +478,6 @@ let renderTable
 
 [<ReactComponent>]
 let TransactionTableComponent (account: Account) (session: UserSession) =
-   let isInitialMount = React.useRef true
    let categories = React.useContext TransactionCategoryProvider.context
    let merchants = React.useContext MerchantProvider.stateContext
    let signalRCtx = React.useContext SignalRAccountEventProvider.context
@@ -489,24 +488,20 @@ let TransactionTableComponent (account: Account) (session: UserSession) =
          account.AccountId
          browserQuery
 
-   let state, dispatch =
-      React.useElmish (init txnQuery, update, [| box account.AccountId |])
+   let state, dispatch = React.useElmish (init txnQuery, update, [||])
 
    React.useEffect (
       fun () ->
-         if isInitialMount.current then
-            isInitialMount.current <- false
-         else
-            // When filter applied, force page reset to 1 but keep selected
-            // diagnostic setting.
-            let txnQuery = {
-               txnQuery with
-                  Page = 1
-                  Diagnostic = state.Query.Diagnostic
-            }
+         // When filter applied, force page reset to 1 but keep selected
+         // diagnostic setting.
+         let txnQuery = {
+            txnQuery with
+               Page = 1
+               Diagnostic = state.Query.Diagnostic
+         }
 
-            dispatch (Msg.RefreshTransactions txnQuery)
-      , [| box browserQuery.ChangeDetection |]
+         dispatch (Msg.RefreshTransactions txnQuery)
+      , [| box account.AccountId; box browserQuery.ChangeDetection |]
    )
 
    let txns = Map.tryFind state.Query.Page state.Transactions
