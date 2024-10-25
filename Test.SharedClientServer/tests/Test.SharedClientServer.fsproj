@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="EmployeeStub.fs" /> 
+    <Compile Include="AccountStub.fs" />
+    <Compile Include="EmployeeDomain.fs" />
+    <Compile Include="AccountDomain.fs" />
+    <Compile Include="AutomaticBalanceManagement.fs" />
+    <Compile Include="Tests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="Fable.Mocha" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Lib.SharedClientServer\Lib.SharedClientServer.fsproj" />
+    <ProjectReference Include="..\..\Transfer.Domain\Transfer.Domain.fsproj" />
+    <ProjectReference Include="..\..\Billing.Domain\Billing.Domain.fsproj" />
+    <ProjectReference Include="..\..\Account.Domain\Account.Domain.fsproj" />
+    <ProjectReference Include="..\..\Employee.Domain\Employee.Domain.fsproj" />
+  </ItemGroup>
+
+</Project>

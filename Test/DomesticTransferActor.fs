@@ -14,6 +14,8 @@ open Bank.Account.Domain
 open Bank.Transfer.Domain
 open DomesticTransferRecipientActor
 
+module Stub = AccountStub
+
 let initMockAccountActor (tck: TestKit.Tck) =
    let handler (ctx: Actor<_>) (msg: obj) =
       match msg with

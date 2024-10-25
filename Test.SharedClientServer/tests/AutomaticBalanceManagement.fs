@@ -1,7 +1,12 @@
 module AutomaticBalanceManagementTests
 
 open System
+
+#if FABLE_COMPILER
+open Fable.Mocha
+#else
 open Expecto
+#endif
 
 open Bank.Transfer.Domain
 open AutomaticTransfer
@@ -108,7 +113,6 @@ module Stub =
 
 type PercentErr = PercentDistributionRule.ValidationError
 
-[<Tests>]
 let tests =
    testList "Automatic transfer domain" [
       test "Percent distribution should have at least 1 destination" {

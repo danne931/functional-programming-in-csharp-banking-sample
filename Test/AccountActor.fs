@@ -13,6 +13,8 @@ open Bank.Employee.Domain
 open Bank.Transfer.Domain
 open BillingStatement
 
+module Stub = AccountStub
+
 type private InternalTransferMsg =
    InternalTransferRecipientActor.InternalTransferMessage
 

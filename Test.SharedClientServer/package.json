@@ -1,0 +1,14 @@
+{
+  "name": "test",
+  "description": "Domain logic shared between server and client can be tested in a browser environment via Fable.Mocha or dotnet environment via Expecto",
+  "scripts": {
+    "//start": "echo 'Run tests in the browser.  Open localhost:8080 to view test results.'",
+    "start": "dotnet fable tests -o dist --run npx webpack-dev-server"
+  },
+  "devDependencies": {
+    "html-webpack-plugin": "^5.6.3",
+    "mocha": "^8.3.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.1.0"
+  }
+}

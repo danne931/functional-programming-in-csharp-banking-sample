@@ -7,17 +7,13 @@
 
   <ItemGroup>
     <Compile Include="Util.fs" />
-    <Compile Include="EmployeeStub.fs" /> 
     <Compile Include="Stub.fs" />
     <Compile Include="AccountClosureActor.fs" />
     <Compile Include="DomesticTransferActor.fs" />
     <Compile Include="InternalTransferActor.fs" />
-    <Compile Include="EmployeeDomain.fs" />
     <Compile Include="EmployeeActor.fs" />
-    <Compile Include="AccountDomain.fs" />
     <Compile Include="AccountActor.fs" />
     <Compile Include="BillingStatementActor.fs" />
-    <Compile Include="AutomaticBalanceManagement.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -27,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Test.SharedClientServer\tests\Test.SharedClientServer.fsproj" />
     <ProjectReference Include="..\Lib.SharedClientServer\Lib.SharedClientServer.fsproj" />
     <ProjectReference Include="..\Transfer.App\Transfer.App.fsproj" />
     <ProjectReference Include="..\Billing.App\Billing.App.fsproj" />

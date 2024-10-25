@@ -12,6 +12,8 @@ open Lib.SharedTypes
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
+module Stub = AccountStub
+
 type private InternalTransferMessage =
    InternalTransferRecipientActor.InternalTransferMessage
 

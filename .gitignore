@@ -2,6 +2,8 @@
 **/*obj
 UI/dist
 UI/node_modules
+Test.SharedClientServer/dist
+Test.SharedClientServer/node_modules
 
 # Ensure an empty wwwroot directory exists in git but not the contents.
 Web/wwwroot/*

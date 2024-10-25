@@ -1,7 +1,12 @@
 module EmployeeDomainTests
 
 open System
+
+#if FABLE_COMPILER
+open Fable.Mocha
+#else
 open Expecto
+#endif
 
 open Bank.Employee.Domain
 open Lib.SharedTypes
@@ -11,7 +16,6 @@ module Stub = EmployeeStub
 let update = Employee.stateTransition
 let initState = Stub.employeeStateWithEvents
 
-[<Tests>]
 let tests =
    testList "Employee Domain State Transitions" [
       test "Purchase request when card locked" {

@@ -27,6 +27,7 @@
     <PackageVersion Include="Fable.FontAwesome" Version="3.0.0" />
     <PackageVersion Include="Fable.FontAwesome.Free" Version="3.0.0" />
     <PackageVersion Include="Fable.Form.Simple" Version="4.1.0" />
+    <PackageVersion Include="Fable.Mocha" Version="2.17.0" />
     <PackageVersion Include="Fable.SimpleHttp" Version="3.6.0" />
     <PackageVersion Include="Feliz.Recharts" Version="4.2.0" />
     <PackageVersion Include="FsConfig" Version="4.1.0" />

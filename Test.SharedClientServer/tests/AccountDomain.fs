@@ -1,15 +1,21 @@
 module AccountDomainTests
 
 open System
+
+#if FABLE_COMPILER
+open Fable.Mocha
+#else
 open Expecto
+#endif
 
 open Bank.Account.Domain
 open Bank.Transfer.Domain
 
+module Stub = AccountStub
+
 let update = Account.stateTransition
 let initState = Stub.accountStateWithEvents
 
-[<Tests>]
 let tests =
    testList "Account Domain State Transitions" [
       test "DepositCashCommand with invalid amount" {

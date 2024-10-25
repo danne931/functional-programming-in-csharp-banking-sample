@@ -12,6 +12,8 @@ open Lib.SharedTypes
 open ActorUtil
 open Bank.Account.Domain
 
+module Stub = AccountStub
+
 // NOTE: Change default snapshot store from local file system
 //       to in memory.
 let config =

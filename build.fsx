@@ -17,7 +17,8 @@ open Globbing.Operators
 
 let projects = !! "**/*Web.fsproj" ++ "**/*.Service.fsproj"
 let appEntryDir = "./Web"
-let testDir = "./Test"
+let serverTestDir = "./Test"
+let sharedClientServerTestDir = "./Test.SharedClientServer/tests"
 
 type ImageName = string
 type DirectoryName = string
@@ -228,8 +229,24 @@ let openK8sAppInBrowser () =
 Target.create "RunK8sApp" (fun _ -> openK8sAppInBrowser ())
 
 // no-spinner option fixes intermittent hanging of Expecto
-Target.create "Test" (fun _ ->
-   Shell.Exec("dotnet", "run --no-spinner", dir = testDir) |> ignore)
+Target.create "TestServer" (fun _ ->
+   Shell.Exec("dotnet", "run --no-spinner", dir = serverTestDir) |> ignore)
+
+Target.create "TestSharedDomainInDotnet" (fun _ ->
+   Trace.trace
+      "Testing shared client-server domain logic in dotnet environment."
+
+   Shell.Exec("dotnet", "run --no-spinner", dir = sharedClientServerTestDir)
+   |> ignore)
+
+Target.create "TestSharedDomainInBrowser" (fun _ ->
+   Trace.trace
+      """
+      Testing shared client-server domain logic in browser environment 
+      via Fable.Mocha.  Open localhost:8080 to view test results.
+      """
+
+   Shell.Exec("npm", "start", dir = sharedClientServerTestDir) |> ignore)
 
 let pulumiAzure (env: Env) =
    let pulumiStack = $"azure-{env.Pulumi}"
@@ -357,4 +374,6 @@ Target.runOrDefaultWithArguments "Clean"
 // Selectively rebuild images for docker compose:
 // sh build.sh -t BuildDockerImages ./Web/Web.fsproj ./Scheduler.Service/Scheduler.Service.fsproj
 //
-// Test: sh build.sh -t Test
+// Server tests: sh build.sh -t TestServer
+// Test shared client-server domain logic in dotnet environment: sh build.sh -t TestSharedDomainInDotnet
+// Test shared client-server domain logic in browser environment: sh build.sh -t TestSharedDomainInBrowser
