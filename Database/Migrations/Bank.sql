@@ -57,6 +57,8 @@ DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS akka_snapshots;
 DROP TABLE IF EXISTS akka_event_journal;
 
+
+--- UTILITY FUNCTIONS ---
 CREATE OR REPLACE FUNCTION raise_update_not_allowed()
 RETURNS trigger AS $$
 BEGIN
@@ -114,14 +116,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
+--- ORGANIZATION ---
 CREATE TABLE organization (
    org_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
    org_name VARCHAR(100) UNIQUE NOT NULL
 );
+
 SELECT add_created_at_column('organization');
 SELECT add_updated_at_column_and_trigger('organization');
+
 CREATE INDEX org_search_idx ON organization USING gist (org_name gist_trgm_ops);
 
+
+--- ACCOUNT ---
 CREATE TYPE account_depository AS ENUM ('Checking', 'Savings');
 CREATE TYPE account_status AS ENUM ('Pending', 'Active', 'Closed', 'ReadyForDelete');
 CREATE TYPE auto_transfer_rule_frequency AS ENUM ('PerTransaction', 'Daily', 'TwiceMonthly');
@@ -149,18 +157,60 @@ CREATE TABLE account (
    org_id UUID NOT NULL REFERENCES organization,
    last_billing_cycle_at TIMESTAMPTZ
 );
+
 SELECT add_created_at_column('account');
 SELECT add_updated_at_column_and_trigger('account');
+
 CREATE INDEX account_in_progress_domestic_transfers_count_idx ON account(in_progress_domestic_transfers_count);
 CREATE INDEX account_last_billing_cycle_at_idx ON account(last_billing_cycle_at);
 CREATE INDEX account_org_id_idx ON account(org_id);
 
+COMMENT ON TABLE account IS
+'Checking and savings accounts on the platform.
+
+TODO: Research potential for "treasury accounts".
+TODO: Research potential for "credit accounts".
+TODO: Create a separate table for "LinkedAccounts".  A linked account should refer to an account outside 
+the platform, a Chase bank account for example, which the organization can set up (likely via Plaid), 
+to be able to deposit funds into their accounts on the platform.';
+
+COMMENT ON COLUMN account.auto_transfer_rule IS
+'This optional configuration allows an organization to automatically
+manage balances of accounts in their organization.
+Rule configuration types to choose from include ZeroBalance, TargetBalance and PercentDistribution.
+
+ZeroBalance:
+Move 100% of account balance to an account within the org after each transaction.
+
+TargetBalance:
+Maintain a target balance, or some range around a balance, on a daily basis.
+The account this rule is applied to will interact with an additional "partner account"
+which we may view as a "BiDirectionalTransferContact".  By "bidirectional", we mean to
+say that this partner account will absorb excess cash from the account or replenish cash
+to the account in order to maintain the target balance.
+
+PercentDistribution:
+Allocate 100% of account balance split among accounts within an org.
+The allocation schedule can be configured to occur for every transaction,
+on a daily basis, or on a twice monthly basis.';
+
+COMMENT ON COLUMN account.auto_transfer_rule_frequency IS
+'How often to check whether an account should
+manage their balance by automatically transferring funds.';
+
+COMMENT ON COLUMN account.last_billing_cycle_at IS
+'Used by BillingCycleActor to determine which accounts to send a
+StartBillingCycleCommand to.';
+
+
+--- ORG PERMISSIONS ---
 CREATE TABLE org_permissions (
    requires_employee_invite_approval BOOLEAN NOT NULL,
    social_transfer_discovery_account_id UUID REFERENCES account,
    org_id UUID NOT NULL UNIQUE REFERENCES organization,
    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
+
 SELECT add_created_at_column('org_permissions');
 SELECT add_updated_at_column_and_trigger('org_permissions');
 
@@ -168,6 +218,14 @@ CREATE INDEX org_permissions_social_transfer_discovery_account_id_idx
 ON org_permissions (social_transfer_discovery_account_id)
 WHERE social_transfer_discovery_account_id IS NOT NULL;
 
+COMMENT ON COLUMN org_permissions.social_transfer_discovery_account_id IS
+'An organization can choose to make one of their accounts discoverable by other
+orgs on the platform.  If set, other orgs will be able to search for this organization
+by name/email and then transfer money to the configured "social transfer discovery account"
+for this org.';
+
+
+--- BILLING STATEMENTS ---
 CREATE TABLE billingstatement (
    name VARCHAR(100) NOT NULL,
    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
@@ -180,18 +238,31 @@ CREATE TABLE billingstatement (
    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
    org_id UUID NOT NULL REFERENCES organization
 );
+
 SELECT add_created_at_column('billingstatement');
 SELECT prevent_update('billingstatement');
+
 CREATE INDEX billingstatement_org_id_idx ON billingstatement(org_id);
 CREATE INDEX billingstatement_account_id_idx ON billingstatement(account_id);
 
+
+--- CATEGORIES ---
 CREATE TABLE category (
    category_id SMALLSERIAL PRIMARY KEY,
    name VARCHAR(100) UNIQUE NOT NULL
 );
+
 SELECT add_created_at_column('category');
 SELECT add_updated_at_column_and_trigger('category');
 
+COMMENT ON TABLE category IS
+'Typically represents a purchase-related category.
+
+Allows users to filter transactions by predefined categories such as
+Restaurants, Taxis, Office Supplies, etc.
+NOTE: No implementation of custom category creation at this time.';
+
+--- MERCHANTS ---
 CREATE TABLE merchant (
    org_id UUID NOT NULL REFERENCES organization,
    name VARCHAR(100) NOT NULL,
@@ -199,9 +270,20 @@ CREATE TABLE merchant (
 
    PRIMARY KEY (org_id, name)
 );
+
 SELECT add_created_at_column('merchant');
 SELECT add_updated_at_column_and_trigger('merchant');
 
+COMMENT ON TABLE merchant IS
+'Allows an organization to control how transaction merchant info is displayed across the app.
+
+If configured, the alias field will be displayed for past and future transactions for
+all users.  For example, maybe the merchant info comes across our network from the
+payment processor as something vague.  In this situation we would want to 
+provide an alias to increase clarity for the user experience.';
+
+
+--- EMPLOYEES ---
 CREATE TYPE employee_status AS ENUM (
   'PendingInviteConfirmation',
   'PendingInviteApproval',
@@ -211,6 +293,7 @@ CREATE TYPE employee_status AS ENUM (
   'ReadyForDelete'
 );
 CREATE TYPE employee_role AS ENUM ('Admin', 'Scholar', 'CardOnly');
+
 CREATE TABLE employee (
    employee_id UUID PRIMARY KEY,
    email VARCHAR(255) UNIQUE NOT NULL,
@@ -227,8 +310,10 @@ CREATE TABLE employee (
    auth_provider_user_id UUID,
    org_id UUID NOT NULL REFERENCES organization
 );
+
 SELECT add_created_at_column('employee');
 SELECT add_updated_at_column_and_trigger('employee');
+
 CREATE INDEX employee_email_idx ON employee(email);
 CREATE INDEX employee_invite_token_idx ON employee(invite_token);
 CREATE INDEX employee_search_query_idx ON employee USING gist (search_query gist_trgm_ops);
@@ -247,6 +332,24 @@ BEFORE INSERT OR UPDATE ON employee
 FOR EACH ROW
 EXECUTE FUNCTION update_search_query();
 
+COMMENT ON COLUMN employee.search_query IS
+'search_query exists for text searches on employee name/email
+(see update_search_query_trigger above).  Being able to search by employee name/email
+comes in handy in dashboard forms and filtering transaction, employee_event, or
+employee tables in the UI.';
+
+COMMENT ON COLUMN employee.onboarding_tasks IS
+'An employee may optionally be configured with onboarding tasks when they are
+created by a team member of an organization on the platform.
+However, we do not want these onboarding tasks to execute until the employee
+confirms their invite via email.
+Currently, only one onboarding task type is available and that is to create a virtual
+debit card for the employee.  So the onboarding task "CreateCard" is essentially a bit of
+config info provided at employee creation time such as the AccountId to link the card to,
+purchase limits, and name which will be enough to initiate the card creation if the employee
+confirms the email invitation.';
+
+--- EMPLOYEE EVENTS ---
 CREATE TABLE employee_event (
    name VARCHAR(50) NOT NULL,
    timestamp TIMESTAMPTZ NOT NULL,
@@ -257,14 +360,29 @@ CREATE TABLE employee_event (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+
 SELECT add_created_at_column('employee_event');
 SELECT prevent_update('employee_event');
+
 CREATE INDEX employee_event_org_id_idx ON employee_event(org_id);
 CREATE INDEX employee_event_employee_id_idx ON employee_event(employee_id);
 CREATE INDEX employee_event_initiated_by_id_idx ON employee_event(initiated_by_id);
 
+COMMENT ON TABLE employee_event IS
+'Read model representation of Akka event sourced employee events.
+
+These events are not necessarily tied to account transactions.
+Ex:
+Creating a debit card, applying purchase limits to a card, locking a card,
+updating employee role, etc.';
+COMMENT ON COLUMN employee_event.event IS
+'Representation of the employee_event in its Akka event sourcing form.';
+
+
+--- CARDS ---
 CREATE TYPE card_status AS ENUM ('Active', 'Frozen', 'Closed');
 CREATE TYPE card_type AS ENUM ('Debit', 'Credit');
+
 CREATE TABLE card (
    card_number_last_4 VARCHAR(4) NOT NULL,
    daily_purchase_limit MONEY NOT NULL,
@@ -281,20 +399,27 @@ CREATE TABLE card (
    account_id UUID NOT NULL REFERENCES account,
    org_id UUID NOT NULL REFERENCES organization
 );
+
 SELECT add_created_at_column('card');
 SELECT add_updated_at_column_and_trigger('card');
+
 CREATE INDEX card_org_id_idx ON card(org_id);
 CREATE INDEX card_account_id_idx ON card(account_id);
 CREATE INDEX card_employee_id_idx ON card(employee_id);
 
+COMMENT ON COLUMN card.account_id IS
+'Every card must be linked to an account within an organization.
+When an employee makes a purchase with their card, funds will be
+deducted from the organization account the card is linked to.';
+
+
+--- TRANSACTIONS ---
 CREATE TYPE money_flow AS ENUM ('In', 'Out');
+
 CREATE TABLE transaction (
    name VARCHAR(50) NOT NULL,
    amount MONEY,
    money_flow money_flow,
-   -- NOTE:
-   -- Source may be a merchant name, transfer recipient name, etc. depending on the transaction type.
-   -- This property is used only for analytics queries.
    source VARCHAR(100),
    timestamp TIMESTAMPTZ NOT NULL,
    transaction_id UUID PRIMARY KEY,
@@ -305,26 +430,54 @@ CREATE TABLE transaction (
    event JSONB NOT NULL,
    org_id UUID NOT NULL REFERENCES organization
 );
+
 SELECT add_created_at_column('transaction');
 SELECT prevent_update('transaction');
+
 CREATE INDEX transaction_account_id_idx ON transaction(account_id);
 CREATE INDEX transaction_initiated_by_id_idx ON transaction(initiated_by_id);
 CREATE INDEX transaction_card_id_idx ON transaction(card_id);
 CREATE INDEX transaction_org_id_idx ON transaction(org_id);
 CREATE INDEX transaction_accrued_amount_view_query_idx ON transaction(amount, name, timestamp);
 
+COMMENT ON TABLE transaction IS
+'Transaction is the read model representation of Akka event sourced account txns.';
+COMMENT ON COLUMN transaction.event IS
+'Representation of the transaction in its Akka event sourcing form.';
+COMMENT ON COLUMN transaction.source IS
+'Source may be a merchant name, transfer recipient name, etc. depending on the transaction type.
+This property is used only for analytics queries.';
+COMMENT ON COLUMN transaction.correlation_id IS
+'Correlation ID allows us to trace the lifecycle of some event
+(ex: DomesticTransferRequested -> DomesticTransferProgressUpdate -> DomesticTransferApproved)
+is an example where 3 events share the same correlation_id.';
+
+--- ANCILLARY TRANSACTION INFO ---
 CREATE TABLE ancillarytransactioninfo (
    note TEXT,
    category_id SMALLSERIAL REFERENCES category,
    transaction_id UUID PRIMARY KEY REFERENCES transaction ON DELETE CASCADE
 );
+
 SELECT add_created_at_column('ancillarytransactioninfo');
 SELECT add_updated_at_column_and_trigger('ancillarytransactioninfo');
+
 CREATE INDEX ancillarytransactioninfo_category_id_idx ON ancillarytransactioninfo(category_id) WHERE category_id IS NOT NULL;
 
 ALTER TABLE ancillarytransactioninfo
 ALTER COLUMN category_id DROP NOT NULL;
 
+COMMENT ON TABLE ancillarytransactioninfo IS
+'A user may provide supporting info for a transaction such as a note or a category
+(see category table).
+
+Ancillary transaction info is inserted lazily when the user first provides
+this supporting info within the transaction detail component.
+TODO: Consider how we might attempt to automatically categorize incoming transactions so
+organizations would not have to apply these categories by hand.';
+
+
+--- BALANCE HISTORY ---
 CREATE TABLE balance_history(
    account_id UUID NOT NULL REFERENCES account ON DELETE CASCADE,
    date DATE NOT NULL,
@@ -332,15 +485,26 @@ CREATE TABLE balance_history(
    id SERIAL PRIMARY KEY,
    CONSTRAINT account_date UNIQUE (account_id, date)
 );
+
 SELECT add_created_at_column('balance_history');
 SELECT prevent_update('balance_history');
 
+COMMENT ON TABLE balance_history IS
+'Represents the end-of-day balance for an account.
+
+A balance history record is inserted every day for every account.
+A newly inserted record represents the balance for the previous day.
+See update_balance_history_for_yesterday procedure.';
+
+
+--- TRANSFERS ---
 CREATE TYPE transfer_category AS ENUM (
   'InternalWithinOrg',
   'InternalAutomatedWithinOrg',
   'InternalBetweenOrgs',
   'Domestic'
 );
+
 CREATE TABLE transfer(
    transfer_id UUID PRIMARY KEY,
    initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
@@ -351,12 +515,22 @@ CREATE TABLE transfer(
    sender_account_id UUID NOT NULL REFERENCES account(account_id),
    memo TEXT
 );
+
 SELECT add_created_at_column('transfer');
 SELECT add_updated_at_column_and_trigger('transfer');
+
 CREATE INDEX transfer_initiated_by_id_idx ON transfer (initiated_by_id);
 CREATE INDEX transfer_sender_account_id_idx ON transfer (sender_account_id);
 CREATE INDEX transfer_sender_org_id_idx ON transfer (sender_org_id);
 
+COMMENT ON TABLE transfer IS
+'Parent of two kinds of transfers, each of which has an associated child table:
+
+- Internal transfers (within the platform)
+- Domestic transfers (from an account on the platform to a domestic account outside the platform)
+';
+
+--- INTERNAL TRANSFERS ---
 CREATE TYPE internal_transfer_status AS ENUM (
    'Scheduled',
    'Pending',
@@ -364,6 +538,7 @@ CREATE TYPE internal_transfer_status AS ENUM (
    'Deposited',
    'Failed'
 );
+
 CREATE TABLE transfer_internal(
    transfer_id UUID PRIMARY KEY REFERENCES transfer,
    transfer_status internal_transfer_status NOT NULL,
@@ -371,12 +546,20 @@ CREATE TABLE transfer_internal(
    recipient_org_id UUID NOT NULL REFERENCES organization(org_id),
    recipient_account_id UUID REFERENCES account(account_id)
 );
+
 SELECT add_created_at_column('transfer_internal');
 SELECT add_updated_at_column_and_trigger('transfer_internal');
+
 CREATE INDEX transfer_internal_recipient_org_id_idx ON transfer_internal (recipient_org_id);
 CREATE INDEX transfer_internal_recipient_account_id_idx ON transfer_internal (recipient_account_id)
 WHERE recipient_account_id IS NOT NULL;
 
+COMMENT ON TABLE transfer_internal IS
+'Child table of transfers represents transfers which occur within the platform.
+
+Transfers occur either between accounts within an organization or between organizations.';
+
+--- DOMESTIC TRANSFER RECIPIENTS ---
 CREATE TYPE domestic_transfer_recipient_account_depository
 AS ENUM ('Checking', 'Savings'); 
 
@@ -396,9 +579,12 @@ CREATE TABLE transfer_domestic_recipient(
    depository domestic_transfer_recipient_account_depository NOT NULL,
    payment_network payment_network NOT NULL
 );
+
 SELECT add_created_at_column('transfer_domestic_recipient');
 SELECT add_updated_at_column_and_trigger('transfer_domestic_recipient');
 
+
+--- DOMESTIC TRANSFERS ---
 CREATE TYPE domestic_transfer_status AS ENUM (
    'Scheduled',
    'Outgoing',
@@ -413,12 +599,26 @@ CREATE TABLE transfer_domestic(
    transfer_status_detail JSONB NOT NULL,
    recipient_account_id UUID REFERENCES transfer_domestic_recipient
 );
+
 SELECT add_created_at_column('transfer_domestic');
 SELECT add_updated_at_column_and_trigger('transfer_domestic');
+
 CREATE INDEX transfer_domestic_recipient_account_id_idx ON transfer_domestic (recipient_account_id)
 WHERE recipient_account_id IS NOT NULL;
 
+COMMENT ON TABLE transfer_domestic IS
+'Child table of transfers represents transfers which occur outside the platform, domestically within the U.S.
+
+There is currently a server, defined in MockDomesticTransferProcessor.Web folder, which supports mocking
+the interaction of sending transfers domestically from accounts on the platform to accounts outside the platform.
+Transfer request and progress check messages are sent over TCP from the platform (Transfer.App/DomesticTransferRecipientActor.fs)
+to a mock 3rd party transfer processor (MockDomesticTransferProcess.Web/Program.fs).
+TODO: Look into integrating Plaid.';
+
+
+--- PAYMENTS ---
 CREATE TYPE payment_type AS ENUM ('Platform', 'ThirdParty');
+
 CREATE TABLE payment(
    payment_id UUID PRIMARY KEY,
    initiated_by_id UUID NOT NULL REFERENCES employee(employee_id),
@@ -429,12 +629,22 @@ CREATE TABLE payment(
    payee_org_id UUID NOT NULL REFERENCES organization(org_id),
    payee_account_id UUID NOT NULL REFERENCES account(account_id)
 );
+
 SELECT add_created_at_column('payment');
 SELECT add_updated_at_column_and_trigger('payment');
+
 CREATE INDEX payment_payee_org_id_idx ON payment(payee_org_id);
 CREATE INDEX payment_payee_account_id_idx ON payment(payee_account_id);
 CREATE INDEX payment_initiated_by_id_idx ON payment(initiated_by_id);
 
+COMMENT ON TABLE payment IS
+'Parent of two kinds of payments, each of which has an associated child table:
+
+- Platform payments (payments requested between entities in the platform)
+- Third party payments (payment requests across platform boundaries)';
+
+
+--- PLATFORM PAYMENTS ---
 CREATE TYPE platform_payment_status AS ENUM (
    'Unpaid',
    'Paid',
@@ -442,34 +652,42 @@ CREATE TYPE platform_payment_status AS ENUM (
    'Cancelled',
    'Declined'
 );
+
 CREATE TABLE payment_platform(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status platform_payment_status NOT NULL,
    payer_org_id UUID NOT NULL REFERENCES organization(org_id),
-   -- An organization who conducts business on the platform
-   -- may choose to pay by one of their accounts.  
-   -- Alternatively, they may choose to pay by ACH or card (TODO)
    pay_by_account UUID REFERENCES account(account_id)
    --pay_by_card ...
    --pay_by_ach ...
 );
+
 SELECT add_created_at_column('payment_platform');
 SELECT add_updated_at_column_and_trigger('payment_platform');
+
 CREATE INDEX payment_platform_payer_org_id_idx ON payment_platform(payer_org_id);
 CREATE INDEX payment_platform_pay_by_account_idx ON payment_platform (pay_by_account) WHERE pay_by_account IS NOT NULL;
 
+COMMENT ON TABLE payment_platform IS
+'Payments requested to entities within the platform.
+
+An organization on the platform may request another organization on the platform to provide
+a payment to them for services rendered.';
+
+COMMENT ON COLUMN payment_platform.pay_by_account IS
+'An organization who conducts business on the platform may choose
+to pay by deducting funds from one of their accounts on the platform.
+
+Alternatively, they may choose to pay by ACH or card
+(NOTE: This option will be provided once Plaid/Stripe integration is implemented.)';
+
+--- THIRD PARTY PAYMENTS ---
 CREATE TYPE third_party_payment_status AS ENUM (
    'Unpaid',
    'Deposited',
    'Cancelled'
 );
 
--- An organization who does not conduct business on the platform
--- will receive an email requesting a payment.
--- They will be redirected to a secure form to pay by ACH or card.
--- TODO: 
--- This table will be developed more after researching
--- Plaid and seeing what data will be necessary for paying by ACH/card.
 CREATE TABLE payment_third_party(
    payment_id UUID PRIMARY KEY REFERENCES payment,
    status_tp third_party_payment_status NOT NULL,
@@ -478,8 +696,23 @@ CREATE TABLE payment_third_party(
    --pay_by_card ...
    --pay_by_ach ...
 );
+
 SELECT add_created_at_column('payment_third_party');
 SELECT add_updated_at_column_and_trigger('payment_third_party');
+
+COMMENT ON TABLE payment_third_party IS
+'Payments requested to entities outside the platform.
+
+An organization on the platform may request a payment from some organization
+or contractor who does not conduct business on the platform.
+They will receive an email requesting a payment and will be
+be redirected to a secure form to pay by ACH or card.
+
+TODO:
+This table will be developed more after researching
+Plaid and seeing what data will be necessary for paying by ACH/card.
+This table is currently not in use.';
+
 
 CREATE OR REPLACE PROCEDURE seed_balance_history()
 AS $$
@@ -528,13 +761,13 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-/*
-NOTE: A balance history record is created daily for the previous day.
-Shortly after midnight we need to compute the balance for the previous
-day (CURRENT_DATE - 1).  We get the balance from balance history record
-pertaining to (CURRENT_DATE - 2) summed up with the computed diff of
-transaction amounts pertaining to (CURRENT_DATE - 1).
-*/
+COMMENT ON PROCEDURE seed_balance_history() IS
+'This procedure is used exclusively in the local/development database seeding
+process to establish a balance history for a few months worth of seed data.
+This is necessary for the analytics page time series chart.
+See Account.App/AccountSeederActor.fs';
+
+
 CREATE OR REPLACE PROCEDURE update_balance_history_for_yesterday()
 AS $$
 DECLARE
@@ -569,6 +802,14 @@ BEGIN
    ON CONFLICT(account_id, date) DO NOTHING;
 END
 $$ LANGUAGE plpgsql;
+
+COMMENT ON PROCEDURE update_balance_history_for_yesterday() IS
+'This procedure is called daily by a cron job in order to compute the
+balance history of all accounts for the previous day.
+Shortly after midnight we need to compute the balance for the previous
+day (CURRENT_DATE - 1).  We get the balance from balance history record
+pertaining to (CURRENT_DATE - 2) summed up with the computed diff of
+transaction amounts pertaining to (CURRENT_DATE - 1).';
 
 CREATE OR REPLACE FUNCTION money_flow_time_series_daily(
    orgId UUID,
@@ -913,8 +1154,6 @@ VALUES (
    (SELECT org_id FROM organization WHERE org_name = 'system')
 );
 
--- Allows users to filter transactions by these predefined categories.
--- NOTE: No implementation of custom category creation at this time.
 INSERT INTO category (name)
 VALUES
    ('Airlines'),
