@@ -15,12 +15,6 @@ open Lib.Time
 open UIDomain
 open UIDomain.Account
 
-// NOTE:
-// Modifies Feliz.Recharts to support the yAxis tickFormatter property included in Recharts.
-type yAxis =
-   static member inline tickFormatter(f: int -> string) =
-      Interop.mkYAxisAttr "tickFormatter" f
-
 [<RequireQualifiedAccess>]
 type SelectedTimeSeriesChart =
    | TimeSeries
