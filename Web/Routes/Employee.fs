@@ -140,7 +140,8 @@ let startEmployeeRoutes (app: WebApplication) =
                      | Ok _ -> return Results.Ok()
                      | Error e -> return RouteUtil.badRequest e
                else
-                  let invite: EmailActor.EmployeeInvite = {
+                  let invite: EmailActor.EmployeeInviteEmailInfo = {
+                     OrgId = employee.OrgId
                      Name = employee.Name
                      Email = employee.Email
                      Token = token

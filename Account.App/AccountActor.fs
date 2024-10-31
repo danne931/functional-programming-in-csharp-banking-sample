@@ -64,6 +64,11 @@ let private billingCycle
 
       mailbox.Parent() <! msg
 
+   let msg =
+      EmailActor.EmailMessage.BillingStatement(account.FullName, account.OrgId)
+
+   getEmailActor mailbox.System <! msg
+
 // Account events with an in/out money flow can produce an
 // automatic transfer.  Automated transfer account events have
 // money flow but they can not generate an auto transfer.
@@ -76,10 +81,6 @@ let canProduceAutoTransfer =
    | e ->
       let _, flow, _ = AccountEvent.moneyTransaction e
       flow.IsSome
-
-// TODO: Comment out all account related email messages until
-//       I associate account owners with the account.
-//getEmailActor mailbox.System <! EmailActor.BillingStatement account
 
 let handleValidationError
    (broadcaster: AccountBroadcast)
@@ -112,6 +113,11 @@ let handleValidationError
 
             let msg =
                DeclineDebitCommand.create (employee.EmployeeId, cmd.OrgId) {
+                  Reason =
+                     PurchaseDeclinedReason.InsufficientAccountFunds(
+                        account.Balance,
+                        account.FullName
+                     )
                   Info = {
                      AccountId = account.AccountId
                      CorrelationId = cmd.CorrelationId
@@ -129,10 +135,6 @@ let handleValidationError
 
             getEmployeeRef employee.EmployeeId <! msg
          | _ -> ()
-         (*
-         getEmailActor mailbox.System
-         <! EmailActor.DebitDeclined(string err, account)
-         *)
 
          signalRBroadcastValidationErr ()
       | _ -> signalRBroadcastValidationErr ()
@@ -240,13 +242,26 @@ let actorProps
                   )
 
                getDomesticTransferActor mailbox.System <! msg
-            | InternalTransferBetweenOrgsDeposited e -> ()
-            (*
-               getEmailActor mailbox.System
-               <! EmailActor.InternalTransferBetweenOrgsDeposited(e, account)
-               *)
-            | CreatedAccount _ -> ()
-            //getEmailActor mailbox.System <! EmailActor.AccountOpen account
+            | InternalTransferBetweenOrgsDeposited e ->
+               let msg =
+                  EmailActor.EmailMessage.InternalTransferBetweenOrgsDeposited(
+                     {
+                        OrgId = account.OrgId
+                        AccountName = account.FullName
+                        Amount = e.Data.BaseInfo.Amount
+                        SenderBusinessName = e.Data.BaseInfo.Sender.Name
+                     }
+                  )
+
+               getEmailActor mailbox.System <! msg
+            | CreatedAccount e ->
+               let msg =
+                  EmailActor.EmailMessage.AccountOpen(
+                     account.FullName,
+                     account.OrgId
+                  )
+
+               getEmailActor mailbox.System <! msg
             | AccountEvent.AccountClosed e ->
                getAccountClosureActor mailbox.System
                <! AccountClosureMessage.Register account

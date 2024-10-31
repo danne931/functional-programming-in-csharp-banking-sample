@@ -15,6 +15,55 @@ open ActorUtil
 open Bank.Account.Domain
 open Bank.Employee.Domain
 
+let handleValidationError
+   mailbox
+   (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
+   (employee: Employee)
+   (cmd: EmployeeCommand)
+   (err: Err)
+   =
+   logWarning
+      mailbox
+      $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
+
+   match err with
+   | EmployeeStateTransitionError e ->
+      match e with
+      // Noop
+      | DebitAlreadyProgressedToApprovedOrDeclined -> ()
+      | ExceededDailyDebit(limit, accrued) ->
+         let msg =
+            EmailActor.EmailMessage.PurchaseDeclined(
+               {
+                  OrgId = employee.OrgId
+                  Email = employee.Email
+                  Reason =
+                     PurchaseDeclinedReason.ExceededDailyCardLimit(
+                        limit,
+                        accrued
+                     )
+               }
+            )
+
+         getEmailActor (mailbox.System) <! msg
+      | ExceededMonthlyDebit(limit, accrued) ->
+         let msg =
+            EmailActor.EmailMessage.PurchaseDeclined(
+               {
+                  OrgId = employee.OrgId
+                  Email = employee.Email
+                  Reason =
+                     PurchaseDeclinedReason.ExceededMonthlyCardLimit(
+                        limit,
+                        accrued
+                     )
+               }
+            )
+
+         getEmailActor (mailbox.System) <! msg
+      | _ -> ()
+   | _ -> ()
+
 let supplementaryCardInfoToCreateCardCommand
    (employee: Employee)
    (initiatedBy: InitiatedById)
@@ -40,7 +89,7 @@ let actorProps
    (getEmailActor: ActorSystem -> IActorRef<EmailActor.EmailMessage>)
    =
    let handler (mailbox: Eventsourced<obj>) =
-      let logWarning, logError = logWarning mailbox, logError mailbox
+      let logError = logError mailbox
 
       let rec loop (stateOpt: EmployeeWithEvents option) = actor {
          let! msg = mailbox.Receive()
@@ -50,6 +99,9 @@ let actorProps
             |> Option.defaultValue { Info = Employee.empty; Events = [] }
 
          let employee = state.Info
+
+         let handleValidationError =
+            handleValidationError mailbox getEmailActor employee
 
          match box msg with
          | Persisted mailbox e ->
@@ -61,6 +113,7 @@ let actorProps
             | EmployeeEvent.CreatedAccountOwner e ->
                getEmailActor mailbox.System
                <! EmailActor.EmailMessage.EmployeeInvite {
+                  OrgId = employee.OrgId
                   Name = employee.Name
                   Email = employee.Email
                   Token = e.Data.InviteToken
@@ -70,6 +123,7 @@ let actorProps
                | EmployeeStatus.PendingInviteConfirmation token ->
                   getEmailActor mailbox.System
                   <! EmailActor.EmailMessage.EmployeeInvite {
+                     OrgId = employee.OrgId
                      Name = employee.Name
                      Email = employee.Email
                      Token = token
@@ -78,6 +132,7 @@ let actorProps
             | EmployeeEvent.InvitationTokenRefreshed e ->
                getEmailActor mailbox.System
                <! EmailActor.EmailMessage.EmployeeInvite {
+                  OrgId = employee.OrgId
                   Name = employee.Name
                   Email = employee.Email
                   Token = e.Data.InviteToken
@@ -85,6 +140,7 @@ let actorProps
             | EmployeeEvent.InvitationApproved e ->
                getEmailActor mailbox.System
                <! EmailActor.EmailMessage.EmployeeInvite {
+                  OrgId = employee.OrgId
                   Name = employee.Name
                   Email = employee.Email
                   Token = e.Data.InviteToken
@@ -139,13 +195,20 @@ let actorProps
                getAccountRef accountId
                <! AccountMessage.StateChange(AccountCommand.Debit cmd)
             | EmployeeEvent.DebitApproved e ->
-               // Notify card network which issued the debit request
-               // to our bank.
+               // TODO: Notify card network which issued the debit request to our bank.
                ()
             | EmployeeEvent.DebitDeclined e ->
-               // Notify card network which issued the debit request
-               // to our bank.
-               ()
+               let msg =
+                  EmailActor.EmailMessage.PurchaseDeclined(
+                     {
+                        Email = employee.Email
+                        Reason = e.Data.Reason
+                        OrgId = employee.OrgId
+                     }
+                  )
+
+               getEmailActor mailbox.System <! msg
+            // TODO: Notify card network which issued the debit request to our bank.
             | _ -> ()
 
             return! loop <| Some state
@@ -164,26 +227,8 @@ let actorProps
                            mailbox
                            (EmployeeMessage.Event evt)
                            envelope.ConfirmationId
-                  | Error err ->
-                     logWarning
-                        $"Validation fail %s{string err} for command %s{cmd.GetType().Name}"
+                  | Error err -> handleValidationError cmd err
 
-                     match err with
-                     | EmployeeStateTransitionError e ->
-                        match e with
-                        // Noop
-                        | DebitAlreadyProgressedToApprovedOrDeclined -> ()
-                        | ExceededDailyDebit(limit, accrued) ->
-                           let msg =
-                              EmailActor.DebitDeclinedExceededDailyDebit(
-                                 limit,
-                                 accrued,
-                                 employee.Email
-                              )
-
-                           getEmailActor mailbox.System <! msg
-                        | _ -> ()
-                     | _ -> ()
                | msg ->
                   logError
                      $"Unknown message in ConfirmableMessageEnvelope - {msg}"

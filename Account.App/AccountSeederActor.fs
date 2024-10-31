@@ -84,7 +84,7 @@ let socialTransferCandidates = [
       SavingsAccountId =
          "7918f574-9600-481f-bbc8-0a0430f5a418" |> Guid.Parse |> AccountId
       AccountOwnerId =
-         "54804db3-1a1c-42dd-b8bb-94cc71519557" |> Guid.Parse |> EmployeeId
+         "54804db3-1a1c-42dd-b8bb-94cc71519558" |> Guid.Parse |> EmployeeId
       AccountOwnerName = {| First = "Paul"; Last = "Haslinger" |}
       AccountOwnerEmail = "haslinger@gmail.com"
       BusinessName = "Lendtable"
@@ -1088,7 +1088,7 @@ let seedAccountOwnerActions
                         Amount = 3000m + randomAmount 1000 8000
                         ScheduledDateSeedOverride = Some timestamp
                         Sender = {
-                           Name = mockAccounts[apCheckingAccountId].Data.Name
+                           Name = orgName
                            AccountId = apCheckingAccountId
                            OrgId = orgId
                         }

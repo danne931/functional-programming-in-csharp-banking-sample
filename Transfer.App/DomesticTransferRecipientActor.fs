@@ -206,7 +206,10 @@ let actorProps
                   logError $"Transfer API requires code update: {err}"
 
                   getEmailActor ()
-                  <! EmailActor.ApplicationErrorRequiresSupport(string err)
+                  <! EmailActor.EmailMessage.ApplicationErrorRequiresSupport(
+                     string err,
+                     txn.Sender.OrgId
+                  )
 
                   Unhandled
                | DeclinedReason.InvalidAmount

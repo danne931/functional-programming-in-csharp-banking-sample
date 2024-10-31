@@ -319,9 +319,11 @@ let tests =
          for cmd in Stub.initCommands do
             o.employeeActor <! EmployeeMessage.StateChange cmd
 
+         let dailyLimit = 100m
+
          let cmd =
             EmployeeCommand.LimitDailyDebits
-            <| Stub.command.limitDailyDebits 100m
+            <| Stub.command.limitDailyDebits dailyLimit
 
          o.employeeActor <! EmployeeMessage.StateChange cmd
          o.employeeActor <! EmployeeMessage.GetEmployee
@@ -361,10 +363,13 @@ let tests =
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
          match msg with
-         | EmailActor.EmailMessage.DebitDeclinedExceededDailyDebit(_, accrued, _) ->
+         | EmailActor.EmailMessage.PurchaseDeclined info ->
             Expect.equal
-               accrued
-               expectedAccrued
+               info.Reason
+               (PurchaseDeclinedReason.ExceededDailyCardLimit(
+                  dailyLimit,
+                  expectedAccrued
+               ))
                "Should reject purchases over the daily limit"
          | msg ->
             Expect.isTrue

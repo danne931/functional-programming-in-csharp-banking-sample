@@ -152,6 +152,24 @@ type DebitInfo = {
    Reference: string option
 }
 
+[<RequireQualifiedAccess>]
+type PurchaseDeclinedReason =
+   | InsufficientAccountFunds of balance: decimal * accountName: string
+   | ExceededDailyCardLimit of limit: decimal * accrued: decimal
+   | ExceededMonthlyCardLimit of limit: decimal * accrued: decimal
+
+module PurchaseDeclinedReason =
+   let display =
+      function
+      | PurchaseDeclinedReason.InsufficientAccountFunds(balance, accountName) ->
+         $"Account {accountName} has insufficient funds.  The current balance is ${balance}."
+      | PurchaseDeclinedReason.ExceededDailyCardLimit(limit, accrued) ->
+         $"You have spent ${accrued} today. 
+           Your daily purchase limit is set to ${limit}."
+      | PurchaseDeclinedReason.ExceededMonthlyCardLimit(limit, accrued) ->
+         $"You have spent ${accrued} this month. 
+           Your monthly purchase limit is set to ${limit}."
+
 /// Tasks to initiate upon employee invite confirmation.
 type EmployeeOnboardingTask = CreateCard of EmployeeInviteSupplementaryCardInfo
 

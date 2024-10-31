@@ -15,7 +15,6 @@ open Lib.SharedTypes
 open Lib.Types
 open ActorUtil
 open Bank.Account.Domain
-open Bank.Transfer.Domain
 
 let deleteAccounts
    (system: ActorSystem)
@@ -75,7 +74,13 @@ let actorProps
                   do! deleteAccounts accounts
 
                   for account in accounts.Values do
-                     getEmailRef () <! EmailActor.AccountClose account
+                     let msg =
+                        EmailActor.EmailMessage.AccountClose(
+                           account.FullName,
+                           account.OrgId
+                        )
+
+                     getEmailRef () <! msg
 
                   let accountIds = accounts |> Map.keys |> List.ofSeq
 

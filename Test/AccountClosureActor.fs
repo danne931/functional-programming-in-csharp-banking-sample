@@ -138,10 +138,10 @@ let tests =
             TestKit.expectMsg tck AccountMessage.Delete |> ignore
 
             match emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
-            | EmailActor.EmailMessage.AccountClose acct ->
+            | EmailActor.EmailMessage.AccountClose(accountName, orgId) ->
                Expect.equal
-                  acct
-                  account
+                  (accountName, orgId)
+                  (account.FullName, account.OrgId)
                   "EmailActor should receive AccountClose
                    message containing a registered account to delete"
             | _ ->

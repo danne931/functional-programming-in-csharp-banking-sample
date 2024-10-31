@@ -46,7 +46,10 @@ type DebitRequested = { Info: DebitInfo }
 
 type DebitApproved = { Info: DebitInfo }
 
-type DebitDeclined = { Info: DebitInfo }
+type DebitDeclined = {
+   Info: DebitInfo
+   Reason: PurchaseDeclinedReason
+}
 
 type DailyDebitLimitUpdated = {
    CardId: CardId

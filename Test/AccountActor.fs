@@ -5,6 +5,7 @@ open Expecto
 open Akkling
 open Akka.Actor
 open Akka.Persistence.Extras
+open Akkling.Cluster.Sharding
 
 open Util
 open ActorUtil
@@ -59,21 +60,38 @@ let mockPersistenceSupervisorProps
 
    props init
 
+let initMockEmployeeActor (tck: TestKit.Tck) =
+   let handler (ctx: Actor<_>) (msg: obj) =
+      match msg with
+      | :? ShardEnvelope as envelope ->
+         match envelope.Message with
+         | :? EmployeeMessage as msg ->
+            match msg with
+            | EmployeeMessage.StateChange(EmployeeCommand.DeclineDebit cmd) ->
+               cmd
+               |> EmployeeCommand.DeclineDebit
+               |> EmployeeMessage.StateChange
+               |> tck.TestActor.Tell
+               |> ignored
+            | msg -> unhandled msg
+         | msg -> unhandled msg
+      | msg -> unhandled msg
+
+   spawn tck "employee-mock" <| props (actorOf2 handler)
+
 let init (tck: TestKit.Tck) =
    let internalTransferProbe = tck.CreateTestProbe()
    let domesticTransferProbe = tck.CreateTestProbe()
    let emailProbe = tck.CreateTestProbe()
    let accountClosureProbe = tck.CreateTestProbe()
    let billingProbe = tck.CreateTestProbe()
+   let accountProbe = tck.CreateTestProbe()
+   let schedulingProbe = tck.CreateTestProbe()
 
-   let accountProbe =
-      tck.CreateTestProbe() |> typed :> IActorRef<AccountMessage>
+   let getEmployeeRef = getEmployeeEntityRef (initMockEmployeeActor tck)
 
-   let employeeProbe =
-      tck.CreateTestProbe() |> typed :> IActorRef<EmployeeMessage>
-
-   let schedulingProbe =
-      tck.CreateTestProbe() |> typed :> IActorRef<SchedulingActor.Message>
+   let getAccountRef =
+      accountProbe |> typed :> IActorRef<AccountMessage> |> getAccountEntityRef
 
    let getOrStartInternalTransferActor (_: Actor<_>) =
       typed internalTransferProbe :> IActorRef<InternalTransferMsg>
@@ -100,9 +118,9 @@ let init (tck: TestKit.Tck) =
                getEmailActor
                getAccountClosureActor
                getBillingStatementActor
-               (getEmployeeEntityRef employeeProbe)
-               (getAccountEntityRef accountProbe)
-               schedulingProbe)
+               getEmployeeRef
+               getAccountRef
+               (schedulingProbe |> typed :> IActorRef<SchedulingActor.Message>))
 
    let accountActor = spawn tck ActorMetadata.account.Name prop
 
@@ -134,21 +152,19 @@ let tests =
             (Some Stub.accountStateAfterCreate)
             "Account state after CreateAccountCommand should be initialized"
 
-      (* TODO
          let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
 
          match msg with
-         | EmailActor.EmailMessage.AccountOpen account ->
+         | EmailActor.EmailMessage.AccountOpen(accountName, orgId) ->
             Expect.equal
-               (Some account)
-               (Some Stub.accountStateAfterCreate)
+               (accountName, orgId)
+               (state.Value.FullName, state.Value.OrgId)
                "EmailActor should receive AccountOpen message with created
                account"
          | msg ->
             Expect.isTrue
                false
                $"Expected AccountOpen EmailMessage. Received {msg}"
-         *)
 
       akkaTest "Close account should interact with the AccountClosureActor"
       <| Some config
@@ -188,7 +204,7 @@ let tests =
                $"Expected Register AccountClosureMessage. Received {msg}"
 
       akkaTest
-         "A failed debit due to insufficient balance should notify the EmailActor"
+         "A failed debit due to insufficient balance should notify the employee actor who is attempting a purchase"
       <| Some config
       <| fun tck ->
          let o = init tck
@@ -214,76 +230,21 @@ let tests =
             "Account state should be unchanged after failed debit validation due
             to insufficient balance"
 
-      (* TODO
-         // account create email
-         o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
-
-         let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
+         let msg = tck.ExpectMsg<EmployeeMessage>()
 
          match msg with
-         | EmailActor.EmailMessage.DebitDeclinedInsufficientAccountBalance _ ->
-            Expect.isTrue true ""
+         | EmployeeMessage.StateChange(EmployeeCommand.DeclineDebit cmd) ->
+            Expect.equal
+               cmd.Data.Reason
+               (PurchaseDeclinedReason.InsufficientAccountFunds(
+                  account.Balance,
+                  account.FullName
+               ))
+               "Expect InsufficientAccountFunds purchase declined reason"
          | msg ->
             Expect.isTrue
                false
-               $"Expected DebitDeclined EmailMessage. Received {msg}"
-         *)
-
-      // TODO: move to employee domain tests
-      (*
-      akkaTest
-         "A failed debit due to exceeding daily debit allowance should notify the EmailActor"
-      <| Some config
-      <| fun tck ->
-         let o = init tck 
-         let cmd = AccountCommand.CreateAccount Stub.command.createAccount
-         o.accountActor <! AccountMessage.StateChange cmd
-
-         o.accountActor
-         <! AccountMessage.StateChange(initialDepositCommand 2000m)
-
-         let cmd =
-            AccountCommand.LimitDailyDebits
-            <| Stub.command.limitDailyDebits 100m
-
-         o.accountActor <! AccountMessage.StateChange cmd
-         o.accountActor <! AccountMessage.GetAccount
-
-         let state = tck.ExpectMsg<Option<Account>>()
-         let account = Expect.wantSome state ""
-
-         Expect.equal
-            account.DailyDebitLimit
-            100m
-            "Account state should be configured with the daily debit limit"
-
-         let debit1 = AccountCommand.Debit <| Stub.command.debit 98m
-         let debit2 = AccountCommand.Debit <| Stub.command.debit 33m
-         o.accountActor <! AccountMessage.StateChange debit1
-         o.accountActor <! AccountMessage.StateChange debit2
-         o.accountActor <! AccountMessage.GetAccount
-         let state = tck.ExpectMsg<Option<Account>>()
-         let account = Expect.wantSome state ""
-
-         Expect.equal
-            account.Balance
-            (2000m - 98m)
-            "Account balance should reflect debits over daily accrued amount being rejected"
-
-         o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
-         let msg = o.emailProbe.ExpectMsg<EmailActor.EmailMessage>()
-
-         match msg with
-         | EmailActor.EmailMessage.DebitDeclined(errMsg, account) ->
-            Expect.stringContains
-               errMsg
-               "ExceededDailyDebit"
-               "DebitDeclined message sent due to ExceededDailyDebit"
-         | msg ->
-            Expect.isTrue
-               false
-               $"Expected DebitDeclined EmailMessage. Received {msg}"
-      *)
+               $"Expected DebitDeclined EmployeeCommand. Received {msg}"
 
       akkaTest
          "An internal transfer should message the InternalTransferRecipientActor"
@@ -395,18 +356,15 @@ let tests =
             2101m
             "Account state should reflect a received transfer"
 
-      (* TODO
-         // account create email
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
 
          match o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
-         | EmailActor.EmailMessage.TransferBetweenOrgsDeposited _ ->
+         | EmailActor.EmailMessage.InternalTransferBetweenOrgsDeposited info ->
             Expect.isTrue true ""
          | msg ->
             Expect.isTrue
                false
                $"Expected TransferDeposited EmailMessage. Received {msg}"
-         *)
 
       akkaTest
          "AccountActor interacts with BillingStatementActor & EmailActor
@@ -457,15 +415,13 @@ let tests =
             "RegisterBillingStatements msg should send transactions equivalent
              to those associated with the account events"
 
-         (* TODO
-         // account create email
          o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() |> ignore
 
          match o.emailProbe.ExpectMsg<EmailActor.EmailMessage>() with
-         | EmailActor.BillingStatement account ->
+         | EmailActor.EmailMessage.BillingStatement(accountName, orgId) ->
             Expect.equal
-               account
-               initAccount
+               (accountName, orgId)
+               (initAccount.FullName, initAccount.OrgId)
                "EmailActor BillingStatement message should contain
                 an account record equivalent to the current account state"
          | msg ->
@@ -473,7 +429,6 @@ let tests =
                false
                $"EmailActor expects BillingStatement message.
                  Received message: {msg}"
-         *)
 
          o.accountActor <! AccountMessage.GetAccount
 
